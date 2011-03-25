@@ -1,0 +1,14 @@
+URL: http://sourceforge.net/projects/scons/files/scons/2.0.1/scons-2.0.1.tar.gz/download  or  http://www.scons.org/download.php
+Version: 2.0.1
+License: MIT 
+License File: LICENSE
+
+Description:
+SCons is an Open Source software construction tool-that is, a next-generation
+build tool. Think of SCons as an improved, cross-platform substitute for the
+classic Make utility with integrated functionality similar to
+autoconf/automake and compiler caches such as ccache. In short, SCons is an
+easier, more reliable and faster way to build software.
+
+Current local modifications:
+None
