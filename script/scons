@@ -161,7 +161,18 @@ else:
 
     try:
         import pkg_resources
-    except ImportError:
+    # BEGIN MODIFICATION
+    # It is known that importing pkg_resources can result in:
+    # An ImportError or
+    # A distutils.errors.DistutilsPlatformError
+    # (See: http://bugs.python.org/issue9516)
+    # The upstream version of SCons only catches an ImportError.
+    # The other exception gets throw on the Mac toolchain bot because it
+    # sets MACOSX_DEPLOYMENT_TARGET to an older version.
+    # In practice, it doesn't matter why importing pkg_resources fails, so
+    # it's reasonable to catch every exception.
+    except Exception:
+    # END MODIFICATION
         pass
     else:
         # when running from an egg add the egg's directory 

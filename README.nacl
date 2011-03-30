@@ -11,4 +11,7 @@ autoconf/automake and compiler caches such as ccache. In short, SCons is an
 easier, more reliable and faster way to build software.
 
 Current local modifications:
-None
+
+scripts/scons - exception handling for importing pkg_resources is broader.
+(catch Exception vs. ImportError)  This fixes a problem encountered where the
+Mac toolchain bot redefines MACOSX_DEPLOYMENT_TARGET.
