@@ -15,3 +15,7 @@ Current local modifications:
 scripts/scons - exception handling for importing pkg_resources is broader.
 (catch Exception vs. ImportError)  This fixes a problem encountered where the
 Mac toolchain bot redefines MACOSX_DEPLOYMENT_TARGET.
+
+Applied workaround from: http://scons.tigris.org/issues/show_bug.cgi?id=2449
+NOTE: Both python and SCons are NOT planning to fix this, so we will need this
+fix even when upgrading to newer versions of scons or python.
