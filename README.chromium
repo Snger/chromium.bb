@@ -2,23 +2,25 @@ Name: Psyco, compiled for 32-bit Win32
 Short Name: psyco
 License: MIT
 URL: http://psyco.sourceforge.net/
-Version: r80409
+Version: 7a8b492
 
 Description:
 
 No local modifications.
 
 This is a 32-bit Win32 installation of Psyco, generated as follows on
-a Windows box at the Psyco SVN repository's revision 80409:
+a Windows box at the Psyco mercurial revision 7a8b492.
 
-a) svn co http://codespeak.net/svn/psyco/dist/ psyco-dist
+a) hg clone https://bitbucket.org/arigo/psyco
 
-b) python setup.py build_ext -i
+b) hg update 7a8b492
 
-c) Copy the contents of the resulting py-support/ directory to
+c) python setup.py build_ext -i
+
+d) Copy the contents of the resulting py-support/ directory to
    third_party/psyco_win32/psyco
 
-d) Copy COPYING.txt from the SVN checkout to
+e) Copy COPYING.txt from the hg checkout to
    third_party/psyco_win32/COPYING.txt
 
-e) Add this README.chromium file.
+f) Add this README.chromium file.
