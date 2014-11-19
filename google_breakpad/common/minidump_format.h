@@ -342,7 +342,7 @@ typedef enum {
   MD_LINUX_ENVIRON               = 0x47670007,  /* /proc/$x/environ   */
   MD_LINUX_AUXV                  = 0x47670008,  /* /proc/$x/auxv      */
   MD_LINUX_MAPS                  = 0x47670009,  /* /proc/$x/maps      */
-  MD_LINUX_DSO_DEBUG             = 0x4767000A   /* MDRawDebug{32,64}  */
+  MD_LINUX_DSO_DEBUG             = 0x4767000A   /* MDRawDebug         */
 } MDStreamType;  /* MINIDUMP_STREAM_TYPE */
 
 
@@ -449,25 +449,14 @@ static const size_t MDCVInfoPDB70_minsize = offsetof(MDCVInfoPDB70,
 
 #define MD_CVINFOPDB70_SIGNATURE 0x53445352  /* cvSignature = 'SDSR' */
 
-/*
- * Modern ELF toolchains insert a "build id" into the ELF headers that
- * usually contains a hash of some ELF headers + sections to uniquely
- * identify a binary.
- *
- * https://access.redhat.com/documentation/en-US/Red_Hat_Enterprise_Linux/6/html/Developer_Guide/compiling-build-id.html
- * https://sourceware.org/binutils/docs-2.26/ld/Options.html#index-g_t_002d_002dbuild_002did-292
- */
 typedef struct {
-  uint32_t cv_signature;
-  uint8_t  build_id[1];  /* Bytes of build id from GNU_BUILD_ID ELF note.
-                          * This is variable-length, but usually 20 bytes
-                          * as the binutils ld default is a SHA-1 hash. */
+  uint32_t data1[2];
+  uint32_t data2;
+  uint32_t data3;
+  uint32_t data4;
+  uint32_t data5[3];
+  uint8_t  extra[2];
 } MDCVInfoELF;
-
-static const size_t MDCVInfoELF_minsize = offsetof(MDCVInfoELF,
-                                                   build_id[0]);
-
-#define MD_CVINFOELF_SIGNATURE 0x4270454c  /* cvSignature = 'BpEL' */
 
 /* In addition to the two CodeView record formats above, used for linking
  * to external pdb files, it is possible for debugging data to be carried
@@ -649,7 +638,6 @@ typedef enum {
   MD_CPU_ARCHITECTURE_SPARC     = 0x8001, /* Breakpad-defined value for SPARC */
   MD_CPU_ARCHITECTURE_PPC64     = 0x8002, /* Breakpad-defined value for PPC64 */
   MD_CPU_ARCHITECTURE_ARM64     = 0x8003, /* Breakpad-defined value for ARM64 */
-  MD_CPU_ARCHITECTURE_MIPS64    = 0x8004, /* Breakpad-defined value for MIPS64 */
   MD_CPU_ARCHITECTURE_UNKNOWN   = 0xffff  /* PROCESSOR_ARCHITECTURE_UNKNOWN */
 } MDCPUArchitecture;
 
@@ -942,39 +930,21 @@ typedef enum {
 } MDAssertionInfoData;
 
 /* These structs are used to store the DSO debug data in Linux minidumps,
- * which is necessary for converting minidumps to usable coredumps.
- * Because of a historical accident, several fields are variably encoded
- * according to client word size, so tools potentially need to support both. */
-
+ * which is necessary for converting minidumps to usable coredumps. */
 typedef struct {
-  uint32_t  addr;
+  void*     addr;
   MDRVA     name;
-  uint32_t  ld;
-} MDRawLinkMap32;
+  void*     ld;
+} MDRawLinkMap;
 
 typedef struct {
   uint32_t  version;
-  MDRVA     map;  /* array of MDRawLinkMap32 */
+  MDRVA     map;
   uint32_t  dso_count;
-  uint32_t  brk;
-  uint32_t  ldbase;
-  uint32_t  dynamic;
-} MDRawDebug32;
-
-typedef struct {
-  uint64_t  addr;
-  MDRVA     name;
-  uint64_t  ld;
-} MDRawLinkMap64;
-
-typedef struct {
-  uint32_t  version;
-  MDRVA     map;  /* array of MDRawLinkMap64 */
-  uint32_t  dso_count;
-  uint64_t  brk;
-  uint64_t  ldbase;
-  uint64_t  dynamic;
-} MDRawDebug64;
+  void*     brk;
+  void*     ldbase;
+  void*     dynamic;
+} MDRawDebug;
 
 #if defined(_MSC_VER)
 #pragma warning(pop)

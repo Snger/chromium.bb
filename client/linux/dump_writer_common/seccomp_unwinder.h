@@ -1,4 +1,4 @@
-// Copyright (c) 2016, Google Inc.
+// Copyright (c) 2014, Google Inc.
 // All rights reserved.
 //
 // Redistribution and use in source and binary forms, with or without
@@ -27,17 +27,24 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#ifndef GOOGLE_BREAKPAD_COMMON_STDIO_H
-#define GOOGLE_BREAKPAD_COMMON_STDIO_H
+#ifndef CLIENT_LINUX_DUMP_WRITER_COMMON_SECCOMP_UNWINDER_H
+#define CLIENT_LINUX_DUMP_WRITER_COMMON_SECCOMP_UNWINDER_H
 
-#include <stdio.h>
+#include "client/linux/dump_writer_common/raw_context_cpu.h"
+#include "google_breakpad/common/minidump_format.h"
 
-#if defined(_MSC_VER) && MSC_VER < 1900
-#include <basetsd.h>
+namespace google_breakpad {
 
-#define snprintf _snprintf
-typedef SSIZE_T ssize_t;
-#endif
+struct SeccompUnwinder {
 
+  // Check if the top of the stack is part of a system call that has been
+  // redirected by the seccomp sandbox. If so, try to pop the stack frames
+  // all the way back to the point where the interception happened.
+  static void PopSeccompStackFrame(RawContextCPU* cpu,
+                                   const MDRawThread& thread,
+                                   uint8_t* stack_copy);
+};
 
-#endif  // GOOGLE_BREAKPAD_COMMON_STDIO_H
+}  // namespace google_breakpad
+
+#endif  // CLIENT_LINUX_DUMP_WRITER_COMMON_SECCOMP_UNWINDER_H

@@ -45,7 +45,7 @@
 #import "client/mac/handler/protected_memory_allocator.h"
 #import "common/simple_string_dictionary.h"
 
-#if !defined(__EXCEPTIONS) || (__clang__ && !__has_feature(cxx_exceptions))
+#ifndef __EXCEPTIONS
 // This file uses C++ try/catch (but shouldn't). Duplicate the macros from
 // <c++/4.2.1/exception_defines.h> allowing this file to work properly with
 // exceptions disabled even when other C++ libraries are used. #undef the try
@@ -263,8 +263,8 @@ void Breakpad::UncaughtExceptionHandler(NSException *exception) {
   NSSetUncaughtExceptionHandler(NULL);
   if (current_breakpad_) {
     current_breakpad_->HandleUncaughtException(exception);
-    BreakpadRelease(current_breakpad_);
   }
+  BreakpadRelease(current_breakpad_);
 }
 
 //=============================================================================
@@ -341,7 +341,7 @@ bool Breakpad::ExtractParameters(NSDictionary *parameters) {
     }
   }
 
-  if (!version.length)  // Default nil or empty string to CFBundleVersion
+  if (!version)
     version = [parameters objectForKey:@"CFBundleVersion"];
 
   if (!vendor) {

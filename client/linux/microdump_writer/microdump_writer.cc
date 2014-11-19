@@ -34,13 +34,13 @@
 
 #include <sys/utsname.h>
 
+#include "client/linux/dump_writer_common/seccomp_unwinder.h"
 #include "client/linux/dump_writer_common/thread_info.h"
 #include "client/linux/dump_writer_common/ucontext_reader.h"
 #include "client/linux/handler/exception_handler.h"
-#include "client/linux/handler/microdump_extra_info.h"
-#include "client/linux/log/log.h"
 #include "client/linux/minidump_writer/linux_ptrace_dumper.h"
 #include "common/linux/linux_libc_support.h"
+#include "client/linux/log/log.h"
 
 namespace {
 
@@ -49,51 +49,37 @@ using google_breakpad::LinuxDumper;
 using google_breakpad::LinuxPtraceDumper;
 using google_breakpad::MappingInfo;
 using google_breakpad::MappingList;
-using google_breakpad::MicrodumpExtraInfo;
 using google_breakpad::RawContextCPU;
+using google_breakpad::SeccompUnwinder;
 using google_breakpad::ThreadInfo;
 using google_breakpad::UContextReader;
-
-const size_t kLineBufferSize = 2048;
 
 class MicrodumpWriter {
  public:
   MicrodumpWriter(const ExceptionHandler::CrashContext* context,
                   const MappingList& mappings,
-                  const MicrodumpExtraInfo& microdump_extra_info,
                   LinuxDumper* dumper)
       : ucontext_(context ? &context->context : NULL),
 #if !defined(__ARM_EABI__) && !defined(__mips__)
         float_state_(context ? &context->float_state : NULL),
 #endif
         dumper_(dumper),
-        mapping_list_(mappings),
-        microdump_extra_info_(microdump_extra_info),
-        log_line_(NULL) {
-    log_line_ = reinterpret_cast<char*>(Alloc(kLineBufferSize));
-    if (log_line_)
-      log_line_[0] = '\0';  // Clear out the log line buffer.
-  }
+        mapping_list_(mappings) { }
 
   ~MicrodumpWriter() { dumper_->ThreadsResume(); }
 
   bool Init() {
-    // In the exceptional case where the system was out of memory and there
-    // wasn't even room to allocate the line buffer, bail out. There is nothing
-    // useful we can possibly achieve without the ability to Log. At least let's
-    // try to not crash.
-    if (!dumper_->Init() || !log_line_)
+    if (!dumper_->Init())
       return false;
-    return dumper_->ThreadsSuspend() && dumper_->LateInit();
+    return dumper_->ThreadsSuspend();
   }
 
   bool Dump() {
     bool success;
     LogLine("-----BEGIN BREAKPAD MICRODUMP-----");
-    DumpProductInformation();
-    DumpOSInformation();
-    DumpGPUInformation();
-    success = DumpCrashingThread();
+    success = DumpOSInformation();
+    if (success)
+      success = DumpCrashingThread();
     if (success)
       success = DumpMappings();
     LogLine("-----END BREAKPAD MICRODUMP-----");
@@ -104,17 +90,12 @@ class MicrodumpWriter {
  private:
   // Writes one line to the system log.
   void LogLine(const char* msg) {
-#if defined(__ANDROID__)
-    logger::writeToCrashLog(msg);
-#else
     logger::write(msg, my_strlen(msg));
-    logger::write("\n", 1);
-#endif
   }
 
   // Stages the given string in the current line buffer.
   void LogAppend(const char* str) {
-    my_strlcat(log_line_, str, kLineBufferSize);
+    my_strlcat(log_line_, str, sizeof(log_line_));
   }
 
   // As above (required to take precedence over template specialization below).
@@ -144,22 +125,14 @@ class MicrodumpWriter {
 
   // Writes out the current line buffer on the system log.
   void LogCommitLine() {
-    LogLine(log_line_);
-    my_strlcpy(log_line_, "", kLineBufferSize);
+    logger::write(log_line_, my_strlen(log_line_));
+    my_strlcpy(log_line_, "", sizeof(log_line_));
   }
 
-  void DumpProductInformation() {
-    LogAppend("V ");
-    if (microdump_extra_info_.product_info) {
-      LogAppend(microdump_extra_info_.product_info);
-    } else {
-      LogAppend("UNKNOWN:0.0.0.0");
-    }
-    LogCommitLine();
-  }
-
-  void DumpOSInformation() {
-    const uint8_t n_cpus = static_cast<uint8_t>(sysconf(_SC_NPROCESSORS_CONF));
+  bool DumpOSInformation() {
+    struct utsname uts;
+    if (uname(&uts))
+      return false;
 
 #if defined(__ANDROID__)
     const char kOSId[] = "A";
@@ -167,66 +140,17 @@ class MicrodumpWriter {
     const char kOSId[] = "L";
 #endif
 
-// Dump the runtime architecture. On multiarch devices it might not match the
-// hw architecture (the one returned by uname()), for instance in the case of
-// a 32-bit app running on a aarch64 device.
-#if defined(__aarch64__)
-    const char kArch[] = "arm64";
-#elif defined(__ARMEL__)
-    const char kArch[] = "arm";
-#elif defined(__x86_64__)
-    const char kArch[] = "x86_64";
-#elif defined(__i386__)
-    const char kArch[] = "x86";
-#elif defined(__mips__)
-# if _MIPS_SIM == _ABIO32
-    const char kArch[] = "mips";
-# elif _MIPS_SIM == _ABI64
-    const char kArch[] = "mips64";
-# else
-#  error "This mips ABI is currently not supported (n32)"
-#endif
-#else
-#error "This code has not been ported to your platform yet"
-#endif
-
     LogAppend("O ");
     LogAppend(kOSId);
-    LogAppend(" ");
-    LogAppend(kArch);
-    LogAppend(" ");
-    LogAppend(n_cpus);
-    LogAppend(" ");
-
-    // Dump the HW architecture (e.g., armv7l, aarch64).
-    struct utsname uts;
-    const bool has_uts_info = (uname(&uts) == 0);
-    const char* hwArch = has_uts_info ? uts.machine : "unknown_hw_arch";
-    LogAppend(hwArch);
-    LogAppend(" ");
-
-    // If the client has attached a build fingerprint to the MinidumpDescriptor
-    // use that one. Otherwise try to get some basic info from uname().
-    if (microdump_extra_info_.build_fingerprint) {
-      LogAppend(microdump_extra_info_.build_fingerprint);
-    } else if (has_uts_info) {
-      LogAppend(uts.release);
-      LogAppend(" ");
-      LogAppend(uts.version);
-    } else {
-      LogAppend("no build fingerprint available");
-    }
+    LogAppend(" \"");
+    LogAppend(uts.machine);
+    LogAppend("\" \"");
+    LogAppend(uts.release);
+    LogAppend(" \"");
+    LogAppend(uts.version);
+    LogAppend("\"");
     LogCommitLine();
-  }
-
-  void DumpGPUInformation() {
-    LogAppend("G ");
-    if (microdump_extra_info_.gpu_fingerprint) {
-      LogAppend(microdump_extra_info_.gpu_fingerprint);
-    } else {
-      LogAppend("UNKNOWN");
-    }
-    LogCommitLine();
+    return true;
   }
 
   bool DumpThreadStack(uint32_t thread_id,
@@ -238,9 +162,8 @@ class MicrodumpWriter {
     size_t stack_len;
 
     if (!dumper_->GetStackInfo(&stack, &stack_len, stack_pointer)) {
-      // The stack pointer might not be available. In this case we don't hard
-      // fail, just produce a (almost useless) microdump w/o a stack section.
-      return true;
+      assert(false);
+      return false;
     }
 
     LogAppend("S 0 ");
@@ -302,6 +225,8 @@ class MicrodumpWriter {
 #else
       UContextReader::FillCPUContext(&cpu, ucontext_);
 #endif
+      if (stack_copy)
+        SeccompUnwinder::PopSeccompStackFrame(&cpu, thread, stack_copy);
       DumpCPUState(&cpu);
     }
     return true;
@@ -371,7 +296,7 @@ class MicrodumpWriter {
     LogAppend(module_identifier.data4[5]);
     LogAppend(module_identifier.data4[6]);
     LogAppend(module_identifier.data4[7]);
-    LogAppend("0 ");  // Age is always 0 on Linux.
+    LogAppend(" ");
     LogAppend(file_name);
     LogCommitLine();
   }
@@ -381,12 +306,14 @@ class MicrodumpWriter {
     // First write all the mappings from the dumper
     for (unsigned i = 0; i < dumper_->mappings().size(); ++i) {
       const MappingInfo& mapping = *dumper_->mappings()[i];
-      if (mapping.name[0] == 0 ||  // only want modules with filenames.
-          !mapping.exec ||  // only want executable mappings.
-          mapping.size < 4096 || // too small to get a signature for.
-          HaveMappingInfo(mapping)) {
+      // Skip mappings which don't look like libraries.
+      if (!strstr(mapping.name, ".so") ||  // dump only libs (skip fonts, apks).
+          mapping.size < 4096) { // too small to get a signature for.
         continue;
       }
+
+      if (HaveMappingInfo(mapping))
+        continue;
 
       DumpModule(mapping, true, i, NULL);
     }
@@ -407,8 +334,7 @@ class MicrodumpWriter {
 #endif
   LinuxDumper* dumper_;
   const MappingList& mapping_list_;
-  const MicrodumpExtraInfo microdump_extra_info_;
-  char* log_line_;
+  char log_line_[512];
 };
 }  // namespace
 
@@ -417,8 +343,7 @@ namespace google_breakpad {
 bool WriteMicrodump(pid_t crashing_process,
                     const void* blob,
                     size_t blob_size,
-                    const MappingList& mappings,
-                    const MicrodumpExtraInfo& microdump_extra_info) {
+                    const MappingList& mappings) {
   LinuxPtraceDumper dumper(crashing_process);
   const ExceptionHandler::CrashContext* context = NULL;
   if (blob) {
@@ -430,7 +355,7 @@ bool WriteMicrodump(pid_t crashing_process,
     dumper.set_crash_signal(context->siginfo.si_signo);
     dumper.set_crash_thread(context->tid);
   }
-  MicrodumpWriter writer(context, mappings, microdump_extra_info, &dumper);
+  MicrodumpWriter writer(context, mappings, &dumper);
   if (!writer.Init())
     return false;
   return writer.Dump();

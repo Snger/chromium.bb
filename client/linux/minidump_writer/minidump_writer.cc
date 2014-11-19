@@ -64,6 +64,7 @@
 
 #include <algorithm>
 
+#include "client/linux/dump_writer_common/seccomp_unwinder.h"
 #include "client/linux/dump_writer_common/thread_info.h"
 #include "client/linux/dump_writer_common/ucontext_reader.h"
 #include "client/linux/handler/exception_handler.h"
@@ -74,7 +75,6 @@
 #include "client/linux/minidump_writer/proc_cpuinfo_reader.h"
 #include "client/minidump_file_writer.h"
 #include "common/linux/linux_libc_support.h"
-#include "common/minidump_type_helper.h"
 #include "google_breakpad/common/minidump_format.h"
 #include "third_party/lss/linux_syscall_support.h"
 
@@ -86,7 +86,6 @@ using google_breakpad::CpuSet;
 using google_breakpad::LineReader;
 using google_breakpad::LinuxDumper;
 using google_breakpad::LinuxPtraceDumper;
-using google_breakpad::MDTypeHelper;
 using google_breakpad::MappingEntry;
 using google_breakpad::MappingInfo;
 using google_breakpad::MappingList;
@@ -94,14 +93,13 @@ using google_breakpad::MinidumpFileWriter;
 using google_breakpad::PageAllocator;
 using google_breakpad::ProcCpuInfoReader;
 using google_breakpad::RawContextCPU;
+using google_breakpad::SeccompUnwinder;
 using google_breakpad::ThreadInfo;
 using google_breakpad::TypedMDRVA;
 using google_breakpad::UContextReader;
 using google_breakpad::UntypedMDRVA;
 using google_breakpad::wasteful_vector;
 
-typedef MDTypeHelper<sizeof(void*)>::MDRawDebug MDRawDebug;
-typedef MDTypeHelper<sizeof(void*)>::MDRawLinkMap MDRawLinkMap;
 
 class MinidumpWriter {
  public:
@@ -152,7 +150,7 @@ class MinidumpWriter {
     else if (!minidump_writer_.Open(path_))
       return false;
 
-    return dumper_->ThreadsSuspend() && dumper_->LateInit();
+    return dumper_->ThreadsSuspend();
   }
 
   ~MinidumpWriter() {
@@ -168,26 +166,19 @@ class MinidumpWriter {
     // of stream which we write.
     unsigned kNumWriters = 13;
 
+    TypedMDRVA<MDRawHeader> header(&minidump_writer_);
     TypedMDRVA<MDRawDirectory> dir(&minidump_writer_);
-    {
-      // Ensure the header gets flushed, as that happens in the destructor.
-      // If a crash occurs somewhere below, at least the header will be
-      // intact.
-      TypedMDRVA<MDRawHeader> header(&minidump_writer_);
-      if (!header.Allocate())
-        return false;
+    if (!header.Allocate())
+      return false;
+    if (!dir.AllocateArray(kNumWriters))
+      return false;
+    my_memset(header.get(), 0, sizeof(MDRawHeader));
 
-      if (!dir.AllocateArray(kNumWriters))
-        return false;
-
-      my_memset(header.get(), 0, sizeof(MDRawHeader));
-
-      header.get()->signature = MD_HEADER_SIGNATURE;
-      header.get()->version = MD_HEADER_VERSION;
-      header.get()->time_date_stamp = time(NULL);
-      header.get()->stream_count = kNumWriters;
-      header.get()->stream_directory_rva = dir.position();
-    }
+    header.get()->signature = MD_HEADER_SIGNATURE;
+    header.get()->version = MD_HEADER_VERSION;
+    header.get()->time_date_stamp = time(NULL);
+    header.get()->stream_count = kNumWriters;
+    header.get()->stream_directory_rva = dir.position();
 
     unsigned dir_index = 0;
     MDRawDirectory dirent;
@@ -388,6 +379,8 @@ class MinidumpWriter {
 #else
         UContextReader::FillCPUContext(cpu.get(), ucontext_);
 #endif
+        if (stack_copy)
+          SeccompUnwinder::PopSeccompStackFrame(cpu.get(), thread, stack_copy);
         thread.thread_context = cpu.location();
         crashing_thread_context_ = cpu.location();
       } else {
@@ -408,6 +401,8 @@ class MinidumpWriter {
           return false;
         my_memset(cpu.get(), 0, sizeof(RawContextCPU));
         info.FillCPUContext(cpu.get());
+        if (stack_copy)
+          SeccompUnwinder::PopSeccompStackFrame(cpu.get(), thread, stack_copy);
         thread.thread_context = cpu.location();
         if (dumper_->threads()[i] == GetCrashThread()) {
           crashing_thread_context_ = cpu.location();
@@ -516,7 +511,7 @@ class MinidumpWriter {
         continue;
 
       MDRawModule mod;
-      if (!FillRawModule(mapping, true, i, &mod, NULL))
+      if (!FillRawModule(mapping, true, i, mod, NULL))
         return false;
       list.CopyIndexAfterObject(j++, &mod, MD_MODULE_SIZE);
     }
@@ -525,7 +520,7 @@ class MinidumpWriter {
          iter != mapping_list_.end();
          ++iter) {
       MDRawModule mod;
-      if (!FillRawModule(iter->first, false, 0, &mod, iter->second))
+      if (!FillRawModule(iter->first, false, 0, mod, iter->second))
         return false;
       list.CopyIndexAfterObject(j++, &mod, MD_MODULE_SIZE);
     }
@@ -539,12 +534,12 @@ class MinidumpWriter {
   bool FillRawModule(const MappingInfo& mapping,
                      bool member,
                      unsigned int mapping_id,
-                     MDRawModule* mod,
+                     MDRawModule& mod,
                      const uint8_t* identifier) {
-    my_memset(mod, 0, MD_MODULE_SIZE);
+    my_memset(&mod, 0, MD_MODULE_SIZE);
 
-    mod->base_of_image = mapping.start_addr;
-    mod->size_of_image = mapping.size;
+    mod.base_of_image = mapping.start_addr;
+    mod.size_of_image = mapping.size;
 
     uint8_t cv_buf[MDCVInfoPDB70_minsize + NAME_MAX];
     uint8_t* cv_ptr = cv_buf;
@@ -579,12 +574,12 @@ class MinidumpWriter {
     my_memcpy(cv_ptr, file_name, file_name_len + 1);
     cv.Copy(cv_buf, MDCVInfoPDB70_minsize + file_name_len + 1);
 
-    mod->cv_record = cv.location();
+    mod.cv_record = cv.location();
 
     MDLocationDescriptor ld;
     if (!minidump_writer_.WriteString(file_path, my_strlen(file_path), &ld))
       return false;
-    mod->module_name_rva = ld.rva;
+    mod.module_name_rva = ld.rva;
     return true;
   }
 
@@ -659,9 +654,7 @@ class MinidumpWriter {
     ElfW(Addr) dyn_addr = 0;
     for (; phnum >= 0; phnum--, phdr++) {
       ElfW(Phdr) ph;
-      if (!dumper_->CopyFromProcess(&ph, GetCrashThread(), phdr, sizeof(ph)))
-        return false;
-
+      dumper_->CopyFromProcess(&ph, GetCrashThread(), phdr, sizeof(ph));
       // Adjust base address with the virtual address of the PT_LOAD segment
       // corresponding to offset 0
       if (ph.p_type == PT_LOAD && ph.p_offset == 0) {
@@ -682,20 +675,12 @@ class MinidumpWriter {
     struct r_debug* r_debug = NULL;
     uint32_t dynamic_length = 0;
 
-    for (int i = 0; ; ++i) {
+    for (int i = 0;;) {
       ElfW(Dyn) dyn;
       dynamic_length += sizeof(dyn);
-      if (!dumper_->CopyFromProcess(&dyn, GetCrashThread(), dynamic + i,
-                                    sizeof(dyn))) {
-        return false;
-      }
-
-#ifdef __mips__
-      const int32_t debug_tag = DT_MIPS_RLD_MAP;
-#else
-      const int32_t debug_tag = DT_DEBUG;
-#endif
-      if (dyn.d_tag == debug_tag) {
+      dumper_->CopyFromProcess(&dyn, GetCrashThread(), dynamic+i++,
+                               sizeof(dyn));
+      if (dyn.d_tag == DT_DEBUG) {
         r_debug = reinterpret_cast<struct r_debug*>(dyn.d_un.d_ptr);
         continue;
       } else if (dyn.d_tag == DT_NULL) {
@@ -714,15 +699,11 @@ class MinidumpWriter {
     // Count the number of loaded DSOs
     int dso_count = 0;
     struct r_debug debug_entry;
-    if (!dumper_->CopyFromProcess(&debug_entry, GetCrashThread(), r_debug,
-                                  sizeof(debug_entry))) {
-      return false;
-    }
+    dumper_->CopyFromProcess(&debug_entry, GetCrashThread(), r_debug,
+                             sizeof(debug_entry));
     for (struct link_map* ptr = debug_entry.r_map; ptr; ) {
       struct link_map map;
-      if (!dumper_->CopyFromProcess(&map, GetCrashThread(), ptr, sizeof(map)))
-        return false;
-
+      dumper_->CopyFromProcess(&map, GetCrashThread(), ptr, sizeof(map));
       ptr = map.l_next;
       dso_count++;
     }
@@ -740,9 +721,7 @@ class MinidumpWriter {
       // Iterate over DSOs and write their information to mini dump
       for (struct link_map* ptr = debug_entry.r_map; ptr; ) {
         struct link_map map;
-        if (!dumper_->CopyFromProcess(&map, GetCrashThread(), ptr, sizeof(map)))
-          return  false;
-
+        dumper_->CopyFromProcess(&map, GetCrashThread(), ptr, sizeof(map));
         ptr = map.l_next;
         char filename[257] = { 0 };
         if (map.l_name) {
@@ -754,8 +733,8 @@ class MinidumpWriter {
           return false;
         MDRawLinkMap entry;
         entry.name = location.rva;
-        entry.addr = map.l_addr;
-        entry.ld = reinterpret_cast<uintptr_t>(map.l_ld);
+        entry.addr = reinterpret_cast<void*>(map.l_addr);
+        entry.ld = reinterpret_cast<void*>(map.l_ld);
         linkmap.CopyIndex(idx++, &entry);
       }
     }
@@ -771,9 +750,9 @@ class MinidumpWriter {
     debug.get()->version = debug_entry.r_version;
     debug.get()->map = linkmap_rva;
     debug.get()->dso_count = dso_count;
-    debug.get()->brk = debug_entry.r_brk;
-    debug.get()->ldbase = debug_entry.r_ldbase;
-    debug.get()->dynamic = reinterpret_cast<uintptr_t>(dynamic);
+    debug.get()->brk = reinterpret_cast<void*>(debug_entry.r_brk);
+    debug.get()->ldbase = reinterpret_cast<void*>(debug_entry.r_ldbase);
+    debug.get()->dynamic = dynamic;
 
     wasteful_vector<char> dso_debug_data(dumper_->allocator(), dynamic_length);
     // The passed-in size to the constructor (above) is only a hint.
@@ -824,13 +803,7 @@ class MinidumpWriter {
     // processor_architecture should always be set, do this first
     sys_info->processor_architecture =
 #if defined(__mips__)
-# if _MIPS_SIM == _ABIO32
         MD_CPU_ARCHITECTURE_MIPS;
-# elif _MIPS_SIM == _ABI64
-        MD_CPU_ARCHITECTURE_MIPS64;
-# else
-#  error "This mips ABI is currently not supported (n32)"
-#endif
 #elif defined(__i386__)
         MD_CPU_ARCHITECTURE_X86;
 #else
@@ -846,14 +819,15 @@ class MinidumpWriter {
       ProcCpuInfoReader* const reader = new(allocator) ProcCpuInfoReader(fd);
       const char* field;
       while (reader->GetNextField(&field)) {
-        bool is_first_entry = true;
-        for (CpuInfoEntry& entry : cpu_info_table) {
-          if (!is_first_entry && entry.found) {
+        for (size_t i = 0;
+             i < sizeof(cpu_info_table) / sizeof(cpu_info_table[0]);
+             i++) {
+          CpuInfoEntry* entry = &cpu_info_table[i];
+          if (i > 0 && entry->found) {
             // except for the 'processor' field, ignore repeated values.
             continue;
           }
-          is_first_entry = false;
-          if (!my_strcmp(field, entry.info_name)) {
+          if (!my_strcmp(field, entry->info_name)) {
             size_t value_len;
             const char* value = reader->GetValueAndLen(&value_len);
             if (value_len == 0)
@@ -863,8 +837,8 @@ class MinidumpWriter {
             if (my_read_decimal_ptr(&val, value) == value)
               continue;
 
-            entry.value = static_cast<int>(val);
-            entry.found = true;
+            entry->value = static_cast<int>(val);
+            entry->found = true;
           }
         }
 
@@ -880,8 +854,10 @@ class MinidumpWriter {
     }
 
     // make sure we got everything we wanted
-    for (const CpuInfoEntry& entry : cpu_info_table) {
-      if (!entry.found) {
+    for (size_t i = 0;
+         i < sizeof(cpu_info_table) / sizeof(cpu_info_table[0]);
+         i++) {
+      if (!cpu_info_table[i].found) {
         return false;
       }
     }
@@ -1017,15 +993,18 @@ class MinidumpWriter {
           new(allocator) ProcCpuInfoReader(fd);
       const char* field;
       while (reader->GetNextField(&field)) {
-        for (const CpuIdEntry& entry : cpu_id_entries) {
-          if (my_strcmp(entry.field, field) != 0)
+        for (size_t i = 0;
+             i < sizeof(cpu_id_entries)/sizeof(cpu_id_entries[0]);
+             ++i) {
+          const CpuIdEntry* entry = &cpu_id_entries[i];
+          if (my_strcmp(entry->field, field) != 0)
             continue;
           uintptr_t result = 0;
           const char* value = reader->GetValue();
           const char* p = value;
           if (value[0] == '0' && value[1] == 'x') {
             p = my_read_hex_ptr(&result, value+2);
-          } else if (entry.format == 'x') {
+          } else if (entry->format == 'x') {
             p = my_read_hex_ptr(&result, value);
           } else {
             p = my_read_decimal_ptr(&result, value);
@@ -1033,8 +1012,8 @@ class MinidumpWriter {
           if (p == value)
             continue;
 
-          result &= (1U << entry.bit_length)-1;
-          result <<= entry.bit_lshift;
+          result &= (1U << entry->bit_length)-1;
+          result <<= entry->bit_lshift;
           sys_info->cpu.arm_cpu_info.cpuid |=
               static_cast<uint32_t>(result);
         }
@@ -1088,7 +1067,7 @@ class MinidumpWriter {
             const char* tag = value;
             size_t tag_len = value_len;
             const char* p = my_strchr(tag, ' ');
-            if (p) {
+            if (p != NULL) {
               tag_len = static_cast<size_t>(p - tag);
               value += tag_len + 1;
               value_len -= tag_len + 1;
@@ -1096,10 +1075,14 @@ class MinidumpWriter {
               tag_len = strlen(tag);
               value_len = 0;
             }
-            for (const CpuFeaturesEntry& entry : cpu_features_entries) {
-              if (tag_len == strlen(entry.tag) &&
-                  !memcmp(tag, entry.tag, tag_len)) {
-                sys_info->cpu.arm_cpu_info.elf_hwcaps |= entry.hwcaps;
+            for (size_t i = 0;
+                i < sizeof(cpu_features_entries)/
+                    sizeof(cpu_features_entries[0]);
+                ++i) {
+              const CpuFeaturesEntry* entry = &cpu_features_entries[i];
+              if (tag_len == strlen(entry->tag) &&
+                  !memcmp(tag, entry->tag, tag_len)) {
+                sys_info->cpu.arm_cpu_info.elf_hwcaps |= entry->hwcaps;
                 break;
               }
             }

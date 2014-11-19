@@ -130,7 +130,7 @@ bool LinuxPtraceDumper::BuildProcPath(char* path, pid_t pid,
   return true;
 }
 
-bool LinuxPtraceDumper::CopyFromProcess(void* dest, pid_t child,
+void LinuxPtraceDumper::CopyFromProcess(void* dest, pid_t child,
                                         const void* src, size_t length) {
   unsigned long tmp = 55;
   size_t done = 0;
@@ -146,7 +146,6 @@ bool LinuxPtraceDumper::CopyFromProcess(void* dest, pid_t child,
     my_memcpy(local + done, &tmp, l);
     done += l;
   }
-  return true;
 }
 
 // Read thread info from /proc/$pid/status.
@@ -190,34 +189,26 @@ bool LinuxPtraceDumper::GetThreadInfoByIndex(size_t index, ThreadInfo* info) {
 
 #ifdef PTRACE_GETREGSET
   struct iovec io;
-  info->GetGeneralPurposeRegisters(&io.iov_base, &io.iov_len);
+  io.iov_base = &info->regs;
+  io.iov_len = sizeof(info->regs);
   if (sys_ptrace(PTRACE_GETREGSET, tid, (void*)NT_PRSTATUS, (void*)&io) == -1) {
     return false;
   }
 
-  info->GetFloatingPointRegisters(&io.iov_base, &io.iov_len);
+  io.iov_base = &info->fpregs;
+  io.iov_len = sizeof(info->fpregs);
   if (sys_ptrace(PTRACE_GETREGSET, tid, (void*)NT_FPREGSET, (void*)&io) == -1) {
     return false;
   }
-#else  // PTRACE_GETREGSET
-  void* gp_addr;
-  info->GetGeneralPurposeRegisters(&gp_addr, NULL);
-  if (sys_ptrace(PTRACE_GETREGS, tid, NULL, gp_addr) == -1) {
+#else
+  if (sys_ptrace(PTRACE_GETREGS, tid, NULL, &info->regs) == -1) {
     return false;
   }
 
-#if !(defined(__ANDROID__) && defined(__ARM_EABI__))
-  // When running an arm build on an arm64 device, attempting to get the
-  // floating point registers fails. On Android, the floating point registers
-  // aren't written to the cpu context anyway, so just don't get them here.
-  // See http://crbug.com/508324
-  void* fp_addr;
-  info->GetFloatingPointRegisters(&fp_addr, NULL);
-  if (sys_ptrace(PTRACE_GETFPREGS, tid, NULL, fp_addr) == -1) {
+  if (sys_ptrace(PTRACE_GETFPREGS, tid, NULL, &info->fpregs) == -1) {
     return false;
   }
 #endif
-#endif  // PTRACE_GETREGSET
 
 #if defined(__i386)
 #if !defined(bit_FXSAVE)  // e.g. Clang
@@ -249,20 +240,14 @@ bool LinuxPtraceDumper::GetThreadInfoByIndex(size_t index, ThreadInfo* info) {
 #endif
 
 #if defined(__mips__)
+  for (int i = 0; i < 3; ++i) {
+    sys_ptrace(PTRACE_PEEKUSER, tid,
+               reinterpret_cast<void*>(DSP_BASE + (i * 2)), &info->hi[i]);
+    sys_ptrace(PTRACE_PEEKUSER, tid,
+               reinterpret_cast<void*>(DSP_BASE + (i * 2) + 1), &info->lo[i]);
+  }
   sys_ptrace(PTRACE_PEEKUSER, tid,
-             reinterpret_cast<void*>(DSP_BASE), &info->mcontext.hi1);
-  sys_ptrace(PTRACE_PEEKUSER, tid,
-             reinterpret_cast<void*>(DSP_BASE + 1), &info->mcontext.lo1);
-  sys_ptrace(PTRACE_PEEKUSER, tid,
-             reinterpret_cast<void*>(DSP_BASE + 2), &info->mcontext.hi2);
-  sys_ptrace(PTRACE_PEEKUSER, tid,
-             reinterpret_cast<void*>(DSP_BASE + 3), &info->mcontext.lo2);
-  sys_ptrace(PTRACE_PEEKUSER, tid,
-             reinterpret_cast<void*>(DSP_BASE + 4), &info->mcontext.hi3);
-  sys_ptrace(PTRACE_PEEKUSER, tid,
-             reinterpret_cast<void*>(DSP_BASE + 5), &info->mcontext.lo3);
-  sys_ptrace(PTRACE_PEEKUSER, tid,
-             reinterpret_cast<void*>(DSP_CONTROL), &info->mcontext.dsp);
+             reinterpret_cast<void*>(DSP_CONTROL), &info->dsp_control);
 #endif
 
   const uint8_t* stack_pointer;
@@ -276,7 +261,7 @@ bool LinuxPtraceDumper::GetThreadInfoByIndex(size_t index, ThreadInfo* info) {
   my_memcpy(&stack_pointer, &info->regs.sp, sizeof(info->regs.sp));
 #elif defined(__mips__)
   stack_pointer =
-      reinterpret_cast<uint8_t*>(info->mcontext.gregs[MD_CONTEXT_MIPS_REG_SP]);
+      reinterpret_cast<uint8_t*>(info->regs.regs[MD_CONTEXT_MIPS_REG_SP]);
 #else
 #error "This code hasn't been ported to your platform yet."
 #endif
@@ -297,10 +282,8 @@ bool LinuxPtraceDumper::ThreadsSuspend() {
       // If the thread either disappeared before we could attach to it, or if
       // it was part of the seccomp sandbox's trusted code, it is OK to
       // silently drop it from the minidump.
-      if (i < threads_.size() - 1) {
-        my_memmove(&threads_[i], &threads_[i + 1],
-                   (threads_.size() - i - 1) * sizeof(threads_[i]));
-      }
+      my_memmove(&threads_[i], &threads_[i+1],
+                 (threads_.size() - i - 1) * sizeof(threads_[i]));
       threads_.resize(threads_.size() - 1);
       --i;
     }

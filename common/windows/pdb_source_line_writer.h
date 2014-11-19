@@ -35,7 +35,7 @@
 
 #include <atlcomcli.h>
 
-#include <unordered_map>
+#include <hash_map>
 #include <string>
 
 #include "common/windows/omap.h"
@@ -47,7 +47,7 @@ struct IDiaSymbol;
 namespace google_breakpad {
 
 using std::wstring;
-using std::unordered_map;
+using stdext::hash_map;
 
 // A structure that carries information that identifies a pdb file.
 struct PDBModuleInfo {
@@ -192,7 +192,7 @@ class PDBSourceLineWriter {
 
   // Store this ID in the cache as a duplicate for this filename.
   void StoreDuplicateFileID(const wstring &file, DWORD id) {
-    unordered_map<wstring, DWORD>::iterator iter = unique_files_.find(file);
+    hash_map<wstring, DWORD>::iterator iter = unique_files_.find(file);
     if (iter != unique_files_.end()) {
       // map this id to the previously seen one
       file_ids_[id] = iter->second;
@@ -204,7 +204,7 @@ class PDBSourceLineWriter {
   // but different unique IDs. The cache attempts to coalesce these into
   // one ID per unique filename.
   DWORD GetRealFileID(DWORD id) {
-    unordered_map<DWORD, DWORD>::iterator iter = file_ids_.find(id);
+    hash_map<DWORD, DWORD>::iterator iter = file_ids_.find(id);
     if (iter == file_ids_.end())
       return id;
     return iter->second;
@@ -240,9 +240,9 @@ class PDBSourceLineWriter {
   // There may be many duplicate filenames with different IDs.
   // This maps from the DIA "unique ID" to a single ID per unique
   // filename.
-  unordered_map<DWORD, DWORD> file_ids_;
+  hash_map<DWORD, DWORD> file_ids_;
   // This maps unique filenames to file IDs.
-  unordered_map<wstring, DWORD> unique_files_;
+  hash_map<wstring, DWORD> unique_files_;
 
   // This is used for calculating post-transform symbol addresses and lengths.
   ImageMap image_map_;

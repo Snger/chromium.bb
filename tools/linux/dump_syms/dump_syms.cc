@@ -27,9 +27,7 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-#include <paths.h>
 #include <stdio.h>
-#include <unistd.h>
 
 #include <cstring>
 #include <iostream>
@@ -46,7 +44,6 @@ int usage(const char* self) {
   fprintf(stderr, "Options:\n");
   fprintf(stderr, "  -c    Do not generate CFI section\n");
   fprintf(stderr, "  -r    Do not handle inter-compilation unit references\n");
-  fprintf(stderr, "  -v    Print all warnings to stderr\n");
   return 1;
 }
 
@@ -56,7 +53,6 @@ int main(int argc, char **argv) {
 
   bool cfi = true;
   bool handle_inter_cu_refs = true;
-  bool log_to_stderr = false;
   int arg_index = 1;
   while (arg_index < argc && strlen(argv[arg_index]) > 0 &&
          argv[arg_index][0] == '-') {
@@ -64,8 +60,6 @@ int main(int argc, char **argv) {
       cfi = false;
     } else if (strcmp("-r", argv[arg_index]) == 0) {
       handle_inter_cu_refs = false;
-    } else if (strcmp("-v", argv[arg_index]) == 0) {
-      log_to_stderr = true;
     } else {
       return usage(argv[0]);
     }
@@ -73,15 +67,6 @@ int main(int argc, char **argv) {
   }
   if (arg_index == argc)
     return usage(argv[0]);
-
-  // Save stderr so it can be used below.
-  FILE* saved_stderr = fdopen(dup(fileno(stderr)), "w");
-  if (!log_to_stderr) {
-    if (freopen(_PATH_DEVNULL, "w", stderr)) {
-      // If it fails, not a lot we can (or should) do.
-      // Add this brace section to silence gcc warnings.
-    }
-  }
 
   const char* binary;
   std::vector<string> debug_dirs;
@@ -95,7 +80,7 @@ int main(int argc, char **argv) {
   SymbolData symbol_data = cfi ? ALL_SYMBOL_DATA : NO_CFI;
   google_breakpad::DumpOptions options(symbol_data, handle_inter_cu_refs);
   if (!WriteSymbolFile(binary, debug_dirs, options, std::cout)) {
-    fprintf(saved_stderr, "Failed to write symbol file.\n");
+    fprintf(stderr, "Failed to write symbol file.\n");
     return 1;
   }
 

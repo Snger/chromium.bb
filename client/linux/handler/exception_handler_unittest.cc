@@ -80,11 +80,7 @@ void FlushInstructionCache(const char* memory, uint32_t memory_size) {
   // Provided by Android's <unistd.h>
   long begin = reinterpret_cast<long>(memory);
   long end = begin + static_cast<long>(memory_size);
-#if _MIPS_SIM == _ABIO32
   cacheflush(begin, end, 0);
-#else
-  syscall(__NR_cacheflush, begin, end, ICACHE);
-#endif
 # elif defined(__linux__)
   // See http://www.linux-mips.org/wiki/Cacheflush_Syscall.
   cacheflush(const_cast<char*>(memory), memory_size, ICACHE);
@@ -262,6 +258,8 @@ TEST(ExceptionHandlerTest, ChildCrashWithFD) {
   ASSERT_NO_FATAL_FAILURE(ChildCrash(true));
 }
 
+#endif  // !ADDRESS_SANITIZER
+
 static bool DoneCallbackReturnFalse(const MinidumpDescriptor& descriptor,
                                     void* context,
                                     bool succeeded) {
@@ -302,6 +300,8 @@ static bool InstallRaiseSIGKILL() {
   sa.sa_handler = RaiseSIGKILL;
   return sigaction(SIGSEGV, &sa, NULL) != -1;
 }
+
+#ifndef ADDRESS_SANITIZER
 
 static void CrashWithCallbacks(ExceptionHandler::FilterCallback filter,
                                ExceptionHandler::MinidumpCallback done,
@@ -770,13 +770,8 @@ TEST(ExceptionHandlerTest, InstructionPointerMemoryNullPointer) {
                              true, -1);
     // Try calling a NULL pointer.
     typedef void (*void_function)(void);
-    // Volatile markings are needed to keep Clang from generating invalid
-    // opcodes.  See http://crbug.com/498354 for details.
-    volatile void_function memory_function =
-      reinterpret_cast<void_function>(NULL);
+    void_function memory_function = reinterpret_cast<void_function>(NULL);
     memory_function();
-    // not reached
-    exit(1);
   }
   close(fds[1]);
 
@@ -874,8 +869,6 @@ TEST(ExceptionHandlerTest, ModuleInfo) {
   unlink(minidump_desc.path());
 }
 
-#ifndef ADDRESS_SANITIZER
-
 static const unsigned kControlMsgSize =
     CMSG_SPACE(sizeof(int)) + CMSG_SPACE(sizeof(struct ucred));
 
@@ -928,6 +921,8 @@ CrashHandler(const void* crash_context, size_t crash_context_size,
   return true;
 }
 
+#ifndef ADDRESS_SANITIZER
+
 TEST(ExceptionHandlerTest, ExternalDumper) {
   int fds[2];
   ASSERT_NE(socketpair(AF_UNIX, SOCK_DGRAM, 0, fds), -1);
@@ -960,7 +955,7 @@ TEST(ExceptionHandlerTest, ExternalDumper) {
   const ssize_t n = HANDLE_EINTR(recvmsg(fds[0], &msg, 0));
   ASSERT_EQ(static_cast<ssize_t>(kCrashContextSize), n);
   ASSERT_EQ(kControlMsgSize, msg.msg_controllen);
-  ASSERT_EQ(static_cast<__typeof__(msg.msg_flags)>(0), msg.msg_flags);
+  ASSERT_EQ(static_cast<typeof(msg.msg_flags)>(0), msg.msg_flags);
   ASSERT_EQ(0, close(fds[0]));
 
   pid_t crashing_pid = -1;

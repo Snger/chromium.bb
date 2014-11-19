@@ -29,13 +29,12 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
-// dump_syms_tool.cc: Command line tool that uses the DumpSymbols class.
+// dump_syms_tool.mm: Command line tool that uses the DumpSymbols class.
 // TODO(waylonis): accept stdin
 
 #include <mach-o/arch.h>
 #include <unistd.h>
 
-#include <algorithm>
 #include <iostream>
 #include <vector>
 
@@ -52,9 +51,8 @@ using std::vector;
 struct Options {
   Options()
       : srcPath(), dsymPath(), arch(), cfi(true), handle_inter_cu_refs(true) {}
-
-  string srcPath;
-  string dsymPath;
+  NSString *srcPath;
+  NSString *dsymPath;
   const NXArchInfo *arch;
   bool cfi;
   bool handle_inter_cu_refs;
@@ -116,10 +114,8 @@ static bool Start(const Options &options) {
   // requested, then consider the Module as "split" and dump all the debug data
   // from the primary debug info file, the dSYM, and then dump additional CFI
   // data from the source Mach-O file.
-  bool split_module =
-    !options.dsymPath.empty() && !options.srcPath.empty() && options.cfi;
-  const string& primary_file =
-    split_module ? options.dsymPath : options.srcPath;
+  bool split_module = options.dsymPath && options.srcPath && options.cfi;
+  NSString* primary_file = split_module ? options.dsymPath : options.srcPath;
 
   if (!dump_symbols.Read(primary_file))
     return false;
@@ -128,16 +124,16 @@ static bool Start(const Options &options) {
     if (!dump_symbols.SetArchitecture(options.arch->cputype,
                                       options.arch->cpusubtype)) {
       fprintf(stderr, "%s: no architecture '%s' is present in file.\n",
-              primary_file.c_str(), options.arch->name);
+              [primary_file fileSystemRepresentation], options.arch->name);
       size_t available_size;
-      const SuperFatArch *available =
+      const struct fat_arch *available =
         dump_symbols.AvailableArchitectures(&available_size);
       if (available_size == 1)
         fprintf(stderr, "the file's architecture is: ");
       else
         fprintf(stderr, "architectures present in the file are:\n");
       for (size_t i = 0; i < available_size; i++) {
-        const SuperFatArch *arch = &available[i];
+        const struct fat_arch *arch = &available[i];
         const NXArchInfo *arch_info =
           google_breakpad::BreakpadGetArchInfoFromCpuType(
               arch->cputype, arch->cpusubtype);
@@ -218,7 +214,8 @@ static void SetupOptions(int argc, const char *argv[], Options *options) {
         break;
       }
       case 'g':
-        options->dsymPath = optarg;
+        options->dsymPath = [[NSFileManager defaultManager]
+            stringWithFileSystemRepresentation:optarg length:strlen(optarg)];
         break;
       case 'c':
         options->cfi = false;
@@ -240,16 +237,21 @@ static void SetupOptions(int argc, const char *argv[], Options *options) {
     exit(1);
   }
 
-  options->srcPath = argv[optind];
+  options->srcPath = [[NSFileManager defaultManager]
+                       stringWithFileSystemRepresentation:argv[optind]
+                       length:strlen(argv[optind])];
 }
 
 //=============================================================================
 int main (int argc, const char * argv[]) {
+  NSAutoreleasePool *pool = [[NSAutoreleasePool alloc] init];
   Options options;
   bool result;
 
   SetupOptions(argc, argv, &options);
   result = Start(options);
+
+  [pool release];
 
   return !result;
 }

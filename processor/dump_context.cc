@@ -34,14 +34,18 @@
 #include "google_breakpad/processor/dump_context.h"
 
 #include <assert.h>
+#include <stdio.h>
 
 #ifdef _WIN32
 #include <io.h>
+#define PRIx64 "llx"
+#define PRIx32 "lx"
+#define snprintf _snprintf
 #else  // _WIN32
 #include <unistd.h>
+#define O_BINARY 0
 #endif  // _WIN32
 
-#include "common/stdio.h"
 #include "processor/logging.h"
 
 namespace google_breakpad {
@@ -131,8 +135,7 @@ const MDRawContextARM64* DumpContext::GetContextARM64() const {
 }
 
 const MDRawContextMIPS* DumpContext::GetContextMIPS() const {
-  if ((GetContextCPU() != MD_CONTEXT_MIPS) &&
-      (GetContextCPU() != MD_CONTEXT_MIPS64)) {
+  if (GetContextCPU() != MD_CONTEXT_MIPS) {
     BPLOG(ERROR) << "DumpContext cannot get MIPS context";
     return NULL;
   }
@@ -173,56 +176,11 @@ bool DumpContext::GetInstructionPointer(uint64_t* ip) const {
     *ip = GetContextX86()->eip;
     break;
   case MD_CONTEXT_MIPS:
-  case MD_CONTEXT_MIPS64:
     *ip = GetContextMIPS()->epc;
     break;
   default:
     // This should never happen.
     BPLOG(ERROR) << "Unknown CPU architecture in GetInstructionPointer";
-    return false;
-  }
-  return true;
-}
-
-bool DumpContext::GetStackPointer(uint64_t* sp) const {
-  BPLOG_IF(ERROR, !sp) << "DumpContext::GetStackPointer requires |sp|";
-  assert(sp);
-  *sp = 0;
-
-  if (!valid_) {
-    BPLOG(ERROR) << "Invalid DumpContext for GetStackPointer";
-    return false;
-  }
-
-  switch (GetContextCPU()) {
-  case MD_CONTEXT_AMD64:
-    *sp = GetContextAMD64()->rsp;
-    break;
-  case MD_CONTEXT_ARM:
-    *sp = GetContextARM()->iregs[MD_CONTEXT_ARM_REG_SP];
-    break;
-  case MD_CONTEXT_ARM64:
-    *sp = GetContextARM64()->iregs[MD_CONTEXT_ARM64_REG_SP];
-    break;
-  case MD_CONTEXT_PPC:
-    *sp = GetContextPPC()->gpr[MD_CONTEXT_PPC_REG_SP];
-    break;
-  case MD_CONTEXT_PPC64:
-    *sp = GetContextPPC64()->gpr[MD_CONTEXT_PPC64_REG_SP];
-    break;
-  case MD_CONTEXT_SPARC:
-    *sp = GetContextSPARC()->g_r[MD_CONTEXT_SPARC_REG_SP];
-    break;
-  case MD_CONTEXT_X86:
-    *sp = GetContextX86()->esp;
-    break;
-  case MD_CONTEXT_MIPS:
-  case MD_CONTEXT_MIPS64:
-    *sp = GetContextMIPS()->iregs[MD_CONTEXT_MIPS_REG_SP];
-    break;
-  default:
-    // This should never happen.
-    BPLOG(ERROR) << "Unknown CPU architecture in GetStackPointer";
     return false;
   }
   return true;
@@ -295,7 +253,6 @@ void DumpContext::FreeContext() {
       break;
 
     case MD_CONTEXT_MIPS:
-    case MD_CONTEXT_MIPS64:
       delete context_.ctx_mips;
       break;
 
@@ -602,8 +559,7 @@ void DumpContext::Print() {
       break;
     }
 
-    case MD_CONTEXT_MIPS:
-    case MD_CONTEXT_MIPS64: {
+    case MD_CONTEXT_MIPS: {
       const MDRawContextMIPS* context_mips = GetContextMIPS();
       printf("MDRawContextMIPS\n");
       printf("  context_flags        = 0x%x\n",

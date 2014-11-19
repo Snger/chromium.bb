@@ -35,7 +35,6 @@
 
 #include <string>
 
-#include "client/linux/handler/microdump_extra_info.h"
 #include "common/using_std_string.h"
 
 // This class describes how a crash dump should be generated, either:
@@ -50,10 +49,9 @@ class MinidumpDescriptor {
   struct MicrodumpOnConsole {};
   static const MicrodumpOnConsole kMicrodumpOnConsole;
 
-  MinidumpDescriptor()
-      : mode_(kUninitialized),
-        fd_(-1),
-        size_limit_(-1) {}
+  MinidumpDescriptor() : mode_(kUninitialized),
+                         fd_(-1),
+                         size_limit_(-1) {}
 
   explicit MinidumpDescriptor(const string& directory)
       : mode_(kWriteMinidumpToFile),
@@ -101,11 +99,6 @@ class MinidumpDescriptor {
   off_t size_limit() const { return size_limit_; }
   void set_size_limit(off_t limit) { size_limit_ = limit; }
 
-  MicrodumpExtraInfo* microdump_extra_info() {
-    assert(IsMicrodumpOnConsole());
-    return &microdump_extra_info_;
-  };
-
  private:
   enum DumpMode {
     kUninitialized = 0,
@@ -122,26 +115,13 @@ class MinidumpDescriptor {
 
   // The directory where the minidump should be generated.
   string directory_;
-
   // The full path to the generated minidump.
   string path_;
-
   // The C string of |path_|. Precomputed so it can be access from a compromised
   // context.
   const char* c_path_;
 
   off_t size_limit_;
-
-  // The extra microdump data (e.g. product name/version, build
-  // fingerprint, gpu fingerprint) that should be appended to the dump
-  // (microdump only). Microdumps don't have the ability of appending
-  // extra metadata after the dump is generated (as opposite to
-  // minidumps MIME fields), therefore the extra data must be provided
-  // upfront. Any memory pointed to by members of the
-  // MicrodumpExtraInfo struct must be valid for the lifetime of the
-  // process (read: the caller has to guarantee that it is stored in
-  // global static storage.)
-  MicrodumpExtraInfo microdump_extra_info_;
 };
 
 }  // namespace google_breakpad

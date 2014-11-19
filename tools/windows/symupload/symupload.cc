@@ -228,14 +228,12 @@ int wmain(int argc, wchar_t *argv[]) {
     fwprintf(stderr, L"Warning: Could not get file version for %s\n", module);
   }
 
-  map<wstring, wstring> files;
-  files[L"symbol_file"] = symbol_file;
-
   bool success = true;
 
   while (currentarg < argc) {
     int response_code;
-    if (!HTTPUpload::SendRequest(argv[currentarg], parameters, files,
+    if (!HTTPUpload::SendRequest(argv[currentarg], parameters,
+                                 symbol_file, L"symbol_file",
                                  timeout == -1 ? NULL : &timeout,
                                  nullptr, &response_code)) {
       success = false;

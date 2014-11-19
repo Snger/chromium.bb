@@ -49,19 +49,15 @@
 #include "processor/range_map-inl.h"
 
 namespace {
-static const char kGoogleBreakpadKey[] = "google-breakpad";
+static const char kGoogleBreakpadKey[] = "/google-breakpad(";
 static const char kMicrodumpBegin[] = "-----BEGIN BREAKPAD MICRODUMP-----";
 static const char kMicrodumpEnd[] = "-----END BREAKPAD MICRODUMP-----";
 static const char kOsKey[] = ": O ";
 static const char kCpuKey[] = ": C ";
-static const char kGpuKey[] = ": G ";
 static const char kMmapKey[] = ": M ";
 static const char kStackKey[] = ": S ";
 static const char kStackFirstLineKey[] = ": S 0 ";
-static const char kArmArchitecture[] = "arm";
-static const char kArm64Architecture[] = "arm64";
-static const char kX86Architecture[] = "x86";
-static const char kGpuUnknown[] = "UNKNOWN";
+static const char kArmArchitecture[] = "armv7l";
 
 template<typename T>
 T HexStrToL(const string& str) {
@@ -77,19 +73,6 @@ std::vector<uint8_t> ParseHexBuf(const string& str) {
     buf.push_back(HexStrToL<uint8_t>(str.substr(i, 2)));
   }
   return buf;
-}
-
-bool GetLine(std::istringstream* istream, string* str) {
-  if (std::getline(*istream, *str)) {
-    // Trim any trailing newline from the end of the line. Allows us
-    // to seamlessly handle both Windows/DOS and Unix formatted input. The
-    // adb tool generally writes logcat dumps in Windows/DOS format.
-    if (!str->empty() && str->at(str->size() - 1) == '\r') {
-      str->erase(str->size() - 1);
-    }
-    return true;
-  }
-  return false;
 }
 
 }  // namespace
@@ -116,18 +99,6 @@ void MicrodumpModules::Add(const CodeModule* module) {
 void MicrodumpContext::SetContextARM(MDRawContextARM* arm) {
   DumpContext::SetContextFlags(MD_CONTEXT_ARM);
   DumpContext::SetContextARM(arm);
-  valid_ = true;
-}
-
-void MicrodumpContext::SetContextARM64(MDRawContextARM64* arm64) {
-  DumpContext::SetContextFlags(MD_CONTEXT_ARM64);
-  DumpContext::SetContextARM64(arm64);
-  valid_ = true;
-}
-
-void MicrodumpContext::SetContextX86(MDRawContextX86* x86) {
-  DumpContext::SetContextFlags(MD_CONTEXT_X86);
-  DumpContext::SetContextX86(x86);
   valid_ = true;
 }
 
@@ -194,8 +165,7 @@ void MicrodumpMemoryRegion::Print() const {
 Microdump::Microdump(const string& contents)
   : context_(new MicrodumpContext()),
     stack_region_(new MicrodumpMemoryRegion()),
-    modules_(new MicrodumpModules()),
-    system_info_(new SystemInfo()) {
+    modules_(new MicrodumpModules()) {
   assert(!contents.empty());
 
   bool in_microdump = false;
@@ -205,7 +175,7 @@ Microdump::Microdump(const string& contents)
   string arch;
 
   std::istringstream stream(contents);
-  while (GetLine(&stream, &line)) {
+  while (std::getline(stream, line)) {
     if (line.find(kGoogleBreakpadKey) == string::npos) {
       continue;
     }
@@ -225,32 +195,10 @@ Microdump::Microdump(const string& contents)
     if ((pos = line.find(kOsKey)) != string::npos) {
       string os_str(line, pos + strlen(kOsKey));
       std::istringstream os_tokens(os_str);
-      string os_id;
-      string num_cpus;
-      string os_version;
-      // This reflect the actual HW arch and might not match the arch emulated
-      // for the execution (e.g., running a 32-bit binary on a 64-bit cpu).
-      string hw_arch;
-
-      os_tokens >> os_id;
+      string unused_id;
+      os_tokens >> unused_id;
       os_tokens >> arch;
-      os_tokens >> num_cpus;
-      os_tokens >> hw_arch;
-      GetLine(&os_tokens, &os_version);
-      os_version.erase(0, 1);  // remove leading space.
-
-      system_info_->cpu = arch;
-      system_info_->cpu_count = HexStrToL<uint8_t>(num_cpus);
-      system_info_->os_version = os_version;
-
-      if (os_id == "L") {
-        system_info_->os = "Linux";
-        system_info_->os_short = "linux";
-      } else if (os_id == "A") {
-        system_info_->os = "Android";
-        system_info_->os_short = "android";
-      }
-
+      arch = arch.substr(1, arch.length() - 2);  // remove quotes
       // OS line also contains release and version for future use.
     } else if ((pos = line.find(kStackKey)) != string::npos) {
       if (line.find(kStackFirstLineKey) != string::npos) {
@@ -281,42 +229,11 @@ Microdump::Microdump(const string& contents)
       string cpu_state_str(line, pos + strlen(kCpuKey));
       std::vector<uint8_t> cpu_state_raw = ParseHexBuf(cpu_state_str);
       if (strcmp(arch.c_str(), kArmArchitecture) == 0) {
-        if (cpu_state_raw.size() != sizeof(MDRawContextARM)) {
-          std::cerr << "Malformed CPU context. Got " << cpu_state_raw.size() <<
-              " bytes instead of " << sizeof(MDRawContextARM) << std::endl;
-          continue;
-        }
         MDRawContextARM* arm = new MDRawContextARM();
         memcpy(arm, &cpu_state_raw[0], cpu_state_raw.size());
         context_->SetContextARM(arm);
-      } else if (strcmp(arch.c_str(), kArm64Architecture) == 0) {
-        if (cpu_state_raw.size() != sizeof(MDRawContextARM64)) {
-          std::cerr << "Malformed CPU context. Got " << cpu_state_raw.size() <<
-              " bytes instead of " << sizeof(MDRawContextARM64) << std::endl;
-          continue;
-        }
-        MDRawContextARM64* arm = new MDRawContextARM64();
-        memcpy(arm, &cpu_state_raw[0], cpu_state_raw.size());
-        context_->SetContextARM64(arm);
-      } else if (strcmp(arch.c_str(), kX86Architecture) == 0) {
-        if (cpu_state_raw.size() != sizeof(MDRawContextX86)) {
-          std::cerr << "Malformed CPU context. Got " << cpu_state_raw.size() <<
-              " bytes instead of " << sizeof(MDRawContextX86) << std::endl;
-          continue;
-        }
-        MDRawContextX86* x86 = new MDRawContextX86();
-        memcpy(x86, &cpu_state_raw[0], cpu_state_raw.size());
-        context_->SetContextX86(x86);
       } else {
         std::cerr << "Unsupported architecture: " << arch << std::endl;
-      }
-    } else if ((pos = line.find(kGpuKey)) != string::npos) {
-      string gpu_str(line, pos + strlen(kGpuKey));
-      if (strcmp(gpu_str.c_str(), kGpuUnknown) != 0) {
-        std::istringstream gpu_tokens(gpu_str);
-        std::getline(gpu_tokens, system_info_->gl_version, '|');
-        std::getline(gpu_tokens, system_info_->gl_vendor, '|');
-        std::getline(gpu_tokens, system_info_->gl_renderer, '|');
       }
     } else if ((pos = line.find(kMmapKey)) != string::npos) {
       string mmap_line(line, pos + strlen(kMmapKey));

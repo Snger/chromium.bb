@@ -73,7 +73,6 @@
         '<(DEPTH)/processor/logging.cc',
         '<(DEPTH)/processor/minidump.cc',
         '<(DEPTH)/processor/pathname_stripper.cc',
-        '<(DEPTH)/processor/proc_maps_linux.cc',
       ]
     }
   ],

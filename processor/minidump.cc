@@ -38,16 +38,20 @@
 #include <assert.h>
 #include <fcntl.h>
 #include <stddef.h>
+#include <stdio.h>
 #include <string.h>
 #include <time.h>
 
 #ifdef _WIN32
 #include <io.h>
+#define PRIx64 "llx"
+#define PRIx32 "lx"
+#define snprintf _snprintf
 #else  // _WIN32
 #include <unistd.h>
+#define O_BINARY 0
 #endif  // _WIN32
 
-#include <algorithm>
 #include <fstream>
 #include <iostream>
 #include <limits>
@@ -57,7 +61,6 @@
 #include "processor/range_map-inl.h"
 
 #include "common/scoped_ptr.h"
-#include "common/stdio.h"
 #include "google_breakpad/processor/dump_context.h"
 #include "processor/basic_code_module.h"
 #include "processor/basic_code_modules.h"
@@ -163,9 +166,18 @@ static void Swap(uint128_struct* value) {
 }
 
 // Swapping signed integers
+static inline void Swap(int16_t* value) {
+  Swap(reinterpret_cast<uint16_t*>(value));
+}
+
 static inline void Swap(int32_t* value) {
   Swap(reinterpret_cast<uint32_t*>(value));
 }
+
+static inline void Swap(int64_t* value) {
+  Swap(reinterpret_cast<uint64_t*>(value));
+}
+
 
 static inline void Swap(MDLocationDescriptor* location_descriptor) {
   Swap(&location_descriptor->data_size);
@@ -1010,8 +1022,7 @@ bool MinidumpContext::Read(uint32_t expected_size) {
         break;
       }
 
-      case MD_CONTEXT_MIPS:
-      case MD_CONTEXT_MIPS64: {
+      case MD_CONTEXT_MIPS: {
         if (expected_size != sizeof(MDRawContextMIPS)) {
           BPLOG(ERROR) << "MinidumpContext MIPS size mismatch, "
                        << expected_size
@@ -1157,11 +1168,6 @@ bool MinidumpContext::CheckAgainstSystemInfo(uint32_t context_cpu_type) {
 
     case MD_CONTEXT_MIPS:
       if (system_info_cpu_type == MD_CPU_ARCHITECTURE_MIPS)
-        return_value = true;
-      break;
-
-    case MD_CONTEXT_MIPS64:
-      if (system_info_cpu_type == MD_CPU_ARCHITECTURE_MIPS64)
         return_value = true;
       break;
   }
@@ -1854,30 +1860,11 @@ string MinidumpModule::code_identifier() const {
       break;
     }
 
-    case MD_OS_ANDROID:
-    case MD_OS_LINUX: {
-      // If ELF CodeView data is present, return the debug id.
-      if (cv_record_ && cv_record_signature_ == MD_CVINFOELF_SIGNATURE) {
-        const MDCVInfoELF* cv_record_elf =
-            reinterpret_cast<const MDCVInfoELF*>(&(*cv_record_)[0]);
-        assert(cv_record_elf->cv_signature == MD_CVINFOELF_SIGNATURE);
-
-        for (unsigned int build_id_index = 0;
-             build_id_index < (cv_record_->size() - MDCVInfoELF_minsize);
-             ++build_id_index) {
-          char hexbyte[3];
-          snprintf(hexbyte, sizeof(hexbyte), "%02x",
-                   cv_record_elf->build_id[build_id_index]);
-          identifier += hexbyte;
-        }
-        break;
-      }
-      // Otherwise fall through to the case below.
-    }
-
     case MD_OS_MAC_OS_X:
     case MD_OS_IOS:
     case MD_OS_SOLARIS:
+    case MD_OS_ANDROID:
+    case MD_OS_LINUX:
     case MD_OS_NACL:
     case MD_OS_PS3: {
       // TODO(mmentovai): support uuid extension if present, otherwise fall
@@ -1928,14 +1915,6 @@ string MinidumpModule::debug_file() const {
 
       // GetCVRecord guarantees pdb_file_name is null-terminated.
       file = reinterpret_cast<const char*>(cv_record_20->pdb_file_name);
-    } else if (cv_record_signature_ == MD_CVINFOELF_SIGNATURE) {
-      // It's actually an MDCVInfoELF structure.
-      const MDCVInfoELF* cv_record_elf =
-          reinterpret_cast<const MDCVInfoELF*>(&(*cv_record_)[0]);
-      assert(cv_record_elf->cv_signature == MD_CVINFOELF_SIGNATURE);
-
-      // For MDCVInfoELF, the debug file is the code file.
-      file = *name_;
     }
 
     // If there's a CodeView record but it doesn't match a known signature,
@@ -1987,25 +1966,6 @@ string MinidumpModule::debug_file() const {
   return file;
 }
 
-static string guid_and_age_to_debug_id(const MDGUID& guid,
-                                       uint32_t age) {
-  char identifier_string[41];
-  snprintf(identifier_string, sizeof(identifier_string),
-           "%08X%04X%04X%02X%02X%02X%02X%02X%02X%02X%02X%x",
-           guid.data1,
-           guid.data2,
-           guid.data3,
-           guid.data4[0],
-           guid.data4[1],
-           guid.data4[2],
-           guid.data4[3],
-           guid.data4[4],
-           guid.data4[5],
-           guid.data4[6],
-           guid.data4[7],
-           age);
-  return identifier_string;
-}
 
 string MinidumpModule::debug_identifier() const {
   if (!valid_) {
@@ -2028,8 +1988,22 @@ string MinidumpModule::debug_identifier() const {
 
       // Use the same format that the MS symbol server uses in filesystem
       // hierarchies.
-      identifier = guid_and_age_to_debug_id(cv_record_70->signature,
-                                            cv_record_70->age);
+      char identifier_string[41];
+      snprintf(identifier_string, sizeof(identifier_string),
+               "%08X%04X%04X%02X%02X%02X%02X%02X%02X%02X%02X%x",
+               cv_record_70->signature.data1,
+               cv_record_70->signature.data2,
+               cv_record_70->signature.data3,
+               cv_record_70->signature.data4[0],
+               cv_record_70->signature.data4[1],
+               cv_record_70->signature.data4[2],
+               cv_record_70->signature.data4[3],
+               cv_record_70->signature.data4[4],
+               cv_record_70->signature.data4[5],
+               cv_record_70->signature.data4[6],
+               cv_record_70->signature.data4[7],
+               cv_record_70->age);
+      identifier = identifier_string;
     } else if (cv_record_signature_ == MD_CVINFOPDB20_SIGNATURE) {
       // It's actually an MDCVInfoPDB20 structure.
       const MDCVInfoPDB20* cv_record_20 =
@@ -2042,22 +2016,6 @@ string MinidumpModule::debug_identifier() const {
       snprintf(identifier_string, sizeof(identifier_string),
                "%08X%x", cv_record_20->signature, cv_record_20->age);
       identifier = identifier_string;
-    } else if (cv_record_signature_ == MD_CVINFOELF_SIGNATURE) {
-      // It's actually an MDCVInfoELF structure.
-      const MDCVInfoELF* cv_record_elf =
-          reinterpret_cast<const MDCVInfoELF*>(&(*cv_record_)[0]);
-      assert(cv_record_elf->cv_signature == MD_CVINFOELF_SIGNATURE);
-
-      // For backwards-compatibility, stuff as many bytes as will fit into
-      // a MDGUID and use the MS symbol server format as MDCVInfoPDB70 does
-      // with age = 0. Historically Breakpad would do this during dump
-      // writing to fit the build id data into a MDCVInfoPDB70 struct.
-      // The full build id is available by calling code_identifier.
-      MDGUID guid = {0};
-      memcpy(&guid, &cv_record_elf->build_id,
-             std::min(cv_record_->size() - MDCVInfoELF_minsize,
-                      sizeof(MDGUID)));
-      identifier = guid_and_age_to_debug_id(guid, 0);
     }
   }
 
@@ -2216,15 +2174,6 @@ const uint8_t* MinidumpModule::GetCVRecord(uint32_t* size) {
                         "0-terminated";
         return NULL;
       }
-    } else if (signature == MD_CVINFOELF_SIGNATURE) {
-      // Now that the structure type is known, recheck the size.
-      if (MDCVInfoELF_minsize > module_.cv_record.data_size) {
-        BPLOG(ERROR) << "MinidumpModule CodeViewELF record size mismatch, " <<
-                        MDCVInfoELF_minsize << " > " <<
-                        module_.cv_record.data_size;
-        return NULL;
-      }
-      // There's nothing to swap in CVInfoELF, it's just raw bytes.
     }
 
     // If the signature doesn't match something above, it's not something
@@ -2425,20 +2374,6 @@ void MinidumpModule::Print() {
              cv_record_20->age);
       printf("  (cv_record).pdb_file_name       = \"%s\"\n",
              cv_record_20->pdb_file_name);
-    } else if (cv_record_signature_ == MD_CVINFOELF_SIGNATURE) {
-      const MDCVInfoELF* cv_record_elf =
-          reinterpret_cast<const MDCVInfoELF*>(cv_record);
-      assert(cv_record_elf->cv_signature == MD_CVINFOELF_SIGNATURE);
-
-      printf("  (cv_record).cv_signature        = 0x%x\n",
-             cv_record_elf->cv_signature);
-      printf("  (cv_record).build_id            = ");
-      for (unsigned int build_id_index = 0;
-           build_id_index < (cv_record_size - MDCVInfoELF_minsize);
-           ++build_id_index) {
-        printf("%02x", cv_record_elf->build_id[build_id_index]);
-      }
-      printf("\n");
     } else {
       printf("  (cv_record)                     = ");
       for (unsigned int cv_byte_index = 0;
@@ -2583,7 +2518,6 @@ bool MinidumpModuleList::Read(uint32_t expected_size) {
     // MinidumpModule::ReadAuxiliaryData seeks around, and if it were
     // included in the loop above, additional seeks would be needed where
     // none are now to read contiguous data.
-    uint64_t last_end_address = 0;
     for (unsigned int module_index = 0;
          module_index < module_count;
          ++module_index) {
@@ -2614,45 +2548,13 @@ bool MinidumpModuleList::Read(uint32_t expected_size) {
       }
 
       if (!range_map_->StoreRange(base_address, module_size, module_index)) {
-        // Android's shared memory implementation /dev/ashmem can contain
-        // duplicate entries for JITted code, so ignore these.
-        // TODO(wfh): Remove this code when Android is fixed.
-        // See https://crbug.com/439531
-        const string kDevAshmem("/dev/ashmem/");
-        if (module->code_file().compare(
-            0, kDevAshmem.length(), kDevAshmem) != 0) {
-          if (base_address < last_end_address) {
-            // If failed due to apparent range overlap the cause may be
-            // the client correction applied for Android packed relocations.
-            // If this is the case, back out the client correction and retry.
-            module_size -= last_end_address - base_address;
-            base_address = last_end_address;
-            if (!range_map_->StoreRange(base_address,
-                                        module_size, module_index)) {
-              BPLOG(ERROR) << "MinidumpModuleList could not store module " <<
-                              module_index << "/" << module_count << ", " <<
-                              module->code_file() << ", " <<
-                              HexString(base_address) << "+" <<
-                              HexString(module_size) << ", after adjusting";
-              return false;
-            }
-          } else {
-            BPLOG(ERROR) << "MinidumpModuleList could not store module " <<
-                            module_index << "/" << module_count << ", " <<
-                            module->code_file() << ", " <<
-                            HexString(base_address) << "+" <<
-                            HexString(module_size);
-            return false;
-          }
-        } else {
-          BPLOG(INFO) << "MinidumpModuleList ignoring overlapping module " <<
-                          module_index << "/" << module_count << ", " <<
-                          module->code_file() << ", " <<
-                          HexString(base_address) << "+" <<
-                          HexString(module_size);
-        }
+        BPLOG(ERROR) << "MinidumpModuleList could not store module " <<
+                        module_index << "/" << module_count << ", " <<
+                        module->code_file() << ", " <<
+                        HexString(base_address) << "+" <<
+                        HexString(module_size);
+        return false;
       }
-      last_end_address = base_address + module_size;
     }
 
     modules_ = modules.release();
@@ -4057,149 +3959,6 @@ void MinidumpMemoryInfoList::Print() {
   }
 }
 
-//
-// MinidumpLinuxMaps
-//
-
-MinidumpLinuxMaps::MinidumpLinuxMaps(Minidump *minidump)
-    : MinidumpObject(minidump) {
-}
-
-void MinidumpLinuxMaps::Print() const {
-  if (!valid_) {
-    BPLOG(ERROR) << "MinidumpLinuxMaps cannot print invalid data";
-    return;
-  }
-  std::cout << region_.line << std::endl;
-}
-
-//
-// MinidumpLinuxMapsList
-//
-
-MinidumpLinuxMapsList::MinidumpLinuxMapsList(Minidump *minidump)
-    : MinidumpStream(minidump),
-      maps_(NULL),
-      maps_count_(0) {
-}
-
-MinidumpLinuxMapsList::~MinidumpLinuxMapsList() {
-  if (maps_) {
-    for (unsigned int i = 0; i < maps_->size(); i++) {
-      delete (*maps_)[i];
-    }
-    delete maps_;
-  }
-}
-
-const MinidumpLinuxMaps *MinidumpLinuxMapsList::GetLinuxMapsForAddress(
-    uint64_t address) const {
-  if (!valid_ || (maps_ == NULL)) {
-    BPLOG(ERROR) << "Invalid MinidumpLinuxMapsList for GetLinuxMapsForAddress";
-    return NULL;
-  }
-
-  // Search every memory mapping.
-  for (unsigned int index = 0; index < maps_count_; index++) {
-    // Check if address is within bounds of the current memory region.
-    if ((*maps_)[index]->GetBase() <= address &&
-        (*maps_)[index]->GetBase() + (*maps_)[index]->GetSize() > address) {
-      return (*maps_)[index];
-    }
-  }
-
-  // No mapping encloses the memory address.
-  BPLOG(ERROR) << "MinidumpLinuxMapsList has no mapping at "
-               << HexString(address);
-  return NULL;
-}
-
-const MinidumpLinuxMaps *MinidumpLinuxMapsList::GetLinuxMapsAtIndex(
-    unsigned int index) const {
-  if (!valid_ || (maps_ == NULL)) {
-    BPLOG(ERROR) << "Invalid MinidumpLinuxMapsList for GetLinuxMapsAtIndex";
-    return NULL;
-  }
-
-  // Index out of bounds.
-  if (index >= maps_count_ || (maps_ == NULL)) {
-    BPLOG(ERROR) << "MinidumpLinuxMapsList index of out range: "
-                 << index
-                 << "/"
-                 << maps_count_;
-    return NULL;
-  }
-  return (*maps_)[index];
-}
-
-bool MinidumpLinuxMapsList::Read(uint32_t expected_size) {
-  // Invalidate cached data.
-  if (maps_) {
-    for (unsigned int i = 0; i < maps_->size(); i++) {
-      delete (*maps_)[i];
-    }
-    delete maps_;
-  }
-  maps_ = NULL;
-  maps_count_ = 0;
-
-  valid_ = false;
-
-  // Load and check expected stream length.
-  uint32_t length = 0;
-  if (!minidump_->SeekToStreamType(MD_LINUX_MAPS, &length)) {
-    BPLOG(ERROR) << "MinidumpLinuxMapsList stream type not found";
-    return false;
-  }
-  if (expected_size != length) {
-    BPLOG(ERROR) << "MinidumpLinuxMapsList size mismatch: "
-                 << expected_size
-                 << " != "
-                 << length;
-    return false;
-  }
-
-  // Create a vector to read stream data. The vector needs to have
-  // at least enough capacity to read all the data.
-  vector<char> mapping_bytes(length);
-  if (!minidump_->ReadBytes(&mapping_bytes[0], length)) {
-    BPLOG(ERROR) << "MinidumpLinuxMapsList failed to read bytes";
-    return false;
-  }
-  string map_string(mapping_bytes.begin(), mapping_bytes.end());
-  vector<MappedMemoryRegion> all_regions;
-
-  // Parse string into mapping data.
-  if (!ParseProcMaps(map_string, &all_regions)) {
-    return false;
-  }
-
-  scoped_ptr<MinidumpLinuxMappings> maps(new MinidumpLinuxMappings());
-
-  // Push mapping data into wrapper classes.
-  for (size_t i = 0; i < all_regions.size(); i++) {
-    scoped_ptr<MinidumpLinuxMaps> ele(new MinidumpLinuxMaps(minidump_));
-    ele->region_ = all_regions[i];
-    ele->valid_ = true;
-    maps->push_back(ele.release());
-  }
-
-  // Set instance variables.
-  maps_ = maps.release();
-  maps_count_ = maps_->size();
-  valid_ = true;
-  return true;
-}
-
-void MinidumpLinuxMapsList::Print() const {
-  if (!valid_ || (maps_ == NULL)) {
-    BPLOG(ERROR) << "MinidumpLinuxMapsList cannot print valid data";
-    return;
-  }
-  for (size_t i = 0; i < maps_->size(); i++) {
-    (*maps_)[i]->Print();
-  }
-}
 
 //
 // Minidump
@@ -4286,9 +4045,6 @@ bool Minidump::GetContextCPUFlagsFromSystemInfo(uint32_t *context_cpu_flags) {
         break;
       case MD_CPU_ARCHITECTURE_MIPS:
         *context_cpu_flags = MD_CONTEXT_MIPS;
-        break;
-      case MD_CPU_ARCHITECTURE_MIPS64:
-        *context_cpu_flags = MD_CONTEXT_MIPS64;
         break;
       case MD_CPU_ARCHITECTURE_ALPHA:
         *context_cpu_flags = MD_CONTEXT_ALPHA;
@@ -4521,11 +4277,6 @@ MinidumpBreakpadInfo* Minidump::GetBreakpadInfo() {
 MinidumpMemoryInfoList* Minidump::GetMemoryInfoList() {
   MinidumpMemoryInfoList* memory_info_list;
   return GetStream(&memory_info_list);
-}
-
-MinidumpLinuxMapsList *Minidump::GetLinuxMapsList() {
-  MinidumpLinuxMapsList *linux_maps_list;
-  return GetStream(&linux_maps_list);
 }
 
 static const char* get_stream_name(uint32_t stream_type) {

@@ -35,11 +35,6 @@
       ['OS=="linux"', {
         'defines': ['HAVE_A_OUT_H'],
       }],
-      ['OS!="android"', {'sources/': [['exclude', '(^|/)android/']]}],
-      ['OS!="linux"', {'sources/': [['exclude', '(^|/)linux/']]}],
-      ['OS!="mac"', {'sources/': [['exclude', '(^|/)mac/']]}],
-      ['OS!="solaris"', {'sources/': [['exclude', '(^|/)solaris/']]}],
-      ['OS!="win"', {'sources/': [['exclude', '(^|/)windows/']]}],
     ],
   },
   'targets': [
@@ -125,7 +120,7 @@
         'mac/bootstrap_compat.h',
         'mac/byteswap.h',
         'mac/dump_syms.h',
-        'mac/dump_syms.cc',
+        'mac/dump_syms.mm',
         'mac/file_id.cc',
         'mac/file_id.h',
         'mac/GTMDefines.h',
@@ -146,7 +141,6 @@
         'mac/scoped_task_suspend-inl.h',
         'mac/string_utilities.cc',
         'mac/string_utilities.h',
-        'mac/super_fat_arch.h',
         'md5.cc',
         'md5.h',
         'memory.h',

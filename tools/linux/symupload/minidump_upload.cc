@@ -62,14 +62,12 @@ static void Start(Options *options) {
   parameters["prod"] = options->product;
   parameters["ver"] = options->version;
 
-  std::map<string, string> files;
-  files["upload_file_minidump"] = options->minidumpPath;
-
   // Send it
   string response, error;
   bool success = HTTPUpload::SendRequest(options->uploadURLStr,
                                          parameters,
-                                         files,
+                                         options->minidumpPath,
+                                         "upload_file_minidump",
                                          options->proxy,
                                          options->proxy_user_pwd,
                                          "",
