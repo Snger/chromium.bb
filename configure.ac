@@ -122,6 +122,11 @@ AC_ARG_ENABLE(freedreno-kgsl,
 	      [Enable support for freedreno's to use downstream android kernel API (default: disabled)]),
 	      [FREEDRENO_KGSL=$enableval], [FREEDRENO_KGSL=no])
 
+AC_ARG_ENABLE(mediatek-experimental-api,
+	      AS_HELP_STRING([--enable-mediatek-experimental-api],
+	      [Enable support for Mediatek's experimental API (default: disabled)]),
+	      [MEDIATEK=$enableval], [MEDIATEK=no])
+
 AC_ARG_ENABLE(tegra-experimental-api,
 	      AS_HELP_STRING([--enable-tegra-experimental-api],
 	      [Enable support for Tegra's experimental API (default: disabled)]),
@@ -423,6 +428,11 @@ if test "x$ROCKCHIP" = xyes; then
 	AC_DEFINE(HAVE_ROCKCHIP, 1, [Have ROCKCHIP support])
 fi
 
+AM_CONDITIONAL(HAVE_MEDIATEK, [test "x$MEDIATEK" = xyes])
+if test "x$MEDIATEK" = xyes; then
+	AC_DEFINE(HAVE_MEDIATEK, 1, [Have MEDIATEK support])
+fi
+
 AM_CONDITIONAL(HAVE_INSTALL_TESTS, [test "x$INSTALL_TESTS" = xyes])
 if test "x$INSTALL_TESTS" = xyes; then
 	AC_DEFINE(HAVE_INSTALL_TESTS, 1, [Install test programs])
@@ -536,6 +546,8 @@ AC_CONFIG_FILES([
 	vc4/libdrm_vc4.pc
 	rockchip/Makefile
 	rockchip/libdrm_rockchip.pc
+	mediatek/Makefile
+	mediatek/libdrm_mediatek.pc
 	tests/Makefile
 	tests/modeprint/Makefile
 	tests/modetest/Makefile
@@ -568,4 +580,5 @@ echo "  Freedreno API  $FREEDRENO (kgsl: $FREEDRENO_KGSL)"
 echo "  Tegra API      $TEGRA"
 echo "  VC4 API        $VC4"
 echo "  Rockchip API   $ROCKCHIP"
+echo "  Mediatek API   $MEDIATEK"
 echo ""
