@@ -31,48 +31,31 @@
  *
  */
 
-#include <grpc/support/log.h>
+#ifndef GRPC_TEST_CPP_UTIL_SUBPROCESS_H
+#define GRPC_TEST_CPP_UTIL_SUBPROCESS_H
 
-#include <signal.h>
+#include <initializer_list>
+#include <string>
 
-#include "test/cpp/qps/driver.h"
-#include "test/cpp/qps/report.h"
+struct gpr_subprocess;
 
 namespace grpc {
-namespace testing {
 
-static const int WARMUP = 5;
-static const int BENCHMARK = 10;
+class SubProcess {
+ public:
+  SubProcess(std::initializer_list<std::string> args);
+  ~SubProcess();
 
-static void RunSynchronousUnaryPingPong() {
-  gpr_log(GPR_INFO, "Running Synchronous Unary Ping Pong");
+  int Join();
+  void Interrupt();
 
-  ClientConfig client_config;
-  client_config.set_client_type(SYNCHRONOUS_CLIENT);
-  client_config.set_enable_ssl(false);
-  client_config.set_outstanding_rpcs_per_channel(1);
-  client_config.set_client_channels(1);
-  client_config.set_payload_size(1);
-  client_config.set_rpc_type(UNARY);
+ private:
+  SubProcess(const SubProcess& other);
+  SubProcess& operator=(const SubProcess& other);
 
-  ServerConfig server_config;
-  server_config.set_server_type(SYNCHRONOUS_SERVER);
-  server_config.set_enable_ssl(false);
-  server_config.set_threads(1);
+  gpr_subprocess* const subprocess_;
+};
 
-  const auto result =
-      RunScenario(client_config, 1, server_config, 1, WARMUP, BENCHMARK, -2);
-
-  ReportQPS(*result);
-  ReportLatency(*result);
-}
-
-}  // namespace testing
 }  // namespace grpc
 
-int main(int argc, char** argv) {
-  signal(SIGPIPE, SIG_IGN);
-  grpc::testing::RunSynchronousUnaryPingPong();
-
-  return 0;
-}
+#endif  // GRPC_TEST_CPP_UTIL_SUBPROCESS_H

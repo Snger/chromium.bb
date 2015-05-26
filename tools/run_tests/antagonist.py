@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env python
 # Copyright 2015, Google Inc.
 # All rights reserved.
 #
@@ -27,10 +27,8 @@
 # THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
 # (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 # OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
-cp -R /var/local/git-clone/grpc /var/local/git
 
-make clean -C /var/local/git/grpc
+"""This is used by run_tests.py to create cpu load on a machine"""
 
-make install_c -j12 -C /var/local/git/grpc
-
-/bin/bash -l -c 'cd /var/local/git/grpc/src/ruby && gem update bundler && bundle && rake'
+while True:
+	pass

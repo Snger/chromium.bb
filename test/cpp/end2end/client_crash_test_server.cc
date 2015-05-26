@@ -31,48 +31,64 @@
  *
  */
 
-#include <grpc/support/log.h>
+#include <iostream>
+#include <memory>
+#include <string>
+#include <gflags/gflags.h>
 
-#include <signal.h>
+#include <grpc++/server.h>
+#include <grpc++/server_builder.h>
+#include <grpc++/server_context.h>
+#include <grpc++/server_credentials.h>
+#include <grpc++/status.h>
+#include "test/cpp/util/echo.grpc.pb.h"
 
-#include "test/cpp/qps/driver.h"
-#include "test/cpp/qps/report.h"
+DEFINE_string(address, "", "Address to bind to");
+
+using grpc::cpp::test::util::EchoRequest;
+using grpc::cpp::test::util::EchoResponse;
+
+// In some distros, gflags is in the namespace google, and in some others,
+// in gflags. This hack is enabling us to find both.
+namespace google {}
+namespace gflags {}
+using namespace google;
+using namespace gflags;
 
 namespace grpc {
 namespace testing {
 
-static const int WARMUP = 5;
-static const int BENCHMARK = 10;
+class ServiceImpl GRPC_FINAL : public ::grpc::cpp::test::util::TestService::Service {
+  Status BidiStream(ServerContext* context,
+                    ServerReaderWriter<EchoResponse, EchoRequest>* stream)
+      GRPC_OVERRIDE {
+    EchoRequest request;
+    EchoResponse response;
+    while (stream->Read(&request)) {
+      gpr_log(GPR_INFO, "recv msg %s", request.message().c_str());
+      response.set_message(request.message());
+      stream->Write(response);
+    }
+    return Status::OK;
+  }
+};
 
-static void RunSynchronousUnaryPingPong() {
-  gpr_log(GPR_INFO, "Running Synchronous Unary Ping Pong");
+void RunServer() {
+  ServiceImpl service;
 
-  ClientConfig client_config;
-  client_config.set_client_type(SYNCHRONOUS_CLIENT);
-  client_config.set_enable_ssl(false);
-  client_config.set_outstanding_rpcs_per_channel(1);
-  client_config.set_client_channels(1);
-  client_config.set_payload_size(1);
-  client_config.set_rpc_type(UNARY);
-
-  ServerConfig server_config;
-  server_config.set_server_type(SYNCHRONOUS_SERVER);
-  server_config.set_enable_ssl(false);
-  server_config.set_threads(1);
-
-  const auto result =
-      RunScenario(client_config, 1, server_config, 1, WARMUP, BENCHMARK, -2);
-
-  ReportQPS(*result);
-  ReportLatency(*result);
+  ServerBuilder builder;
+  builder.AddListeningPort(FLAGS_address, grpc::InsecureServerCredentials());
+  builder.RegisterService(&service);
+  std::unique_ptr<Server> server(builder.BuildAndStart());
+  std::cout << "Server listening on " << FLAGS_address << std::endl;
+  server->Wait();
+}
+}
 }
 
-}  // namespace testing
-}  // namespace grpc
-
 int main(int argc, char** argv) {
-  signal(SIGPIPE, SIG_IGN);
-  grpc::testing::RunSynchronousUnaryPingPong();
+  ParseCommandLineFlags(&argc, &argv, true);
+  grpc::testing::RunServer();
 
   return 0;
 }

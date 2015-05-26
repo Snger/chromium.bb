@@ -31,48 +31,29 @@
  *
  */
 
-#include <grpc/support/log.h>
+#include "test/cpp/util/subprocess.h"
 
-#include <signal.h>
+#include <vector>
 
-#include "test/cpp/qps/driver.h"
-#include "test/cpp/qps/report.h"
+#include <grpc/support/subprocess.h>
 
 namespace grpc {
-namespace testing {
 
-static const int WARMUP = 5;
-static const int BENCHMARK = 10;
-
-static void RunSynchronousUnaryPingPong() {
-  gpr_log(GPR_INFO, "Running Synchronous Unary Ping Pong");
-
-  ClientConfig client_config;
-  client_config.set_client_type(SYNCHRONOUS_CLIENT);
-  client_config.set_enable_ssl(false);
-  client_config.set_outstanding_rpcs_per_channel(1);
-  client_config.set_client_channels(1);
-  client_config.set_payload_size(1);
-  client_config.set_rpc_type(UNARY);
-
-  ServerConfig server_config;
-  server_config.set_server_type(SYNCHRONOUS_SERVER);
-  server_config.set_enable_ssl(false);
-  server_config.set_threads(1);
-
-  const auto result =
-      RunScenario(client_config, 1, server_config, 1, WARMUP, BENCHMARK, -2);
-
-  ReportQPS(*result);
-  ReportLatency(*result);
+static gpr_subprocess *MakeProcess(std::initializer_list<std::string> args) {
+  std::vector<const char *> vargs;
+  for (auto it = args.begin(); it != args.end(); ++it) {
+    vargs.push_back(it->c_str());
+  }
+  return gpr_subprocess_create(vargs.size(), &vargs[0]);
 }
 
-}  // namespace testing
+SubProcess::SubProcess(std::initializer_list<std::string> args)
+    : subprocess_(MakeProcess(args)) {}
+
+SubProcess::~SubProcess() { gpr_subprocess_destroy(subprocess_); }
+
+int SubProcess::Join() { return gpr_subprocess_join(subprocess_); }
+
+void SubProcess::Interrupt() { gpr_subprocess_interrupt(subprocess_); }
+
 }  // namespace grpc
-
-int main(int argc, char** argv) {
-  signal(SIGPIPE, SIG_IGN);
-  grpc::testing::RunSynchronousUnaryPingPong();
-
-  return 0;
-}
