@@ -1,0 +1,8 @@
+Name: gRPC, an RPC library and framework
+Short Name: gRPC
+URL: https://github.com/grpc/grpc
+License: BSD-style, copyright Google
+Security Critical: no
+
+This directory contains Chrome's version of the C-version of the gRPC
+library.
