@@ -764,10 +764,9 @@ bool ExceptionHandler::WriteMinidumpForException(EXCEPTION_POINTERS* exinfo) {
 // static
 bool ExceptionHandler::WriteMinidump(const wstring &dump_path,
                                      MinidumpCallback callback,
-                                     void* callback_context,
-                                     MINIDUMP_TYPE dump_type) {
+                                     void* callback_context) {
   ExceptionHandler handler(dump_path, NULL, callback, callback_context,
-                           HANDLER_NONE, dump_type, (HANDLE)NULL, NULL);
+                           HANDLER_NONE);
   return handler.WriteMinidump();
 }
 
@@ -776,8 +775,7 @@ bool ExceptionHandler::WriteMinidumpForChild(HANDLE child,
                                              DWORD child_blamed_thread,
                                              const wstring& dump_path,
                                              MinidumpCallback callback,
-                                             void* callback_context,
-                                             MINIDUMP_TYPE dump_type) {
+                                             void* callback_context) {
   EXCEPTION_RECORD ex;
   CONTEXT ctx;
   EXCEPTION_POINTERS exinfo = { NULL, NULL };
@@ -808,7 +806,7 @@ bool ExceptionHandler::WriteMinidumpForChild(HANDLE child,
   }
 
   ExceptionHandler handler(dump_path, NULL, callback, callback_context,
-                           HANDLER_NONE, dump_type, (HANDLE)NULL, NULL);
+                           HANDLER_NONE);
   bool success = handler.WriteMinidumpWithExceptionForProcess(
       child_blamed_thread,
       exinfo.ExceptionRecord ? &exinfo : NULL,
