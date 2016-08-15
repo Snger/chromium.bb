@@ -11,15 +11,15 @@
       "include/",
     ]
 
-    defines = [ "GRPC_USE_PROTO_LITE" ]
-  }
-
-  config("grpc_no_cxx11_threads") {
-    # TODO(xyzzyz): the <condition_variable> header in libstdc++-4.6 we're using
-    # in Chromium has a bug, which causes a compilation error on Clang.
-    # Therefore, we need to make gRPC not use standard library threading support.
-    # https://crbug.com/593874
-    defines = [ "GRPC_CXX0X_NO_THREAD" ]
+    defines = [
+      "GRPC_USE_PROTO_LITE",
+      # TODO(xyzzyz): the <condition_variable> header in libstdc++-4.6 we're using
+      # in Chromium has a bug, which causes a compilation error on Clang.
+      # Therefore, we need to make gRPC not use standard library threading
+      # support.
+      # https://crbug.com/593874
+      "GRPC_CXX0X_NO_THREAD",
+    ]
   }
 
   <%!
@@ -36,10 +36,17 @@
     name = target_dict.get("name", None)
     if name in ("grpc++_unsecure", "grpc++", "grpc++_codegen_lib"):
       deps.append("//third_party/protobuf:protobuf_lite")
-    elif name == "grpc":
+    elif name in ("grpc", "grpc_unsecure"):
       deps.append("//third_party/zlib")
 
     for d in target_dict.get("deps", []):
+      # TODO(xyzzyz): grpc++_unsecure mistakenly depends on both grpc and
+      # grpc_unsecure. Remove when it's fixed.
+      # See https://github.com/grpc/grpc/issues/7739
+      if name == "grpc++_unsecure" and d == "grpc":
+        # Ignore.
+        continue
+
       if d.startswith(("//", ":")):
         deps.append(d)
       else:
@@ -47,8 +54,6 @@
     return deps
 
   def get_extra_configs(target_dict):
-    if target_dict.get("name", "") in ("grpc++", "grpc++_unsecure"):
-      return [":grpc_no_cxx11_threads"]
     if target_dict.get("name", "") == "grpc_cpp_plugin":
       return ["//third_party/protobuf:protobuf_config"]
     return []
@@ -90,7 +95,7 @@
     hdrs = [h for h in lib_hdrs if not uses_nanopb_or_protofull(h)]
     srcs = [s for s in lib.src if not uses_nanopb_or_protofull(s)]
   %>
-  component("${lib.name}") {
+  source_set("${lib.name}") {
     sources = [
   % for hdr in lib.get("public_headers", []):
       "${hdr}",
@@ -114,7 +119,9 @@
       "${config}",
   % endfor
     ]
-    public_configs = [ ":grpc_config" ]
+    public_configs = [
+      ":grpc_config",
+    ]
   }
   </%def>
 

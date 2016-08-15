@@ -9,22 +9,22 @@ config("grpc_config") {
     "include/",
   ]
 
-  defines = [ "GRPC_USE_PROTO_LITE" ]
+  defines = [
+    "GRPC_USE_PROTO_LITE",
+    # TODO(xyzzyz): the <condition_variable> header in libstdc++-4.6 we're using
+    # in Chromium has a bug, which causes a compilation error on Clang.
+    # Therefore, we need to make gRPC not use standard library threading
+    # support.
+    # https://crbug.com/593874
+    "GRPC_CXX0X_NO_THREAD",
+  ]
 }
 
-config("grpc_no_cxx11_threads") {
-  # TODO(xyzzyz): the <condition_variable> header in libstdc++-4.6 we're using
-  # in Chromium has a bug, which causes a compilation error on Clang.
-  # Therefore, we need to make gRPC not use standard library threading support.
-  # https://crbug.com/593874
-  defines = [ "GRPC_CXX0X_NO_THREAD" ]
-}
 
 
 
 
-
-component("gpr") {
+source_set("gpr") {
   sources = [
     "include/grpc/support/alloc.h",
     "include/grpc/support/atm.h",
@@ -131,12 +131,14 @@ component("gpr") {
   configs += [
     "//build/config/compiler:no_chromium_code",
   ]
-  public_configs = [ ":grpc_config" ]
+  public_configs = [
+    ":grpc_config",
+  ]
 }
 
 
 
-component("grpc") {
+source_set("grpc") {
   sources = [
     "include/grpc/byte_buffer.h",
     "include/grpc/byte_buffer_reader.h",
@@ -508,12 +510,14 @@ component("grpc") {
   configs += [
     "//build/config/compiler:no_chromium_code",
   ]
-  public_configs = [ ":grpc_config" ]
+  public_configs = [
+    ":grpc_config",
+  ]
 }
 
 
 
-component("grpc_cronet") {
+source_set("grpc_cronet") {
   sources = [
     "include/grpc/byte_buffer.h",
     "include/grpc/byte_buffer_reader.h",
@@ -860,12 +864,14 @@ component("grpc_cronet") {
   configs += [
     "//build/config/compiler:no_chromium_code",
   ]
-  public_configs = [ ":grpc_config" ]
+  public_configs = [
+    ":grpc_config",
+  ]
 }
 
 
 
-component("grpc_unsecure") {
+source_set("grpc_unsecure") {
   sources = [
     "include/grpc/byte_buffer.h",
     "include/grpc/byte_buffer_reader.h",
@@ -1174,18 +1180,21 @@ component("grpc_unsecure") {
     "src/core/plugin_registry/grpc_unsecure_plugin_registry.c",
   ]
   deps = [
+    "//third_party/zlib",
     ":gpr",
   ]
   configs -= [ "//build/config/compiler:chromium_code" ]
   configs += [
     "//build/config/compiler:no_chromium_code",
   ]
-  public_configs = [ ":grpc_config" ]
+  public_configs = [
+    ":grpc_config",
+  ]
 }
 
 
 
-component("grpc++") {
+source_set("grpc++") {
   sources = [
     "include/grpc++/alarm.h",
     "include/grpc++/channel.h",
@@ -1334,14 +1343,15 @@ component("grpc++") {
   configs -= [ "//build/config/compiler:chromium_code" ]
   configs += [
     "//build/config/compiler:no_chromium_code",
-    ":grpc_no_cxx11_threads",
   ]
-  public_configs = [ ":grpc_config" ]
+  public_configs = [
+    ":grpc_config",
+  ]
 }
 
 
 
-component("grpc++_unsecure") {
+source_set("grpc++_unsecure") {
   sources = [
     "include/grpc++/alarm.h",
     "include/grpc++/channel.h",
@@ -1477,19 +1487,19 @@ component("grpc++_unsecure") {
     "//third_party/protobuf:protobuf_lite",
     ":gpr",
     ":grpc_unsecure",
-    ":grpc",
   ]
   configs -= [ "//build/config/compiler:chromium_code" ]
   configs += [
     "//build/config/compiler:no_chromium_code",
-    ":grpc_no_cxx11_threads",
   ]
-  public_configs = [ ":grpc_config" ]
+  public_configs = [
+    ":grpc_config",
+  ]
 }
 
 
 
-component("grpc_plugin_support") {
+source_set("grpc_plugin_support") {
   sources = [
     "include/grpc++/impl/codegen/config_protobuf.h",
     "src/compiler/config.h",
@@ -1521,7 +1531,9 @@ component("grpc_plugin_support") {
   configs += [
     "//build/config/compiler:no_chromium_code",
   ]
-  public_configs = [ ":grpc_config" ]
+  public_configs = [
+    ":grpc_config",
+  ]
 }
 
 
