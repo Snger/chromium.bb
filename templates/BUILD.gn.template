@@ -74,18 +74,35 @@
   def wanted_binary(tgt):
     wanted_binaries = ("grpc_cpp_plugin",)
     return tgt.build == "protoc" and tgt.get("name", "") in wanted_binaries
+
+  def only_on_host_toolchain(tgt):
+    return tgt.get("name", "") in ("grpc_plugin_support", "grpc_cpp_plugin")
   %>
 
   % for lib in libs:
   % if wanted_lib(lib):
+  % if only_on_host_toolchain(lib):
+  # Only compile the plugin for the host architecture.
+  if (current_toolchain == host_toolchain) {
   ${cc_library(lib)}
+  }
+  % else:
+  ${cc_library(lib)}
+  % endif
   % endif
   % endfor
 
 
   % for tgt in targets:
   % if wanted_binary(tgt):
+  % if only_on_host_toolchain(tgt):
+  # Only compile the plugin for the host architecture.
+  if (current_toolchain == host_toolchain) {
   ${cc_binary(tgt)}
+  }
+  % else:
+  ${cc_binary(tgt)}
+  % endif
   % endif
   % endfor
 

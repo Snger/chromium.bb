@@ -1497,6 +1497,8 @@ source_set("grpc++_unsecure") {
   ]
 }
 
+# Only compile the plugin for the host architecture.
+if (current_toolchain == host_toolchain) {
 
 
 source_set("grpc_plugin_support") {
@@ -1536,8 +1538,11 @@ source_set("grpc_plugin_support") {
   ]
 }
 
+}
 
 
+# Only compile the plugin for the host architecture.
+if (current_toolchain == host_toolchain) {
 
 executable("grpc_cpp_plugin") {
   sources = [
@@ -1555,6 +1560,7 @@ executable("grpc_cpp_plugin") {
   public_configs = [ ":grpc_config" ]
 }
 
+}
 
 
 
