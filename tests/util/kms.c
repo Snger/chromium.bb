@@ -142,6 +142,7 @@ static const char * const modules[] = {
 	"fsl-dcu-drm",
 	"vc4",
 	"virtio_gpu",
+	"mediatek",
 };
 
 int util_open(const char *device, const char *module)
