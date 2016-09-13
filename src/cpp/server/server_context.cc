@@ -218,8 +218,10 @@ grpc::string ServerContext::peer() const {
   return peer;
 }
 
-const struct census_context* ServerContext::census_context() const {
-  return grpc_census_call_get_context(call_);
-}
+// The following function is commented out in Chromium so that we don't introduce
+// dependency on nanopb.
+// const struct census_context* ServerContext::census_context() const {
+//   return grpc_census_call_get_context(call_);
+// }
 
 }  // namespace grpc

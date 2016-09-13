@@ -82,7 +82,9 @@ Call Channel::CreateCall(const RpcMethod& method, ClientContext* context,
                                       cq->cq(), method.name(), host_str,
                                       context->raw_deadline(), nullptr);
   }
-  grpc_census_call_set_context(c_call, context->census_context());
+  // The following line is commented out in Chromium so that we don't introduce
+  // dependency on nanopb.
+  // grpc_census_call_set_context(c_call, context->census_context());
   context->set_call(c_call, shared_from_this());
   return Call(c_call, this, cq);
 }

@@ -60,11 +60,8 @@
 
   def uses_nanopb_or_protofull(f):
     return (f.startswith("third_party/nanopb")
-      or f.endswith(".pb.h")
-      or f.endswith(".pb.c")
-      or f.endswith(".pb.cc")
-      or f.endswith("load_balancer_api.h")
-      or f.endswith("load_balancer_api.c"))
+            or "census" in f
+            or "grpclb" in f)
 
   def wanted_lib(lib):
     wanted_libs = ("gpr", "grpc", "grpc_unsecure", "grpc++", "grpc++_unsecure",
