@@ -850,14 +850,12 @@ libs:
   - grpc_transport_chttp2_client_secure
   - grpc_transport_chttp2_server_insecure
   - grpc_transport_chttp2_client_insecure
-  - grpc_lb_policy_grpclb
   - grpc_lb_policy_pick_first
   - grpc_lb_policy_round_robin
   - grpc_resolver_dns_native
   - grpc_resolver_sockaddr
   - grpc_load_reporting
   - grpc_secure
-  - census
   generate_plugin_registry: true
   secure: true
   vs_packages:
@@ -948,10 +946,8 @@ libs:
   - grpc_resolver_dns_native
   - grpc_resolver_sockaddr
   - grpc_load_reporting
-  - grpc_lb_policy_grpclb
   - grpc_lb_policy_pick_first
   - grpc_lb_policy_round_robin
-  - census
   generate_plugin_registry: true
   secure: false
   vs_project_guid: '{46CEDFFF-9692-456A-AA24-38B5D6BCF4C5}'
