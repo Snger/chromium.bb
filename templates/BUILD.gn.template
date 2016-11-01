@@ -87,6 +87,15 @@
 
   def only_on_host_toolchain(tgt):
     return tgt.get("name", "") in ("grpc_plugin_support", "grpc_cpp_plugin")
+
+  def contains_wrap_memcpy(srcs):
+    for src in srcs:
+      if 'wrap_memcpy' in src:
+        return True
+    return False
+
+  def get_wrap_memcpy(srcs):
+    return [s for s in srcs if "wrap_memcpy" in s]
   %>
 
   % for lib in libs:
@@ -134,6 +143,17 @@
       "${src}",
   % endfor
     ]
+  % if contains_wrap_memcpy(srcs):
+    if (is_android) {
+      # gRPC memcpy wrapping logic isn't Android-friendly.
+      # See https://crbug.com/661171
+      sources -= [
+  % for src in get_wrap_memcpy(srcs):
+        "${src}",
+  % endfor
+      ]
+    }
+  % endif
     deps = [
   % for dep in get_deps(lib):
       "${dep}",

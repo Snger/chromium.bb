@@ -139,6 +139,13 @@ source_set("gpr") {
     "src/core/lib/support/tmpfile_windows.c",
     "src/core/lib/support/wrap_memcpy.c",
   ]
+  if (is_android) {
+    # gRPC memcpy wrapping logic isn't Android-friendly.
+    # See https://crbug.com/661171
+    sources -= [
+      "src/core/lib/support/wrap_memcpy.c",
+    ]
+  }
   deps = [
   ]
   configs -= [ "//build/config/compiler:chromium_code" ]
