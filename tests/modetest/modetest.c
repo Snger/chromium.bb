@@ -417,9 +417,32 @@ static void dump_framebuffers(struct device *dev)
 	printf("\n");
 }
 
+static const char *
+mod_to_string(uint64_t mod, char *buf, int len)
+{
+	switch (mod) {
+	case DRM_FORMAT_MOD_NONE:
+		return "LINEAR";
+	case I915_FORMAT_MOD_X_TILED:
+		return "X_TILED";
+	case I915_FORMAT_MOD_Y_TILED:
+		return "Y_TILED";
+	case I915_FORMAT_MOD_Yf_TILED:
+		return "Yf_TILED";
+	case DRM_FORMAT_MOD_SAMSUNG_64_32_TILE:
+		return "SAMSUNG_64_32_TILE";
+	case DRM_FORMAT_MOD_CHROMEOS_ROCKCHIP_AFBC:
+		return "CHROMEOS_ROCKCHIP_AFBC";
+	default:
+		snprintf(buf, len, "%016x", mod);
+		return buf;
+	}
+}
+
 static void dump_planes(struct device *dev)
 {
-	unsigned int i, j;
+	unsigned int i, j, k;
+	char buf[17];
 
 	printf("Planes:\n");
 	printf("id\tcrtc\tfb\tCRTC x,y\tx,y\tgamma size\tpossible crtcs\n");
@@ -442,8 +465,19 @@ static void dump_planes(struct device *dev)
 			continue;
 
 		printf("  formats:");
-		for (j = 0; j < ovr->count_formats; j++)
-			printf(" %4.4s", (char *)&ovr->formats[j]);
+		for (j = 0; j < ovr->count_formats; j++) {
+			if (ovr->count_format_modifiers == 0) {
+				printf(" %4.4s", (char *)&ovr->formats[j]);
+				continue;
+			}
+			struct drm_format_modifier *fm;
+			for (k = 0; k < ovr->count_format_modifiers; k++) {
+				fm = &ovr->format_modifiers[k];
+				if (fm->formats & (1 << j))
+					printf(" %4.4s:%s", (char *)&ovr->formats[j],
+					       mod_to_string(fm->modifier, buf, sizeof(buf)));
+			}
+		}
 		printf("\n");
 
 		if (plane->props) {
@@ -609,7 +643,7 @@ static struct resources *get_resources(struct device *dev)
 	if (!res->planes)
 		goto error;
 
-	get_resource(res, plane_res, plane, Plane);
+	get_resource(res, plane_res, plane, Plane2);
 	get_properties(res, plane_res, plane, PLANE);
 
 	return res;
