@@ -974,15 +974,15 @@ int drmModeSetPlane(int fd, uint32_t plane_id, uint32_t crtc_id,
 	return DRM_IOCTL(fd, DRM_IOCTL_MODE_SETPLANE, &s);
 }
 
-drmModePlanePtr drmModeGetPlane(int fd, uint32_t plane_id)
+static drmModePlanePtr get_plane(unsigned long cmd, int fd, uint32_t plane_id)
 {
-	struct drm_mode_get_plane ovr, counts;
+	struct drm_mode_get_plane2 ovr, counts;
 	drmModePlanePtr r = 0;
 
 retry:
 	memclear(ovr);
 	ovr.plane_id = plane_id;
-	if (drmIoctl(fd, DRM_IOCTL_MODE_GETPLANE, &ovr))
+	if (drmIoctl(fd, cmd, &ovr))
 		return 0;
 
 	counts = ovr;
@@ -994,11 +994,21 @@ retry:
 			goto err_allocs;
 	}
 
-	if (drmIoctl(fd, DRM_IOCTL_MODE_GETPLANE, &ovr))
+	if (ovr.count_format_modifiers) {
+		ovr.format_modifier_ptr =
+			VOID2U64(drmMalloc(ovr.count_format_modifiers *
+					   sizeof(struct drm_format_modifier)));
+		if (!ovr.format_modifier_ptr)
+			goto err_allocs;
+	}
+
+	if (drmIoctl(fd, cmd, &ovr))
 		goto err_allocs;
 
-	if (counts.count_format_types < ovr.count_format_types) {
+	if (counts.count_format_types < ovr.count_format_types ||
+	    counts.count_format_modifiers < ovr.count_format_modifiers) {
 		drmFree(U642VOID(ovr.format_type_ptr));
+		drmFree(U642VOID(ovr.format_modifier_ptr));
 		goto retry;
 	}
 
@@ -1006,6 +1016,7 @@ retry:
 		goto err_allocs;
 
 	r->count_formats = ovr.count_format_types;
+	r->count_format_modifiers = ovr.count_format_modifiers;
 	r->plane_id = ovr.plane_id;
 	r->crtc_id = ovr.crtc_id;
 	r->fb_id = ovr.fb_id;
@@ -1017,12 +1028,39 @@ retry:
 		drmFree(r->formats);
 		drmFree(r);
 		r = 0;
+		goto err_allocs;
+	}
+
+	r->format_modifiers =
+		drmAllocCpy(U642VOID(ovr.format_modifier_ptr),
+			    ovr.count_format_modifiers,
+			    sizeof(struct drm_format_modifier));
+	if (ovr.count_format_modifiers && !r->format_modifiers) {
+		drmFree(r->formats);
+		drmFree(r);
+		r = 0;
 	}
 
 err_allocs:
 	drmFree(U642VOID(ovr.format_type_ptr));
+	drmFree(U642VOID(ovr.format_modifier_ptr));
 
 	return r;
+}
+
+drmModePlanePtr drmModeGetPlane2(int fd, uint32_t plane_id)
+{
+	drmModePlanePtr r = get_plane(DRM_IOCTL_MODE_GETPLANE2, fd, plane_id);
+
+	if (r || errno != EINVAL)
+		return r;
+
+	return get_plane(DRM_IOCTL_MODE_GETPLANE, fd, plane_id);
+}
+
+drmModePlanePtr drmModeGetPlane(int fd, uint32_t plane_id)
+{
+	return get_plane(DRM_IOCTL_MODE_GETPLANE, fd, plane_id);
 }
 
 void drmModeFreePlane(drmModePlanePtr ptr)
@@ -1031,6 +1069,7 @@ void drmModeFreePlane(drmModePlanePtr ptr)
 		return;
 
 	drmFree(ptr->formats);
+	drmFree(ptr->format_modifiers);
 	drmFree(ptr);
 }
 
