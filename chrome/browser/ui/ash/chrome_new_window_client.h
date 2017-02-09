@@ -17,6 +17,9 @@ class ChromeNewWindowClient : public ash::mojom::NewWindowClient {
   ChromeNewWindowClient();
   ~ChromeNewWindowClient() override;
 
+  // Returns the active browser that has active browser window, if any.
+  static Browser* GetActiveBrowser();
+
   // Overridden from ash::mojom::NewWindowClient:
   void NewTab() override;
   void NewWindow(bool incognito) override;
