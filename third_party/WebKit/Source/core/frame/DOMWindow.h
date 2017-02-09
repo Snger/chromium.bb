@@ -203,7 +203,7 @@ class CORE_EXPORT DOMWindow : public EventTargetWithInlineData,
   // Obsolete APIs
   void captureEvents() {}
   void releaseEvents() {}
-  External* external() const;
+  External* external();
 
   // FIXME: This handles both window[index] and window.frames[index]. However,
   // the spec exposes window.frames[index] across origins but not
@@ -268,6 +268,7 @@ class CORE_EXPORT DOMWindow : public EventTargetWithInlineData,
 
  private:
   mutable Member<Location> m_location;
+  Member<External> m_external;
 };
 
 }  // namespace blink
