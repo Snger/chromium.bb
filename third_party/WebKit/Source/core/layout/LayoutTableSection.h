@@ -332,6 +332,8 @@ class CORE_EXPORT LayoutTableSection final : public LayoutTableBoxComponent {
 
   bool isRepeatingHeaderGroup() const;
 
+  void layout() override;
+
  protected:
   void styleDidChange(StyleDifference, const ComputedStyle* oldStyle) override;
   bool nodeAtPoint(HitTestResult&,
@@ -345,8 +347,6 @@ class CORE_EXPORT LayoutTableSection final : public LayoutTableBoxComponent {
   }
 
   void willBeRemovedFromTree() override;
-
-  void layout() override;
 
   int borderSpacingForRow(unsigned row) const {
     return m_grid[row].rowLayoutObject ? table()->vBorderSpacing() : 0;
