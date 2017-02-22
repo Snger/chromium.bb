@@ -179,7 +179,7 @@ TEST_F(SSLConfigServiceManagerPrefTest, NoSSL3) {
   EXPECT_LE(net::SSL_PROTOCOL_VERSION_TLS1, ssl_config.version_min);
 }
 
-// Tests that TLS 1.3 may be enabled via features.
+// Tests that TLS 1.3 may not be enabled via features.
 TEST_F(SSLConfigServiceManagerPrefTest, TLS13Feature) {
   // Toggle the feature.
   base::test::ScopedFeatureList scoped_feature_list;
@@ -194,8 +194,8 @@ TEST_F(SSLConfigServiceManagerPrefTest, TLS13Feature) {
   scoped_refptr<SSLConfigService> config_service(config_manager->Get());
   ASSERT_TRUE(config_service.get());
 
-  // The feature should have switched the default version_fallback_min value.
+  // The feature should still be TLS 1.2.
   SSLConfig ssl_config;
   config_service->GetSSLConfig(&ssl_config);
-  EXPECT_EQ(net::SSL_PROTOCOL_VERSION_TLS1_3, ssl_config.version_max);
+  EXPECT_EQ(net::SSL_PROTOCOL_VERSION_TLS1_2, ssl_config.version_max);
 }
