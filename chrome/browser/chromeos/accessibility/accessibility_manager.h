@@ -20,6 +20,7 @@
 #include "chrome/browser/chromeos/accessibility/chromevox_panel.h"
 #include "chrome/browser/extensions/api/braille_display_private/braille_controller.h"
 #include "components/prefs/pref_change_registrar.h"
+#include "components/session_manager/core/session_manager_observer.h"
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/notification_registrar.h"
 #include "extensions/browser/event_router.h"
@@ -89,6 +90,7 @@ class AccessibilityManager
       public extensions::api::braille_display_private::BrailleObserver,
       public extensions::ExtensionRegistryObserver,
       public ash::SessionStateObserver,
+      public session_manager::SessionManagerObserver,
       public ash::ShellObserver,
       public input_method::InputMethodManager::Observer {
  public:
@@ -291,6 +293,7 @@ class AccessibilityManager
   void PostLoadChromeVox();
   void PostUnloadChromeVox();
   void PostSwitchChromeVoxProfile();
+  void ReloadChromeVoxPanel();
 
   void UpdateLargeCursorFromPref();
   void UpdateStickyKeysFromPref();
@@ -341,6 +344,9 @@ class AccessibilityManager
   void InputMethodChanged(input_method::InputMethodManager* manager,
                           Profile* profile,
                           bool show_message) override;
+
+  // session_manager::SessionManagerObserver
+  void OnSessionStateChanged() override;
 
   // Profile which has the current a11y context.
   Profile* profile_;

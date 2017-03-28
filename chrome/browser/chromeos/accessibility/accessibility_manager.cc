@@ -60,6 +60,7 @@
 #include "chromeos/login/login_state.h"
 #include "components/prefs/pref_member.h"
 #include "components/prefs/pref_service.h"
+#include "components/session_manager/core/session_manager.h"
 #include "components/user_manager/user_manager.h"
 #include "content/public/browser/browser_accessibility_state.h"
 #include "content/public/browser/browser_thread.h"
@@ -277,6 +278,7 @@ AccessibilityManager::AccessibilityManager()
                               content::NotificationService::AllSources());
 
   input_method::InputMethodManager::Get()->AddObserver(this);
+  session_manager::SessionManager::Get()->AddObserver(this);
 
   ui::ResourceBundle& bundle = ui::ResourceBundle::GetSharedInstance();
   media::SoundsManager* manager = media::SoundsManager::Get();
@@ -321,6 +323,7 @@ AccessibilityManager::~AccessibilityManager() {
                                           ash::A11Y_NOTIFICATION_NONE);
   NotifyAccessibilityStatusChanged(details);
   input_method::InputMethodManager::Get()->RemoveObserver(this);
+  session_manager::SessionManager::Get()->RemoveObserver(this);
 
   if (chromevox_panel_) {
     chromevox_panel_->Close();
@@ -1006,6 +1009,20 @@ void AccessibilityManager::InputMethodChanged(
       (descriptor.id() == extension_misc::kBrailleImeEngineId);
 }
 
+void AccessibilityManager::OnSessionStateChanged() {
+  if (!chromevox_panel_)
+    return;
+  if (chromevox_panel_->for_blocked_user_session() ==
+      session_manager::SessionManager::Get()->IsUserSessionBlocked()) {
+    return;
+  }
+
+  // If user session got blocked or unblocked, reload ChromeVox panel, as
+  // functionality available to the panel differs based on whether the user
+  // session is active (and unlocked) or not.
+  ReloadChromeVoxPanel();
+}
+
 void AccessibilityManager::SetProfile(Profile* profile) {
   pref_change_registrar_.reset();
   local_state_pref_change_registrar_.reset();
@@ -1312,7 +1329,9 @@ void AccessibilityManager::PostLoadChromeVox() {
       extension_misc::kChromeVoxExtensionId, std::move(event));
 
   if (!chromevox_panel_) {
-    chromevox_panel_ = new ChromeVoxPanel(profile_);
+    chromevox_panel_ = new ChromeVoxPanel(
+        profile_,
+        session_manager::SessionManager::Get()->IsUserSessionBlocked());
     chromevox_panel_widget_observer_.reset(
         new ChromeVoxPanelWidgetObserver(chromevox_panel_->GetWidget(), this));
   }
@@ -1339,11 +1358,16 @@ void AccessibilityManager::PostUnloadChromeVox() {
 }
 
 void AccessibilityManager::PostSwitchChromeVoxProfile() {
+  ReloadChromeVoxPanel();
+}
+
+void AccessibilityManager::ReloadChromeVoxPanel() {
   if (chromevox_panel_) {
     chromevox_panel_->Close();
     chromevox_panel_ = nullptr;
   }
-  chromevox_panel_ = new ChromeVoxPanel(profile_);
+  chromevox_panel_ = new ChromeVoxPanel(
+      profile_, session_manager::SessionManager::Get()->IsUserSessionBlocked());
   chromevox_panel_widget_observer_.reset(
       new ChromeVoxPanelWidgetObserver(chromevox_panel_->GetWidget(), this));
 }
