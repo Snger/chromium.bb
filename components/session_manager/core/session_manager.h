@@ -54,6 +54,7 @@ class SESSION_EXPORT SessionManager {
   // Convenience wrapps of session state.
   bool IsInSecondaryLoginScreen() const;
   bool IsScreenLocked() const;
+  bool IsUserSessionBlocked() const;
 
   // Returns the maximum number of allowed user sessions.
   uint32_t GetMaximumNumberOfUserSessions() const;

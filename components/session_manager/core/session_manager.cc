@@ -75,6 +75,10 @@ uint32_t SessionManager::GetMaximumNumberOfUserSessions() const {
   return 10u;
 }
 
+bool SessionManager::IsUserSessionBlocked() const {
+  return session_state_ != SessionState::ACTIVE;
+}
+
 void SessionManager::AddObserver(SessionManagerObserver* observer) {
   observers_.AddObserver(observer);
 }
