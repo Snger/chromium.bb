@@ -30,7 +30,7 @@
     boolean checkSpellingForRange(Range range);
     void removeMarker(Range range, long mask, long removeMarkerFlag);
     void addMarker(Range range, long markerType);
-    void addHighlightMarker(Range range, long foregroundColor, long backgroundColor);
+    void addHighlightMarker(Range range, long foregroundColor, long backgroundColor, optional boolean includeNonSelectableText);
 
     Range findPlainText(Range range, DOMString target, long options);
     boolean checkSpellingForNode(Node node);

@@ -112,7 +112,8 @@ class CORE_EXPORT DocumentMarker : public GarbageCollected<DocumentMarker> {
   DocumentMarker(unsigned startOffset,
                  unsigned endOffset,
                  Color foregroundColor,
-                 Color backgroundColor);
+                 Color backgroundColor,
+                 bool includeNonSelectableText);
 
   DocumentMarker(const DocumentMarker&);
 
@@ -127,6 +128,7 @@ class CORE_EXPORT DocumentMarker : public GarbageCollected<DocumentMarker> {
   bool thick() const;
   Color backgroundColor() const;
   Color foregroundColor() const;
+  bool includeNonSelectableText() const;
   DocumentMarkerDetails* details() const;
 
   void setActiveMatch(bool);

@@ -131,20 +131,23 @@ inline TextCompositionMarkerDetails* toTextCompositionMarkerDetails(
 
 class HighlightMarkerDetails final: public DocumentMarkerDetails {
 public:
-    HighlightMarkerDetails(Color foregroundColor, Color backgroundColor)
+    HighlightMarkerDetails(Color foregroundColor, Color backgroundColor, bool includeNonSelectableText)
         : m_foregroundColor(foregroundColor)
         , m_backgroundColor(backgroundColor)
+        , m_includeNonSelectableText(includeNonSelectableText)
     {
     }
 
     bool isHighlightMarker() const override { return true; }
     Color foregroundColor() const { return m_foregroundColor; }
     Color backgroundColor() const { return m_backgroundColor; }
+    bool includeNonSelectableText() const { return m_includeNonSelectableText; }
 
 private:
 
     Color m_foregroundColor;
     Color m_backgroundColor;
+    bool  m_includeNonSelectableText;
 };
 
 
@@ -193,11 +196,12 @@ DocumentMarker::DocumentMarker(unsigned startOffset,
 DocumentMarker::DocumentMarker(unsigned startOffset,
                                unsigned endOffset,
                                Color foregroundColor,
-                               Color backgroundColor)
+                               Color backgroundColor,
+                               bool includeNonSelectableText)
     : m_type(DocumentMarker::Highlight)
     , m_startOffset(startOffset)
     , m_endOffset(endOffset)
-    , m_details(new HighlightMarkerDetails(foregroundColor, backgroundColor))
+    , m_details(new HighlightMarkerDetails(foregroundColor, backgroundColor, includeNonSelectableText))
     , m_hash(0)
 {
 }
@@ -263,6 +267,14 @@ Color DocumentMarker::foregroundColor() const
         return details->foregroundColor();
 
   return Color::transparent;
+}
+
+bool DocumentMarker::includeNonSelectableText() const 
+{
+    if (HighlightMarkerDetails* details = toHighlightMarkerDetails(m_details.get()))
+        return details->includeNonSelectableText();
+
+    return false;
 }
 
 DEFINE_TRACE(DocumentMarker) {
