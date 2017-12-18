@@ -42,5 +42,16 @@ v8::Local<v8::Context> WebScriptBindings::createWebScriptContext()
     return hs.Escape(context);
 }
 
+void WebScriptBindings::disposeWebScriptContext(v8::Local<v8::Context> context)
+{
+	ScriptState *scriptState = ScriptState::from(context);
+
+	if (!scriptState) {
+		return;
+	}
+
+	scriptState->disposePerContextData();
+}
+
 } // namespace blink
 

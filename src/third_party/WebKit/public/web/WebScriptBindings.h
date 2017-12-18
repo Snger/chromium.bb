@@ -38,6 +38,9 @@ class WebScriptBindings {
 public:
     // Creates a V8 context that can access the DOM.
     BLINK_EXPORT static v8::Local<v8::Context> createWebScriptContext();
+
+    // Disposes of per-context data for a context created with 'createWebScriptContext()':
+    BLINK_EXPORT static void disposeWebScriptContext(v8::Local<v8::Context> context);
 };
 
 } // namespace blink
