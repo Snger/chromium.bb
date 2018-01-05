@@ -1031,11 +1031,12 @@ inline bool BreakingContext::handleText(WordMeasurements& wordMeasurements,
 
     // Determine if we are in the whitespace between words.
     int nextBreakablePosition = m_current.nextBreakablePosition();
+    bool isBreakable = breakAll || m_layoutTextInfo.m_lineBreakIterator.isBreakable(
+             m_current.offset(), nextBreakablePosition, lineBreakType);
     bool betweenWords =
         c == newlineCharacter ||
         (m_currWS != PRE && !m_atStart &&
-         m_layoutTextInfo.m_lineBreakIterator.isBreakable(
-             m_current.offset(), nextBreakablePosition, lineBreakType) &&
+         isBreakable &&
          (!disableSoftHyphen ||
           m_current.previousInSameNode() != softHyphenCharacter));
     m_current.setNextBreakablePosition(nextBreakablePosition);
