@@ -1,0 +1,36 @@
+<script>
+if (window.testRunner)
+    testRunner.dumpAsText();
+</script>
+<iframe
+  sandbox="allow-scripts"
+  srcdoc="
+<script>
+  try {
+    top.navigator;
+    console.log('FAIL');
+  } catch (e) {
+    console.log(e.toString());
+  }
+  this.x = 7;
+  window.name = 'navigator';
+  try {
+    top.navigator;
+    console.log('FAIL');
+  } catch (e) {
+    console.log(e.toString());
+  }
+</script>"
+></iframe>
+<iframe
+  sandbox="allow-scripts"
+  srcdoc="
+<script>
+  try {
+    top.navigator;
+    console.log('FAIL');
+  } catch (e) {
+    console.log(e.toString());
+  }
+</script>"
+></iframe>

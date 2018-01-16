@@ -1,0 +1,107 @@
+<html>
+<head>
+<script src="../../../http/tests/inspector/inspector-test.js"></script>
+<script src="../../../http/tests/inspector/debugger-test.js"></script>
+<script>
+function test()
+{
+    function dumpNavigator(sourcesNavigatorView)
+    {
+        InspectorTest.addResult("Navigator:");
+        InspectorTest.dumpNavigatorView(sourcesNavigatorView);
+    }
+
+    function createNavigatorView()
+    {
+        var navigatorView = new Sources.SourcesNavigatorView();
+        navigatorView.show(UI.inspectorView.element);
+        return navigatorView;
+    }
+
+    function createContentProvider(url)
+    {
+        var contentProvider = Common.StaticContentProvider.fromString(url, Common.resourceTypes.Script, "");
+        contentProvider.requestContent = function()
+        {
+            InspectorTest.addResult("Source requested for " + url);
+            return Promise.resolve("");
+        };
+        return contentProvider;
+    }
+
+    function addNetworkFile(url)
+    {
+        var networkProject = Bindings.NetworkProject.forTarget(InspectorTest.mainTarget);
+        return networkProject.addFile(createContentProvider(url), InspectorTest.mainFrame());
+    }
+
+    InspectorTest.runTestSuite([
+        function testInitialLoad(next)
+        {
+            Bindings.NetworkProject.forTarget(InspectorTest.mainTarget)._reset();
+            addNetworkFile("foobar.js");
+
+            var sourcesNavigatorView = createNavigatorView();
+
+            addNetworkFile("foo.js");
+            addNetworkFile("bar.js");
+            var uiSourceCode = addNetworkFile("baz.js");
+            sourcesNavigatorView.revealUISourceCode(uiSourceCode);
+
+            dumpNavigator(sourcesNavigatorView);
+            next();
+        },
+
+        function testReset(next)
+        {
+            Bindings.NetworkProject.forTarget(InspectorTest.mainTarget)._reset();
+            var sourcesNavigatorView = createNavigatorView();
+
+            var uiSourceCode = addNetworkFile("foo.js");
+            addNetworkFile("bar.js");
+            addNetworkFile("baz.js");
+
+            dumpNavigator(sourcesNavigatorView);
+            InspectorTest.addResult("Revealing in navigator.");
+            sourcesNavigatorView.revealUISourceCode(uiSourceCode);
+            dumpNavigator(sourcesNavigatorView);
+
+            Bindings.NetworkProject.forTarget(InspectorTest.mainTarget)._reset();
+            dumpNavigator(sourcesNavigatorView);
+            uiSourceCode = addNetworkFile("bar.js");
+            sourcesNavigatorView.revealUISourceCode(uiSourceCode);
+            dumpNavigator(sourcesNavigatorView);
+
+            next();
+        },
+
+        function testDebuggerUISourceCodeAddedAndRemoved(next)
+        {
+            Bindings.NetworkProject.forTarget(InspectorTest.mainTarget)._reset();
+            var sourcesNavigatorView = createNavigatorView();
+
+            var uiSourceCode = addNetworkFile("foo.js");
+            InspectorTest.waitForUISourceCode(onUISourceCode);
+            InspectorTest.evaluateInPage("function foo() {}");
+
+            function onUISourceCode(debuggerUISourceCode)
+            {
+                sourcesNavigatorView.revealUISourceCode(uiSourceCode);
+                sourcesNavigatorView.revealUISourceCode(debuggerUISourceCode);
+                dumpNavigator(sourcesNavigatorView);
+
+                // Plug compiler source mapping.
+                addNetworkFile("source.js");
+
+                dumpNavigator(sourcesNavigatorView);
+                next();
+            }
+        }
+    ]);
+};
+</script>
+</head>
+<body onload="runTest()">
+<p>Tests that scripts panel UI elements work as intended.</p>
+</body>
+</html>

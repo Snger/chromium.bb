@@ -1,0 +1,43 @@
+Tests that scripts panel UI elements work as intended.
+
+
+Running: testInitialLoad
+Navigator:
+top
+  (no domain)
+    bar.js
+    baz.js
+    foo.js
+    foobar.js
+
+Running: testReset
+Navigator:
+top
+  (no domain)
+    bar.js
+    baz.js
+    foo.js
+Revealing in navigator.
+Navigator:
+top
+  (no domain)
+    bar.js
+    baz.js
+    foo.js
+Navigator:
+Navigator:
+top
+  (no domain)
+    bar.js
+
+Running: testDebuggerUISourceCodeAddedAndRemoved
+Navigator:
+top
+  (no domain)
+    foo.js
+Navigator:
+top
+  (no domain)
+    foo.js
+    source.js
+

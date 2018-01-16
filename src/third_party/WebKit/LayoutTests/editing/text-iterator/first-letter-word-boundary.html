@@ -1,0 +1,62 @@
+<!DOCTYPE html>
+<script src="../../resources/testharness.js"></script>
+<script src="../../resources/testharnessreport.js"></script>
+<script src="../assert_selection.js"></script>
+
+<script>
+const isMac = navigator.platform.indexOf('Mac') !== -1;
+
+test(() => assert_selection(
+    [
+      '<style>:first-letter{color:red;}</style>',
+      '<div contenteditable> hel|lo world\'</div>'
+    ].join(''),
+    selection => selection.modify('move', 'forward', 'word'),
+    [
+      '<style>:first-letter{color:red;}</style>',
+      isMac ? '<div contenteditable> hello| world\'</div>'
+            // The current non-Mac behavior is wrong. The correct expectation
+            // should be 'hello |world'. A deeper reason is that Blink performs
+            // backward word boundary searches to refine the final selection,
+            // which doesn't work with first-letter (crbug.com/671104).
+            : '<div contenteditable> hell|o world\'</div>'
+    ].join('')), 'Move forward by word');
+
+test(() => assert_selection(
+    [
+      '<style>:first-letter{color:red;}</style>',
+      '<div contenteditable> hel|lo world\'</div>'
+    ].join(''),
+    selection => selection.modify('move', 'backward', 'word'),
+    [
+      '<style>:first-letter{color:red;}</style>',
+      '<div contenteditable> |hello world\'</div>'
+    ].join('')), 'Move backward by word');
+
+test(() => assert_selection(
+    [
+      '<style>:first-letter{color:red;}</style>',
+      '<div contenteditable style="white-space:pre"> hel|lo world\'</div>'
+    ].join(''),
+    selection => selection.modify('move', 'forward', 'word'),
+    [
+      '<style>:first-letter{color:red;}</style>',
+      isMac ? '<div contenteditable style="white-space:pre"> hello| world\'</div>'
+            // The current non-Mac behavior is wrong. The correct expectation
+            // should be 'hello |world'. A deeper reason is that Blink performs
+            // backward word boundary searches to refine the final selection,
+            // which doesn't work with first-letter (crbug.com/671104).
+            : '<div contenteditable style="white-space:pre"> hell|o world\'</div>'
+    ].join('')), 'Move forward by word with white-space:pre');
+
+test(() => assert_selection(
+    [
+      '<style>:first-letter{color:red;}</style>',
+      '<div contenteditable style="white-space:pre"> hel|lo world\'</div>'
+    ].join(''),
+    selection => selection.modify('move', 'backward', 'word'),
+    [
+      '<style>:first-letter{color:red;}</style>',
+      '<div contenteditable style="white-space:pre"> |hello world\'</div>'
+    ].join('')), 'Move backward by word with white-space:pre');
+</script>
