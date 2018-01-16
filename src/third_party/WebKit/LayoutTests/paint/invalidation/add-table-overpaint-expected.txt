@@ -1,0 +1,40 @@
+{
+  "layers": [
+    {
+      "name": "LayoutView #document",
+      "bounds": [800, 600],
+      "contentsOpaque": true,
+      "drawsContent": true,
+      "paintInvalidations": [
+        {
+          "object": "LayoutBlockFlow DIV",
+          "rect": [0, 312, 800, 156],
+          "reason": "appeared"
+        }
+      ]
+    }
+  ],
+  "objectPaintInvalidations": [
+    {
+      "object": "LayoutBlockFlow DIV",
+      "reason": "appeared"
+    },
+    {
+      "object": "LayoutTable TABLE",
+      "reason": "appeared"
+    },
+    {
+      "object": "LayoutTableSection TBODY",
+      "reason": "appeared"
+    },
+    {
+      "object": "LayoutTableRow TR",
+      "reason": "appeared"
+    },
+    {
+      "object": "LayoutTableCell TD",
+      "reason": "appeared"
+    }
+  ]
+}
+

@@ -1,0 +1,58 @@
+{
+  "layers": [
+    {
+      "name": "LayoutView #document",
+      "bounds": [800, 600],
+      "contentsOpaque": true,
+      "drawsContent": true,
+      "paintInvalidations": [
+        {
+          "object": "LayoutBlockFlow H2",
+          "rect": [40, 107, 111, 28],
+          "reason": "geometry"
+        },
+        {
+          "object": "LayoutBlockFlow H2",
+          "rect": [8, 107, 111, 28],
+          "reason": "geometry"
+        },
+        {
+          "object": "LayoutBlockFlow (anonymous)",
+          "rect": [8, 88, 32, 67],
+          "reason": "geometry"
+        }
+      ]
+    }
+  ],
+  "objectPaintInvalidations": [
+    {
+      "object": "LayoutBlockFlow (anonymous)",
+      "reason": "geometry"
+    },
+    {
+      "object": "RootInlineBox",
+      "reason": "geometry"
+    },
+    {
+      "object": "LayoutImage IMG id='foo'",
+      "reason": "geometry"
+    },
+    {
+      "object": "LayoutBlockFlow H2",
+      "reason": "geometry"
+    },
+    {
+      "object": "RootInlineBox",
+      "reason": "geometry"
+    },
+    {
+      "object": "LayoutText #text",
+      "reason": "geometry"
+    },
+    {
+      "object": "InlineTextBox 'Chromium'",
+      "reason": "geometry"
+    }
+  ]
+}
+

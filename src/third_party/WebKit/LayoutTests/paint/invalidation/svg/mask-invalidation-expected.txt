@@ -1,0 +1,37 @@
+{
+  "layers": [
+    {
+      "name": "LayoutView #document",
+      "bounds": [800, 600],
+      "contentsOpaque": true,
+      "drawsContent": true,
+      "paintInvalidations": [
+        {
+          "object": "LayoutSVGContainer g id='root'",
+          "rect": [50, 50, 453, 299],
+          "reason": "geometry"
+        },
+        {
+          "object": "LayoutSVGRect rect",
+          "rect": [50, 50, 453, 299],
+          "reason": "disappeared"
+        }
+      ]
+    }
+  ],
+  "objectPaintInvalidations": [
+    {
+      "object": "LayoutSVGRect rect",
+      "reason": "disappeared"
+    },
+    {
+      "object": "LayoutSVGContainer g id='root'",
+      "reason": "geometry"
+    },
+    {
+      "object": "LayoutSVGRect rect",
+      "reason": "appeared"
+    }
+  ]
+}
+

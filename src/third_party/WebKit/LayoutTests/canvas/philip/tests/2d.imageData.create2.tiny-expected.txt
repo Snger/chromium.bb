@@ -1,0 +1,1 @@
+Aborted with exception: Failed to execute 'createImageData' on 'CanvasRenderingContext2D': The source width is 0.
