@@ -85,37 +85,37 @@ TEST(BYTESWAP) {
 
   __ ld(a4, MemOperand(a0, offsetof(T, r1)));
   __ nop();
-  __ ByteSwapSigned(a4, 8);
+  __ ByteSwapSigned(a4, a4, 8);
   __ sd(a4, MemOperand(a0, offsetof(T, r1)));
 
   __ ld(a4, MemOperand(a0, offsetof(T, r2)));
   __ nop();
-  __ ByteSwapSigned(a4, 4);
+  __ ByteSwapSigned(a4, a4, 4);
   __ sd(a4, MemOperand(a0, offsetof(T, r2)));
 
   __ ld(a4, MemOperand(a0, offsetof(T, r3)));
   __ nop();
-  __ ByteSwapSigned(a4, 2);
+  __ ByteSwapSigned(a4, a4, 2);
   __ sd(a4, MemOperand(a0, offsetof(T, r3)));
 
   __ ld(a4, MemOperand(a0, offsetof(T, r4)));
   __ nop();
-  __ ByteSwapSigned(a4, 1);
+  __ ByteSwapSigned(a4, a4, 1);
   __ sd(a4, MemOperand(a0, offsetof(T, r4)));
 
   __ ld(a4, MemOperand(a0, offsetof(T, r5)));
   __ nop();
-  __ ByteSwapUnsigned(a4, 1);
+  __ ByteSwapUnsigned(a4, a4, 1);
   __ sd(a4, MemOperand(a0, offsetof(T, r5)));
 
   __ ld(a4, MemOperand(a0, offsetof(T, r6)));
   __ nop();
-  __ ByteSwapUnsigned(a4, 2);
+  __ ByteSwapUnsigned(a4, a4, 2);
   __ sd(a4, MemOperand(a0, offsetof(T, r6)));
 
   __ ld(a4, MemOperand(a0, offsetof(T, r7)));
   __ nop();
-  __ ByteSwapUnsigned(a4, 4);
+  __ ByteSwapUnsigned(a4, a4, 4);
   __ sd(a4, MemOperand(a0, offsetof(T, r7)));
 
   __ jr(ra);
@@ -872,6 +872,79 @@ static bool runOverflow(IN_TYPE valLeft, IN_TYPE valRight,
 
   DCHECK(r == 0 || r == 1);
   return r;
+}
+
+TEST(BranchOverflowInt32BothLabelsTrampoline) {
+  if (kArchVariant != kMips64r6) return;
+  static const int kMaxBranchOffset = (1 << (18 - 1)) - 1;
+
+  FOR_INT32_INPUTS(i, overflow_int32_test_values) {
+    FOR_INT32_INPUTS(j, overflow_int32_test_values) {
+      FOR_ENUM_INPUTS(br, OverflowBranchType, overflow_branch_type) {
+        FOR_STRUCT_INPUTS(regComb, OverflowRegisterCombination,
+                          overflow_register_combination) {
+          int32_t ii = *i;
+          int32_t jj = *j;
+          enum OverflowBranchType branchType = *br;
+          struct OverflowRegisterCombination rc = *regComb;
+
+          // If left and right register are same then left and right
+          // test values must also be same, otherwise we skip the test
+          if (rc.left.code() == rc.right.code()) {
+            if (ii != jj) {
+              continue;
+            }
+          }
+
+          bool res1 = runOverflow<int32_t>(
+              ii, jj, [branchType, rc](MacroAssembler* masm, int32_t valLeft,
+                                       int32_t valRight) {
+                Label overflow, no_overflow, end;
+                __ li(rc.left, valLeft);
+                __ li(rc.right, valRight);
+                switch (branchType) {
+                  case kAddBranchOverflow:
+                    __ AddBranchOvf(rc.dst, rc.left, rc.right, &overflow,
+                                    &no_overflow, rc.scratch);
+                    break;
+                  case kSubBranchOverflow:
+                    __ SubBranchOvf(rc.dst, rc.left, rc.right, &overflow,
+                                    &no_overflow, rc.scratch);
+                    break;
+                }
+
+                Label done;
+                size_t nr_calls =
+                    kMaxBranchOffset / (2 * Instruction::kInstrSize) + 2;
+                for (size_t i = 0; i < nr_calls; ++i) {
+                  __ BranchShort(&done, eq, a0, Operand(a1));
+                }
+                __ bind(&done);
+
+                __ li(v0, 2);
+                __ Branch(&end);
+                __ bind(&overflow);
+                __ li(v0, 1);
+                __ Branch(&end);
+                __ bind(&no_overflow);
+                __ li(v0, 0);
+                __ bind(&end);
+              });
+
+          switch (branchType) {
+            case kAddBranchOverflow:
+              CHECK_EQ(IsAddOverflow<int32_t>(ii, jj), res1);
+              break;
+            case kSubBranchOverflow:
+              CHECK_EQ(IsSubOverflow<int32_t>(ii, jj), res1);
+              break;
+            default:
+              UNREACHABLE();
+          }
+        }
+      }
+    }
+  }
 }
 
 TEST(BranchOverflowInt32BothLabels) {
@@ -1824,6 +1897,70 @@ TEST(Uldc1) {
                              __ Usdc1(f0, MemOperand(a0, out_offset), t0);
                            }));
       }
+    }
+  }
+}
+
+static const std::vector<uint64_t> sltu_test_values() {
+  static const uint64_t kValues[] = {
+      0,
+      1,
+      0x7ffe,
+      0x7fff,
+      0x8000,
+      0x8001,
+      0xfffe,
+      0xffff,
+      0xffffffffffff7ffe,
+      0xffffffffffff7fff,
+      0xffffffffffff8000,
+      0xffffffffffff8001,
+      0xfffffffffffffffe,
+      0xffffffffffffffff,
+  };
+  return std::vector<uint64_t>(&kValues[0], &kValues[arraysize(kValues)]);
+}
+
+template <typename Func>
+bool run_Sltu(uint64_t rs, uint64_t rd, Func GenerateSltuInstructionFunc) {
+  typedef int64_t (*F_CVT)(uint64_t x0, uint64_t x1, int x2, int x3, int x4);
+
+  Isolate* isolate = CcTest::i_isolate();
+  HandleScope scope(isolate);
+  MacroAssembler assm(isolate, nullptr, 0,
+                      v8::internal::CodeObjectRequired::kYes);
+  MacroAssembler* masm = &assm;
+
+  GenerateSltuInstructionFunc(masm, rd);
+  __ jr(ra);
+  __ nop();
+
+  CodeDesc desc;
+  assm.GetCode(&desc);
+  Handle<Code> code = isolate->factory()->NewCode(
+      desc, Code::ComputeFlags(Code::STUB), Handle<Code>());
+
+  F_CVT f = FUNCTION_CAST<F_CVT>(code->entry());
+  int64_t res = reinterpret_cast<int64_t>(
+      CALL_GENERATED_CODE(isolate, f, rs, rd, 0, 0, 0));
+  return res == 1;
+}
+
+TEST(Sltu) {
+  CcTest::InitializeVM();
+
+  FOR_UINT64_INPUTS(i, sltu_test_values) {
+    FOR_UINT64_INPUTS(j, sltu_test_values) {
+      uint64_t rs = *i;
+      uint64_t rd = *j;
+
+      CHECK_EQ(rs < rd, run_Sltu(rs, rd,
+                                 [](MacroAssembler* masm, uint64_t imm) {
+                                   __ Sltu(v0, a0, Operand(imm));
+                                 }));
+      CHECK_EQ(rs < rd,
+               run_Sltu(rs, rd, [](MacroAssembler* masm,
+                                   uint64_t imm) { __ Sltu(v0, a0, a1); }));
     }
   }
 }

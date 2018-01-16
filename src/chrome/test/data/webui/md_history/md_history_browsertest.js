@@ -29,13 +29,16 @@ MaterialHistoryBrowserTest.prototype = {
   extraLibraries: PolymerTest.getLibraries(ROOT_PATH).concat([
     'test_util.js',
     'browser_service_test.js',
+    'history_drawer_test.js',
     'history_grouped_list_test.js',
     'history_item_test.js',
     'history_list_test.js',
+    'history_metrics_test.js',
     'history_overflow_menu_test.js',
+    'history_routing_test.js',
     'history_supervised_user_test.js',
     'history_synced_tabs_test.js',
-    'history_toolbar_test.js'
+    'history_toolbar_test.js',
   ]),
 
   /** @override */
@@ -44,15 +47,32 @@ MaterialHistoryBrowserTest.prototype = {
 
     suiteSetup(function() {
       // Wait for the top-level app element to be upgraded.
-      return waitForUpgrade($('history-app')).then(function() {
-        $('history-app').queryingDisabled_ = true;
-      });
+      return waitForAppUpgrade()
+          .then(function() {
+            // <iron-list>#_maxPages controls the default number of "pages" of
+            // "physical" (i.e. DOM) elements to render. Some of these tests
+            // rely on rendering up to 3 "pages" of items, which was previously
+            // the default, changeed to 2 for performance reasons. TODO(dbeam):
+            // maybe trim down the number of items created in the tests? Or
+            // don't touch <iron-list>'s physical items as much?
+            Array.from(document.querySelectorAll('* /deep/ iron-list')).forEach(
+                function(ironList) { ironList._maxPages = 3; });
+          })
+          .then(function() { return md_history.ensureLazyLoaded(); })
+          .then(function() {
+            $('history-app').queryState_.queryingDisabled = true;
+          });
     });
   },
 };
 
 TEST_F('MaterialHistoryBrowserTest', 'BrowserServiceTest', function() {
   md_history.browser_service_test.registerTests();
+  mocha.run();
+});
+
+TEST_F('MaterialHistoryBrowserTest', 'DrawerTest', function() {
+  md_history.history_drawer_test.registerTests();
   mocha.run();
 });
 
@@ -71,13 +91,28 @@ TEST_F('MaterialHistoryBrowserTest', 'HistoryListTest', function() {
   mocha.run();
 });
 
+TEST_F('MaterialHistoryBrowserTest', 'Metrics', function() {
+  md_history.history_metrics_test.registerTests();
+  mocha.run();
+});
+
 TEST_F('MaterialHistoryBrowserTest', 'HistoryToolbarTest', function() {
   md_history.history_toolbar_test.registerTests();
   mocha.run();
 });
 
+TEST_F('MaterialHistoryBrowserTest', 'HistoryToolbarFocusTest', function() {
+  md_history.history_toolbar_focus_test.registerTests();
+  mocha.run();
+});
+
 TEST_F('MaterialHistoryBrowserTest', 'HistoryOverflowMenuTest', function() {
   md_history.history_overflow_menu_test.registerTests();
+  mocha.run();
+});
+
+TEST_F('MaterialHistoryBrowserTest', 'RoutingTest', function() {
+  md_history.history_routing_test.registerTests();
   mocha.run();
 });
 
@@ -102,4 +137,38 @@ TEST_F('MaterialHistoryDeletionDisabledTest', 'HistorySupervisedUserTest',
     function() {
   md_history.history_supervised_user_test.registerTests();
   mocha.run();
+});
+
+function MaterialHistoryWithQueryParamTest() {}
+
+MaterialHistoryWithQueryParamTest.prototype = {
+  __proto__: MaterialHistoryBrowserTest.prototype,
+
+  browsePreload: 'chrome://history?q=query',
+
+  /** @override */
+  setUp: function() {
+    PolymerTest.prototype.setUp.call(this);
+    // This message handler needs to be registered before the test since the
+    // query can happen immediately after the element is upgraded. However,
+    // since there may be a delay as well, the test might check the global var
+    // too early as well. In this case the test will have overtaken the
+    // callback.
+    registerMessageCallback('queryHistory', this, function (info) {
+      window.historyQueryInfo = info;
+    });
+
+    suiteSetup(function() {
+      // Wait for the top-level app element to be upgraded.
+      return waitForAppUpgrade().then(function() {
+        md_history.ensureLazyLoaded();
+      });
+    });
+  },
+};
+
+TEST_F('MaterialHistoryWithQueryParamTest', 'RoutingTestWithQueryParam',
+  function() {
+    md_history.history_routing_test_with_query_param.registerTests();
+    mocha.run();
 });

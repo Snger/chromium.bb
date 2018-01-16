@@ -98,8 +98,7 @@ function initialize_extensionsPanelTest()
 
         function showUILocationHook(uiLocation)
         {
-            var networkURL = WebInspector.networkMapping.networkURL(uiLocation.uiSourceCode);
-            showURL("sources", networkURL, uiLocation.lineNumber);
+            showURL("sources", uiLocation.uiSourceCode.url(), uiLocation.lineNumber);
         }
 
         function showResourceHook(resource, lineNumber)
@@ -118,6 +117,12 @@ function initialize_extensionsPanelTest()
         var lastPanelName = WebInspector.inspectorView._tabbedPane._tabs.peekLast().id;
         return WebInspector.inspectorView.showPanel(lastPanelName);
     }
+}
+
+function extension_testThemeName(nextTest)
+{
+    output("Theme name: " + webInspector.panels.themeName);
+    nextTest();
 }
 
 function extension_testCreatePanel(nextTest)
@@ -215,7 +220,7 @@ function extension_testSearch(nextTest)
         panel.onSearch.addListener(callback);
 
         extension_showPanel("extension");
-        
+
         function performSearch(query)
         {
             var panel = WebInspector.inspectorView.currentPanel();
@@ -316,7 +321,7 @@ function extension_testGlobalShortcuts(nextTest)
         testPanel.onShown.removeListener(onPanelShown);
         output("Panel shown, now toggling console...");
         panelWindow.addEventListener("resize", onPanelResized);
-        dispatchKeydownEvent({ key: "Escape", keyIdentifier: "U+001B" });
+        dispatchKeydownEvent({ key: "Escape" });
     }
     function onPanelResized()
     {

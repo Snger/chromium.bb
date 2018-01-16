@@ -16,7 +16,7 @@ cr.define('settings_search_engines_page', function() {
       canBeEdited: canBeEdited,
       canBeRemoved: canBeRemoved,
       default: false,
-      displayName: "Google",
+      displayName: "Google displayName",
       iconURL: "http://www.google.com/favicon.ico",
       isOmniboxExtension: false,
       keyword: "google.com",
@@ -34,7 +34,7 @@ cr.define('settings_search_engines_page', function() {
       canBeEdited: false,
       canBeRemoved: false,
       default: false,
-      displayName: "Omnibox extension",
+      displayName: "Omnibox extension displayName",
       extension: {
         icon: "chrome://extension-icon/some-extension-icon",
         id: "dummyextensionid",
@@ -88,22 +88,24 @@ cr.define('settings_search_engines_page', function() {
       // Tests the dialog to add a new search engine. Specifically
       //  - paper-input elements are empty initially.
       //  - action button initially disabled.
-      //  - validation is triggered on 'focus'. 'change' is not teted because
-      //    MockInteractions does not currently provide a way to trigger such
-      //    events.
+      //  - validation is triggered on 'input' event.
       //  - action button is enabled when all fields are valid.
       //  - action button triggers appropriate browser signal when tapped.
       test('DialogAddSearchEngine', function() {
         /**
-         * Focuses the given paper-input element and checks that validation is
-         * triggered.
+         * Triggers an 'input' event on the paper-input element and checks that
+         * validation is triggered.
          * @param {string} inputId
          * @return {!Promise}
          */
-        var focusAndValidate = function(inputId) {
+        var inputAndValidate = function(inputId) {
+          var inputElement = dialog.$[inputId];
           browserProxy.resetResolver('validateSearchEngineInput');
-          MockInteractions.focus(dialog.$[inputId]);
-          return browserProxy.whenCalled('validateSearchEngineInput');
+          inputElement.fire('input');
+          return inputElement.value != '' ?
+              // Expeting validation only on non-empty values.
+              browserProxy.whenCalled('validateSearchEngineInput') :
+              Promise.resolve();
         };
 
         assertEquals('', dialog.$.searchEngine.value);
@@ -112,20 +114,17 @@ cr.define('settings_search_engines_page', function() {
         var actionButton = dialog.$.actionButton;
         assertTrue(actionButton.disabled);
 
-        return focusAndValidate('searchEngine').then(function() {
-          return focusAndValidate('keyword');
+        return inputAndValidate('searchEngine').then(function() {
+          return inputAndValidate('keyword');
         }).then(function() {
-          return focusAndValidate('queryUrl');
+          return inputAndValidate('queryUrl');
         }).then(function() {
           // Manually set the text to a non-empty string for all fields.
           dialog.$.searchEngine.value = 'foo';
           dialog.$.keyword.value = 'bar';
           dialog.$.queryUrl.value = 'baz';
 
-          // MockInteractions does not provide a way to trigger a 'change' event
-          // yet. Triggering the 'focus' event instead, to update the state of
-          // the action button.
-          return focusAndValidate('searchEngine');
+          return inputAndValidate('searchEngine');
         }).then(function() {
           // Assert that the action button has been enabled now that all input
           // is valid and non-empty.
@@ -143,18 +142,38 @@ cr.define('settings_search_engines_page', function() {
       /** @type {?SettingsSearchEngineEntryElement} */
       var entry = null;
 
+      /** @type {!settings_search.TestSearchEnginesBrowserProxy} */
       var browserProxy = null;
+
+      /** @type {!SearchEngine} */
+      var searchEngine = createSampleSearchEngine(true, true, true);
 
       setup(function() {
         browserProxy = new settings_search.TestSearchEnginesBrowserProxy();
         settings.SearchEnginesBrowserProxyImpl.instance_ = browserProxy;
         PolymerTest.clearBody();
         entry = document.createElement('settings-search-engine-entry');
-        entry.set('engine', createSampleSearchEngine(true, true, true));
+        entry.set('engine', searchEngine);
         document.body.appendChild(entry);
       });
 
       teardown(function() { entry.remove(); });
+
+      // Test that the <search-engine-entry> is populated according to its
+      // underlying SearchEngine model.
+      test('Initialization', function() {
+        var nameElement = entry.$$('.name');
+        assertTrue(!!nameElement);
+        assertEquals(searchEngine.displayName, nameElement.textContent);
+
+        var keywordElement = entry.$$('.keyword-column');
+        assertTrue(!!keywordElement);
+        assertEquals(searchEngine.keyword, keywordElement.textContent);
+
+        var urlElement = entry.$$('.url-column');
+        assertTrue(!!urlElement);
+        assertEquals(searchEngine.url, urlElement.textContent);
+      });
 
       test('Remove_Enabled', function() {
         var deleteButton = entry.$.delete;
@@ -191,7 +210,7 @@ cr.define('settings_search_engines_page', function() {
               assertTrue(!!dialog);
 
               // Check that the paper-input fields are pre-populated.
-              assertEquals(engine.displayName, dialog.$.searchEngine.value);
+              assertEquals(engine.name, dialog.$.searchEngine.value);
               assertEquals(engine.keyword, dialog.$.keyword.value);
               assertEquals(engine.url, dialog.$.queryUrl.value);
 
@@ -261,21 +280,23 @@ cr.define('settings_search_engines_page', function() {
               querySelectorAll('settings-search-engines-list');
           assertEquals(2, searchEnginesLists.length);
 
+          // Note: iron-list may create hidden children, so test the length
+          // if IronList.items instead of the child nodes.
           Polymer.dom.flush();
           var defaultsList = searchEnginesLists[0];
           var defaultsEntries = Polymer.dom(defaultsList.shadowRoot).
-              querySelectorAll('settings-search-engine-entry');
+              querySelector('iron-list').items;
           assertEquals(
               searchEnginesInfo.defaults.length, defaultsEntries.length);
 
           var othersList = searchEnginesLists[1];
           var othersEntries = Polymer.dom(othersList.shadowRoot).
-              querySelectorAll('settings-search-engine-entry');
+              querySelector('iron-list').items;
           assertEquals(
               searchEnginesInfo.others.length, othersEntries.length);
 
           var extensionEntries = Polymer.dom(page.shadowRoot).
-              querySelectorAll('settings-omnibox-extension-entry');
+              querySelector('iron-list').items;
           assertEquals(
               searchEnginesInfo.extensions.length, extensionEntries.length);
         });

@@ -21,7 +21,7 @@ var kWasmH1 = 0x61;
 var kWasmH2 = 0x73;
 var kWasmH3 = 0x6d;
 
-var kWasmV0 = 11;
+var kWasmV0 = 0xC;
 var kWasmV1 = 0;
 var kWasmV2 = 0;
 var kWasmV3 = 0;
@@ -51,31 +51,24 @@ function bytesWithHeader() {
 var kDeclNoLocals = 0;
 
 // Section declaration constants
-var kDeclMemory = 0x00;
-var kDeclTypes = 0x01;
-var kDeclFunctions = 0x02;
-var kDeclGlobals = 0x03;
-var kDeclData = 0x04;
-var kDeclTable = 0x05;
-var kDeclEnd = 0x06;
-var kDeclStart = 0x07;
-var kDeclImports = 0x08;
-var kDeclExports = 0x09;
-var kDeclFunctions = 0x0a;
-var kDeclCode = 0x0b;
-var kDeclNames = 0x0c;
-var kDeclFunctionTablePad = 0x0d;
+var kUnknownSectionCode = 0;
+var kTypeSectionCode = 1;      // Function signature declarations
+var kImportSectionCode = 2;    // Import declarations
+var kFunctionSectionCode = 3;  // Function declarations
+var kTableSectionCode = 4;     // Indirect function table and other tables
+var kMemorySectionCode = 5;    // Memory attributes
+var kGlobalSectionCode = 6;    // Global declarations
+var kExportSectionCode = 7;    // Exports
+var kStartSectionCode = 8;     // Start function declaration
+var kElementSectionCode = 9;  // Elements section
+var kCodeSectionCode = 10;      // Function code
+var kDataSectionCode = 11;     // Data segments
+var kNameSectionCode = 12;     // Name section (encoded as string)
 
-var kArity0 = 0;
-var kArity1 = 1;
-var kArity2 = 2;
-var kArity3 = 3;
 var kWasmFunctionTypeForm = 0x40;
+var kWasmAnyFunctionTypeForm = 0x20;
 
-var section_names = [
-  "memory", "type", "old_function", "global", "data",
-  "table", "end", "start", "import", "export",
-  "function", "code", "name", "table_pad"];
+var kResizableMaximumFlag = 1;
 
 // Function declaration flags
 var kDeclFunctionName   = 0x01;
@@ -90,10 +83,16 @@ var kAstI64 = 2;
 var kAstF32 = 3;
 var kAstF64 = 4;
 
+var kExternalFunction = 0;
+var kExternalTable = 1;
+var kExternalMemory = 2;
+var kExternalGlobal = 3;
+
 // Useful signatures
 var kSig_i = makeSig([], [kAstI32]);
 var kSig_d = makeSig([], [kAstF64]);
 var kSig_i_i = makeSig([kAstI32], [kAstI32]);
+var kSig_i_l = makeSig([kAstI64], [kAstI32]);
 var kSig_i_ii = makeSig([kAstI32, kAstI32], [kAstI32]);
 var kSig_i_iii = makeSig([kAstI32, kAstI32, kAstI32], [kAstI32]);
 var kSig_d_dd = makeSig([kAstF64, kAstF64], [kAstF64]);
@@ -101,6 +100,12 @@ var kSig_l_ll = makeSig([kAstI64, kAstI64], [kAstI64]);
 var kSig_i_dd = makeSig([kAstF64, kAstF64], [kAstI32]);
 var kSig_v_v = makeSig([], []);
 var kSig_i_v = makeSig([], [kAstI32]);
+var kSig_v_i = makeSig([kAstI32], []);
+var kSig_v_ii = makeSig([kAstI32, kAstI32], []);
+var kSig_v_iii = makeSig([kAstI32, kAstI32, kAstI32], []);
+var kSig_v_d = makeSig([kAstF64], []);
+var kSig_v_dd = makeSig([kAstF64, kAstF64], []);
+var kSig_v_ddi = makeSig([kAstF64, kAstF64, kAstI32], []);
 
 function makeSig(params, results) {
   return {params: params, results: results};
@@ -127,7 +132,8 @@ function makeSig_r_xx(r, x) {
 }
 
 // Opcodes
-var kExprNop = 0x00;
+var kExprUnreachable = 0x00;
+var kExprNop = 0x0a;
 var kExprBlock = 0x01;
 var kExprLoop = 0x02;
 var kExprIf = 0x03;
@@ -137,8 +143,12 @@ var kExprBr = 0x06;
 var kExprBrIf = 0x07;
 var kExprBrTable = 0x08;
 var kExprReturn = 0x09;
-var kExprUnreachable = 0x0a;
+var kExprThrow = 0xfa;
+var kExprTry = 0xfb;
+var kExprCatch = 0xfe;
 var kExprEnd = 0x0f;
+var kExprTeeLocal = 0x19;
+var kExprDrop = 0x0b;
 
 var kExprI32Const = 0x10;
 var kExprI64Const = 0x11;
@@ -148,10 +158,9 @@ var kExprGetLocal = 0x14;
 var kExprSetLocal = 0x15;
 var kExprCallFunction = 0x16;
 var kExprCallIndirect = 0x17;
-var kExprCallImport = 0x18;
 var kExprI8Const = 0xcb;
-var kExprLoadGlobal = 0xcc;
-var kExprStoreGlobal = 0xcd;
+var kExprGetGlobal = 0xbb;
+var kExprSetGlobal = 0xbc;
 
 var kExprI32LoadMem8S = 0x20;
 var kExprI32LoadMem8U = 0x21;
@@ -312,6 +321,7 @@ var kTrapRemByZero            = 4;
 var kTrapFloatUnrepresentable = 5;
 var kTrapFuncInvalid          = 6;
 var kTrapFuncSigMismatch      = 7;
+var kTrapInvalidIndex         = 8;
 
 var kTrapMsgs = [
   "unreachable",
@@ -321,7 +331,8 @@ var kTrapMsgs = [
   "remainder by zero",
   "integer result unrepresentable",
   "invalid function",
-  "function signature mismatch"
+  "function signature mismatch",
+  "invalid index into function table"
 ];
 
 function assertTraps(trap, code) {
@@ -340,4 +351,21 @@ function assertTraps(trap, code) {
       return;
     }
     throw new MjsUnitAssertionError("Did not trap, expected: " + kTrapMsgs[trap]);
+}
+
+function assertWasmThrows(value, code) {
+    assertEquals("number", typeof(value));
+    try {
+      if (typeof code === 'function') {
+        code();
+      } else {
+        eval(code);
+      }
+    } catch (e) {
+      assertEquals("number", typeof e);
+      assertEquals(value, e);
+      // Success.
+      return;
+    }
+    throw new MjsUnitAssertionError("Did not throw at all, expected: " + value);
 }

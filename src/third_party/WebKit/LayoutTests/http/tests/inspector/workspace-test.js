@@ -12,7 +12,7 @@ InspectorTest.createWorkspace = function(ignoreEvents)
     InspectorTest.testWorkspace = new WebInspector.Workspace();
     InspectorTest.testFileSystemWorkspaceBinding = new WebInspector.FileSystemWorkspaceBinding(WebInspector.isolatedFileSystemManager, InspectorTest.testWorkspace);
     InspectorTest.testNetworkMapping = new WebInspector.NetworkMapping(InspectorTest.testTargetManager, InspectorTest.testWorkspace, InspectorTest.testFileSystemWorkspaceBinding, WebInspector.fileSystemMapping);
-    InspectorTest.testNetworkProjectManager = new WebInspector.NetworkProjectManager(InspectorTest.testTargetManager, InspectorTest.testWorkspace, InspectorTest.testNetworkMapping);
+    InspectorTest.testNetworkProjectManager = new WebInspector.NetworkProjectManager(InspectorTest.testTargetManager, InspectorTest.testWorkspace);
     InspectorTest.testDebuggerWorkspaceBinding = new WebInspector.DebuggerWorkspaceBinding(InspectorTest.testTargetManager, InspectorTest.testWorkspace, InspectorTest.testNetworkMapping);
     InspectorTest.testCSSWorkspaceBinding = new WebInspector.CSSWorkspaceBinding(InspectorTest.testTargetManager, InspectorTest.testWorkspace, InspectorTest.testNetworkMapping);
 
@@ -34,24 +34,29 @@ InspectorTest.createWorkspace = function(ignoreEvents)
 }
 
 InspectorTest._mockTargetId = 1;
+InspectorTest._pageCapabilities =
+    WebInspector.Target.Capability.Browser | WebInspector.Target.Capability.DOM |
+    WebInspector.Target.Capability.JS | WebInspector.Target.Capability.Log |
+    WebInspector.Target.Capability.Network | WebInspector.Target.Capability.Worker;
 
-InspectorTest.createMockTarget = function(id, debuggerModelConstructor, targetType)
+InspectorTest.createMockTarget = function(id, debuggerModelConstructor, capabilities)
 {
+    capabilities = capabilities || InspectorTest._pageCapabilities;
     var MockTarget = function(name, connection, callback)
     {
-        var type = typeof targetType === "undefined" ? WebInspector.Target.Type.Page : targetType;
-        WebInspector.Target.call(this, InspectorTest.testTargetManager, name, type, connection, null, callback);
+        WebInspector.Target.call(this, InspectorTest.testTargetManager, name, capabilities, connection, null, callback);
+        this._inspectedURL = InspectorTest.mainTarget.inspectedURL();
         this.consoleModel = new WebInspector.ConsoleModel(this);
         this.networkManager = new WebInspector.NetworkManager(this);
-        this.resourceTreeModel = new WebInspector.ResourceTreeModel(this);
-        this.resourceTreeModel._inspectedPageURL = InspectorTest.resourceTreeModel._inspectedPageURL;
+        this.runtimeModel = new WebInspector.RuntimeModel(this);
+        this.securityOriginManager = WebInspector.SecurityOriginManager.fromTarget(this);
+        this.resourceTreeModel = new WebInspector.ResourceTreeModel(this, this.networkManager, this.securityOriginManager);
         this.resourceTreeModel._cachedResourcesProcessed = true;
         this.resourceTreeModel._frameAttached("42", 0);
-        this.runtimeModel = new WebInspector.RuntimeModel(this);
         this.debuggerModel = debuggerModelConstructor ? new debuggerModelConstructor(this) : new WebInspector.DebuggerModel(this);
         this._modelByConstructor.set(WebInspector.DebuggerModel, this.debuggerModel);
         this.domModel = new WebInspector.DOMModel(this);
-        this.cssModel = new WebInspector.CSSModel(this);
+        this.cssModel = new WebInspector.CSSModel(this, this.domModel);
     }
 
     MockTarget.prototype = {
@@ -127,12 +132,9 @@ InspectorTest.addMockUISourceCodeViaNetwork = function(url, type, content, targe
 InspectorTest._defaultWorkspaceEventHandler = function(event)
 {
     var uiSourceCode = event.data;
-    var networkURL = WebInspector.networkMapping.networkURL(uiSourceCode);
-    if (uiSourceCode.project().type() === WebInspector.projectTypes.Debugger && !networkURL)
-        return;
     if (uiSourceCode.project().type() === WebInspector.projectTypes.Service)
         return;
-    InspectorTest.addResult("Workspace event: " + event.type + ": " + uiSourceCode.url() + ".");
+    InspectorTest.addResult(`Workspace event: ${event.type.toString()}: ${uiSourceCode.url()}.`);
 }
 
 InspectorTest.uiSourceCodeURL = function(uiSourceCode)

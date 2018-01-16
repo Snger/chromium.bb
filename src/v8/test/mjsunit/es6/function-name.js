@@ -73,6 +73,8 @@
     static 43() { }
     get 44() { }
     set 44(val) { }
+    static get constructor() { }
+    static set constructor(val) { }
   };
 
   assertEquals('a', C.prototype.a.name);
@@ -85,6 +87,9 @@
   var descriptor = Object.getOwnPropertyDescriptor(C.prototype, '44');
   assertEquals('get 44', descriptor.get.name);
   assertEquals('set 44', descriptor.set.name);
+  var descriptor = Object.getOwnPropertyDescriptor(C, 'constructor');
+  assertEquals('get constructor', descriptor.get.name);
+  assertEquals('set constructor', descriptor.set.name);
 })();
 
 (function testComputedProperties() {
@@ -357,10 +362,10 @@
 
 
 (function testNameNotReflectedInToString() {
-  var f = function() {};
-  var g = function*() {};
+  var f = function () {};
+  var g = function* () {};
   var obj = {
-    ['h']: function() {},
+    ['h']: function () {},
     i: () => {}
   };
   assertEquals('function () {}', f.toString());

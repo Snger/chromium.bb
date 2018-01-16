@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "src/compilation-info.h"
 #include "test/cctest/compiler/function-tester.h"
 
 namespace v8 {
@@ -130,15 +131,6 @@ TEST(StringCharCodeAt) {
 }
 
 
-TEST(StringCharFromCode) {
-  FunctionTester T("(function(a) { return %_StringCharFromCode(a); })", flags);
-
-  T.CheckCall(T.Val("a"), T.Val(97));
-  T.CheckCall(T.Val("\xE2\x9D\x8A"), T.Val(0x274A));
-  T.CheckCall(T.Val(""), T.undefined());
-}
-
-
 TEST(StringCompare) {
   FunctionTester T("(function(a,b) { return %_StringCompare(a,b); })", flags);
 
@@ -154,16 +146,6 @@ TEST(SubString) {
   T.CheckCall(T.Val("aaa"), T.Val("aaabbb"), T.Val(0.0));
   T.CheckCall(T.Val("abb"), T.Val("aaabbb"), T.Val(2));
   T.CheckCall(T.Val("aaa"), T.Val("aaa"), T.Val(0.0));
-}
-
-
-TEST(ValueOf) {
-  FunctionTester T("(function(a) { return %_ValueOf(a); })", flags);
-
-  T.CheckCall(T.Val("a"), T.Val("a"));
-  T.CheckCall(T.Val("b"), T.NewObject("(new String('b'))"));
-  T.CheckCall(T.Val(123), T.Val(123));
-  T.CheckCall(T.Val(456), T.NewObject("(new Number(456))"));
 }
 
 }  // namespace compiler

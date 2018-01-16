@@ -49,7 +49,6 @@ PASS window.cached_navigator_connection.onchange is null
 PASS window.cached_navigator_connection.ontypechange is null
 PASS window.cached_navigator_mediaDevices.ondevicechange is null
 PASS window.cached_navigator_presentation.defaultRequest is null
-PASS window.cached_navigator_presentation.receiver.onconnectionavailable is null
 PASS window.cached_navigator_serviceWorker.controller is null
 PASS window.cached_navigator_serviceWorker.oncontrollerchange is null
 PASS window.cached_navigator_serviceWorker.onmessage is null
@@ -104,8 +103,8 @@ PASS window.cached_styleMedia.type is ''
 PASS window.cached_toolbar.visible is false
 PASS window.cached_visualViewport.clientHeight is 0
 PASS window.cached_visualViewport.clientWidth is 0
-PASS window.cached_visualViewport.onresize is null
-PASS window.cached_visualViewport.onscroll is null
+PASS window.cached_visualViewport.pageX is 0
+PASS window.cached_visualViewport.pageY is 0
 PASS window.cached_visualViewport.scale is 0
 PASS window.cached_visualViewport.scrollLeft is 0
 PASS window.cached_visualViewport.scrollTop is 0

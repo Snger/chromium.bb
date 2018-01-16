@@ -87,16 +87,8 @@ class RegisterPairs : public Pairs {
 class Float32RegisterPairs : public Pairs {
  public:
   Float32RegisterPairs()
-      : Pairs(
-            100,
-#if V8_TARGET_ARCH_ARM
-            // TODO(bbudge) Modify wasm linkage to allow use of all float regs.
-            GetRegConfig()->num_allocatable_double_registers() / 2 - 2,
-#else
-            GetRegConfig()->num_allocatable_double_registers(),
-#endif
-            GetRegConfig()->allocatable_double_codes()) {
-  }
+      : Pairs(100, GetRegConfig()->num_allocatable_aliased_double_registers(),
+              GetRegConfig()->allocatable_double_codes()) {}
 };
 
 
@@ -135,24 +127,20 @@ struct Allocator {
       // Allocate a floating point register/stack location.
       if (fp_offset < fp_count) {
         int code = fp_regs[fp_offset++];
-#if V8_TARGET_ARCH_ARM
-        // TODO(bbudge) Modify wasm linkage to allow use of all float regs.
-        if (type.representation() == MachineRepresentation::kFloat32) code *= 2;
-#endif
-        return LinkageLocation::ForRegister(code);
+        return LinkageLocation::ForRegister(code, type);
       } else {
         int offset = -1 - stack_offset;
         stack_offset += StackWords(type);
-        return LinkageLocation::ForCallerFrameSlot(offset);
+        return LinkageLocation::ForCallerFrameSlot(offset, type);
       }
     } else {
       // Allocate a general purpose register/stack location.
       if (gp_offset < gp_count) {
-        return LinkageLocation::ForRegister(gp_regs[gp_offset++]);
+        return LinkageLocation::ForRegister(gp_regs[gp_offset++], type);
       } else {
         int offset = -1 - stack_offset;
         stack_offset += StackWords(type);
-        return LinkageLocation::ForCallerFrameSlot(offset);
+        return LinkageLocation::ForCallerFrameSlot(offset, type);
       }
     }
   }
@@ -200,7 +188,6 @@ class RegisterConfig {
         CallDescriptor::kCallCodeObject,    // kind
         target_type,                        // target MachineType
         target_loc,                         // target location
-        msig,                               // machine_sig
         locations.Build(),                  // location_sig
         stack_param_count,                  // stack_parameter_count
         compiler::Operator::kNoProperties,  // properties
@@ -255,7 +242,8 @@ class Int32Signature : public MachineSignature {
 Handle<Code> CompileGraph(const char* name, CallDescriptor* desc, Graph* graph,
                           Schedule* schedule = nullptr) {
   Isolate* isolate = CcTest::InitIsolateOnce();
-  CompilationInfo info(ArrayVector("testing"), isolate, graph->zone());
+  CompilationInfo info(ArrayVector("testing"), isolate, graph->zone(),
+                       Code::ComputeFlags(Code::STUB));
   Handle<Code> code =
       Pipeline::GenerateCodeForTesting(&info, desc, graph, schedule);
   CHECK(!code.is_null());
@@ -271,9 +259,7 @@ Handle<Code> CompileGraph(const char* name, CallDescriptor* desc, Graph* graph,
 
 Handle<Code> WrapWithCFunction(Handle<Code> inner, CallDescriptor* desc) {
   Zone zone(inner->GetIsolate()->allocator());
-  MachineSignature* msig =
-      const_cast<MachineSignature*>(desc->GetMachineSignature());
-  int param_count = static_cast<int>(msig->parameter_count());
+  int param_count = static_cast<int>(desc->ParameterCount());
   GraphAndBuilders caller(&zone);
   {
     GraphAndBuilders& b = caller;
@@ -299,6 +285,7 @@ Handle<Code> WrapWithCFunction(Handle<Code> inner, CallDescriptor* desc) {
     b.graph()->SetEnd(ret);
   }
 
+  MachineSignature* msig = desc->GetMachineSignature(&zone);
   CallDescriptor* cdesc = Linkage::GetSimplifiedCDescriptor(&zone, msig);
 
   return CompileGraph("wrapper", cdesc, caller.graph());
@@ -419,7 +406,7 @@ void ArgsBuffer<float64>::Mutate() {
 
 
 int ParamCount(CallDescriptor* desc) {
-  return static_cast<int>(desc->GetMachineSignature()->parameter_count());
+  return static_cast<int>(desc->ParameterCount());
 }
 
 
@@ -538,8 +525,7 @@ static void TestInt32Sub(CallDescriptor* desc) {
 
   Handle<Code> inner_code = CompileGraph("Int32Sub", desc, inner.graph());
   Handle<Code> wrapper = WrapWithCFunction(inner_code, desc);
-  MachineSignature* msig =
-      const_cast<MachineSignature*>(desc->GetMachineSignature());
+  MachineSignature* msig = desc->GetMachineSignature(&zone);
   CodeRunner<int32_t> runnable(isolate, wrapper,
                                CSignature::FromMachine(&zone, msig));
 
@@ -619,7 +605,7 @@ static void CopyTwentyInt32(CallDescriptor* desc) {
 
 static void Test_RunInt32SubWithRet(int retreg) {
   Int32Signature sig(2);
-  base::AccountingAllocator allocator;
+  v8::internal::AccountingAllocator allocator;
   Zone zone(&allocator);
   RegisterPairs pairs;
   while (pairs.More()) {
@@ -670,7 +656,7 @@ TEST(Run_Int32Sub_all_allocatable_single) {
   Int32Signature sig(2);
   RegisterPairs pairs;
   while (pairs.More()) {
-    base::AccountingAllocator allocator;
+    v8::internal::AccountingAllocator allocator;
     Zone zone(&allocator);
     int parray[1];
     int rarray[1];
@@ -688,7 +674,7 @@ TEST(Run_CopyTwentyInt32_all_allocatable_pairs) {
   Int32Signature sig(20);
   RegisterPairs pairs;
   while (pairs.More()) {
-    base::AccountingAllocator allocator;
+    v8::internal::AccountingAllocator allocator;
     Zone zone(&allocator);
     int parray[2];
     int rarray[] = {GetRegConfig()->GetAllocatableGeneralCode(0)};
@@ -739,7 +725,7 @@ static void Test_Int32_WeightedSum_of_size(int count) {
   Int32Signature sig(count);
   for (int p0 = 0; p0 < Register::kNumRegisters; p0++) {
     if (GetRegConfig()->IsAllocatableGeneralCode(p0)) {
-      base::AccountingAllocator allocator;
+      v8::internal::AccountingAllocator allocator;
       Zone zone(&allocator);
 
       int parray[] = {p0};
@@ -802,7 +788,7 @@ void Test_Int32_Select() {
   Allocator rets(rarray, 1, nullptr, 0);
   RegisterConfig config(params, rets);
 
-  base::AccountingAllocator allocator;
+  v8::internal::AccountingAllocator allocator;
   Zone zone(&allocator);
 
   for (int i = which + 1; i <= 64; i++) {
@@ -841,7 +827,7 @@ TEST(Int64Select_registers) {
   ArgsBuffer<int64_t>::Sig sig(2);
 
   RegisterPairs pairs;
-  base::AccountingAllocator allocator;
+  v8::internal::AccountingAllocator allocator;
   Zone zone(&allocator);
   while (pairs.More()) {
     int parray[2];
@@ -866,7 +852,7 @@ TEST(Float32Select_registers) {
   ArgsBuffer<float32>::Sig sig(2);
 
   Float32RegisterPairs pairs;
-  base::AccountingAllocator allocator;
+  v8::internal::AccountingAllocator allocator;
   Zone zone(&allocator);
   while (pairs.More()) {
     int parray[2];
@@ -889,7 +875,7 @@ TEST(Float64Select_registers) {
   ArgsBuffer<float64>::Sig sig(2);
 
   Float64RegisterPairs pairs;
-  base::AccountingAllocator allocator;
+  v8::internal::AccountingAllocator allocator;
   Zone zone(&allocator);
   while (pairs.More()) {
     int parray[2];
@@ -911,7 +897,7 @@ TEST(Float32Select_stack_params_return_reg) {
   Allocator rets(nullptr, 0, rarray, 1);
   RegisterConfig config(params, rets);
 
-  base::AccountingAllocator allocator;
+  v8::internal::AccountingAllocator allocator;
   Zone zone(&allocator);
   for (int count = 1; count < 6; count++) {
     ArgsBuffer<float32>::Sig sig(count);
@@ -932,7 +918,7 @@ TEST(Float64Select_stack_params_return_reg) {
   Allocator rets(nullptr, 0, rarray, 1);
   RegisterConfig config(params, rets);
 
-  base::AccountingAllocator allocator;
+  v8::internal::AccountingAllocator allocator;
   Zone zone(&allocator);
   for (int count = 1; count < 6; count++) {
     ArgsBuffer<float64>::Sig sig(count);
@@ -984,7 +970,7 @@ TEST(Float64StackParamsToStackParams) {
   Allocator params(nullptr, 0, nullptr, 0);
   Allocator rets(nullptr, 0, rarray, 1);
 
-  base::AccountingAllocator allocator;
+  v8::internal::AccountingAllocator allocator;
   Zone zone(&allocator);
   ArgsBuffer<float64>::Sig sig(2);
   RegisterConfig config(params, rets);
@@ -1039,7 +1025,7 @@ void MixedParamTest(int start) {
   RegisterConfig config(palloc, ralloc);
 
   for (int which = 0; which < num_params; which++) {
-    base::AccountingAllocator allocator;
+    v8::internal::AccountingAllocator allocator;
     Zone zone(&allocator);
     HandleScope scope(isolate);
     MachineSignature::Builder builder(&zone, 1, num_params);

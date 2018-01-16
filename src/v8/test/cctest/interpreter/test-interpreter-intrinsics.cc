@@ -26,9 +26,9 @@ class InvokeIntrinsicHelper {
   Handle<Object> Invoke(A... args) {
     CHECK(IntrinsicsHelper::IsSupported(function_id_));
     BytecodeArrayBuilder builder(isolate_, zone_, sizeof...(args), 0, 0);
-    builder.CallRuntime(function_id_, builder.Parameter(0), sizeof...(args))
-        .Return();
-    InterpreterTester tester(isolate_, builder.ToBytecodeArray());
+    RegisterList reg_list(builder.Parameter(0).index(), sizeof...(args));
+    builder.CallRuntime(function_id_, reg_list).Return();
+    InterpreterTester tester(isolate_, builder.ToBytecodeArray(isolate_));
     auto callable = tester.GetCallable<A...>();
     return callable(args...).ToHandleChecked();
   }
@@ -226,13 +226,6 @@ TEST(IntrinsicAsStubCall) {
   CHECK_EQ(Smi::FromInt(502),
            *to_integer_helper.Invoke(to_integer_helper.NewObject("502.67")));
 
-  InvokeIntrinsicHelper math_pow_helper(isolate, handles.main_zone(),
-                                        Runtime::kInlineMathPow);
-  CHECK(math_pow_helper
-            .Invoke(math_pow_helper.NewObject("3"),
-                    math_pow_helper.NewObject("7"))
-            ->SameValue(Smi::FromInt(2187)));
-
   InvokeIntrinsicHelper has_property_helper(isolate, handles.main_zone(),
                                             Runtime::kInlineHasProperty);
   CHECK_EQ(*factory->true_value(),
@@ -272,6 +265,27 @@ TEST(ValueOf) {
             ->SameValue(*helper.NewObject("'foobar'")));
   CHECK(helper.Invoke(helper.NewObject("new Object('foobar')"))
             ->SameValue(*helper.NewObject("'foobar'")));
+}
+
+TEST(ClassOf) {
+  HandleAndZoneScope handles;
+  Isolate* isolate = handles.main_isolate();
+  Factory* factory = isolate->factory();
+  InvokeIntrinsicHelper helper(handles.main_isolate(), handles.main_zone(),
+                               Runtime::kInlineClassOf);
+  CHECK_EQ(*helper.Invoke(helper.NewObject("123")), *factory->null_value());
+  CHECK_EQ(*helper.Invoke(helper.NewObject("'true'")), *factory->null_value());
+  CHECK_EQ(*helper.Invoke(helper.NewObject("'foo'")), *factory->null_value());
+  CHECK(helper.Invoke(helper.NewObject("({a:1})"))
+            ->SameValue(*helper.NewObject("'Object'")));
+  CHECK(helper.Invoke(helper.NewObject("(function foo() {})"))
+            ->SameValue(*helper.NewObject("'Function'")));
+  CHECK(helper.Invoke(helper.NewObject("new Date()"))
+            ->SameValue(*helper.NewObject("'Date'")));
+  CHECK(helper.Invoke(helper.NewObject("new Set"))
+            ->SameValue(*helper.NewObject("'Set'")));
+  CHECK(helper.Invoke(helper.NewObject("/x/"))
+            ->SameValue(*helper.NewObject("'RegExp'")));
 }
 
 }  // namespace interpreter

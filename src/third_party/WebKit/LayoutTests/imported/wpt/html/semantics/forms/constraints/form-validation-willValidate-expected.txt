@@ -1,4 +1,4 @@
-CONSOLE WARNING: line 361: The <keygen> element is deprecated and will be removed in M54, around October 2016. See https://www.chromestatus.com/features/5716060992962560 for more details.
+CONSOLE WARNING: line 361: The <keygen> element is deprecated and will be removed in M56, around January 2017. See https://www.chromestatus.com/features/5716060992962560 for more details.
 This is a testharness.js-based test.
 PASS [INPUT in HIDDEN status] Must be barred from the constraint validation 
 PASS [INPUT in BUTTON status] Must be barred from the constraint validation 
@@ -33,7 +33,10 @@ PASS [INPUT in PASSWORD status] Must be barred from the constraint validation if
 PASS [INPUT in PASSWORD status] The willValidate attribute must be true if an element is mutable 
 PASS [INPUT in PASSWORD status] Must be barred from the constraint validation if it is readonly 
 PASS [INPUT in PASSWORD status] The willValidate attribute must be false if it has a datalist ancestor 
-FAIL [INPUT in DATETIME status] The datetime type must be supported. assert_equals: The datetime type should be supported. expected "datetime" but got "text"
+PASS [INPUT in DATETIME-LOCAL status] Must be barred from the constraint validation if it is disabled 
+PASS [INPUT in DATETIME-LOCAL status] The willValidate attribute must be true if an element is mutable 
+PASS [INPUT in DATETIME-LOCAL status] Must be barred from the constraint validation if it is readonly 
+PASS [INPUT in DATETIME-LOCAL status] The willValidate attribute must be false if it has a datalist ancestor 
 PASS [INPUT in DATE status] Must be barred from the constraint validation if it is disabled 
 PASS [INPUT in DATE status] The willValidate attribute must be true if an element is mutable 
 PASS [INPUT in DATE status] Must be barred from the constraint validation if it is readonly 

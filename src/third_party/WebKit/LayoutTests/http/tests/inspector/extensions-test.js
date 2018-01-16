@@ -11,17 +11,13 @@ function extensionFunctions()
 
 var initialize_ExtensionsTest = function()
 {
+WebInspector.extensionServer._registerHandler("evaluateForTestInFrontEnd", onEvaluate);
 
-WebInspector.extensionServer._overridePlatformExtensionAPIForTest = function(extensionInfo, inspectedTabId)
+WebInspector.extensionServer._extensionAPITestHook = function(extensionServerClient, coreAPI)
 {
-    WebInspector.extensionServer._registerHandler("evaluateForTestInFrontEnd", onEvaluate);
-
-    function platformExtensionAPI(coreAPI)
-    {
-        window.webInspector = coreAPI;
-        window._extensionServerForTests = extensionServer;
-    }
-    return platformExtensionAPI.toString();
+    window.webInspector = coreAPI;
+    window._extensionServerForTests = extensionServerClient;
+    coreAPI.panels.themeName = "themeNameForTest";
 }
 
 InspectorTest._replyToExtension = function(requestId, port)

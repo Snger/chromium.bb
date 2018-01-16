@@ -471,6 +471,11 @@ policies and contribution forms [3].
             self instanceof ServiceWorkerGlobalScope) {
             return new ServiceWorkerTestEnvironment();
         }
+        if ('WorkerGlobalScope' in self &&
+            self instanceof WorkerGlobalScope) {
+            return new DedicatedWorkerTestEnvironment();
+        }
+
         throw new Error("Unsupported test environment");
     }
 
@@ -518,11 +523,9 @@ policies and contribution forms [3].
     function promise_test(func, name, properties) {
         var test = async_test(name, properties);
         // If there is no promise tests queue make one.
-        test.step(function() {
-            if (!tests.promise_tests) {
-                tests.promise_tests = Promise.resolve();
-            }
-        });
+        if (!tests.promise_tests) {
+            tests.promise_tests = Promise.resolve();
+        }
         tests.promise_tests = tests.promise_tests.then(function() {
             return Promise.resolve(test.step(func, test, test))
                 .then(

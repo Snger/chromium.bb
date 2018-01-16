@@ -2,6 +2,10 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "src/api.h"
+#include "src/contexts.h"
+#include "src/flags.h"
+#include "src/objects.h"
 #include "test/cctest/compiler/function-tester.h"
 
 namespace v8 {
@@ -32,7 +36,7 @@ TEST(SimpleCall2) {
 
 TEST(ConstCall) {
   FunctionTester T("(function(foo,a) { return foo(a,3); })");
-  FunctionTester U("(function(a,b) { return a + b; })");
+  FunctionTester U("(function (a,b) { return a + b; })");
 
   T.CheckCall(T.Val(6), U.function, T.Val(3));
   T.CheckCall(T.Val(6.1), U.function, T.Val(3.1));
@@ -44,7 +48,7 @@ TEST(ConstCall) {
 
 TEST(ConstCall2) {
   FunctionTester T("(function(foo,a) { return foo(a,\"3\"); })");
-  FunctionTester U("(function(a,b) { return a + b; })");
+  FunctionTester U("(function (a,b) { return a + b; })");
 
   T.CheckCall(T.Val("33"), U.function, T.Val(3));
   T.CheckCall(T.Val("3.13"), U.function, T.Val(3.1));

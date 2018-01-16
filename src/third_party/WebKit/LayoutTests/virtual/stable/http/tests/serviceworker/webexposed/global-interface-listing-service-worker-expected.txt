@@ -3,6 +3,13 @@ interface Blob
     getter type
     method constructor
     method slice
+interface BroadcastChannel : EventTarget
+    getter name
+    getter onmessage
+    method close
+    method constructor
+    method postMessage
+    setter onmessage
 interface ByteLengthQueuingStrategy
     method constructor
     method size
@@ -192,21 +199,6 @@ interface File : Blob
     getter name
     getter webkitRelativePath
     method constructor
-interface FileError : DOMError
-    attribute ABORT_ERR
-    attribute ENCODING_ERR
-    attribute INVALID_MODIFICATION_ERR
-    attribute INVALID_STATE_ERR
-    attribute NOT_FOUND_ERR
-    attribute NOT_READABLE_ERR
-    attribute NO_MODIFICATION_ALLOWED_ERR
-    attribute PATH_EXISTS_ERR
-    attribute QUOTA_EXCEEDED_ERR
-    attribute SECURITY_ERR
-    attribute SYNTAX_ERR
-    attribute TYPE_MISMATCH_ERR
-    getter code
-    method constructor
 interface FileList
     getter length
     method constructor
@@ -316,6 +308,7 @@ interface IDBIndex
     method getKey
     method openCursor
     method openKeyCursor
+    setter name
 interface IDBKeyRange
     static method bound
     static method lowerBound
@@ -347,6 +340,7 @@ interface IDBObjectStore
     method openCursor
     method openKeyCursor
     method put
+    setter name
 interface IDBOpenDBRequest : IDBRequest
     getter onblocked
     getter onupgradeneeded
@@ -392,6 +386,8 @@ interface ImageBitmap
 interface ImageData
     getter height
     getter width
+    method constructor
+interface InstallEvent : ExtendableEvent
     method constructor
 interface MessageChannel
     getter port1
@@ -476,10 +472,15 @@ interface PushMessageData
     method text
 interface PushSubscription
     getter endpoint
+    getter options
     method constructor
     method getKey
     method toJSON
     method unsubscribe
+interface PushSubscriptionOptions
+    getter applicationServerKey
+    getter userVisibleOnly
+    method constructor
 interface ReadableStream
     getter locked
     method cancel
@@ -523,16 +524,22 @@ interface Response
 interface ServiceWorkerGlobalScope : WorkerGlobalScope
     method constructor
 interface ServiceWorkerRegistration : EventTarget
+    getter active
+    getter installing
     getter onupdatefound
     getter pushManager
     getter scope
     getter sync
+    getter waiting
     method constructor
     method getNotifications
     method showNotification
     method unregister
     method update
     setter onupdatefound
+interface StorageManager
+    method constructor
+    method persisted
 interface SubtleCrypto
     method constructor
     method decrypt
@@ -633,8 +640,10 @@ interface WindowClient : Client
     method focus
     method navigate
 interface WorkerGlobalScope : EventTarget
+    getter caches
     getter crypto
     getter indexedDB
+    getter isSecureContext
     getter location
     getter navigator
     getter onerror
@@ -677,6 +686,7 @@ interface WorkerNavigator
     getter permissions
     getter platform
     getter product
+    getter storage
     getter userAgent
     method constructor
 interface webkitIDBCursor
@@ -726,6 +736,7 @@ interface webkitIDBIndex
     method getKey
     method openCursor
     method openKeyCursor
+    setter name
 interface webkitIDBKeyRange
     static method bound
     static method lowerBound
@@ -757,6 +768,7 @@ interface webkitIDBObjectStore
     method openCursor
     method openKeyCursor
     method put
+    setter name
 interface webkitIDBRequest : EventTarget
     getter error
     getter onerror
@@ -785,7 +797,6 @@ interface webkitIDBTransaction : EventTarget
 global object
     attribute console
     attribute internals
-    getter caches
     getter clients
     getter onactivate
     getter onfetch

@@ -12,8 +12,17 @@ var request;
 /**
  * Launches the PaymentRequest UI that accepts credit cards.
  */
-function buy() {  // eslint-disable-line no-unused-vars
+function ccBuy() {  // eslint-disable-line no-unused-vars
   try {
+    var details = {
+      total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}},
+      shippingOptions: [{
+        id: 'freeShippingOption',
+        label: 'Free global shipping',
+        amount: {currency: 'USD', value: '0'},
+        selected: true
+      }]
+    };
     request = new PaymentRequest(
         [{supportedMethods: ['visa']}], {
           total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}},
@@ -38,19 +47,24 @@ function buy() {  // eslint-disable-line no-unused-vars
         }).catch(function(error) {
           print(error);
         });
+    request.addEventListener('shippingaddresschange', function(e) {
+      e.updateWith(new Promise(function(resolve) {
+        // No changes in price based on shipping address change.
+        resolve(details);
+      }));
+    })
   } catch (error) {
     print(error.message);
   }
 }
 
 /**
- * Launches the PaymentRequest UI which accepts a supported payment method but
- * does not accept credit cards.
+ * Launches the PaymentRequest UI which accepts only Android Pay.
  */
-function noMatching() {  // eslint-disable-line no-unused-vars
+function androidPayBuy() {  // eslint-disable-line no-unused-vars
   try {
     request = new PaymentRequest(
-        [{supportedMethods: ['https://bobpay.com']}], {
+        [{supportedMethods: ['https://android.com/pay']}], {
           total: {label: 'Total', amount: {currency: 'USD', value: '5.00'}},
           shippingOptions: [{
             id: 'freeShippingOption',

@@ -29,6 +29,8 @@
 
 #include <ctype.h>
 
+#include <memory>
+
 #include "src/v8.h"
 
 #include "include/v8-profiler.h"
@@ -60,12 +62,8 @@ class NamedEntriesDetector {
     if (strcmp(entry->name(), "C2") == 0) has_C2 = true;
   }
 
-  static bool AddressesMatch(void* key1, void* key2) {
-    return key1 == key2;
-  }
-
   void CheckAllReachables(i::HeapEntry* root) {
-    v8::base::HashMap visited(AddressesMatch);
+    v8::base::HashMap visited;
     i::List<i::HeapEntry*> list(10);
     list.Add(root);
     CheckEntry(root);
@@ -133,17 +131,12 @@ static bool HasString(const v8::HeapGraphNode* node, const char* contents) {
 }
 
 
-static bool AddressesMatch(void* key1, void* key2) {
-  return key1 == key2;
-}
-
-
 // Check that snapshot has no unretained entries except root.
 static bool ValidateSnapshot(const v8::HeapSnapshot* snapshot, int depth = 3) {
   i::HeapSnapshot* heap_snapshot = const_cast<i::HeapSnapshot*>(
       reinterpret_cast<const i::HeapSnapshot*>(snapshot));
 
-  v8::base::HashMap visited(AddressesMatch);
+  v8::base::HashMap visited;
   i::List<i::HeapGraphEdge>& edges = heap_snapshot->edges();
   for (int i = 0; i < edges.length(); ++i) {
     v8::base::HashMap::Entry* entry = visited.LookupOrInsert(
@@ -254,13 +247,13 @@ TEST(BoundFunctionInSnapshot) {
   CHECK_EQ(v8::HeapGraphNode::kArray, bindings->GetType());
   CHECK_EQ(1, bindings->GetChildrenCount());
 
-  const v8::HeapGraphNode* bound_this = GetProperty(
-      f, v8::HeapGraphEdge::kShortcut, "bound_this");
+  const v8::HeapGraphNode* bound_this =
+      GetProperty(f, v8::HeapGraphEdge::kInternal, "bound_this");
   CHECK(bound_this);
   CHECK_EQ(v8::HeapGraphNode::kObject, bound_this->GetType());
 
-  const v8::HeapGraphNode* bound_function = GetProperty(
-      f, v8::HeapGraphEdge::kShortcut, "bound_function");
+  const v8::HeapGraphNode* bound_function =
+      GetProperty(f, v8::HeapGraphEdge::kInternal, "bound_function");
   CHECK(bound_function);
   CHECK_EQ(v8::HeapGraphNode::kClosure, bound_function->GetType());
 
@@ -491,6 +484,16 @@ void CheckSimdSnapshot(const char* program, const char* var_name) {
   v8::HeapProfiler* heap_profiler = env->GetIsolate()->GetHeapProfiler();
 
   CompileRun(program);
+  // The TakeHeapSnapshot function does not do enough GCs to ensure
+  // that all garbage is collected. We perform addition GC here
+  // to reclaim a floating AllocationSite and to fix the following failure:
+  // # Check failed: ValidateSnapshot(snapshot).
+  // Stdout:
+  //     28 @ 13523   entry with no retainer: /hidden/ system / AllocationSite
+  //     44 @   767    $map: /hidden/ system / Map
+  //     44 @    59      $map: /hidden/ system / Map
+  CcTest::CollectAllGarbage(i::Heap::kFinalizeIncrementalMarkingMask);
+
   const v8::HeapSnapshot* snapshot = heap_profiler->TakeHeapSnapshot();
   CHECK(ValidateSnapshot(snapshot));
   const v8::HeapGraphNode* global = GetGlobalObject(snapshot);
@@ -659,6 +662,31 @@ TEST(HeapSnapshotCollection) {
   CHECK_EQ(s->GetId(), map_s->GetId());
 }
 
+TEST(HeapSnapshotMap) {
+  LocalContext env;
+  v8::HandleScope scope(env->GetIsolate());
+  v8::HeapProfiler* heap_profiler = env->GetIsolate()->GetHeapProfiler();
+
+  CompileRun(
+      "function Z() { this.foo = {}; }\n"
+      "z = new Z();\n");
+  const v8::HeapSnapshot* snapshot = heap_profiler->TakeHeapSnapshot();
+  CHECK(ValidateSnapshot(snapshot));
+  const v8::HeapGraphNode* global = GetGlobalObject(snapshot);
+  const v8::HeapGraphNode* z =
+      GetProperty(global, v8::HeapGraphEdge::kProperty, "z");
+  CHECK(z);
+  const v8::HeapGraphNode* map =
+      GetProperty(z, v8::HeapGraphEdge::kInternal, "map");
+  CHECK(map);
+  CHECK(GetProperty(map, v8::HeapGraphEdge::kInternal, "map"));
+  CHECK(GetProperty(map, v8::HeapGraphEdge::kInternal, "prototype"));
+  CHECK(GetProperty(map, v8::HeapGraphEdge::kInternal, "back_pointer"));
+  CHECK(GetProperty(map, v8::HeapGraphEdge::kInternal, "descriptors"));
+  const v8::HeapGraphNode* weak_cell =
+      GetProperty(map, v8::HeapGraphEdge::kInternal, "weak_cell_cache");
+  CHECK(GetProperty(weak_cell, v8::HeapGraphEdge::kWeak, "value"));
+}
 
 TEST(HeapSnapshotInternalReferences) {
   v8::Isolate* isolate = CcTest::isolate();
@@ -701,7 +729,7 @@ TEST(HeapSnapshotAddressReuse) {
   CompileRun(
       "for (var i = 0; i < 10000; ++i)\n"
       "  a[i] = new A();\n");
-  CcTest::heap()->CollectAllGarbage();
+  CcTest::CollectAllGarbage(i::Heap::kFinalizeIncrementalMarkingMask);
 
   const v8::HeapSnapshot* snapshot2 = heap_profiler->TakeHeapSnapshot();
   CHECK(ValidateSnapshot(snapshot2));
@@ -743,7 +771,7 @@ TEST(HeapEntryIdsAndArrayShift) {
       "for (var i = 0; i < 1; ++i)\n"
       "  a.shift();\n");
 
-  CcTest::heap()->CollectAllGarbage();
+  CcTest::CollectAllGarbage(i::Heap::kFinalizeIncrementalMarkingMask);
 
   const v8::HeapSnapshot* snapshot2 = heap_profiler->TakeHeapSnapshot();
   CHECK(ValidateSnapshot(snapshot2));
@@ -784,7 +812,7 @@ TEST(HeapEntryIdsAndGC) {
   const v8::HeapSnapshot* snapshot1 = heap_profiler->TakeHeapSnapshot();
   CHECK(ValidateSnapshot(snapshot1));
 
-  CcTest::heap()->CollectAllGarbage();
+  CcTest::CollectAllGarbage(i::Heap::kFinalizeIncrementalMarkingMask);
 
   const v8::HeapSnapshot* snapshot2 = heap_profiler->TakeHeapSnapshot();
   CHECK(ValidateSnapshot(snapshot2));
@@ -1113,7 +1141,7 @@ TEST(HeapSnapshotObjectsStats) {
   // We have to call GC 6 times. In other case the garbage will be
   // the reason of flakiness.
   for (int i = 0; i < 6; ++i) {
-    CcTest::heap()->CollectAllGarbage();
+    CcTest::CollectAllGarbage(i::Heap::kFinalizeIncrementalMarkingMask);
   }
 
   v8::SnapshotObjectId initial_id;
@@ -1268,7 +1296,7 @@ TEST(HeapObjectIds) {
   }
 
   heap_profiler->StopTrackingHeapObjects();
-  CcTest::heap()->CollectAllAvailableGarbage();
+  CcTest::CollectAllAvailableGarbage();
 
   for (int i = 0; i < kLength; i++) {
     v8::SnapshotObjectId id = heap_profiler->GetObjectId(objects[i]);
@@ -1830,7 +1858,7 @@ TEST(GetHeapValueForDeletedObject) {
 
 
 static int StringCmp(const char* ref, i::String* act) {
-  v8::base::SmartArrayPointer<char> s_act = act->ToCString();
+  std::unique_ptr<char[]> s_act = act->ToCString();
   int result = strcmp(ref, s_act.get());
   if (result != 0)
     fprintf(stderr, "Expected: \"%s\", Actual: \"%s\"\n", ref, s_act.get());
@@ -2520,8 +2548,34 @@ TEST(ArrayGrowLeftTrim) {
   heap_profiler->StopTrackingHeapObjects();
 }
 
+TEST(TrackHeapAllocationsWithInlining) {
+  v8::HandleScope scope(v8::Isolate::GetCurrent());
+  LocalContext env;
 
-TEST(TrackHeapAllocations) {
+  v8::HeapProfiler* heap_profiler = env->GetIsolate()->GetHeapProfiler();
+  heap_profiler->StartTrackingHeapObjects(true);
+
+  CompileRun(record_trace_tree_source);
+
+  AllocationTracker* tracker =
+      reinterpret_cast<i::HeapProfiler*>(heap_profiler)->allocation_tracker();
+  CHECK(tracker);
+  // Resolve all function locations.
+  tracker->PrepareForSerialization();
+  // Print for better diagnostics in case of failure.
+  tracker->trace_tree()->Print(tracker);
+
+  const char* names[] = {"", "start", "f_0_0"};
+  AllocationTraceNode* node = FindNode(tracker, ArrayVector(names));
+  CHECK(node);
+  CHECK_GE(node->allocation_count(), 12u);
+  CHECK_GE(node->allocation_size(), 4 * node->allocation_count());
+  heap_profiler->StopTrackingHeapObjects();
+}
+
+TEST(TrackHeapAllocationsWithoutInlining) {
+  i::FLAG_turbo_inlining = false;
+  i::FLAG_max_inlined_source_size = 0;  // Disable inlining
   v8::HandleScope scope(v8::Isolate::GetCurrent());
   LocalContext env;
 
@@ -2787,7 +2841,7 @@ TEST(WeakContainers) {
   CHECK_NE(0, count);
   for (int i = 0; i < count; ++i) {
     const v8::HeapGraphEdge* prop = dependent_code->GetChild(i);
-    CHECK_EQ(v8::HeapGraphEdge::kWeak, prop->GetType());
+    CHECK_EQ(v8::HeapGraphEdge::kInternal, prop->GetType());
   }
 }
 
@@ -2912,9 +2966,9 @@ TEST(SamplingHeapProfiler) {
     heap_profiler->StartSamplingHeapProfiler(1024);
     CompileRun(script_source);
 
-    v8::base::SmartPointer<v8::AllocationProfile> profile(
+    std::unique_ptr<v8::AllocationProfile> profile(
         heap_profiler->GetAllocationProfile());
-    CHECK(!profile.is_empty());
+    CHECK(profile);
 
     const char* names[] = {"", "foo", "bar"};
     auto node_bar = FindAllocationProfileNode(*profile, ArrayVector(names));
@@ -2939,9 +2993,9 @@ TEST(SamplingHeapProfiler) {
     heap_profiler->StartSamplingHeapProfiler(128);
     CompileRun(script_source);
 
-    v8::base::SmartPointer<v8::AllocationProfile> profile(
+    std::unique_ptr<v8::AllocationProfile> profile(
         heap_profiler->GetAllocationProfile());
-    CHECK(!profile.is_empty());
+    CHECK(profile);
 
     const char* names[] = {"", "foo", "bar"};
     auto node_bar = FindAllocationProfileNode(*profile, ArrayVector(names));
@@ -2973,9 +3027,9 @@ TEST(SamplingHeapProfiler) {
     heap_profiler->StartSamplingHeapProfiler(64);
     CompileRun(record_trace_tree_source);
 
-    v8::base::SmartPointer<v8::AllocationProfile> profile(
+    std::unique_ptr<v8::AllocationProfile> profile(
         heap_profiler->GetAllocationProfile());
-    CHECK(!profile.is_empty());
+    CHECK(profile);
 
     const char* names1[] = {"", "start", "f_0_0", "f_0_1", "f_0_2"};
     auto node1 = FindAllocationProfileNode(*profile, ArrayVector(names1));
@@ -2996,11 +3050,11 @@ TEST(SamplingHeapProfiler) {
         "  eval(\"new Array(100)\");\n"
         "}\n");
 
-    CcTest::heap()->CollectAllGarbage();
+    CcTest::CollectAllGarbage(i::Heap::kFinalizeIncrementalMarkingMask);
 
-    v8::base::SmartPointer<v8::AllocationProfile> profile(
+    std::unique_ptr<v8::AllocationProfile> profile(
         heap_profiler->GetAllocationProfile());
-    CHECK(!profile.is_empty());
+    CHECK(profile);
 
     CheckNoZeroCountNodes(profile->GetRootNode());
 
@@ -3021,9 +3075,9 @@ TEST(SamplingHeapProfilerApiAllocation) {
 
   for (int i = 0; i < 8 * 1024; ++i) v8::Object::New(env->GetIsolate());
 
-  v8::base::SmartPointer<v8::AllocationProfile> profile(
+  std::unique_ptr<v8::AllocationProfile> profile(
       heap_profiler->GetAllocationProfile());
-  CHECK(!profile.is_empty());
+  CHECK(profile);
   const char* names[] = {"(V8 API)"};
   auto node = FindAllocationProfileNode(*profile, ArrayVector(names));
   CHECK(node);
@@ -3050,7 +3104,7 @@ TEST(SamplingHeapProfilerLeftTrimming) {
       "      a.shift();\n"
       "}\n");
 
-  CcTest::heap()->CollectGarbage(v8::internal::NEW_SPACE);
+  CcTest::CollectGarbage(v8::internal::NEW_SPACE);
   // Should not crash.
 
   heap_profiler->StopSamplingHeapProfiler();

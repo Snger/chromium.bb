@@ -3,7 +3,9 @@
 // found in the LICENSE file.
 
 #include "src/ast/scopes.h"
+#include "src/compilation-info.h"
 #include "src/compiler/ast-loop-assignment-analyzer.h"
+#include "src/parsing/parse-info.h"
 #include "src/parsing/parser.h"
 #include "src/parsing/rewriter.h"
 #include "test/cctest/cctest.h"
@@ -35,9 +37,9 @@ struct TestHelper : public HandleAndZoneScope {
 
     CHECK(Parser::ParseStatic(&parse_info));
     CHECK(Rewriter::Rewrite(&parse_info));
-    CHECK(Scope::Analyze(&parse_info));
+    DeclarationScope::Analyze(&parse_info, AnalyzeMode::kRegular);
 
-    Scope* scope = info.literal()->scope();
+    DeclarationScope* scope = info.literal()->scope();
     AstValueFactory* factory = parse_info.ast_value_factory();
     CHECK(scope);
 

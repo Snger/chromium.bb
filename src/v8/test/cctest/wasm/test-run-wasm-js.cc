@@ -11,8 +11,8 @@
 
 #include "test/cctest/cctest.h"
 #include "test/cctest/compiler/value-helper.h"
-#include "test/cctest/wasm/test-signatures.h"
 #include "test/cctest/wasm/wasm-run-utils.h"
+#include "test/common/wasm/test-signatures.h"
 
 using namespace v8::base;
 using namespace v8::internal;
@@ -97,6 +97,7 @@ void EXPECT_CALL(double expected, Handle<JSFunction> jsfunc, double a,
 }  // namespace
 
 TEST(Run_Int32Sub_jswrapped) {
+  CcTest::InitializeVM();
   TestSignatures sigs;
   TestingModule module;
   WasmFunctionCompiler t(sigs.i_ii(), &module);
@@ -108,6 +109,7 @@ TEST(Run_Int32Sub_jswrapped) {
 }
 
 TEST(Run_Float32Div_jswrapped) {
+  CcTest::InitializeVM();
   TestSignatures sigs;
   TestingModule module;
   WasmFunctionCompiler t(sigs.f_ff(), &module);
@@ -119,6 +121,7 @@ TEST(Run_Float32Div_jswrapped) {
 }
 
 TEST(Run_Float64Add_jswrapped) {
+  CcTest::InitializeVM();
   TestSignatures sigs;
   TestingModule module;
   WasmFunctionCompiler t(sigs.d_dd(), &module);
@@ -130,6 +133,7 @@ TEST(Run_Float64Add_jswrapped) {
 }
 
 TEST(Run_I32Popcount_jswrapped) {
+  CcTest::InitializeVM();
   TestSignatures sigs;
   TestingModule module;
   WasmFunctionCompiler t(sigs.i_i(), &module);
@@ -142,12 +146,13 @@ TEST(Run_I32Popcount_jswrapped) {
 }
 
 TEST(Run_CallJS_Add_jswrapped) {
+  CcTest::InitializeVM();
   TestSignatures sigs;
   TestingModule module;
   WasmFunctionCompiler t(sigs.i_i(), &module);
   uint32_t js_index =
       module.AddJsFunction(sigs.i_i(), "(function(a) { return a + 99; })");
-  BUILD(t, WASM_CALL_FUNCTION1(js_index, WASM_GET_LOCAL(0)));
+  BUILD(t, WASM_CALL_FUNCTION(js_index, WASM_GET_LOCAL(0)));
 
   Handle<JSFunction> jsfunc = module.WrapCode(t.CompileAndAdd());
 
@@ -177,8 +182,7 @@ void RunJSSelectTest(int which) {
         ADD_CODE(code, WASM_F64(inputs.arg_d(i)));
       }
 
-      ADD_CODE(code, kExprCallFunction, static_cast<byte>(num_params),
-               static_cast<byte>(js_index));
+      ADD_CODE(code, kExprCallFunction, static_cast<byte>(js_index));
 
       size_t end = code.size();
       code.push_back(0);
@@ -191,21 +195,45 @@ void RunJSSelectTest(int which) {
   }
 }
 
-TEST(Run_JSSelect_0) { RunJSSelectTest(0); }
+TEST(Run_JSSelect_0) {
+  CcTest::InitializeVM();
+  RunJSSelectTest(0);
+}
 
-TEST(Run_JSSelect_1) { RunJSSelectTest(1); }
+TEST(Run_JSSelect_1) {
+  CcTest::InitializeVM();
+  RunJSSelectTest(1);
+}
 
-TEST(Run_JSSelect_2) { RunJSSelectTest(2); }
+TEST(Run_JSSelect_2) {
+  CcTest::InitializeVM();
+  RunJSSelectTest(2);
+}
 
-TEST(Run_JSSelect_3) { RunJSSelectTest(3); }
+TEST(Run_JSSelect_3) {
+  CcTest::InitializeVM();
+  RunJSSelectTest(3);
+}
 
-TEST(Run_JSSelect_4) { RunJSSelectTest(4); }
+TEST(Run_JSSelect_4) {
+  CcTest::InitializeVM();
+  RunJSSelectTest(4);
+}
 
-TEST(Run_JSSelect_5) { RunJSSelectTest(5); }
+TEST(Run_JSSelect_5) {
+  CcTest::InitializeVM();
+  RunJSSelectTest(5);
+}
 
-TEST(Run_JSSelect_6) { RunJSSelectTest(6); }
+TEST(Run_JSSelect_6) {
+  CcTest::InitializeVM();
+  RunJSSelectTest(6);
+}
 
-TEST(Run_JSSelect_7) { RunJSSelectTest(7); }
+TEST(Run_JSSelect_7) {
+  CcTest::InitializeVM();
+  RunJSSelectTest(7);
+}
 
 void RunWASMSelectTest(int which) {
   PredictableInputValues inputs(0x200);
@@ -238,21 +266,45 @@ void RunWASMSelectTest(int which) {
   }
 }
 
-TEST(Run_WASMSelect_0) { RunWASMSelectTest(0); }
+TEST(Run_WASMSelect_0) {
+  CcTest::InitializeVM();
+  RunWASMSelectTest(0);
+}
 
-TEST(Run_WASMSelect_1) { RunWASMSelectTest(1); }
+TEST(Run_WASMSelect_1) {
+  CcTest::InitializeVM();
+  RunWASMSelectTest(1);
+}
 
-TEST(Run_WASMSelect_2) { RunWASMSelectTest(2); }
+TEST(Run_WASMSelect_2) {
+  CcTest::InitializeVM();
+  RunWASMSelectTest(2);
+}
 
-TEST(Run_WASMSelect_3) { RunWASMSelectTest(3); }
+TEST(Run_WASMSelect_3) {
+  CcTest::InitializeVM();
+  RunWASMSelectTest(3);
+}
 
-TEST(Run_WASMSelect_4) { RunWASMSelectTest(4); }
+TEST(Run_WASMSelect_4) {
+  CcTest::InitializeVM();
+  RunWASMSelectTest(4);
+}
 
-TEST(Run_WASMSelect_5) { RunWASMSelectTest(5); }
+TEST(Run_WASMSelect_5) {
+  CcTest::InitializeVM();
+  RunWASMSelectTest(5);
+}
 
-TEST(Run_WASMSelect_6) { RunWASMSelectTest(6); }
+TEST(Run_WASMSelect_6) {
+  CcTest::InitializeVM();
+  RunWASMSelectTest(6);
+}
 
-TEST(Run_WASMSelect_7) { RunWASMSelectTest(7); }
+TEST(Run_WASMSelect_7) {
+  CcTest::InitializeVM();
+  RunWASMSelectTest(7);
+}
 
 void RunWASMSelectAlignTest(int num_args, int num_params) {
   PredictableInputValues inputs(0x300);
@@ -288,37 +340,44 @@ void RunWASMSelectAlignTest(int num_args, int num_params) {
 }
 
 TEST(Run_WASMSelectAlign_0) {
+  CcTest::InitializeVM();
   RunWASMSelectAlignTest(0, 1);
   RunWASMSelectAlignTest(0, 2);
 }
 
 TEST(Run_WASMSelectAlign_1) {
+  CcTest::InitializeVM();
   RunWASMSelectAlignTest(1, 2);
   RunWASMSelectAlignTest(1, 3);
 }
 
 TEST(Run_WASMSelectAlign_2) {
+  CcTest::InitializeVM();
   RunWASMSelectAlignTest(2, 3);
   RunWASMSelectAlignTest(2, 4);
 }
 
 TEST(Run_WASMSelectAlign_3) {
+  CcTest::InitializeVM();
   RunWASMSelectAlignTest(3, 3);
   RunWASMSelectAlignTest(3, 4);
 }
 
 TEST(Run_WASMSelectAlign_4) {
+  CcTest::InitializeVM();
   RunWASMSelectAlignTest(4, 3);
   RunWASMSelectAlignTest(4, 4);
 }
 
 TEST(Run_WASMSelectAlign_7) {
+  CcTest::InitializeVM();
   RunWASMSelectAlignTest(7, 5);
   RunWASMSelectAlignTest(7, 6);
   RunWASMSelectAlignTest(7, 7);
 }
 
 TEST(Run_WASMSelectAlign_8) {
+  CcTest::InitializeVM();
   RunWASMSelectAlignTest(8, 5);
   RunWASMSelectAlignTest(8, 6);
   RunWASMSelectAlignTest(8, 7);
@@ -326,6 +385,7 @@ TEST(Run_WASMSelectAlign_8) {
 }
 
 TEST(Run_WASMSelectAlign_9) {
+  CcTest::InitializeVM();
   RunWASMSelectAlignTest(9, 6);
   RunWASMSelectAlignTest(9, 7);
   RunWASMSelectAlignTest(9, 8);
@@ -333,6 +393,7 @@ TEST(Run_WASMSelectAlign_9) {
 }
 
 TEST(Run_WASMSelectAlign_10) {
+  CcTest::InitializeVM();
   RunWASMSelectAlignTest(10, 7);
   RunWASMSelectAlignTest(10, 8);
   RunWASMSelectAlignTest(10, 9);
@@ -358,7 +419,7 @@ void RunJSSelectAlignTest(int num_args, int num_params) {
     ADD_CODE(code, WASM_GET_LOCAL(i));
   }
 
-  ADD_CODE(code, kExprCallFunction, static_cast<byte>(num_params), 0);
+  ADD_CODE(code, kExprCallFunction, 0);
 
   size_t end = code.size();
   code.push_back(0);
@@ -394,31 +455,37 @@ void RunJSSelectAlignTest(int num_args, int num_params) {
 }
 
 TEST(Run_JSSelectAlign_0) {
+  CcTest::InitializeVM();
   RunJSSelectAlignTest(0, 1);
   RunJSSelectAlignTest(0, 2);
 }
 
 TEST(Run_JSSelectAlign_1) {
+  CcTest::InitializeVM();
   RunJSSelectAlignTest(1, 2);
   RunJSSelectAlignTest(1, 3);
 }
 
 TEST(Run_JSSelectAlign_2) {
+  CcTest::InitializeVM();
   RunJSSelectAlignTest(2, 3);
   RunJSSelectAlignTest(2, 4);
 }
 
 TEST(Run_JSSelectAlign_3) {
+  CcTest::InitializeVM();
   RunJSSelectAlignTest(3, 3);
   RunJSSelectAlignTest(3, 4);
 }
 
 TEST(Run_JSSelectAlign_4) {
+  CcTest::InitializeVM();
   RunJSSelectAlignTest(4, 3);
   RunJSSelectAlignTest(4, 4);
 }
 
 TEST(Run_JSSelectAlign_7) {
+  CcTest::InitializeVM();
   RunJSSelectAlignTest(7, 3);
   RunJSSelectAlignTest(7, 4);
   RunJSSelectAlignTest(7, 4);
@@ -426,6 +493,7 @@ TEST(Run_JSSelectAlign_7) {
 }
 
 TEST(Run_JSSelectAlign_8) {
+  CcTest::InitializeVM();
   RunJSSelectAlignTest(8, 5);
   RunJSSelectAlignTest(8, 6);
   RunJSSelectAlignTest(8, 7);
@@ -433,6 +501,7 @@ TEST(Run_JSSelectAlign_8) {
 }
 
 TEST(Run_JSSelectAlign_9) {
+  CcTest::InitializeVM();
   RunJSSelectAlignTest(9, 6);
   RunJSSelectAlignTest(9, 7);
   RunJSSelectAlignTest(9, 8);
@@ -440,6 +509,7 @@ TEST(Run_JSSelectAlign_9) {
 }
 
 TEST(Run_JSSelectAlign_10) {
+  CcTest::InitializeVM();
   RunJSSelectAlignTest(10, 7);
   RunJSSelectAlignTest(10, 8);
   RunJSSelectAlignTest(10, 9);

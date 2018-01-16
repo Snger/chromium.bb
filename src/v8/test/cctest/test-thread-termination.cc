@@ -25,6 +25,8 @@
 // (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
 // OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 
+#include "src/api.h"
+#include "src/isolate.h"
 #include "src/v8.h"
 #include "test/cctest/cctest.h"
 
@@ -517,8 +519,7 @@ TEST(ErrorObjectAfterTermination) {
   v8::Context::Scope context_scope(context);
   isolate->TerminateExecution();
   v8::Local<v8::Value> error = v8::Exception::Error(v8_str("error"));
-  // TODO(yangguo): crbug/403509. Check for empty handle instead.
-  CHECK(error->IsUndefined());
+  CHECK(error->IsNativeError());
 }
 
 

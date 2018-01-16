@@ -87,7 +87,6 @@ var f3 = (function F1(invisible_parameter) {
     var invisible2 = 2;
     return (function F3() {
       var visible2 = 20;
-      var invisible2 = 3;
       return (function () {return visible1 + visible2 + visible1a;});
     })();
   })();
@@ -155,6 +154,3 @@ function CheckNoScopeVisible(f) {
 CheckNoScopeVisible(Number);
 
 CheckNoScopeVisible(Function.toString);
-
-// This getter is known to be implemented as closure.
-CheckNoScopeVisible(new Error().__lookupGetter__("stack"));

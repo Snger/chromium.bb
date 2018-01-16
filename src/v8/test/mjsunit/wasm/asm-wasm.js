@@ -2,15 +2,22 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// Flags: --expose-wasm
+// Flags: --validate-asm --allow-natives-syntax
+
+var stdlib = this;
+
+function assertValidAsm(func) {
+  assertTrue(%IsAsmWasmCode(func));
+}
 
 function assertWasm(expected, func, ffi) {
   print("Testing " + func.name + "...");
-  assertEquals(expected, Wasm.instantiateModuleFromAsm(
-      func.toString(), ffi).caller());
+  assertEquals(
+      expected, func(stdlib, ffi, new ArrayBuffer(1024)).caller());
+  assertValidAsm(func);
 }
 
-function EmptyTest() {
+function EmptyTest(a, b, c) {
   "use asm";
   function caller() {
     empty();
@@ -23,7 +30,7 @@ function EmptyTest() {
 
 assertWasm(11, EmptyTest);
 
-function VoidReturnTest() {
+function VoidReturnTest(a, b, c) {
   "use asm";
   function caller() {
     empty();
@@ -38,14 +45,16 @@ function VoidReturnTest() {
 
 assertWasm(19, VoidReturnTest);
 
-function IntTest() {
+function IntTest(a, b, c) {
   "use asm";
   function sum(a, b) {
     a = a|0;
     b = b|0;
-    var c = (b + 1)|0
+    var c = 0;
     var d = 3.0;
-    var e = ~~d;  // double conversion
+    var e = 0;
+    e = ~~d;  // double conversion
+    c = (b + 1)|0
     return (a + c + 1)|0;
   }
 
@@ -68,8 +77,9 @@ function Float64Test() {
   }
 
   function caller() {
-    var a = +sum(70.1,10.2);
+    var a = 0.0;
     var ret = 0|0;
+    a = +sum(70.1,10.2);
     if (a == 80.3) {
       ret = 1|0;
     } else {
@@ -89,7 +99,8 @@ function BadModule() {
   function caller(a, b) {
     a = a|0;
     b = b+0;
-    var c = (b + 1)|0
+    var c = 0;
+    c = (b + 1)|0
     return (a + c + 1)|0;
   }
 
@@ -100,9 +111,7 @@ function BadModule() {
   return {caller: caller};
 }
 
-assertThrows(function() {
-  Wasm.instantiateModuleFromAsm(BadModule.toString()).caller();
-});
+assertTrue(%IsNotAsmWasmCode(BadModule));
 
 
 function TestReturnInBlock() {
@@ -145,7 +154,7 @@ function TestWhileSimple() {
 
   function caller() {
     var x = 0;
-    while(x < 5) {
+    while((x|0) < 5) {
       x = (x + 1)|0;
     }
     return x|0;
@@ -162,7 +171,7 @@ function TestWhileWithoutBraces() {
 
   function caller() {
     var x = 0;
-    while(x <= 3)
+    while((x|0) <= 3)
       x = (x + 1)|0;
     return x|0;
   }
@@ -178,7 +187,7 @@ function TestReturnInWhile() {
 
   function caller() {
     var x = 0;
-    while(x < 10) {
+    while((x|0) < 10) {
       x = (x + 6)|0;
       return x|0;
     }
@@ -196,7 +205,7 @@ function TestReturnInWhileWithoutBraces() {
 
   function caller() {
     var x = 0;
-    while(x < 5)
+    while((x|0) < 5)
       return 7;
     return x|0;
   }
@@ -293,12 +302,12 @@ function TestBreakInNestedWhile() {
 
   function caller() {
     var x = 1.0;
+    var ret = 0;
     while(x < 1.5) {
       while(1)
         break;
       x = +(x + 0.25);
     }
-    var ret = 0;
     if (x == 1.5) {
       ret = 9;
     }
@@ -318,7 +327,7 @@ function TestBreakInBlock() {
     var x = 0;
     abc: {
       x = 10;
-      if (x == 10) {
+      if ((x|0) == 10) {
         break abc;
       }
       x = 20;
@@ -339,7 +348,7 @@ function TestBreakInNamedWhile() {
     var x = 0;
     outer: while (1) {
       x = (x + 1)|0;
-      while (x == 11) {
+      while ((x|0) == 11) {
         break outer;
       }
     }
@@ -358,9 +367,9 @@ function TestContinue() {
   function caller() {
     var x = 5;
     var ret = 0;
-    while (x >= 0) {
+    while ((x|0) >= 0) {
       x = (x - 1)|0;
-      if (x == 2) {
+      if ((x|0) == 2) {
         continue;
       }
       ret = (ret - 1)|0;
@@ -381,11 +390,11 @@ function TestContinueInNamedWhile() {
     var x = 5;
     var y = 0;
     var ret = 0;
-    outer: while (x > 0) {
+    outer: while ((x|0) > 0) {
       x = (x - 1)|0;
       y = 0;
-      while (y < 5) {
-        if (x == 3) {
+      while ((y|0) < 5) {
+        if ((x|0) == 3) {
           continue outer;
         }
         ret = (ret + 1)|0;
@@ -405,7 +414,8 @@ function TestNot() {
   "use asm";
 
   function caller() {
-    var a = !(2 > 3);
+    var a = 0;
+    a = !(2 > 3);
     return a | 0;
   }
 
@@ -420,7 +430,7 @@ function TestNotEquals() {
 
   function caller() {
     var a = 3;
-    if (a != 2) {
+    if ((a|0) != 2) {
       return 21;
     }
     return 0;
@@ -458,7 +468,7 @@ function TestMixedAdd() {
     var c = 0;
     c = ((a>>>0) + b)|0;
     if ((c >>> 0) > (0>>>0)) {
-      if (c < 0) {
+      if ((c|0) < 0) {
         return 23;
       }
     }
@@ -493,8 +503,9 @@ assertWasm(7, TestInt32HeapAccess);
 function TestInt32HeapAccessExternal() {
   var memory = new ArrayBuffer(1024);
   var memory_int32 = new Int32Array(memory);
-  var module = Wasm.instantiateModuleFromAsm(
-      TestInt32HeapAccess.toString(), null, memory);
+  var module_decl = eval('(' + TestInt32HeapAccess.toString() + ')');
+  var module = module_decl(stdlib, null, memory);
+  assertValidAsm(module_decl);
   assertEquals(7, module.caller());
   assertEquals(7, memory_int32[2]);
 }
@@ -517,10 +528,13 @@ function TestHeapAccessIntTypes() {
     code = code.replace(/>> 2/g, types[i][2]);
     var memory = new ArrayBuffer(1024);
     var memory_view = new types[i][0](memory);
-    var module = Wasm.instantiateModuleFromAsm(code, null, memory);
+    var module_decl = eval('(' + code + ')');
+    var module = module_decl(stdlib, null, memory);
+    assertValidAsm(module_decl);
     assertEquals(7, module.caller());
     assertEquals(7, memory_view[2]);
-    assertEquals(7, Wasm.instantiateModuleFromAsm(code).caller());
+    assertEquals(7, module_decl(stdlib).caller());
+    assertValidAsm(module_decl);
   }
 }
 
@@ -548,15 +562,15 @@ function TestFloatHeapAccess(stdlib, foreign, buffer) {
   return {caller: caller};
 }
 
-assertEquals(1, Wasm.instantiateModuleFromAsm(
-      TestFloatHeapAccess.toString()).caller());
+assertWasm(1, TestFloatHeapAccess);
 
 
 function TestFloatHeapAccessExternal() {
   var memory = new ArrayBuffer(1024);
   var memory_float64 = new Float64Array(memory);
-  var module = Wasm.instantiateModuleFromAsm(
-      TestFloatHeapAccess.toString(), null, memory);
+  var module_decl = eval('(' + TestFloatHeapAccess.toString() + ')');
+  var module = module_decl(stdlib, null, memory);
+  assertValidAsm(module_decl);
   assertEquals(1, module.caller());
   assertEquals(9.0, memory_float64[1]);
 }
@@ -703,7 +717,9 @@ function TestNamedFunctions() {
           add:add};
 }
 
-var module = Wasm.instantiateModuleFromAsm(TestNamedFunctions.toString());
+var module_decl = eval('(' + TestNamedFunctions.toString() + ')');
+var module = module_decl(stdlib);
+assertValidAsm(module_decl);
 module.init();
 assertEquals(77.5, module.add());
 })();
@@ -723,7 +739,9 @@ function TestGlobalsWithInit() {
   return {add:add};
 }
 
-var module = Wasm.instantiateModuleFromAsm(TestGlobalsWithInit.toString());
+var module_decl = eval('(' + TestGlobalsWithInit.toString() + ')');
+var module = module_decl(stdlib);
+assertValidAsm(module_decl);
 assertEquals(77.5, module.add());
 })();
 
@@ -733,7 +751,7 @@ function TestForLoop() {
   function caller() {
     var ret = 0;
     var i = 0;
-    for (i = 2; i <= 10; i = (i+1)|0) {
+    for (i = 2; (i|0) <= 10; i = (i+1)|0) {
       ret = (ret + i) | 0;
     }
     return ret|0;
@@ -751,7 +769,7 @@ function TestForLoopWithoutInit() {
   function caller() {
     var ret = 0;
     var i = 0;
-    for (; i < 10; i = (i+1)|0) {
+    for (; (i|0) < 10; i = (i+1)|0) {
       ret = (ret + 10) | 0;
     }
     return ret|0;
@@ -771,7 +789,7 @@ function TestForLoopWithoutCondition() {
     var i = 0;
     for (i=1;; i = (i+1)|0) {
       ret = (ret + i) | 0;
-      if (i == 11) {
+      if ((i|0) == 11) {
         break;
       }
     }
@@ -789,7 +807,7 @@ function TestForLoopWithoutNext() {
 
   function caller() {
     var i = 0;
-    for (i=1; i < 41;) {
+    for (i=1; (i|0) < 41;) {
       i = (i + 1) | 0;
     }
     return i|0;
@@ -806,7 +824,7 @@ function TestForLoopWithoutBody() {
 
   function caller() {
     var i = 0;
-    for (i=1; i < 45 ; i = (i+1)|0) {
+    for (i=1; (i|0) < 45 ; i = (i+1)|0) {
     }
     return i|0;
   }
@@ -826,7 +844,7 @@ function TestDoWhile() {
     do {
       ret = (ret + ret)|0;
       i = (i + 1)|0;
-    } while (i < 2);
+    } while ((i|0) < 2);
     return ret|0;
   }
 
@@ -841,7 +859,7 @@ function TestConditional() {
 
   function caller() {
     var x = 1;
-    return ((x > 0) ? 41 : 71)|0;
+    return (((x|0) > 0) ? 41 : 71)|0;
   }
 
   return {caller:caller};
@@ -850,7 +868,6 @@ function TestConditional() {
 assertWasm(41, TestConditional);
 
 
-(function () {
 function TestInitFunctionWithNoGlobals() {
   "use asm";
   function caller() {
@@ -859,10 +876,8 @@ function TestInitFunctionWithNoGlobals() {
   return {caller};
 }
 
-var module = Wasm.instantiateModuleFromAsm(
-    TestInitFunctionWithNoGlobals.toString());
-assertEquals(51, module.caller());
-})();
+assertWasm(51, TestInitFunctionWithNoGlobals);
+
 
 (function () {
 function TestExportNameDifferentFromFunctionName() {
@@ -873,10 +888,13 @@ function TestExportNameDifferentFromFunctionName() {
   return {alt_caller:caller};
 }
 
-var module = Wasm.instantiateModuleFromAsm(
-    TestExportNameDifferentFromFunctionName.toString());
+var module_decl = eval(
+  '(' + TestExportNameDifferentFromFunctionName.toString() + ')');
+var module = module_decl(stdlib);
+assertValidAsm(module_decl);
 assertEquals(55, module.alt_caller());
 })();
+
 
 function TestFunctionTableSingleFunction() {
   "use asm";
@@ -886,7 +904,9 @@ function TestFunctionTableSingleFunction() {
   }
 
   function caller() {
-    return function_table[0&0]() | 0;
+    // TODO(jpp): the parser optimizes function_table[0&0] to function table[0].
+    var v = 0;
+    return function_table[v&0]() | 0;
   }
 
   var function_table = [dummy]
@@ -911,8 +931,9 @@ function TestFunctionTableMultipleFunctions() {
   }
 
   function caller() {
-    if (function_table[0&1](50) == 51) {
-      if (function_table[1&1](60) == 62) {
+    var i = 0, j = 1;
+    if ((function_table[i&1](50)|0) == 51) {
+      if ((function_table[j&1](60)|0) == 62) {
         return 73;
       }
     }
@@ -928,7 +949,7 @@ assertWasm(73, TestFunctionTableMultipleFunctions);
 
 
 (function () {
-function TestFunctionTable() {
+function TestFunctionTable(stdlib, foreign, buffer) {
   "use asm";
 
   function add(a, b) {
@@ -953,9 +974,9 @@ function TestFunctionTable() {
     fun_id = fun_id|0;
     arg1 = arg1|0;
     arg2 = arg2|0;
-    if (table_id == 0) {
+    if ((table_id|0) == 0) {
       return funBin[fun_id&3](arg1, arg2)|0;
-    } else if (table_id == 1) {
+    } else if ((table_id|0) == 1) {
       return fun[fun_id&0](arg1)|0;
     }
     return 0;
@@ -967,7 +988,8 @@ function TestFunctionTable() {
   return {caller:caller};
 }
 
-var module = Wasm.instantiateModuleFromAsm(TestFunctionTable.toString());
+print("TestFunctionTable...");
+var module = TestFunctionTable(stdlib);
 assertEquals(55, module.caller(0, 0, 33, 22));
 assertEquals(11, module.caller(0, 1, 33, 22));
 assertEquals(9, module.caller(0, 2, 54, 45));
@@ -1013,12 +1035,13 @@ function TestForeignFunctions() {
 
   var foreign = new ffi(23);
 
-  var module = Wasm.instantiateModuleFromAsm(AsmModule.toString(),
-                                                  foreign, null);
+  var module = AsmModule({Math: Math}, foreign, null);
+  assertValidAsm(AsmModule);
 
   assertEquals(103, module.caller(23, 103));
 }
 
+print("TestForeignFunctions...");
 TestForeignFunctions();
 
 
@@ -1052,8 +1075,9 @@ function TestForeignFunctionMultipleUse() {
 
   var foreign = new ffi();
 
-  var module = Wasm.instantiateModuleFromAsm(AsmModule.toString(),
-                                                  foreign, null);
+  var module_decl = eval('(' + AsmModule.toString() + ')');
+  var module = module_decl(stdlib, foreign, null);
+  assertValidAsm(module_decl);
 
   assertEquals(89, module.caller(83, 83.25));
 }
@@ -1091,8 +1115,9 @@ function TestForeignVariables() {
 
   function TestCase(env, i1, f1, i2, f2) {
     print("Testing foreign variables...");
-    var module = Wasm.instantiateModuleFromAsm(
-        AsmModule.toString(), env);
+    var module_decl = eval('(' + AsmModule.toString() + ')');
+    var module = module_decl(stdlib, env);
+    assertValidAsm(module_decl);
     assertEquals(i1, module.geti1());
     assertEquals(f1, module.getf1());
     assertEquals(i2, module.geti2());
@@ -1183,8 +1208,9 @@ TestForeignVariables();
     return {load: load, iload: iload, store: store, storeb: storeb};
   }
 
-  var m = Wasm.instantiateModuleFromAsm(
-      TestByteHeapAccessCompat.toString());
+  var module_decl = eval('(' + TestByteHeapAccessCompat.toString() + ')');
+  var m = module_decl(stdlib);
+  assertValidAsm(module_decl);
   m.store(0, 20);
   m.store(4, 21);
   m.store(8, 22);
@@ -1233,7 +1259,9 @@ assertWasm(15, TestGlobalBlock, { x: 4, y: 11 });
     return {ifunc: ifunc, dfunc: dfunc};
   }
 
-  var m = Wasm.instantiateModuleFromAsm(CommaModule.toString());
+  var module_decl = eval('(' + CommaModule.toString() + ')');
+  var m = module_decl(stdlib);
+  assertValidAsm(module_decl);
   assertEquals(123, m.ifunc(456.7, 123));
   assertEquals(123.4, m.dfunc(456, 123.4));
 })();
@@ -1290,74 +1318,62 @@ function TestXor() {
 assertWasm(1, TestXor);
 
 
-(function TestIntishAssignment() {
-  function Module(stdlib, foreign, heap) {
-    "use asm";
-    var HEAP32 = new stdlib.Int32Array(heap);
-    function func() {
-      var a = 1;
-      var b = 2;
-      HEAP32[0] = a + b;
-      return HEAP32[0] | 0;
-    }
-    return {func: func};
+function TestIntishAssignment(stdlib, foreign, heap) {
+  "use asm";
+  var HEAP32 = new stdlib.Int32Array(heap);
+  function func() {
+    var a = 1;
+    var b = 2;
+    HEAP32[0] = a + b;
+    return HEAP32[0] | 0;
   }
+  return {caller: func};
+}
 
-  var m = Wasm.instantiateModuleFromAsm(Module.toString());
-  assertEquals(3, m.func());
-})();
+assertWasm(3, TestIntishAssignment);
 
 
-(function TestFloatishAssignment() {
-  function Module(stdlib, foreign, heap) {
-    "use asm";
-    var HEAPF32 = new stdlib.Float32Array(heap);
-    var fround = stdlib.Math.fround;
-    function func() {
-      var a = fround(1.0);
-      var b = fround(2.0);
-      HEAPF32[0] = a + b;
-      return +HEAPF32[0];
-    }
-    return {func: func};
+function TestFloatishAssignment(stdlib, foreign, heap) {
+  "use asm";
+  var HEAPF32 = new stdlib.Float32Array(heap);
+  var fround = stdlib.Math.fround;
+  function func() {
+    var a = fround(1.0);
+    var b = fround(2.0);
+    HEAPF32[0] = a + b;
+    return +HEAPF32[0];
   }
+  return {caller: func};
+}
 
-  var m = Wasm.instantiateModuleFromAsm(Module.toString());
-  assertEquals(3, m.func());
-})();
+assertWasm(3, TestFloatishAssignment);
 
 
-(function TestDoubleToFloatAssignment() {
-  function Module(stdlib, foreign, heap) {
-    "use asm";
-    var HEAPF32 = new stdlib.Float32Array(heap);
-    var fround = stdlib.Math.fround;
-    function func() {
-      var a = 1.23;
-      HEAPF32[0] = a;
-      return +HEAPF32[0];
-    }
-    return {func: func};
+function TestDoubleToFloatAssignment(stdlib, foreign, heap) {
+  "use asm";
+  var HEAPF32 = new stdlib.Float32Array(heap);
+  var fround = stdlib.Math.fround;
+  function func() {
+    var a = 1.23;
+    HEAPF32[0] = a;
+    return +HEAPF32[0];
   }
+  return {caller: func};
+}
 
-  var m = Wasm.instantiateModuleFromAsm(Module.toString());
-  assertEquals(1.23, m.func());
-});
+assertWasm(Math.fround(1.23), TestDoubleToFloatAssignment);
 
 
-(function TestIntegerMultiplyBothWays() {
-  function Module(stdlib, foreign, heap) {
-    "use asm";
-    function func() {
-      var a = 1;
-      return ((a * 3) + (4 * a)) | 0;
-    }
-    return {func: func};
+function TestIntegerMultiplyBothWays(stdlib, foreign, heap) {
+  "use asm";
+  function func() {
+    var a = 1;
+    return (((a * 3)|0) + ((4 * a)|0)) | 0;
   }
+  return {caller: func};
+}
 
-  var m = Wasm.instantiateModuleFromAsm(Module.toString());
-  assertEquals(7, m.func());
-})();
+assertWasm(7, TestIntegerMultiplyBothWays);
 
 
 (function TestBadAssignDoubleFromIntish() {
@@ -1370,9 +1386,8 @@ assertWasm(1, TestXor);
     }
     return {func: func};
   }
-  assertThrows(function() {
-    Wasm.instantiateModuleFromAsm(Module.toString());
-  });
+  Module(stdlib);
+  assertTrue(%IsNotAsmWasmCode(Module));
 })();
 
 
@@ -1386,9 +1401,8 @@ assertWasm(1, TestXor);
     }
     return {func: func};
   }
-  assertThrows(function() {
-    Wasm.instantiateModuleFromAsm(Module.toString());
-  });
+  Module(stdlib);
+  assertTrue(%IsNotAsmWasmCode(Module));
 })();
 
 
@@ -1401,9 +1415,8 @@ assertWasm(1, TestXor);
     }
     return {func: func};
   }
-  assertThrows(function() {
-    Wasm.instantiateModuleFromAsm(Module.toString());
-  });
+  Module(stdlib);
+  assertTrue(%IsNotAsmWasmCode(Module));
 })();
 
 
@@ -1416,44 +1429,37 @@ assertWasm(1, TestXor);
     }
     return {func: func};
   }
-  assertThrows(function() {
-    Wasm.instantiateModuleFromAsm(Module.toString());
-  });
+  Module(stdlib);
+  assertTrue(%IsNotAsmWasmCode(Module));
 })();
 
 
-(function TestAndNegative() {
-  function Module() {
-    "use asm";
-    function func() {
-      var x = 1;
-      var y = 2;
-      var z = 0;
-      z = x + y & -1;
-      return z | 0;
-    }
-    return {func: func};
+function TestAndNegative() {
+  "use asm";
+  function func() {
+    var x = 1;
+    var y = 2;
+    var z = 0;
+    z = x + y & -1;
+    return z | 0;
   }
+  return {caller: func};
+}
 
-  var m = Wasm.instantiateModuleFromAsm(Module.toString());
-  assertEquals(3, m.func());
-})();
+assertWasm(3, TestAndNegative);
 
 
-(function TestNegativeDouble() {
-  function Module() {
-    "use asm";
-    function func() {
-      var x = -(34359738368.25);
-      var y = -2.5;
-      return +(x + y);
-    }
-    return {func: func};
+function TestNegativeDouble() {
+  "use asm";
+  function func() {
+    var x = -(34359738368.25);
+    var y = -2.5;
+    return +(x + y);
   }
+  return {caller: func};
+}
 
-  var m = Wasm.instantiateModuleFromAsm(Module.toString());
-  assertEquals(-34359738370.75, m.func());
-})();
+assertWasm(-34359738370.75, TestNegativeDouble);
 
 
 (function TestBadAndDouble() {
@@ -1467,42 +1473,38 @@ assertWasm(1, TestXor);
     return {func: func};
   }
 
-  assertThrows(function() {
-    Wasm.instantiateModuleFromAsm(Module.toString());
-  });
+  Module(stdlib);
+  assertTrue(%IsNotAsmWasmCode(Module));
 })();
 
 
-(function TestAndIntAndHeapValue() {
-  function Module(stdlib, foreign, buffer) {
-    "use asm";
-    var HEAP32 = new stdlib.Int32Array(buffer);
-    function func() {
-      var x = 0;
-      x = HEAP32[0] & -1;
-      return x | 0;
-    }
-    return {func: func};
+function TestAndIntAndHeapValue(stdlib, foreign, buffer) {
+  "use asm";
+  var HEAP32 = new stdlib.Int32Array(buffer);
+  function func() {
+    var x = 0;
+    x = HEAP32[0] & -1;
+    return x | 0;
   }
+  return {caller: func};
+}
 
-  var m = Wasm.instantiateModuleFromAsm(Module.toString());
-  assertEquals(0, m.func());
-})();
+assertWasm(0, TestAndIntAndHeapValue);
 
-(function TestOutOfBoundsConversion() {
-  function asmModule($a,$b,$c){'use asm';
-    function aaa() {
-      var f = 0.0;
-      var a = 0;
-      f = 5616315000.000001;
-      a = ~~f >>>0;
-      return a | 0;
-    }
-    return { main : aaa };
+
+function TestOutOfBoundsConversion($a,$b,$c){'use asm';
+  function aaa() {
+    var f = 0.0;
+    var a = 0;
+    f = 5616315000.000001;
+    a = ~~f >>>0;
+    return a | 0;
   }
-  var wasm = Wasm.instantiateModuleFromAsm(asmModule.toString());
-  assertEquals(1321347704, wasm.main());
-})();
+  return { caller : aaa };
+}
+
+assertWasm(1321347704, TestOutOfBoundsConversion);
+
 
 (function TestUnsignedLiterals() {
   function asmModule() {
@@ -1525,8 +1527,145 @@ assertWasm(1, TestXor);
       u0x87654321: u0x87654321,
     };
   }
-  var wasm = Wasm.instantiateModuleFromAsm(asmModule.toString());
+  var decl = eval('(' + asmModule.toString() + ')');
+  var wasm = decl(stdlib);
+  assertValidAsm(decl);
   assertEquals(0xffffffff, wasm.u0xffffffff());
   assertEquals(0x80000000, wasm.u0x80000000());
   assertEquals(0x87654321, wasm.u0x87654321());
 })();
+
+
+function TestIfWithUnsigned() {
+  "use asm";
+  function main() {
+    if (2147483658) { // 2^31 + 10
+      return 231;
+    }
+    return 0;
+  }
+  return {caller:main};
+}
+
+assertWasm(231, TestIfWithUnsigned);
+
+
+function TestLoopsWithUnsigned() {
+  "use asm";
+  function main() {
+    var val = 1;
+    var count = 0;
+    for (val = 2147483648; 2147483648;) {
+      val = 2147483649;
+      break;
+    }
+    while (val>>>0) {
+      val = (val + 1) | 0;
+      count = (count + 1)|0;
+      if ((count|0) == 9) {
+        break;
+      }
+    }
+    count = 0;
+    do {
+      val = (val + 2) | 0;
+      count = (count + 1)|0;
+      if ((count|0) == 5) {
+        break;
+      }
+    } while (0xffffffff);
+    if ((val>>>0) == 2147483668) {
+      return 323;
+    }
+    return 0;
+  }
+  return {caller:main};
+}
+
+assertWasm(323, TestLoopsWithUnsigned);
+
+
+function TestSingleFunctionModule() {
+  "use asm";
+  function add(a, b) {
+    a = a | 0;
+    b = b | 0;
+    return (a + b) | 0;
+  }
+  return add;
+}
+
+assertEquals(7, TestSingleFunctionModule()(3, 4));
+
+
+function TestNotZero() {
+  "use asm";
+  function caller() {
+    if (!0) {
+      return 44;
+    } else {
+      return 55;
+    }
+    return 0;
+  }
+  return {caller: caller};
+}
+
+assertWasm(44, TestNotZero);
+
+
+function TestNotOne() {
+  "use asm";
+  function caller() {
+    if (!1) {
+      return 44;
+    } else {
+      return 55;
+    }
+    return 0;
+  }
+  return {caller: caller};
+}
+
+assertWasm(55, TestNotOne);
+
+
+function TestDotfulFloat(stdlib) {
+  "use asm";
+  var fround = stdlib.Math.fround;
+  var foo = fround(55.0);
+  function caller() {
+    return +foo;
+  }
+  return {caller: caller};
+}
+
+assertWasm(55, TestDotfulFloat);
+
+
+function TestDotlessFloat(stdlib) {
+  "use asm";
+  var fround = stdlib.Math.fround;
+  var foo = fround(55);
+  function caller() {
+    return +foo;
+  }
+  return {caller: caller};
+}
+
+assertWasm(55, TestDotlessFloat);
+
+
+function TestFloatGlobals(stdlib) {
+  "use asm";
+  var fround = stdlib.Math.fround;
+  var foo = fround(1.25);
+  function caller() {
+    foo = fround(foo + fround(1.0));
+    foo = fround(foo + fround(1.0));
+    return +foo;
+  }
+  return {caller: caller};
+}
+
+assertWasm(3.25, TestFloatGlobals);

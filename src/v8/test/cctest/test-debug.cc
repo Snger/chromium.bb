@@ -157,26 +157,20 @@ static bool HasDebugInfo(v8::Local<v8::Function> fun) {
   return shared->HasDebugInfo();
 }
 
-
-// Set a break point in a function and return the associated break point
-// number.
-static int SetBreakPoint(Handle<v8::internal::JSFunction> fun, int position) {
+// Set a break point in a function with a position relative to function start,
+// and return the associated break point number.
+static int SetBreakPoint(v8::Local<v8::Function> fun, int position) {
+  i::Handle<i::JSFunction> function =
+      i::Handle<i::JSFunction>::cast(v8::Utils::OpenHandle(*fun));
+  position += function->shared()->start_position();
   static int break_point = 0;
-  v8::internal::Isolate* isolate = fun->GetIsolate();
+  v8::internal::Isolate* isolate = function->GetIsolate();
   v8::internal::Debug* debug = isolate->debug();
   debug->SetBreakPoint(
-      fun,
+      function,
       Handle<Object>(v8::internal::Smi::FromInt(++break_point), isolate),
       &position);
   return break_point;
-}
-
-
-// Set a break point in a function and return the associated break point
-// number.
-static int SetBreakPoint(v8::Local<v8::Function> fun, int position) {
-  return SetBreakPoint(
-      i::Handle<i::JSFunction>::cast(v8::Utils::OpenHandle(*fun)), position);
 }
 
 
@@ -377,8 +371,8 @@ void CheckDebuggerUnloaded(bool check_functions) {
   CHECK(!CcTest::i_isolate()->debug()->debug_info_list_);
 
   // Collect garbage to ensure weak handles are cleared.
-  CcTest::heap()->CollectAllGarbage();
-  CcTest::heap()->CollectAllGarbage(Heap::kMakeHeapIterableMask);
+  CcTest::CollectAllGarbage(i::Heap::kFinalizeIncrementalMarkingMask);
+  CcTest::CollectAllGarbage(Heap::kMakeHeapIterableMask);
 
   // Iterate the head and check that there are no debugger related objects left.
   HeapIterator iterator(CcTest::heap());
@@ -806,10 +800,10 @@ static void DebugEventBreakPointCollectGarbage(
     break_point_hit_count++;
     if (break_point_hit_count % 2 == 0) {
       // Scavenge.
-      CcTest::heap()->CollectGarbage(v8::internal::NEW_SPACE);
+      CcTest::CollectGarbage(v8::internal::NEW_SPACE);
     } else {
       // Mark sweep compact.
-      CcTest::heap()->CollectAllGarbage();
+      CcTest::CollectAllGarbage(i::Heap::kFinalizeIncrementalMarkingMask);
     }
   }
 }
@@ -830,7 +824,7 @@ static void DebugEventBreak(
 
     // Run the garbage collector to enforce heap verification if option
     // --verify-heap is set.
-    CcTest::heap()->CollectGarbage(v8::internal::NEW_SPACE);
+    CcTest::CollectGarbage(v8::internal::NEW_SPACE);
 
     // Set the break flag again to come back here as soon as possible.
     v8::Debug::DebugBreak(CcTest::isolate());
@@ -1223,12 +1217,12 @@ static void CallAndGC(v8::Local<v8::Context> context,
     CHECK_EQ(1 + i * 3, break_point_hit_count);
 
     // Scavenge and call function.
-    CcTest::heap()->CollectGarbage(v8::internal::NEW_SPACE);
+    CcTest::CollectGarbage(v8::internal::NEW_SPACE);
     f->Call(context, recv, 0, NULL).ToLocalChecked();
     CHECK_EQ(2 + i * 3, break_point_hit_count);
 
     // Mark sweep (and perhaps compact) and call function.
-    CcTest::heap()->CollectAllGarbage();
+    CcTest::CollectAllGarbage(i::Heap::kFinalizeIncrementalMarkingMask);
     f->Call(context, recv, 0, NULL).ToLocalChecked();
     CHECK_EQ(3 + i * 3, break_point_hit_count);
   }
@@ -2086,7 +2080,7 @@ TEST(ScriptBreakPointLineTopLevel) {
           ->Get(context, v8_str(env->GetIsolate(), "f"))
           .ToLocalChecked());
 
-  CcTest::heap()->CollectAllGarbage();
+  CcTest::CollectAllGarbage(i::Heap::kFinalizeIncrementalMarkingMask);
 
   SetScriptBreakPointByNameFromJS(env->GetIsolate(), "test.html", 3, -1);
 
@@ -7584,9 +7578,9 @@ static void DebugBreakInlineListener(
   CHECK_EQ(expected_frame_count, frame_count);
 
   for (int i = 0; i < frame_count; i++) {
-    // The 5. element in the returned array of GetFrameDetails contains the
+    // The 6. element in the returned array of GetFrameDetails contains the
     // source position of that frame.
-    SNPrintF(script_vector, "%%GetFrameDetails(%d, %d)[5]", break_id, i);
+    SNPrintF(script_vector, "%%GetFrameDetails(%d, %d)[6]", break_id, i);
     v8::Local<v8::Value> result = CompileRun(script);
     CHECK_EQ(expected_line_number[i],
              i::Script::GetLineNumber(source_script,
@@ -7984,18 +7978,11 @@ static void NoInterruptsOnDebugEvent(
   --after_compile_handler_depth;
 }
 
-
 TEST(NoInterruptsInDebugListener) {
   DebugLocalContext env;
   v8::Debug::SetDebugEventListener(env->GetIsolate(), NoInterruptsOnDebugEvent);
   CompileRun("void(0);");
 }
-
-class TestBreakLocation : public i::BreakLocation {
- public:
-  using i::BreakLocation::GetIterator;
-  using i::BreakLocation::Iterator;
-};
 
 TEST(BreakLocationIterator) {
   DebugLocalContext env;
@@ -8018,53 +8005,40 @@ TEST(BreakLocationIterator) {
   CHECK(i_isolate->debug()->EnsureDebugInfo(shared, function));
 
   Handle<i::DebugInfo> debug_info(shared->GetDebugInfo());
-  int code_size = debug_info->abstract_code()->Size();
+  Handle<i::AbstractCode> abstract_code(shared->abstract_code());
 
-  bool found_return = false;
-  bool found_call = false;
-  bool found_debugger = false;
-
-  // Test public interface.
-  for (int i = 0; i < code_size; i++) {
-    i::BreakLocation location = i::BreakLocation::FromCodeOffset(debug_info, i);
-    if (location.IsCall()) found_call = true;
-    if (location.IsReturn()) found_return = true;
-    if (location.IsDebuggerStatement()) found_debugger = true;
+  {
+    auto iterator = i::BreakIterator::GetIterator(debug_info, abstract_code,
+                                                  i::ALL_BREAK_LOCATIONS);
+    CHECK(iterator->GetBreakLocation().IsDebuggerStatement());
+    CHECK_EQ(17, iterator->GetBreakLocation().position());
+    iterator->Next();
+    CHECK(iterator->GetBreakLocation().IsDebugBreakSlot());
+    CHECK_EQ(32, iterator->GetBreakLocation().position());
+    iterator->Next();
+    CHECK(iterator->GetBreakLocation().IsCall());
+    CHECK_EQ(32, iterator->GetBreakLocation().position());
+    iterator->Next();
+    CHECK(iterator->GetBreakLocation().IsDebuggerStatement());
+    CHECK_EQ(47, iterator->GetBreakLocation().position());
+    iterator->Next();
+    CHECK(iterator->GetBreakLocation().IsReturn());
+    CHECK_EQ(60, iterator->GetBreakLocation().position());
+    iterator->Next();
+    CHECK(iterator->Done());
   }
-  CHECK(found_call);
-  CHECK(found_return);
-  CHECK(found_debugger);
 
-  // Test underlying implementation.
-  TestBreakLocation::Iterator* iterator =
-      TestBreakLocation::GetIterator(debug_info, i::ALL_BREAK_LOCATIONS);
-  CHECK(iterator->GetBreakLocation().IsDebuggerStatement());
-  CHECK_EQ(7, iterator->GetBreakLocation().position());
-  iterator->Next();
-  CHECK(iterator->GetBreakLocation().IsDebugBreakSlot());
-  CHECK_EQ(22, iterator->GetBreakLocation().position());
-  iterator->Next();
-  CHECK(iterator->GetBreakLocation().IsCall());
-  CHECK_EQ(22, iterator->GetBreakLocation().position());
-  iterator->Next();
-  CHECK(iterator->GetBreakLocation().IsDebuggerStatement());
-  CHECK_EQ(37, iterator->GetBreakLocation().position());
-  iterator->Next();
-  CHECK(iterator->GetBreakLocation().IsReturn());
-  CHECK_EQ(50, iterator->GetBreakLocation().position());
-  iterator->Next();
-  CHECK(iterator->Done());
-  delete iterator;
-
-  iterator = TestBreakLocation::GetIterator(debug_info, i::CALLS_AND_RETURNS);
-  CHECK(iterator->GetBreakLocation().IsCall());
-  CHECK_EQ(22, iterator->GetBreakLocation().position());
-  iterator->Next();
-  CHECK(iterator->GetBreakLocation().IsReturn());
-  CHECK_EQ(50, iterator->GetBreakLocation().position());
-  iterator->Next();
-  CHECK(iterator->Done());
-  delete iterator;
+  {
+    auto iterator = i::BreakIterator::GetIterator(debug_info, abstract_code,
+                                                  i::CALLS_AND_RETURNS);
+    CHECK(iterator->GetBreakLocation().IsCall());
+    CHECK_EQ(32, iterator->GetBreakLocation().position());
+    iterator->Next();
+    CHECK(iterator->GetBreakLocation().IsReturn());
+    CHECK_EQ(60, iterator->GetBreakLocation().position());
+    iterator->Next();
+    CHECK(iterator->Done());
+  }
 
   DisableDebugger(isolate);
 }

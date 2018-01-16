@@ -190,11 +190,14 @@ minWidth
 minZoom
 mixBlendMode
 motion
-motionOffset
-motionPath
-motionRotation
 objectFit
 objectPosition
+offset
+offsetAnchor
+offsetDistance
+offsetPath
+offsetPosition
+offsetRotation
 opacity
 order
 orientation
@@ -205,6 +208,7 @@ outlineOffset
 outlineStyle
 outlineWidth
 overflow
+overflowAnchor
 overflowWrap
 overflowX
 overflowY
@@ -289,6 +293,7 @@ transitionTimingFunction
 translate
 unicodeBidi
 unicodeRange
+userSelect
 userZoom
 vectorEffect
 verticalAlign
@@ -326,7 +331,6 @@ webkitBoxOrdinalGroup
 webkitBoxOrient
 webkitBoxPack
 webkitBoxReflect
-webkitClipPath
 webkitColumnBreakAfter
 webkitColumnBreakBefore
 webkitColumnBreakInside
@@ -397,7 +401,6 @@ webkitTransformOriginY
 webkitTransformOriginZ
 webkitUserDrag
 webkitUserModify
-webkitUserSelect
 webkitWritingMode
 whiteSpace
 widows

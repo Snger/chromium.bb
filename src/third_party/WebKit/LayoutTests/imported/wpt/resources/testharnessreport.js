@@ -43,6 +43,15 @@
         }
     }
 
+    var localPathRegExp;
+    if (document.URL.startsWith("file:///")) {
+        var index = document.URL.indexOf("/imported/wpt");
+        if (index >= 0) {
+            var localPath = document.URL.substring("file:///".length, index + "/imported/wpt".length);
+            localPathRegExp = new RegExp(localPath.replace(/(\W)/g, "\\$1"), "g");
+        }
+    }
+
     // Sanitizes the given text for display in test results.
     function sanitize(text) {
         if (!text) {
@@ -51,7 +60,11 @@
         // Escape null characters, otherwise diff will think the file is binary.
         text = text.replace(/\0/g, "\\0");
         // Escape carriage returns as they break rietveld's difftools.
-        return text.replace(/\r/g, "\\r");
+        text = text.replace(/\r/g, "\\r");
+        // Replace machine-dependent path with "...".
+        if (localPathRegExp)
+            text = text.replace(localPathRegExp, "...");
+        return text;
     }
 
     // If the test has a meta tag named flags and the content contains "dom",
@@ -66,10 +79,20 @@
         return !!document.querySelector('script[src*="/resources/testharness"]');
     }
 
+
     function injectSyntheticInput() {
         var path = window.location.pathname;
         if (path.match(/imported\/wpt\/.*\.html$/)) {
-            path = path.replace(/imported\/wpt\/(.*)\.html$/, "imported/wpt_automation/$1-input.js");
+            // Set a global variable for the address of automated input script if they need to use it.
+            var automated_input_scripts_folder = path.replace(/imported\/wpt\/(.*)\.html$/, 'imported/wpt_automation');
+
+            importAutomationScript = function(relativePath) {
+              var common_script = document.createElement('script');
+              common_script.setAttribute('src', automated_input_scripts_folder + relativePath);
+              document.head.appendChild(common_script);
+            }
+
+            path = path.replace(/imported\/wpt\/(.*)\.html$/, "imported/wpt_automation/$1-automation.js");
             var input_script = document.createElement('script');
             input_script.setAttribute('src', path);
             document.head.appendChild(input_script);
@@ -81,7 +104,8 @@
         didDispatchLoadEvent = true;
         window.removeEventListener('load', handleLoad);
         // Add synthetic input to pointer event manual tests
-        if(window.location.pathname.includes('imported/wpt/pointerevents/')) {
+        if(window.location.pathname.includes('imported/wpt/pointerevents/')
+            || window.location.pathname.includes('imported/wpt/uievents/')) {
             setTimeout(injectSyntheticInput, 0);
         }
     };
@@ -124,15 +148,17 @@
                 if (isCSSWGTest() || isJSTest()) {
                     // Anything isn't material to the testrunner output, so
                     // should be hidden from the text dump.
-                    if (document.body)
+                    if (document.body && document.body.tagName == 'BODY')
                         document.body.textContent = '';
                 }
             }
 
             // Add results element to document.
-            if (!document.body) {
+            if (!document.body || document.body.tagName != 'BODY') {
                 if (!document.documentElement)
                     document.appendChild(document.createElement('html'));
+                else if (document.body) // document.body is <frameset>.
+                    document.body.remove();
                 document.documentElement.appendChild(document.createElement("body"));
             }
             document.body.appendChild(results);

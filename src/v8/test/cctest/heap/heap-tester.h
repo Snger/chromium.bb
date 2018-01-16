@@ -17,6 +17,7 @@
   V(CompactionPartiallyAbortedPageWithStoreBufferEntries) \
   V(CompactionSpaceDivideMultiplePages)                   \
   V(CompactionSpaceDivideSinglePage)                      \
+  V(TestNewSpaceRefsInCopiedCode)                         \
   V(GCFlags)                                              \
   V(MarkCompactCollector)                                 \
   V(NoPromotion)                                          \
@@ -29,6 +30,7 @@
   V(TestMemoryReducerSampleJsCalls)                       \
   V(TestSizeOfObjects)                                    \
   V(Regress587004)                                        \
+  V(Regress538257)                                        \
   V(Regress589413)                                        \
   V(WriteBarriersInCopyJSObject)
 

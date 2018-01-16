@@ -5,10 +5,6 @@
 <script src="../../http/tests/inspector/inspector-test.js"></script>
 <script src="../../http/tests/inspector/debugger-test.js"></script>
 <script>
-function codeSnippet() {
-    return document.getElementById("codeSnippet").textContent;
-}
-
 function test()
 {
     InspectorTest.showScriptSource("edit-me.js", onSourceFrame);
@@ -49,6 +45,13 @@ function test()
             dumpDictionary(next);
         },
 
+        function testRemoveDuplicate(next)
+        {
+            textEditor.setText("one\none");
+            textEditor.setSelection(new WebInspector.TextRange(0, 0, 0, 3));
+            InspectorTest.typeIn(textEditor, "\b", dumpDictionary.bind(null, next));
+        },
+
         function testSetText(next)
         {
             textEditor.setText("dog cat 'mouse';dog bird");
@@ -69,7 +72,7 @@ function test()
     ];
 
     function dumpDictionary(next) {
-        var wordsInDictionary = textEditor._autocompleteController._delegate._dictionary.wordsWithPrefix("");
+        var wordsInDictionary = textEditor._autocompleteController._dictionary.wordsWithPrefix("");
         InspectorTest.addResult("========= Text in editor =========");
         InspectorTest.dumpTextWithSelection(textEditor);
         InspectorTest.addResult("======= Words in dictionary =======");

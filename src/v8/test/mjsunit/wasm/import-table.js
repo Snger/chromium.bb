@@ -16,7 +16,7 @@ function testCallImport(func, check) {
     .addBody([
       kExprGetLocal, 0,            // --
       kExprGetLocal, 1,            // --
-      kExprCallImport, 2, 0])      // --
+      kExprCallFunction, 0])         // --
     .exportAs("main");
 
   var main = builder.instantiate({func: func}).exports.main;
@@ -45,7 +45,7 @@ function FOREIGN_SUB(a, b) {
 function check_FOREIGN_SUB(r, a, b) {
     assertEquals(a - b | 0, r);
     assertTrue(was_called);
-//    assertEquals(global, params[0]);  // sloppy mode
+    assertEquals(global, params[0]);  // sloppy mode
     assertEquals(a, params[1]);
     assertEquals(b, params[2]);
     was_called = false;
@@ -68,7 +68,7 @@ function FOREIGN_ABCD(a, b, c, d) {
 function check_FOREIGN_ABCD(r, a, b) {
     assertEquals((a * b * 6) | 0, r);
     assertTrue(was_called);
-//    assertEquals(global, params[0]);  // sloppy mode.
+    assertEquals(global, params[0]);  // sloppy mode.
     assertEquals(a, params[1]);
     assertEquals(b, params[2]);
     assertEquals(undefined, params[3]);
@@ -191,7 +191,7 @@ function testCallBinopVoid(type, func, check) {
     .addBody([
       kExprGetLocal, 0,           // --
       kExprGetLocal, 1,           // --
-      kExprCallImport, 2, 0,      // --
+      kExprCallFunction, 0,       // --
       kExprI8Const, 99,           // --
     ])
     .exportFunc("main");
@@ -246,9 +246,9 @@ function testCallPrint() {
   builder.addFunction("main", makeSig_r_x(kAstF64, kAstF64))
     .addBody([
       kExprI8Const, 97,             // --
-      kExprCallImport, kArity1, 0,  // --
+      kExprCallFunction, 0,  // --
       kExprGetLocal, 0,             // --
-      kExprCallImport, kArity1, 1   // --
+      kExprCallFunction, 1   // --
     ])
     .exportFunc();
 
@@ -270,8 +270,8 @@ function testCallImport2(foo, bar, expected) {
   builder.addImport("bar", kSig_i);
   builder.addFunction("main", kSig_i)
     .addBody([
-      kExprCallImport, kArity0, 0, // --
-      kExprCallImport, kArity0, 1, // --
+      kExprCallFunction, 0, // --
+      kExprCallFunction, 1, // --
       kExprI32Add,                 // --
     ])                             // --
     .exportFunc();

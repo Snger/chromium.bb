@@ -206,21 +206,6 @@ interface File : Blob
     getter name
     getter webkitRelativePath
     method constructor
-interface FileError : DOMError
-    attribute ABORT_ERR
-    attribute ENCODING_ERR
-    attribute INVALID_MODIFICATION_ERR
-    attribute INVALID_STATE_ERR
-    attribute NOT_FOUND_ERR
-    attribute NOT_READABLE_ERR
-    attribute NO_MODIFICATION_ALLOWED_ERR
-    attribute PATH_EXISTS_ERR
-    attribute QUOTA_EXCEEDED_ERR
-    attribute SECURITY_ERR
-    attribute SYNTAX_ERR
-    attribute TYPE_MISMATCH_ERR
-    getter code
-    method constructor
 interface FileList
     getter length
     method constructor
@@ -336,6 +321,7 @@ interface IDBIndex
     method getKey
     method openCursor
     method openKeyCursor
+    setter name
 interface IDBKeyRange
     static method bound
     static method lowerBound
@@ -363,18 +349,21 @@ interface IDBObjectStore
     method get
     method getAll
     method getAllKeys
+    method getKey
     method index
     method openCursor
     method openKeyCursor
     method put
-interface IDBObserver
-    method constructor
-    method observe
-interface IDBObserverChangesRecord
+    setter name
+interface IDBObservation
     getter key
     getter type
     getter value
     method constructor
+interface IDBObserver
+    method constructor
+    method observe
+    method unobserve
 interface IDBOpenDBRequest : IDBRequest
     getter onblocked
     getter onupgradeneeded
@@ -461,6 +450,7 @@ interface Notification : EventTarget
     getter data
     getter dir
     getter icon
+    getter image
     getter lang
     getter onclick
     getter onclose
@@ -482,6 +472,7 @@ interface Notification : EventTarget
 interface NotificationEvent : ExtendableEvent
     getter action
     getter notification
+    getter reply
     method constructor
 interface OffscreenCanvas
     getter height
@@ -492,13 +483,15 @@ interface OffscreenCanvas
     setter height
     setter width
 interface OffscreenCanvasRenderingContext2D
+    getter canvas
     getter fillStyle
+    getter imageSmoothingEnabled
+    getter imageSmoothingQuality
     getter lineCap
     getter lineDashOffset
     getter lineJoin
     getter lineWidth
     getter miterLimit
-    getter offscreenCanvas
     getter shadowBlur
     getter shadowColor
     getter shadowOffsetX
@@ -511,6 +504,7 @@ interface OffscreenCanvasRenderingContext2D
     method clearRect
     method clip
     method closePath
+    method commit
     method constructor
     method createImageData
     method createLinearGradient
@@ -539,6 +533,8 @@ interface OffscreenCanvasRenderingContext2D
     method transform
     method translate
     setter fillStyle
+    setter imageSmoothingEnabled
+    setter imageSmoothingQuality
     setter lineCap
     setter lineDashOffset
     setter lineJoin
@@ -597,10 +593,15 @@ interface PushMessageData
     method text
 interface PushSubscription
     getter endpoint
+    getter options
     method constructor
     method getKey
     method toJSON
     method unsubscribe
+interface PushSubscriptionOptions
+    getter applicationServerKey
+    getter userVisibleOnly
+    method constructor
 interface ReadableStream
     getter locked
     method cancel
@@ -644,10 +645,13 @@ interface Response
 interface ServiceWorkerGlobalScope : WorkerGlobalScope
     method constructor
 interface ServiceWorkerRegistration : EventTarget
+    getter active
+    getter installing
     getter onupdatefound
     getter pushManager
     getter scope
     getter sync
+    getter waiting
     method constructor
     method getNotifications
     method showNotification
@@ -1049,6 +1053,7 @@ interface WebGLRenderingContext
     method clearDepth
     method clearStencil
     method colorMask
+    method commit
     method compileShader
     method compressedTexImage2D
     method compressedTexSubImage2D
@@ -1197,8 +1202,10 @@ interface WindowClient : Client
     method navigate
 interface WorkerGlobalScope : EventTarget
     getter addressSpace
+    getter caches
     getter crypto
     getter indexedDB
+    getter isSecureContext
     getter location
     getter navigator
     getter onerror
@@ -1236,6 +1243,7 @@ interface WorkerNavigator
     getter appCodeName
     getter appName
     getter appVersion
+    getter budget
     getter connection
     getter hardwareConcurrency
     getter onLine
@@ -1293,6 +1301,7 @@ interface webkitIDBIndex
     method getKey
     method openCursor
     method openKeyCursor
+    setter name
 interface webkitIDBKeyRange
     static method bound
     static method lowerBound
@@ -1320,10 +1329,12 @@ interface webkitIDBObjectStore
     method get
     method getAll
     method getAllKeys
+    method getKey
     method index
     method openCursor
     method openKeyCursor
     method put
+    setter name
 interface webkitIDBRequest : EventTarget
     getter error
     getter onerror
@@ -1352,7 +1363,6 @@ interface webkitIDBTransaction : EventTarget
 global object
     attribute console
     attribute internals
-    getter caches
     getter clients
     getter onactivate
     getter onfetch

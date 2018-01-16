@@ -4,12 +4,13 @@
 
 #include <utility>
 
+#include "src/compilation-info.h"
 #include "src/compiler/pipeline.h"
 #include "src/execution.h"
 #include "src/handles.h"
 #include "src/interpreter/bytecode-array-builder.h"
 #include "src/interpreter/interpreter.h"
-#include "src/parsing/parser.h"
+#include "src/parsing/parse-info.h"
 #include "test/cctest/cctest.h"
 
 namespace v8 {
@@ -1066,6 +1067,105 @@ TEST(BytecodeGraphBuilderLookupSlot) {
   }
 }
 
+TEST(BytecodeGraphBuilderLookupContextSlot) {
+  HandleAndZoneScope scope;
+  Isolate* isolate = scope.main_isolate();
+  Zone* zone = scope.main_zone();
+  Factory* factory = isolate->factory();
+
+  // Testing with eval called in the current context.
+  const char* inner_eval_prologue = "var x = 0; function inner() {";
+  const char* inner_eval_epilogue = "}; return inner();";
+
+  ExpectedSnippet<0> inner_eval_snippets[] = {
+      {"eval(''); return x;", {factory->NewNumber(0)}},
+      {"eval('var x = 1'); return x;", {factory->NewNumber(1)}},
+      {"'use strict'; eval('var x = 1'); return x;", {factory->NewNumber(0)}}};
+
+  for (size_t i = 0; i < arraysize(inner_eval_snippets); i++) {
+    ScopedVector<char> script(1024);
+    SNPrintF(script, "function %s(p1) { %s %s %s } ; %s() ;", kFunctionName,
+             inner_eval_prologue, inner_eval_snippets[i].code_snippet,
+             inner_eval_epilogue, kFunctionName);
+
+    BytecodeGraphTester tester(isolate, zone, script.start());
+    auto callable = tester.GetCallable<>();
+    Handle<Object> return_value = callable().ToHandleChecked();
+    CHECK(return_value->SameValue(*inner_eval_snippets[i].return_value()));
+  }
+
+  // Testing with eval called in a parent context.
+  const char* outer_eval_prologue = "";
+  const char* outer_eval_epilogue =
+      "function inner() { return x; }; return inner();";
+
+  ExpectedSnippet<0> outer_eval_snippets[] = {
+      {"var x = 0; eval('');", {factory->NewNumber(0)}},
+      {"var x = 0; eval('var x = 1');", {factory->NewNumber(1)}},
+      {"'use strict'; var x = 0; eval('var x = 1');", {factory->NewNumber(0)}}};
+
+  for (size_t i = 0; i < arraysize(outer_eval_snippets); i++) {
+    ScopedVector<char> script(1024);
+    SNPrintF(script, "function %s() { %s %s %s } ; %s() ;", kFunctionName,
+             outer_eval_prologue, outer_eval_snippets[i].code_snippet,
+             outer_eval_epilogue, kFunctionName);
+
+    BytecodeGraphTester tester(isolate, zone, script.start());
+    auto callable = tester.GetCallable<>();
+    Handle<Object> return_value = callable().ToHandleChecked();
+    CHECK(return_value->SameValue(*outer_eval_snippets[i].return_value()));
+  }
+}
+
+TEST(BytecodeGraphBuilderLookupGlobalSlot) {
+  HandleAndZoneScope scope;
+  Isolate* isolate = scope.main_isolate();
+  Zone* zone = scope.main_zone();
+  Factory* factory = isolate->factory();
+
+  // Testing with eval called in the current context.
+  const char* inner_eval_prologue = "x = 0; function inner() {";
+  const char* inner_eval_epilogue = "}; return inner();";
+
+  ExpectedSnippet<0> inner_eval_snippets[] = {
+      {"eval(''); return x;", {factory->NewNumber(0)}},
+      {"eval('var x = 1'); return x;", {factory->NewNumber(1)}},
+      {"'use strict'; eval('var x = 1'); return x;", {factory->NewNumber(0)}}};
+
+  for (size_t i = 0; i < arraysize(inner_eval_snippets); i++) {
+    ScopedVector<char> script(1024);
+    SNPrintF(script, "function %s(p1) { %s %s %s } ; %s() ;", kFunctionName,
+             inner_eval_prologue, inner_eval_snippets[i].code_snippet,
+             inner_eval_epilogue, kFunctionName);
+
+    BytecodeGraphTester tester(isolate, zone, script.start());
+    auto callable = tester.GetCallable<>();
+    Handle<Object> return_value = callable().ToHandleChecked();
+    CHECK(return_value->SameValue(*inner_eval_snippets[i].return_value()));
+  }
+
+  // Testing with eval called in a parent context.
+  const char* outer_eval_prologue = "";
+  const char* outer_eval_epilogue =
+      "function inner() { return x; }; return inner();";
+
+  ExpectedSnippet<0> outer_eval_snippets[] = {
+      {"x = 0; eval('');", {factory->NewNumber(0)}},
+      {"x = 0; eval('var x = 1');", {factory->NewNumber(1)}},
+      {"'use strict'; x = 0; eval('var x = 1');", {factory->NewNumber(0)}}};
+
+  for (size_t i = 0; i < arraysize(outer_eval_snippets); i++) {
+    ScopedVector<char> script(1024);
+    SNPrintF(script, "function %s() { %s %s %s } ; %s() ;", kFunctionName,
+             outer_eval_prologue, outer_eval_snippets[i].code_snippet,
+             outer_eval_epilogue, kFunctionName);
+
+    BytecodeGraphTester tester(isolate, zone, script.start());
+    auto callable = tester.GetCallable<>();
+    Handle<Object> return_value = callable().ToHandleChecked();
+    CHECK(return_value->SameValue(*outer_eval_snippets[i].return_value()));
+  }
+}
 
 TEST(BytecodeGraphBuilderLookupSlotWide) {
   HandleAndZoneScope scope;
@@ -2332,7 +2432,19 @@ TEST(BytecodeGraphBuilderDo) {
        "  if (x == 4) break;\n"
        "} while (x < 7);\n"
        "return y;",
-       {factory->NewNumberFromInt(16)}}};
+       {factory->NewNumberFromInt(16)}},
+      {"var x = 0, sum = 0;\n"
+       "do {\n"
+       "  do {\n"
+       "    ++sum;\n"
+       "    ++x;\n"
+       "  } while (sum < 1 || x < 2)\n"
+       "  do {\n"
+       "    ++x;\n"
+       "  } while (x < 1)\n"
+       "} while (sum < 3)\n"
+       "return sum;",
+       {factory->NewNumber(3)}}};
 
   for (size_t i = 0; i < arraysize(snippets); i++) {
     ScopedVector<char> script(1024);
@@ -2413,6 +2525,19 @@ TEST(BytecodeGraphBuilderFor) {
        "}\n"
        "return sum;",
        {factory->NewNumberFromInt(385)}},
+      {"var sum = 0;\n"
+       "for (var x = 0; x < 5; x++) {\n"
+       "  for (var y = 0; y < 5; y++) {\n"
+       "    ++sum;\n"
+       "  }\n"
+       "}\n"
+       "for (var x = 0; x < 5; x++) {\n"
+       "  for (var y = 0; y < 5; y++) {\n"
+       "    ++sum;\n"
+       "  }\n"
+       "}\n"
+       "return sum;",
+       {factory->NewNumberFromInt(50)}},
   };
 
   for (size_t i = 0; i < arraysize(snippets); i++) {

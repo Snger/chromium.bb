@@ -30,7 +30,8 @@ function test()
 
         InspectorTest.addResult("script was added");
         var message = WebInspector.ConsoleView.instance()._visibleViewMessages[0];
-        message._anchorElement.click();
+        var anchorElement = message.element().querySelector(".console-message-url");
+        anchorElement.click();
     }
 
     InspectorFrontendHost.openInNewTab = function()
@@ -39,7 +40,7 @@ function test()
         InspectorTest.completeTest();
     };
 
-    WebInspector.inspectorView._tabbedPane.addEventListener(WebInspector.TabbedPane.EventTypes.TabSelected, panelChanged);
+    WebInspector.inspectorView._tabbedPane.addEventListener(WebInspector.TabbedPane.Events.TabSelected, panelChanged);
 
     function panelChanged()
     {

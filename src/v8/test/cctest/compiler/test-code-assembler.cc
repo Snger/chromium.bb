@@ -2,6 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
+#include "src/code-factory.h"
 #include "src/compiler/code-assembler.h"
 #include "src/isolate.h"
 #include "test/cctest/compiler/code-assembler-tester.h"
@@ -21,7 +22,7 @@ Node* SmiTag(CodeAssemblerTester& m, Node* value) {
       Smi::IsValid(constant_value)) {
     return m.SmiConstant(Smi::FromInt(constant_value));
   }
-  return m.WordShl(value, m.SmiShiftBitsConstant());
+  return m.WordShl(value, m.IntPtrConstant(kSmiShiftSize + kSmiTagSize));
 }
 
 Node* UndefinedConstant(CodeAssemblerTester& m) {
@@ -103,11 +104,11 @@ TEST(SimpleCallRuntime2Arg) {
   Node* context = m.HeapConstant(Handle<Context>(isolate->native_context()));
   Node* a = SmiTag(m, m.Int32Constant(2));
   Node* b = SmiTag(m, m.Int32Constant(4));
-  m.Return(m.CallRuntime(Runtime::kMathPow, context, a, b));
+  m.Return(m.CallRuntime(Runtime::kAdd, context, a, b));
   Handle<Code> code = m.GenerateCode();
   FunctionTester ft(descriptor, code);
   MaybeHandle<Object> result = ft.Call();
-  CHECK_EQ(16, Handle<Smi>::cast(result.ToHandleChecked())->value());
+  CHECK_EQ(6, Handle<Smi>::cast(result.ToHandleChecked())->value());
 }
 
 TEST(SimpleTailCallRuntime2Arg) {
@@ -117,11 +118,11 @@ TEST(SimpleTailCallRuntime2Arg) {
   Node* context = m.HeapConstant(Handle<Context>(isolate->native_context()));
   Node* a = SmiTag(m, m.Int32Constant(2));
   Node* b = SmiTag(m, m.Int32Constant(4));
-  m.TailCallRuntime(Runtime::kMathPow, context, a, b);
+  m.TailCallRuntime(Runtime::kAdd, context, a, b);
   Handle<Code> code = m.GenerateCode();
   FunctionTester ft(descriptor, code);
   MaybeHandle<Object> result = ft.Call();
-  CHECK_EQ(16, Handle<Smi>::cast(result.ToHandleChecked())->value());
+  CHECK_EQ(6, Handle<Smi>::cast(result.ToHandleChecked())->value());
 }
 
 namespace {

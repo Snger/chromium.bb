@@ -247,6 +247,58 @@ cr.define('site_list', function() {
         }
       };
 
+      /**
+       * An example Cookies pref with mixed incognito and regular settings.
+       * @type {SiteSettingsPref}
+       */
+      var prefsIncognito = {
+        exceptions: {
+          cookies: [
+            // foo.com is blocked for regular sessions.
+            {
+              embeddingOrigin: 'http://foo.com',
+              incognito: false,
+              origin: 'http://foo.com',
+              setting: 'block',
+              source: 'preference',
+            },
+            // foo.com is allowed in incognito (overridden).
+            {
+              embeddingOrigin: 'http://foo.com',
+              incognito: true,
+              origin: 'http://foo.com',
+              setting: 'allow',
+              source: 'preference',
+            },
+            // bar.com is an allowed incognito item without an embedder.
+            {
+              embeddingOrigin: '',
+              incognito: true,
+              origin: 'http://bar.com',
+              setting: 'allow',
+              source: 'preference',
+            },
+          ]
+        }
+      };
+
+      /**
+       * An example Javascript pref with a chrome-extension:// scheme.
+       * @type {SiteSettingsPref}
+       */
+      var prefsChromeExtension = {
+        exceptions: {
+          javascript: [
+            {
+              embeddingOrigin: '',
+              origin: 'chrome-extension://cfhgfbfpcbnnbibfphagcjmgjfjmojfa/',
+              setting: 'block',
+              source: 'preference',
+            },
+          ]
+        }
+      };
+
       // Import necessary html before running suite.
       suiteSetup(function() {
         CrSettingsPrefs.setInitialized();
@@ -263,9 +315,32 @@ cr.define('site_list', function() {
         browserProxy = new TestSiteSettingsPrefsBrowserProxy();
         settings.SiteSettingsPrefsBrowserProxyImpl.instance_ = browserProxy;
         PolymerTest.clearBody();
-        testElement = document.createElement('settings-site-list');
+        testElement = document.createElement('site-list');
         document.body.appendChild(testElement);
       });
+
+      /**
+       * Fetch the non-hidden menu items from the list.
+       * @param {!HTMLElement} parentElement
+       * @param {number} index The index of the child element (which site) to
+       *     fetch.
+       */
+      function getMenuItems(listContainer, index) {
+        return listContainer.children[index].querySelectorAll(
+            'iron-dropdown .dropdown-item:not([hidden])');
+      }
+
+      /**
+       * Opens the action menu for a particular element in the list.
+       * @param {number} index The index of the child element (which site) to
+       *     open the action menu for.
+       */
+      function openActionMenu(index) {
+        var item = testElement.$.listContainer.children[index];
+        var dots = item.querySelector('paper-icon-button');
+        MockInteractions.tap(dots);
+        Polymer.dom.flush();
+      }
 
       /**
        * Asserts the menu looks as expected.
@@ -274,9 +349,7 @@ cr.define('site_list', function() {
        *     in.
        */
       function assertMenu(items, parentElement) {
-        var listItem = parentElement.$.listContainer.children[0];
-        var menuItems = listItem.querySelectorAll(
-            'paper-menu-button paper-item:not([hidden])');
+        var menuItems = getMenuItems(parentElement.$.listContainer, 0);
         assertEquals(items.length, menuItems.length);
         for (var i = 0; i < items.length; i++)
           assertEquals(items[i], menuItems[i].textContent.trim());
@@ -333,12 +406,11 @@ cr.define('site_list', function() {
               assertFalse(testElement.$.category.hidden);
               browserProxy.resetResolver('getExceptionList');
               testElement.categoryEnabled = false;
-              return browserProxy.whenCalled('getExceptionList').then(
-                  function(contentType) {
-                    assertFalse(testElement.$.category.hidden);
-                    assertEquals('Exceptions - 0',
-                        testElement.$.header.innerText.trim());
-                  });
+              return browserProxy.whenCalled('getExceptionList');
+            }).then(function(contentType) {
+              assertFalse(testElement.$.category.hidden);
+              assertEquals('Exceptions - 0',
+                  testElement.$.header.innerText.trim());
             });
       });
 
@@ -356,7 +428,8 @@ cr.define('site_list', function() {
               assertEquals(
                   settings.PermissionValues.ALLOW, testElement.categorySubtype);
               Polymer.dom.flush();  // Populates action menu.
-              assertMenu(['Block', 'Reset to ask'], testElement);
+              openActionMenu(0);
+              assertMenu(['Block', 'Remove'], testElement);
               assertEquals('Allow - 2', testElement.$.header.innerText.trim());
 
               // Site list should show, no matter what category default is set
@@ -364,12 +437,11 @@ cr.define('site_list', function() {
               assertFalse(testElement.$.category.hidden);
               browserProxy.resetResolver('getExceptionList');
               testElement.categoryEnabled = false;
-              return browserProxy.whenCalled('getExceptionList').then(
-                  function(contentType) {
-                    assertFalse(testElement.$.category.hidden);
-                    assertEquals('Exceptions - 2',
-                        testElement.$.header.innerText.trim());
-                  });
+              return browserProxy.whenCalled('getExceptionList');
+            }).then(function(contentType) {
+              assertFalse(testElement.$.category.hidden);
+              assertEquals('Exceptions - 2',
+                  testElement.$.header.innerText.trim());
             });
       });
 
@@ -388,17 +460,17 @@ cr.define('site_list', function() {
               assertEquals(
                   settings.PermissionValues.BLOCK, testElement.categorySubtype);
               Polymer.dom.flush();  // Populates action menu.
-              assertMenu(['Allow', 'Reset to ask'], testElement);
+              openActionMenu(0);
+              assertMenu(['Allow', 'Remove'], testElement);
               assertEquals('Block - 2', testElement.$.header.innerText.trim());
 
               // Site list should only show when category default is enabled.
               assertFalse(testElement.$.category.hidden);
               browserProxy.resetResolver('getExceptionList');
               testElement.categoryEnabled = false;
-              return browserProxy.whenCalled('getExceptionList').then(
-                  function(contentType) {
-                    assertTrue(testElement.$.category.hidden);
-                  });
+              return browserProxy.whenCalled('getExceptionList');
+            }).then(function(contentType) {
+              assertTrue(testElement.$.category.hidden);
             });
       });
 
@@ -417,7 +489,8 @@ cr.define('site_list', function() {
               assertEquals(settings.PermissionValues.SESSION_ONLY,
                   testElement.categorySubtype);
               Polymer.dom.flush();  // Populates action menu.
-              assertMenu(['Allow', 'Block', 'Reset to ask'], testElement);
+              openActionMenu(0);
+              assertMenu(['Allow', 'Block', 'Remove'], testElement);
               assertEquals('Clear on exit - 1',
                   testElement.$.header.innerText.trim());
 
@@ -426,12 +499,82 @@ cr.define('site_list', function() {
               assertFalse(testElement.$.category.hidden);
               browserProxy.resetResolver('getExceptionList');
               testElement.categoryEnabled = false;
-              return browserProxy.whenCalled('getExceptionList').then(
-                  function(contentType) {
-                    assertFalse(testElement.$.category.hidden);
-                    assertEquals('Clear on exit - 1',
-                        testElement.$.header.innerText);
-                  });
+              return browserProxy.whenCalled('getExceptionList');
+            }).then(function(contentType) {
+              assertFalse(testElement.$.category.hidden);
+              assertEquals('Clear on exit - 1', testElement.$.header.innerText);
+            });
+      });
+
+      test('initial INCOGNITO BLOCK state is correct', function() {
+        setupCategory(settings.ContentSettingsTypes.COOKIES,
+            settings.PermissionValues.BLOCK, prefsIncognito);
+        return browserProxy.whenCalled('getExceptionList').then(
+            function(contentType) {
+              assertEquals(settings.ContentSettingsTypes.COOKIES, contentType);
+
+              assertEquals(1, testElement.sites.length);
+              assertEquals(prefsIncognito.exceptions.cookies[0].origin,
+                  testElement.sites[0].origin);
+
+              assertEquals(settings.PermissionValues.BLOCK,
+                  testElement.categorySubtype);
+              Polymer.dom.flush();  // Populates action menu.
+              openActionMenu(0);
+              // 'Clear on exit' is visible as this is not an incognito item.
+              assertMenu(['Allow', 'Clear on exit', 'Remove'], testElement);
+              assertEquals('Block - 1',
+                  testElement.$.header.innerText.trim());
+
+              // Select 'Remove from menu'.
+              var menuItems = getMenuItems(testElement.$.listContainer, 0);
+              assertTrue(!!menuItems);
+              MockInteractions.tap(menuItems[2]);
+              return browserProxy.whenCalled(
+                  'resetCategoryPermissionForOrigin');
+            }).then(function(args) {
+              assertEquals('http://foo.com', args[0]);
+              assertEquals('http://foo.com', args[1]);
+              assertEquals(settings.ContentSettingsTypes.COOKIES, args[2]);
+              assertFalse(args[3]);  // Incognito.
+            });
+      });
+
+      test('initial INCOGNITO ALLOW state is correct', function() {
+        setupCategory(settings.ContentSettingsTypes.COOKIES,
+            settings.PermissionValues.ALLOW, prefsIncognito);
+        return browserProxy.whenCalled('getExceptionList').then(
+            function(contentType) {
+              assertEquals(
+                  settings.ContentSettingsTypes.COOKIES, contentType);
+
+              assertEquals(2, testElement.sites.length);
+              assertEquals(prefsIncognito.exceptions.cookies[2].origin,
+                  testElement.sites[0].origin);
+              assertEquals(prefsIncognito.exceptions.cookies[1].origin,
+                  testElement.sites[1].origin);
+
+              assertEquals(settings.PermissionValues.ALLOW,
+                  testElement.categorySubtype);
+              Polymer.dom.flush();  // Populates action menu.
+              openActionMenu(0);
+              // 'Clear on exit' is hidden for incognito items.
+              assertMenu(['Block', 'Remove'], testElement);
+              assertEquals('Allow - 2',
+                  testElement.$.header.innerText.trim());
+
+              // Select 'Remove' from menu on 'foo.com'.
+              openActionMenu(1);
+              var menuItems = getMenuItems(testElement.$.listContainer, 1);
+              assertTrue(!!menuItems);
+              MockInteractions.tap(menuItems[1]);
+              return browserProxy.whenCalled(
+                  'resetCategoryPermissionForOrigin');
+            }).then(function(args) {
+              assertEquals('http://foo.com', args[0]);
+              assertEquals('http://foo.com', args[1]);
+              assertEquals(settings.ContentSettingsTypes.COOKIES, args[2]);
+              assertTrue(args[3]);  // Incognito.
             });
       });
 
@@ -645,6 +788,43 @@ cr.define('site_list', function() {
             function(contentType) {
               // No further checks needed. If this fails, it will hang the test.
             });
+      });
+
+      test('Select menu item', function() {
+        // Test for error: "Cannot read property 'origin' of undefined".
+        setupCategory(settings.ContentSettingsTypes.GEOLOCATION,
+            settings.PermissionValues.ALLOW, prefs);
+        return browserProxy.whenCalled('getExceptionList').then(function(
+            contentType) {
+          Polymer.dom.flush();
+          openActionMenu(0);
+          var menuItems = getMenuItems(testElement.$.listContainer, 0);
+          assertTrue(!!menuItems);
+          MockInteractions.tap(menuItems[0]);
+          return browserProxy.whenCalled('setCategoryPermissionForOrigin');
+        });
+      });
+
+      test('Chrome Extension scheme', function() {
+        setupCategory(settings.ContentSettingsTypes.JAVASCRIPT,
+            settings.PermissionValues.BLOCK, prefsChromeExtension);
+        return browserProxy.whenCalled('getExceptionList').then(function(
+            contentType) {
+          Polymer.dom.flush();
+          openActionMenu(0);
+          assertMenu(['Allow', 'Remove'], testElement);
+
+          var menuItems = getMenuItems(testElement.$.listContainer, 0);
+          assertTrue(!!menuItems);
+          MockInteractions.tap(menuItems[0]);  // Action: Allow.
+          return browserProxy.whenCalled('setCategoryPermissionForOrigin');
+        }).then(function(args) {
+          assertEquals('chrome-extension://cfhgfbfpcbnnbibfphagcjmgjfjmojfa/',
+              args[0]);
+          assertEquals('', args[1]);
+          assertEquals(settings.ContentSettingsTypes.JAVASCRIPT, args[2]);
+          assertEquals('allow', args[3]);
+        });
       });
     });
   }

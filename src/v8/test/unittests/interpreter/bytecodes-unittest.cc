@@ -6,8 +6,8 @@
 
 #include "src/v8.h"
 
+#include "src/interpreter/bytecode-register.h"
 #include "src/interpreter/bytecodes.h"
-#include "test/unittests/interpreter/bytecode-utils.h"
 #include "test/unittests/test-utils.h"
 
 namespace v8 {
@@ -88,36 +88,9 @@ TEST(OperandScaling, ScalableAndNonScalable) {
     CHECK_EQ(Bytecodes::Size(Bytecode::kCallRuntime, operand_scale),
              1 + 2 + 2 * scale);
     CHECK_EQ(Bytecodes::Size(Bytecode::kCreateObjectLiteral, operand_scale),
-             1 + 2 * scale + 1);
+             1 + 2 * scale + 1 + 1 * scale);
     CHECK_EQ(Bytecodes::Size(Bytecode::kTestIn, operand_scale), 1 + scale);
   }
-}
-
-TEST(Bytecodes, HasAnyRegisterOperands) {
-  CHECK_EQ(Bytecodes::NumberOfRegisterOperands(Bytecode::kAdd), 1);
-  CHECK_EQ(Bytecodes::NumberOfRegisterOperands(Bytecode::kCall), 2);
-  CHECK_EQ(Bytecodes::NumberOfRegisterOperands(Bytecode::kCallRuntime), 1);
-  CHECK_EQ(Bytecodes::NumberOfRegisterOperands(Bytecode::kCallRuntimeForPair),
-           2);
-  CHECK_EQ(Bytecodes::NumberOfRegisterOperands(Bytecode::kDeletePropertyStrict),
-           1);
-  CHECK_EQ(Bytecodes::NumberOfRegisterOperands(Bytecode::kForInPrepare), 1);
-  CHECK_EQ(Bytecodes::NumberOfRegisterOperands(Bytecode::kInc), 0);
-  CHECK_EQ(Bytecodes::NumberOfRegisterOperands(Bytecode::kJumpIfTrue), 0);
-  CHECK_EQ(Bytecodes::NumberOfRegisterOperands(Bytecode::kNew), 2);
-  CHECK_EQ(Bytecodes::NumberOfRegisterOperands(Bytecode::kToName), 0);
-}
-
-TEST(Bytecodes, RegisterOperandBitmaps) {
-  CHECK_EQ(Bytecodes::GetRegisterOperandBitmap(Bytecode::kAdd), 1);
-  CHECK_EQ(Bytecodes::GetRegisterOperandBitmap(Bytecode::kCallRuntimeForPair),
-           10);
-  CHECK_EQ(Bytecodes::GetRegisterOperandBitmap(Bytecode::kStar), 1);
-  CHECK_EQ(Bytecodes::GetRegisterOperandBitmap(Bytecode::kMov), 3);
-  CHECK_EQ(Bytecodes::GetRegisterOperandBitmap(Bytecode::kTestIn), 1);
-  CHECK_EQ(Bytecodes::GetRegisterOperandBitmap(Bytecode::kForInPrepare), 1);
-  CHECK_EQ(Bytecodes::GetRegisterOperandBitmap(Bytecode::kForInDone), 3);
-  CHECK_EQ(Bytecodes::GetRegisterOperandBitmap(Bytecode::kForInNext), 7);
 }
 
 TEST(Bytecodes, RegisterOperands) {
@@ -173,72 +146,6 @@ TEST(Bytecodes, DebugBreakExistForEachBytecode) {
 #undef CHECK_DEBUG_BREAK_SIZE
 }
 
-TEST(Bytecodes, DecodeBytecodeAndOperands) {
-  struct BytecodesAndResult {
-    const uint8_t bytecode[32];
-    const size_t length;
-    int parameter_count;
-    const char* output;
-  };
-
-  const BytecodesAndResult cases[] = {
-      {{B(LdaSmi), U8(1)}, 2, 0, "            LdaSmi [1]"},
-      {{B(Wide), B(LdaSmi), U16(1000)}, 4, 0, "      LdaSmi.Wide [1000]"},
-      {{B(ExtraWide), B(LdaSmi), U32(100000)},
-       6,
-       0,
-       "LdaSmi.ExtraWide [100000]"},
-      {{B(LdaSmi), U8(-1)}, 2, 0, "            LdaSmi [-1]"},
-      {{B(Wide), B(LdaSmi), U16(-1000)}, 4, 0, "      LdaSmi.Wide [-1000]"},
-      {{B(ExtraWide), B(LdaSmi), U32(-100000)},
-       6,
-       0,
-       "LdaSmi.ExtraWide [-100000]"},
-      {{B(Star), R8(5)}, 2, 0, "            Star r5"},
-      {{B(Wide), B(Star), R16(136)}, 4, 0, "      Star.Wide r136"},
-      {{B(Wide), B(Call), R16(134), R16(135), U16(2), U16(177)},
-       10,
-       0,
-       "Call.Wide r134, r135, #2, [177]"},
-      {{B(Ldar),
-        static_cast<uint8_t>(Register::FromParameterIndex(2, 3).ToOperand())},
-       2,
-       3,
-       "            Ldar a1"},
-      {{B(Wide), B(CreateObjectLiteral), U16(513), U16(1027), U8(165)},
-       7,
-       0,
-       "CreateObjectLiteral.Wide [513], [1027], #165"},
-      {{B(ExtraWide), B(JumpIfNull), U32(123456789)},
-       6,
-       0,
-       "JumpIfNull.ExtraWide [123456789]"},
-  };
-
-  for (size_t i = 0; i < arraysize(cases); ++i) {
-    // Generate reference string by prepending formatted bytes.
-    std::stringstream expected_ss;
-    std::ios default_format(nullptr);
-    default_format.copyfmt(expected_ss);
-    // Match format of Bytecodes::Decode() for byte representations.
-    expected_ss.fill('0');
-    expected_ss.flags(std::ios::right | std::ios::hex);
-    for (size_t b = 0; b < cases[i].length; b++) {
-      expected_ss << std::setw(2) << static_cast<uint32_t>(cases[i].bytecode[b])
-                  << ' ';
-    }
-    expected_ss.copyfmt(default_format);
-    expected_ss << cases[i].output;
-
-    // Generate decoded byte output.
-    std::stringstream actual_ss;
-    Bytecodes::Decode(actual_ss, cases[i].bytecode, cases[i].parameter_count);
-
-    // Compare.
-    CHECK_EQ(actual_ss.str(), expected_ss.str());
-  }
-}
-
 TEST(Bytecodes, DebugBreakForPrefixBytecodes) {
   CHECK_EQ(Bytecode::kDebugBreakWide,
            Bytecodes::GetDebugBreak(Bytecode::kWide));
@@ -254,18 +161,47 @@ TEST(Bytecodes, PrefixMappings) {
   }
 }
 
-TEST(Bytecodes, SizesForSignedOperands) {
-  CHECK(Bytecodes::SizeForSignedOperand(0) == OperandSize::kByte);
-  CHECK(Bytecodes::SizeForSignedOperand(kMaxInt8) == OperandSize::kByte);
-  CHECK(Bytecodes::SizeForSignedOperand(kMinInt8) == OperandSize::kByte);
-  CHECK(Bytecodes::SizeForSignedOperand(kMaxInt8 + 1) == OperandSize::kShort);
-  CHECK(Bytecodes::SizeForSignedOperand(kMinInt8 - 1) == OperandSize::kShort);
-  CHECK(Bytecodes::SizeForSignedOperand(kMaxInt16) == OperandSize::kShort);
-  CHECK(Bytecodes::SizeForSignedOperand(kMinInt16) == OperandSize::kShort);
-  CHECK(Bytecodes::SizeForSignedOperand(kMaxInt16 + 1) == OperandSize::kQuad);
-  CHECK(Bytecodes::SizeForSignedOperand(kMinInt16 - 1) == OperandSize::kQuad);
-  CHECK(Bytecodes::SizeForSignedOperand(kMaxInt) == OperandSize::kQuad);
-  CHECK(Bytecodes::SizeForSignedOperand(kMinInt) == OperandSize::kQuad);
+TEST(Bytecodes, ScaleForSignedOperand) {
+  CHECK(Bytecodes::ScaleForSignedOperand(0) == OperandScale::kSingle);
+  CHECK(Bytecodes::ScaleForSignedOperand(kMaxInt8) == OperandScale::kSingle);
+  CHECK(Bytecodes::ScaleForSignedOperand(kMinInt8) == OperandScale::kSingle);
+  CHECK(Bytecodes::ScaleForSignedOperand(kMaxInt8 + 1) ==
+        OperandScale::kDouble);
+  CHECK(Bytecodes::ScaleForSignedOperand(kMinInt8 - 1) ==
+        OperandScale::kDouble);
+  CHECK(Bytecodes::ScaleForSignedOperand(kMaxInt16) == OperandScale::kDouble);
+  CHECK(Bytecodes::ScaleForSignedOperand(kMinInt16) == OperandScale::kDouble);
+  CHECK(Bytecodes::ScaleForSignedOperand(kMaxInt16 + 1) ==
+        OperandScale::kQuadruple);
+  CHECK(Bytecodes::ScaleForSignedOperand(kMinInt16 - 1) ==
+        OperandScale::kQuadruple);
+  CHECK(Bytecodes::ScaleForSignedOperand(kMaxInt) == OperandScale::kQuadruple);
+  CHECK(Bytecodes::ScaleForSignedOperand(kMinInt) == OperandScale::kQuadruple);
+}
+
+TEST(Bytecodes, ScaleForUnsignedOperands) {
+  // int overloads
+  CHECK(Bytecodes::ScaleForUnsignedOperand(0) == OperandScale::kSingle);
+  CHECK(Bytecodes::ScaleForUnsignedOperand(kMaxUInt8) == OperandScale::kSingle);
+  CHECK(Bytecodes::ScaleForUnsignedOperand(kMaxUInt8 + 1) ==
+        OperandScale::kDouble);
+  CHECK(Bytecodes::ScaleForUnsignedOperand(kMaxUInt16) ==
+        OperandScale::kDouble);
+  CHECK(Bytecodes::ScaleForUnsignedOperand(kMaxUInt16 + 1) ==
+        OperandScale::kQuadruple);
+  // size_t overloads
+  CHECK(Bytecodes::ScaleForUnsignedOperand(static_cast<size_t>(0)) ==
+        OperandScale::kSingle);
+  CHECK(Bytecodes::ScaleForUnsignedOperand(static_cast<size_t>(kMaxUInt8)) ==
+        OperandScale::kSingle);
+  CHECK(Bytecodes::ScaleForUnsignedOperand(
+            static_cast<size_t>(kMaxUInt8 + 1)) == OperandScale::kDouble);
+  CHECK(Bytecodes::ScaleForUnsignedOperand(static_cast<size_t>(kMaxUInt16)) ==
+        OperandScale::kDouble);
+  CHECK(Bytecodes::ScaleForUnsignedOperand(
+            static_cast<size_t>(kMaxUInt16 + 1)) == OperandScale::kQuadruple);
+  CHECK(Bytecodes::ScaleForUnsignedOperand(static_cast<size_t>(kMaxUInt32)) ==
+        OperandScale::kQuadruple);
 }
 
 TEST(Bytecodes, SizesForUnsignedOperands) {
@@ -329,14 +265,6 @@ TEST(AccumulatorUse, SampleBytecodes) {
            AccumulatorUse::kReadWrite);
 }
 
-TEST(AccumulatorUse, AccumulatorUseToString) {
-  std::set<std::string> names;
-  names.insert(Bytecodes::AccumulatorUseToString(AccumulatorUse::kNone));
-  names.insert(Bytecodes::AccumulatorUseToString(AccumulatorUse::kRead));
-  names.insert(Bytecodes::AccumulatorUseToString(AccumulatorUse::kWrite));
-  names.insert(Bytecodes::AccumulatorUseToString(AccumulatorUse::kReadWrite));
-  CHECK_EQ(names.size(), 4);
-}
 }  // namespace interpreter
 }  // namespace internal
 }  // namespace v8

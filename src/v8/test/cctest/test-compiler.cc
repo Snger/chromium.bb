@@ -30,10 +30,11 @@
 
 #include "src/v8.h"
 
+#include "src/api.h"
 #include "src/compiler.h"
 #include "src/disasm.h"
+#include "src/factory.h"
 #include "src/interpreter/interpreter.h"
-#include "src/parsing/parser.h"
 #include "test/cctest/cctest.h"
 
 using namespace v8::internal;
@@ -320,7 +321,10 @@ TEST(FeedbackVectorPreservedAcrossRecompiles) {
   // Verify that the feedback is still "gathered" despite a recompilation
   // of the full code.
   CHECK(f->IsOptimized());
-  CHECK(f->shared()->has_deoptimization_support());
+  // If the baseline code is bytecode, then it will not have deoptimization
+  // support. has_deoptimization_support() check is only required if the
+  // baseline code is from fullcodegen.
+  CHECK(f->shared()->has_deoptimization_support() || i::FLAG_ignition);
   object = f->feedback_vector()->Get(slot_for_a);
   CHECK(object->IsWeakCell() &&
         WeakCell::cast(object)->value()->IsJSFunction());
@@ -778,11 +782,16 @@ static void InstallIsBaselineCompiledHelper(v8::Isolate* isolate) {
 }
 
 TEST(IgnitionBaselineOnReturn) {
+  // TODO(4280): Remove this entire test once --ignition-preserve-bytecode is
+  // the default and the flag is removed. This test doesn't provide benefit any
+  // longer once {InterpreterActivationsFinder} is gone.
+  if (FLAG_ignition_preserve_bytecode) return;
   FLAG_allow_natives_syntax = true;
   FLAG_always_opt = false;
   CcTest::InitializeVM();
   FLAG_ignition = true;
-  reinterpret_cast<i::Isolate*>(CcTest::isolate())->interpreter()->Initialize();
+  Isolate* isolate = CcTest::i_isolate();
+  isolate->interpreter()->Initialize();
   v8::HandleScope scope(CcTest::isolate());
   InstallIsBaselineCompiledHelper(CcTest::isolate());
 
@@ -799,4 +808,60 @@ TEST(IgnitionBaselineOnReturn) {
   CHECK_EQ(false, GetGlobalProperty("is_baseline_in_function")->BooleanValue());
   CHECK_EQ(true, GetGlobalProperty("is_baseline_after_return")->BooleanValue());
   CHECK_EQ(1234.0, GetGlobalProperty("return_val")->Number());
+}
+
+TEST(IgnitionEntryTrampolineSelfHealing) {
+  FLAG_allow_natives_syntax = true;
+  FLAG_always_opt = false;
+  CcTest::InitializeVM();
+  FLAG_ignition = true;
+  Isolate* isolate = CcTest::i_isolate();
+  isolate->interpreter()->Initialize();
+  v8::HandleScope scope(CcTest::isolate());
+
+  CompileRun(
+      "function MkFun() {"
+      "  function f() { return 23 }"
+      "  return f"
+      "}"
+      "var f1 = MkFun(); f1();"
+      "var f2 = MkFun(); f2();"
+      "%BaselineFunctionOnNextCall(f1);");
+  Handle<JSFunction> f1 = Handle<JSFunction>::cast(GetGlobalProperty("f1"));
+  Handle<JSFunction> f2 = Handle<JSFunction>::cast(GetGlobalProperty("f2"));
+
+  // Function {f1} is marked for baseline.
+  CompileRun("var result1 = f1()");
+  CHECK_NE(*isolate->builtins()->InterpreterEntryTrampoline(), f1->code());
+  CHECK_EQ(*isolate->builtins()->InterpreterEntryTrampoline(), f2->code());
+  CHECK_EQ(23.0, GetGlobalProperty("result1")->Number());
+
+  // Function {f2} will self-heal now.
+  CompileRun("var result2 = f2()");
+  CHECK_NE(*isolate->builtins()->InterpreterEntryTrampoline(), f1->code());
+  CHECK_NE(*isolate->builtins()->InterpreterEntryTrampoline(), f2->code());
+  CHECK_EQ(23.0, GetGlobalProperty("result2")->Number());
+}
+
+TEST(InvocationCount) {
+  FLAG_allow_natives_syntax = true;
+  FLAG_always_opt = false;
+  CcTest::InitializeVM();
+  v8::HandleScope scope(CcTest::isolate());
+
+  CompileRun(
+      "function bar() {};"
+      "function foo() { return bar(); };"
+      "foo();");
+  Handle<JSFunction> foo = Handle<JSFunction>::cast(GetGlobalProperty("foo"));
+  CHECK_EQ(1, foo->feedback_vector()->invocation_count());
+  CompileRun("foo()");
+  CHECK_EQ(2, foo->feedback_vector()->invocation_count());
+  CompileRun("bar()");
+  CHECK_EQ(2, foo->feedback_vector()->invocation_count());
+  CompileRun("foo(); foo()");
+  CHECK_EQ(4, foo->feedback_vector()->invocation_count());
+  CompileRun("%BaselineFunctionOnNextCall(foo);");
+  CompileRun("foo();");
+  CHECK_EQ(5, foo->feedback_vector()->invocation_count());
 }
