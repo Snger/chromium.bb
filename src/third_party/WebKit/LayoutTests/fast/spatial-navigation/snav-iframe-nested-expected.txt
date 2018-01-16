@@ -1,0 +1,30 @@
+CONSOLE WARNING: Resource requests whose URLs contain raw newline characters are deprecated, and may be blocked in M60, around August 2017. Please remove newlines from places like element attribute values in order to continue loading those resources. See https://www.chromestatus.com/features/5735596811091968 for more details.
+Link
+
+Link
+Link
+Here is a link.
+
+Link
+PASS successfullyParsed is true
+
+TEST COMPLETE
+PASS gFocusedDocument.activeElement.getAttribute("id") is "1"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "2"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "3"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "4"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "5"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "6"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "7"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "8"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "9"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "8"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "7"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "6"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "5"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "4"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "3"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "2"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "1"
+PASS gFocusedDocument.activeElement.getAttribute("id") is "start"
+

@@ -1,0 +1,6 @@
+CONSOLE WARNING: line 25: /deep/ combinator is deprecated and will be a no-op in M60, around August 2017. See https://www.chromestatus.com/features/4964279606312960 for more details.
+PASS successfullyParsed is true
+
+TEST COMPLETE
+PASS getComputedStyle(inner).backgroundColor is "rgba(0, 0, 0, 0)"
+

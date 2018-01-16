@@ -1,0 +1,20 @@
+# These tests currently fail when run with --enable-browser-side-navigation
+# See https://crbug.com/576261
+
+# https://crbug.com/551000: PlzNavigate: DevTools support
+crbug.com/551000 http/tests/inspector/network/x-frame-options-deny.html [ Failure ]
+crbug.com/551000 virtual/mojo-loading/http/tests/inspector/network/x-frame-options-deny.html [ Failure ]
+
+# https://crbug.com/690946 PlzNavigate: Missing line number in console messages when the 'frame-src' CSP is infringed.
+# SourceLocation is not set when the navigation is initiated outside of a script.
+crbug.com/690946 http/tests/security/contentSecurityPolicy/frame-src-cross-origin-load.html [ Failure ]
+crbug.com/690946 virtual/mojo-loading/http/tests/security/contentSecurityPolicy/frame-src-cross-origin-load.html [ Failure ]
+
+# These tests are flaky.
+Bug(none) http/tests/security/popup-allowed-by-sandbox-can-navigate.html [ Failure ]
+Bug(none) virtual/mojo-loading/http/tests/security/popup-allowed-by-sandbox-can-navigate.html [ Failure ]
+
+# These tests are correct with PlzNavigate.
+# Without PlzNavigate, the line number of the console message is missing.
+Bug(none) http/tests/security/contentSecurityPolicy/frame-src-redirect-blocked.html [ Failure ]
+Bug(none) virtual/mojo-loading/http/tests/security/contentSecurityPolicy/frame-src-redirect-blocked.html [ Failure ]
