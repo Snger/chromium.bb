@@ -1,6 +1,6 @@
 Pod::Spec.new do |s|
   s.name             = 'GoogleToolboxForMac'
-  s.version          = '2.1.0'
+  s.version          = '2.1.1'
   s.author           = 'Google Inc.'
   s.license          = { :type => 'Apache', :file => 'LICENSE' }
   s.homepage         = 'https://github.com/google/google-toolbox-for-mac'
@@ -14,7 +14,20 @@ Pod::Spec.new do |s|
 
   s.osx.deployment_target = '10.6'
   s.ios.deployment_target = '5.0'
+  s.tvos.deployment_target = '9.0'
+
   s.requires_arc = false
+
+  # Generally developers should use specific subspecs themselves to get the things they
+  # want; but set the default to ensure the testing only code doesn't bundle
+  # into a shipping app. This has come up a few times issues 130, 138. The current
+  # list here is everything that doesn't have a platform requirement and isn't
+  # testing only.
+  s.default_subspecs = 'Defines', 'Core', 'GeometryUtils', 'KVO', 'Logger', 'Regex',
+                       'StringEncoding', 'SystemVersion', 'URLBuilder', 'NSData+zlib',
+                       'NSDictionary+URLArguments', 'NSFileHandle+UniqueName',
+                       'NSScanner+JSON', 'NSString+HTML', 'NSString+URLArguments',
+                       'NSString+XML', 'NSThread+Blocks'
 
   s.subspec 'Defines' do |sp|
     sp.public_header_files = 'GTMDefines.h'
@@ -29,12 +42,12 @@ Pod::Spec.new do |s|
     sp.dependency 'GoogleToolboxForMac/Defines', "#{s.version}"
   end
 
-
   s.subspec 'AddressBook' do |sp|
     sp.source_files = 'AddressBook/GTMABAddressBook.{h,m}'
     sp.frameworks = 'AddressBook'
     sp.dependency 'GoogleToolboxForMac/Core', "#{s.version}"
     sp.dependency 'GoogleToolboxForMac/Defines', "#{s.version}"
+    sp.platforms = { :ios => '5.0', :osx => '10.6' }
   end
 
   s.subspec 'DebugUtils' do |sp|

@@ -9,6 +9,7 @@
 #include "ash/system/enterprise/tray_enterprise.h"
 #include "ash/system/tray/label_tray_view.h"
 #include "ash/system/tray/system_tray.h"
+#include "ash/system/tray/system_tray_test_api.h"
 #include "ash/system/update/tray_update.h"
 #include "chrome/browser/chromeos/policy/device_policy_cros_browser_test.h"
 #include "chrome/browser/upgrade_detector.h"
@@ -34,7 +35,7 @@ IN_PROC_BROWSER_TEST_F(SystemTrayClientTest, UpdateTrayIcon) {
   EXPECT_FALSE(tray_update->tray_view()->visible());
 
   // Simulate an upgrade. This sends a mojo message to ash.
-  UpgradeDetector::GetInstance()->NotifyUpgradeRecommended();
+  UpgradeDetector::GetInstance()->NotifyUpgrade();
   content::RunAllPendingInMessageLoop();
 
   // Tray icon is now visible.
@@ -65,13 +66,14 @@ IN_PROC_BROWSER_TEST_F(SystemTrayClientEnterpriseTest, TrayEnterprise) {
 
   // Open the system tray menu.
   ash::SystemTray* system_tray = GetSystemTray();
-  system_tray->ShowDefaultView(ash::BUBBLE_CREATE_NEW);
+  system_tray->ShowDefaultView(ash::BUBBLE_CREATE_NEW,
+                               false /* show_by_click */);
 
   // Managed devices show an item in the menu.
   ash::TrayEnterprise* tray_enterprise =
-      system_tray->GetTrayEnterpriseForTesting();
+      ash::SystemTrayTestApi(system_tray).tray_enterprise();
   ASSERT_TRUE(tray_enterprise->tray_view());
   EXPECT_TRUE(tray_enterprise->tray_view()->visible());
 
-  system_tray->CloseSystemBubble();
+  system_tray->CloseBubble();
 }

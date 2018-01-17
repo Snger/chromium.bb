@@ -8,11 +8,13 @@
 
 #include "base/android/jni_string.h"
 #include "base/bind.h"
+#include "base/command_line.h"
 #include "base/format_macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "chrome/common/chrome_switches.h"
 #include "components/google/core/browser/google_util.h"
 #include "components/search_engines/search_terms_data.h"
 #include "components/search_engines/template_url.h"
@@ -116,6 +118,23 @@ jboolean TemplateUrlServiceAndroid::IsDefaultSearchEngineGoogle(
   return default_search_provider &&
       default_search_provider->url_ref().HasGoogleBaseURLs(
           template_url_service_->search_terms_data());
+}
+
+jboolean TemplateUrlServiceAndroid::DoesDefaultSearchEngineHaveLogo(
+    JNIEnv* env,
+    const JavaParamRef<jobject>& obj) {
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kSearchProviderLogoURL)) {
+    return true;
+  }
+
+  if (IsDefaultSearchEngineGoogle(env, obj))
+    return true;
+
+  const TemplateURL* default_search_provider =
+      template_url_service_->GetDefaultSearchProvider();
+  return default_search_provider &&
+         !default_search_provider->logo_url().is_empty();
 }
 
 jboolean
@@ -380,9 +399,4 @@ static jlong Init(JNIEnv* env, const JavaParamRef<jobject>& obj) {
   TemplateUrlServiceAndroid* template_url_service_android =
       new TemplateUrlServiceAndroid(env, obj);
   return reinterpret_cast<intptr_t>(template_url_service_android);
-}
-
-// static
-bool TemplateUrlServiceAndroid::Register(JNIEnv* env) {
-  return RegisterNativesImpl(env);
 }

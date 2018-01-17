@@ -14,12 +14,11 @@
 #include "ash/shell.h"
 #include "ash/system/screen_layout_observer.h"
 #include "ash/system/status_area_widget.h"
+#include "ash/system/status_area_widget_test_helper.h"
 #include "ash/system/tray/system_tray.h"
 #include "ash/system/tray/system_tray_item.h"
 #include "ash/system/web_notification/ash_popup_alignment_delegate.h"
 #include "ash/test/ash_test_base.h"
-#include "ash/test/status_area_widget_test_helper.h"
-#include "ash/test/test_system_tray_delegate.h"
 #include "ash/wm/window_state.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/stringprintf.h"
@@ -84,7 +83,7 @@ class TestItem : public SystemTrayItem {
 
 }  // namespace
 
-class WebNotificationTrayTest : public test::AshTestBase {
+class WebNotificationTrayTest : public AshTestBase {
  public:
   WebNotificationTrayTest() {}
   ~WebNotificationTrayTest() override {}
@@ -92,7 +91,7 @@ class WebNotificationTrayTest : public test::AshTestBase {
   void TearDown() override {
     GetMessageCenter()->RemoveAllNotifications(
         false /* by_user */, message_center::MessageCenter::RemoveType::ALL);
-    test::AshTestBase::TearDown();
+    AshTestBase::TearDown();
   }
 
  protected:
@@ -206,7 +205,8 @@ TEST_F(WebNotificationTrayTest, WebNotificationPopupBubble) {
   AddNotification("test_id5");
   EXPECT_TRUE(GetTray()->IsPopupVisible());
 
-  GetTray()->message_center_tray_->ShowMessageCenterBubble();
+  GetTray()->message_center_tray_->ShowMessageCenterBubble(
+      false /* show_by_click */);
   GetTray()->message_center_tray_->HideMessageCenterBubble();
 
   EXPECT_FALSE(GetTray()->IsPopupVisible());
@@ -223,7 +223,8 @@ TEST_F(WebNotificationTrayTest, DISABLED_ManyMessageCenterNotifications) {
     std::string id = base::StringPrintf("test_id%d", static_cast<int>(i));
     AddNotification(id);
   }
-  bool shown = GetTray()->message_center_tray_->ShowMessageCenterBubble();
+  bool shown = GetTray()->message_center_tray_->ShowMessageCenterBubble(
+      false /* show_by_click */);
   EXPECT_TRUE(shown);
   RunAllPendingInMessageLoop();
   EXPECT_TRUE(GetTray()->message_center_bubble() != NULL);
@@ -296,7 +297,8 @@ TEST_F(WebNotificationTrayTest, PopupAndSystemTray) {
 
   // System tray is created, the popup's work area should be narrowed but still
   // visible.
-  GetSystemTray()->ShowDefaultView(BUBBLE_CREATE_NEW);
+  GetSystemTray()->ShowDefaultView(BUBBLE_CREATE_NEW,
+                                   false /* show_by_click */);
   EXPECT_TRUE(GetTray()->IsPopupVisible());
   int bottom_with_tray = GetPopupWorkAreaBottom();
   EXPECT_GT(bottom, bottom_with_tray);
@@ -326,7 +328,8 @@ TEST_F(WebNotificationTrayTest, PopupAndAutoHideShelf) {
   widget = CreateTestWidget();
   TestItem* test_item = new TestItem;
   GetSystemTray()->AddTrayItem(base::WrapUnique(test_item));
-  GetSystemTray()->ShowDefaultView(BUBBLE_CREATE_NEW);
+  GetSystemTray()->ShowDefaultView(BUBBLE_CREATE_NEW,
+                                   false /* show_by_click */);
   UpdateAutoHideStateNow();
 
   EXPECT_EQ(SHELF_AUTO_HIDE_SHOWN, shelf->GetAutoHideState());
@@ -388,7 +391,8 @@ TEST_F(WebNotificationTrayTest, PopupAndSystemTrayMultiDisplay) {
 
   // System tray is created on the primary display. The popups in the secondary
   // tray aren't affected.
-  GetSystemTray()->ShowDefaultView(BUBBLE_CREATE_NEW);
+  GetSystemTray()->ShowDefaultView(BUBBLE_CREATE_NEW,
+                                   false /* show_by_click */);
   EXPECT_GT(bottom, GetPopupWorkAreaBottom());
   EXPECT_EQ(bottom_second, GetPopupWorkAreaBottomForTray(GetSecondaryTray()));
 }

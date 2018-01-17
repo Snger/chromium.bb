@@ -17,6 +17,7 @@
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/chromeos/policy/device_local_account.h"
 #include "chrome/browser/chromeos/policy/proto/chrome_device_policy.pb.h"
+#include "chrome/browser/chromeos/tpm_firmware_update.h"
 #include "chromeos/dbus/dbus_thread_manager.h"
 #include "chromeos/dbus/update_engine_client.h"
 #include "chromeos/settings/cros_settings_names.h"
@@ -382,17 +383,6 @@ void DecodeLoginPolicies(const em::ChromeDeviceSettingsProto& policy,
     policies->Set(key::kDeviceLoginScreenInputMethods, POLICY_LEVEL_MANDATORY,
                   POLICY_SCOPE_MACHINE, POLICY_SOURCE_CLOUD,
                   std::move(input_methods), nullptr);
-  }
-
-  if (policy.has_device_ecryptfs_migration_strategy()) {
-    const em::DeviceEcryptfsMigrationStrategyProto& container(
-        policy.device_ecryptfs_migration_strategy());
-    if (container.has_migration_strategy()) {
-      policies->Set(
-          key::kDeviceEcryptfsMigrationStrategy, POLICY_LEVEL_MANDATORY,
-          POLICY_SCOPE_MACHINE, POLICY_SOURCE_CLOUD,
-          DecodeIntegerValue(container.migration_strategy()), nullptr);
-    }
   }
 }
 
@@ -877,6 +867,23 @@ void DecodeGenericPolicies(const em::ChromeDeviceSettingsProto& policy,
                     POLICY_SCOPE_MACHINE, POLICY_SOURCE_CLOUD,
                     std::move(dict_val), nullptr);
     }
+  }
+
+  if (policy.has_device_second_factor_authentication()) {
+    const em::DeviceSecondFactorAuthenticationProto& container(
+        policy.device_second_factor_authentication());
+    policies->Set(key::kDeviceSecondFactorAuthentication,
+                  POLICY_LEVEL_MANDATORY, POLICY_SCOPE_MACHINE,
+                  POLICY_SOURCE_CLOUD, DecodeIntegerValue(container.mode()),
+                  nullptr);
+  }
+
+  if (policy.has_tpm_firmware_update_settings()) {
+    policies->Set(key::kTPMFirmwareUpdateSettings, POLICY_LEVEL_MANDATORY,
+                  POLICY_SCOPE_MACHINE, POLICY_SOURCE_CLOUD,
+                  chromeos::tpm_firmware_update::DecodeSettingsProto(
+                      policy.tpm_firmware_update_settings()),
+                  nullptr);
   }
 }
 

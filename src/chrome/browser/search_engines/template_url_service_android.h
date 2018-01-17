@@ -52,6 +52,9 @@ class TemplateUrlServiceAndroid : public TemplateURLServiceObserver {
   jboolean IsDefaultSearchEngineGoogle(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& obj);
+  jboolean DoesDefaultSearchEngineHaveLogo(
+      JNIEnv* env,
+      const base::android::JavaParamRef<jobject>& obj);
   jboolean IsSearchResultsPageFromDefaultSearchProvider(
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& obj,
@@ -98,8 +101,6 @@ class TemplateUrlServiceAndroid : public TemplateURLServiceObserver {
       JNIEnv* env,
       const base::android::JavaParamRef<jobject>& obj,
       const base::android::JavaParamRef<jstring>& jkeyword);
-
-  static bool Register(JNIEnv* env);
 
  private:
   ~TemplateUrlServiceAndroid() override;

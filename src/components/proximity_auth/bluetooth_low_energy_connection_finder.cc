@@ -17,7 +17,6 @@
 #include "base/threading/thread_task_runner_handle.h"
 #include "components/cryptauth/background_eid_generator.h"
 #include "components/cryptauth/ble/bluetooth_low_energy_weave_client_connection.h"
-#include "components/cryptauth/bluetooth_throttler.h"
 #include "components/cryptauth/connection.h"
 #include "components/cryptauth/raw_eid_generator.h"
 #include "components/proximity_auth/logging/logging.h"
@@ -40,23 +39,19 @@ const int kRestartDiscoveryOnErrorDelaySeconds = 2;
 }  // namespace
 
 BluetoothLowEnergyConnectionFinder::BluetoothLowEnergyConnectionFinder(
-    const cryptauth::RemoteDevice remote_device,
-    cryptauth::BluetoothThrottler* bluetooth_throttler)
+    const cryptauth::RemoteDevice remote_device)
     : BluetoothLowEnergyConnectionFinder(
           remote_device,
           kBLEGattServiceUUID,
-          base::MakeUnique<cryptauth::BackgroundEidGenerator>(),
-          bluetooth_throttler) {}
+          base::MakeUnique<cryptauth::BackgroundEidGenerator>()) {}
 
 BluetoothLowEnergyConnectionFinder::BluetoothLowEnergyConnectionFinder(
     const cryptauth::RemoteDevice remote_device,
     const std::string& service_uuid,
-    std::unique_ptr<cryptauth::BackgroundEidGenerator> eid_generator,
-    cryptauth::BluetoothThrottler* bluetooth_throttler)
+    std::unique_ptr<cryptauth::BackgroundEidGenerator> eid_generator)
     : remote_device_(remote_device),
       service_uuid_(service_uuid),
       eid_generator_(std::move(eid_generator)),
-      bluetooth_throttler_(bluetooth_throttler),
       weak_ptr_factory_(this) {}
 
 BluetoothLowEnergyConnectionFinder::~BluetoothLowEnergyConnectionFinder() {
@@ -145,7 +140,7 @@ void BluetoothLowEnergyConnectionFinder::HandleDeviceUpdated(
 
   if (IsRightDevice(device)) {
     PA_LOG(INFO) << "Connecting to device " << device->GetAddress();
-    connection_ = CreateConnection(device->GetAddress());
+    connection_ = CreateConnection(device);
     connection_->AddObserver(this);
     connection_->Connect();
 
@@ -230,10 +225,11 @@ void BluetoothLowEnergyConnectionFinder::StopDiscoverySession() {
 
 std::unique_ptr<cryptauth::Connection>
 BluetoothLowEnergyConnectionFinder::CreateConnection(
-    const std::string& device_address) {
+    device::BluetoothDevice* bluetooth_device) {
   return cryptauth::weave::BluetoothLowEnergyWeaveClientConnection::Factory::
-      NewInstance(remote_device_, device_address, adapter_,
-                  device::BluetoothUUID(service_uuid_), bluetooth_throttler_);
+      NewInstance(remote_device_, adapter_,
+                  device::BluetoothUUID(service_uuid_), bluetooth_device,
+                  true /* should_set_low_connection_latency */);
 }
 
 void BluetoothLowEnergyConnectionFinder::OnConnectionStatusChanged(
@@ -259,6 +255,8 @@ void BluetoothLowEnergyConnectionFinder::OnConnectionStatusChanged(
                    weak_ptr_factory_.GetWeakPtr()));
   } else if (old_status == cryptauth::Connection::IN_PROGRESS) {
     PA_LOG(WARNING) << "Connection failed. Retrying.";
+    connection_->RemoveObserver(this);
+    connection_.reset();
     base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::Bind(
@@ -268,10 +266,11 @@ void BluetoothLowEnergyConnectionFinder::OnConnectionStatusChanged(
 }
 
 void BluetoothLowEnergyConnectionFinder::RestartDiscoverySessionAsync() {
-  PA_LOG(INFO) << "Restarting discovery session.";
-  connection_.reset();
-  if (!discovery_session_ || !discovery_session_->IsActive())
+  bool discovery_active = discovery_session_ && discovery_session_->IsActive();
+  if (!connection_ && !discovery_active) {
+    PA_LOG(INFO) << "Restarting discovery session.";
     StartDiscoverySession();
+  }
 }
 
 void BluetoothLowEnergyConnectionFinder::InvokeCallbackAsync() {

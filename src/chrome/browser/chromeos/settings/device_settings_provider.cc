@@ -23,6 +23,7 @@
 #include "chrome/browser/chromeos/policy/device_local_account.h"
 #include "chrome/browser/chromeos/settings/cros_settings.h"
 #include "chrome/browser/chromeos/settings/device_settings_cache.h"
+#include "chrome/browser/chromeos/tpm_firmware_update.h"
 #include "chrome/browser/metrics/metrics_reporting_state.h"
 #include "chromeos/chromeos_switches.h"
 #include "chromeos/dbus/cryptohome_client.h"
@@ -100,6 +101,7 @@ const char* const kKnownSettings[] = {
     kVariationsRestrictParameter,
     kDeviceLoginScreenLocales,
     kDeviceLoginScreenInputMethods,
+    kTPMFirmwareUpdateSettings,
 };
 
 void DecodeLoginPolicies(
@@ -460,11 +462,17 @@ void DecodeHeartbeatPolicies(
 void DecodeGenericPolicies(
     const em::ChromeDeviceSettingsProto& policy,
     PrefValueMap* new_values_cache) {
-  if (policy.has_metrics_enabled()) {
+  if (policy.has_metrics_enabled() &&
+      policy.metrics_enabled().has_metrics_enabled()) {
     new_values_cache->SetBoolean(kStatsReportingPref,
                                  policy.metrics_enabled().metrics_enabled());
   } else {
-    new_values_cache->SetBoolean(kStatsReportingPref, false);
+    // If the policy is missing, default to reporting enabled on enterprise-
+    // enrolled devices, c.f. crbug/456186.
+    policy::BrowserPolicyConnectorChromeOS* connector =
+        g_browser_process->platform_part()->browser_policy_connector_chromeos();
+    bool is_enterprise_managed = connector->IsEnterpriseManaged();
+    new_values_cache->SetBoolean(kStatsReportingPref, is_enterprise_managed);
   }
 
   if (!policy.has_release_channel() ||
@@ -479,8 +487,8 @@ void DecodeGenericPolicies(
   new_values_cache->SetBoolean(
       kReleaseChannelDelegated,
       policy.has_release_channel() &&
-      policy.release_channel().has_release_channel_delegated() &&
-      policy.release_channel().release_channel_delegated());
+          policy.release_channel().has_release_channel_delegated() &&
+          policy.release_channel().release_channel_delegated());
 
   if (policy.has_system_timezone()) {
     if (policy.system_timezone().has_timezone()) {
@@ -561,6 +569,12 @@ void DecodeGenericPolicies(
         base::DictionaryValue::From(base::JSONReader::Read(
             policy.device_wallpaper_image().device_wallpaper_image()));
     new_values_cache->SetValue(kDeviceWallpaperImage, std::move(dict_val));
+  }
+
+  if (policy.has_tpm_firmware_update_settings()) {
+    new_values_cache->SetValue(kTPMFirmwareUpdateSettings,
+                               tpm_firmware_update::DecodeSettingsProto(
+                                   policy.tpm_firmware_update_settings()));
   }
 }
 
@@ -742,8 +756,18 @@ void DeviceSettingsProvider::UpdateValuesCache(
     TrustedStatus trusted_status) {
   PrefValueMap new_values_cache;
 
+  // Determine whether device is managed. See PolicyData::management_mode docs
+  // for details.
+  bool managed = false;
+  if (policy_data.has_management_mode()) {
+    managed =
+        (policy_data.management_mode() == em::PolicyData::ENTERPRISE_MANAGED);
+  } else {
+    managed = policy_data.has_request_token();
+  }
+
   // If the device is not managed, we set the device owner value.
-  if (policy_data.has_username() && !policy_data.has_request_token())
+  if (policy_data.has_username() && !managed)
     new_values_cache.SetString(kDeviceOwner, policy_data.username());
 
   if (policy_data.has_service_account_identity()) {
@@ -880,19 +904,11 @@ bool DeviceSettingsProvider::UpdateFromService() {
       VLOG(1) << "No policies present yet, will use the temp storage.";
       trusted_status_ = PERMANENTLY_UNTRUSTED;
       break;
-    case DeviceSettingsService::STORE_POLICY_ERROR:
     case DeviceSettingsService::STORE_VALIDATION_ERROR:
     case DeviceSettingsService::STORE_INVALID_POLICY:
     case DeviceSettingsService::STORE_OPERATION_FAILED:
       LOG(ERROR) << "Failed to retrieve cros policies. Reason: "
                  << device_settings_service_->status();
-      trusted_status_ = PERMANENTLY_UNTRUSTED;
-      break;
-    case DeviceSettingsService::STORE_TEMP_VALIDATION_ERROR:
-      // The policy has failed to validate due to temporary error but it might
-      // take a long time until we recover so behave as it is a permanent error.
-      LOG(ERROR) << "Failed to retrieve cros policies because a temporary "
-                 << "validation error has occurred. Retrying might succeed.";
       trusted_status_ = PERMANENTLY_UNTRUSTED;
       break;
   }

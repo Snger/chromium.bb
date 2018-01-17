@@ -45,7 +45,6 @@ class WebNotificationLabel;
 // is controlled by StatusAreaWidget.
 class ASH_EXPORT WebNotificationTray
     : public TrayBackgroundView,
-      public views::TrayBubbleView::Delegate,
       public message_center::MessageCenterTrayDelegate,
       public base::SupportsWeakPtr<WebNotificationTray>,
       public ui::SimpleMenuModel::Delegate {
@@ -71,9 +70,6 @@ class ASH_EXPORT WebNotificationTray
   // Returns true if the message center bubble is visible.
   bool IsMessageCenterBubbleVisible() const;
 
-  // Shows the message center bubble.
-  void ShowMessageCenterBubble();
-
   // Called when the login status is changed.
   void UpdateAfterLoginStatusChange(LoginStatus login_status);
 
@@ -83,24 +79,22 @@ class ASH_EXPORT WebNotificationTray
   base::string16 GetAccessibleNameForTray() override;
   void HideBubbleWithView(const views::TrayBubbleView* bubble_view) override;
   void ClickedOutsideBubble() override;
-
-  // Overridden from ActionableView.
   bool PerformAction(const ui::Event& event) override;
+  void CloseBubble() override;
+  void ShowBubble(bool show_by_click) override;
+  views::TrayBubbleView* GetBubbleView() override;
 
   // Overridden from views::TrayBubbleView::Delegate.
   void BubbleViewDestroyed() override;
   void OnMouseEnteredView() override;
   void OnMouseExitedView() override;
   base::string16 GetAccessibleNameForBubble() override;
-  void OnBeforeBubbleWidgetInit(
-      views::Widget* anchor_widget,
-      views::Widget* bubble_widget,
-      views::Widget::InitParams* params) const override;
+  bool ShouldEnableExtraKeyboardAccessibility() override;
   void HideBubble(const views::TrayBubbleView* bubble_view) override;
 
   // Overridden from MessageCenterTrayDelegate.
   void OnMessageCenterTrayChanged() override;
-  bool ShowMessageCenter() override;
+  bool ShowMessageCenter(bool show_by_click) override;
   void HideMessageCenter() override;
   bool ShowPopups() override;
   void HidePopups() override;
@@ -130,9 +124,10 @@ class ASH_EXPORT WebNotificationTray
   void UpdateTrayContent();
 
   // The actual process to show the message center. Set |show_settings| to true
-  // if the message center should be initialized with the settings visible.
-  // Returns true if the center is successfully created.
-  bool ShowMessageCenterInternal(bool show_settings);
+  // if the message center should be initialized with the settings visible. Set
+  // |show_by_click| to true if the message center is shown by mouse or gesture
+  // click. Returns true if the center is successfully created.
+  bool ShowMessageCenterInternal(bool show_settings, bool show_by_click);
 
   // Queries login status and the status area widget to determine visibility of
   // the message center.

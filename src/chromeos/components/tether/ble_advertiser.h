@@ -5,16 +5,21 @@
 #ifndef CHROMEOS_COMPONENTS_TETHER_BLE_ADVERTISER_H_
 #define CHROMEOS_COMPONENTS_TETHER_BLE_ADVERTISER_H_
 
+#include <array>
 #include <map>
+#include <unordered_set>
 
+#include "base/callback_forward.h"
 #include "base/macros.h"
 #include "base/memory/weak_ptr.h"
+#include "base/observer_list.h"
+#include "chromeos/components/tether/ble_constants.h"
 #include "components/cryptauth/foreground_eid_generator.h"
 #include "components/cryptauth/remote_device.h"
-#include "device/bluetooth/bluetooth_adapter.h"
 #include "device/bluetooth/bluetooth_advertisement.h"
 
 namespace cryptauth {
+class LocalDeviceDataProvider;
 class RemoteBeaconSeedFetcher;
 }
 
@@ -22,7 +27,8 @@ namespace chromeos {
 
 namespace tether {
 
-class LocalDeviceDataProvider;
+class BleSynchronizer;
+class ErrorTolerantBleAdvertisement;
 
 // Advertises to a given device. When StartAdvertisingToDevice() is called, a
 // device-specific EID value is computed deterministically and is set as the
@@ -31,10 +37,17 @@ class LocalDeviceDataProvider;
 // advertisement.
 class BleAdvertiser {
  public:
-  BleAdvertiser(
-      scoped_refptr<device::BluetoothAdapter> adapter,
-      const LocalDeviceDataProvider* local_device_data_provider,
-      const cryptauth::RemoteBeaconSeedFetcher* remote_beacon_seed_fetcher);
+  class Observer {
+   public:
+    virtual void OnAllAdvertisementsUnregistered() = 0;
+
+   protected:
+    virtual ~Observer() {}
+  };
+
+  BleAdvertiser(cryptauth::LocalDeviceDataProvider* local_device_data_provider,
+                cryptauth::RemoteBeaconSeedFetcher* remote_beacon_seed_fetcher,
+                BleSynchronizer* ble_synchronizer);
   virtual ~BleAdvertiser();
 
   virtual bool StartAdvertisingToDevice(
@@ -42,69 +55,54 @@ class BleAdvertiser {
   virtual bool StopAdvertisingToDevice(
       const cryptauth::RemoteDevice& remote_device);
 
+  bool AreAdvertisementsRegistered();
+
+  void AddObserver(Observer* observer);
+  void RemoveObserver(Observer* observer);
+
+ protected:
+  void NotifyAllAdvertisementsUnregistered();
+
  private:
   friend class BleAdvertiserTest;
 
-  class IndividualAdvertisement
-      : public device::BluetoothAdapter::Observer,
-        public device::BluetoothAdvertisement::Observer {
-   public:
-    IndividualAdvertisement(
-        scoped_refptr<device::BluetoothAdapter> adapter,
-        std::unique_ptr<cryptauth::DataWithTimestamp> advertisement_data);
-    ~IndividualAdvertisement() override;
+  // Data needed to generate an advertisement.
+  struct AdvertisementMetadata {
+    AdvertisementMetadata(
+        const std::string& device_id,
+        std::unique_ptr<cryptauth::DataWithTimestamp> service_data);
+    ~AdvertisementMetadata();
 
-    // device::BluetoothAdapter::Observer
-    void AdapterPoweredChanged(device::BluetoothAdapter* adapter,
-                               bool powered) override;
-
-    // device::BluetoothAdvertisement::Observer
-    void AdvertisementReleased(
-        device::BluetoothAdvertisement* advertisement) override;
-
-   private:
-    friend class BleAdvertiserTest;
-
-    void AdvertiseIfPossible();
-    void OnAdvertisementRegisteredCallback(
-        scoped_refptr<device::BluetoothAdvertisement> advertisement);
-    void OnAdvertisementErrorCallback(
-        device::BluetoothAdvertisement::ErrorCode error_code);
-    void OnAdvertisementUnregisterSuccess();
-    void OnAdvertisementUnregisterFailure(
-        device::BluetoothAdvertisement::ErrorCode error_code);
-
-    std::unique_ptr<device::BluetoothAdvertisement::UUIDList>
-    CreateServiceUuids() const;
-
-    std::unique_ptr<device::BluetoothAdvertisement::ServiceData>
-    CreateServiceData() const;
-
-    scoped_refptr<device::BluetoothAdapter> adapter_;
-    bool is_initializing_advertising_;
-    std::unique_ptr<cryptauth::DataWithTimestamp> advertisement_data_;
-    scoped_refptr<device::BluetoothAdvertisement> advertisement_;
-
-    base::WeakPtrFactory<IndividualAdvertisement> weak_ptr_factory_;
-
-    DISALLOW_COPY_AND_ASSIGN(IndividualAdvertisement);
+    std::string device_id;
+    std::unique_ptr<cryptauth::DataWithTimestamp> service_data;
   };
 
-  BleAdvertiser(
-      scoped_refptr<device::BluetoothAdapter> adapter,
-      std::unique_ptr<cryptauth::ForegroundEidGenerator> eid_generator,
-      const cryptauth::RemoteBeaconSeedFetcher* remote_beacon_seed_fetcher,
-      const LocalDeviceDataProvider* local_device_data_provider);
+  void SetEidGeneratorForTest(
+      std::unique_ptr<cryptauth::ForegroundEidGenerator> test_eid_generator);
+  void UpdateAdvertisements();
+  void OnAdvertisementStopped(size_t index);
 
-  scoped_refptr<device::BluetoothAdapter> adapter_;
+  cryptauth::RemoteBeaconSeedFetcher* remote_beacon_seed_fetcher_;
+  cryptauth::LocalDeviceDataProvider* local_device_data_provider_;
+  BleSynchronizer* ble_synchronizer_;
 
   std::unique_ptr<cryptauth::ForegroundEidGenerator> eid_generator_;
-  // Not owned by this instance and must outlive it.
-  const cryptauth::RemoteBeaconSeedFetcher* remote_beacon_seed_fetcher_;
-  const LocalDeviceDataProvider* local_device_data_provider_;
 
-  std::map<std::string, std::unique_ptr<IndividualAdvertisement>>
-      device_id_to_advertisement_map_;
+  // |registered_device_ids_| holds the device IDs that are currently
+  // registered and is always up-to-date. |advertisements_| contains the active
+  // advertisements, which may not correspond exactly to
+  // |registered_device_ids_| in the case that a previous advertisement failed
+  // to unregister.
+  std::array<std::unique_ptr<AdvertisementMetadata>,
+             kMaxConcurrentAdvertisements>
+      registered_device_metadata_;
+  std::array<std::unique_ptr<ErrorTolerantBleAdvertisement>,
+             kMaxConcurrentAdvertisements>
+      advertisements_;
+
+  base::ObserverList<Observer> observer_list_;
+
+  base::WeakPtrFactory<BleAdvertiser> weak_ptr_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(BleAdvertiser);
 };
