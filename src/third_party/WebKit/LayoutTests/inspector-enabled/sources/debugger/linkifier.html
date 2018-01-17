@@ -1,0 +1,98 @@
+<html>
+<head>
+<script src="../../../http/tests/inspector/inspector-test.js"></script>
+<script src="../../../http/tests/inspector/debugger-test.js"></script>
+<script>// It is important that script starts on line 5 (zero-based 4)
+
+function nonFormattedFunction() { var  i = 2 + 2; var a = 4; return a + i; }
+
+function dummyScript()
+{
+    console.log("dummy string");
+}
+
+function onload()
+{
+    if (window.testRunner) {
+        testRunner.waitUntilDone();
+        testRunner.showWebInspector();
+    }
+    runTest();
+}
+
+function test()
+{
+    var scriptFormatter;
+    var linkifier;
+    var link;
+    var script;
+    var uiSourceCode;
+
+    InspectorTest.scriptFormatter().then(startDebuggerTest);
+
+    function startDebuggerTest(sf)
+    {
+        scriptFormatter = sf;
+        InspectorTest.startDebuggerTest(waitForScripts);
+    }
+
+    function waitForScripts()
+    {
+        InspectorTest.showScriptSource("linkifier.html", debuggerTest);
+    }
+
+    function debuggerTest()
+    {
+        for (var scriptCandidate of InspectorTest.debuggerModel.scripts()) {
+            if (scriptCandidate.sourceURL === InspectorTest.mainTarget.inspectedURL() && scriptCandidate.lineOffset === 4) {
+                script = scriptCandidate;
+                break;
+            }
+        }
+
+        uiSourceCode = Workspace.workspace.uiSourceCodeForURL(InspectorTest.mainTarget.inspectedURL());
+
+        linkifier = new Components.Linkifier();
+        var count1 = liveLocationsCount();
+        link = linkifier.linkifyScriptLocation(SDK.targetManager.mainTarget(), null, InspectorTest.mainTarget.inspectedURL(), 8, 0, "dummy-class");
+        var count2 = liveLocationsCount();
+
+        InspectorTest.addResult("listeners added on raw source code: " + (count2 - count1));
+        InspectorTest.addResult("original location: " + link.textContent);
+        InspectorTest.addSniffer(Sources.ScriptFormatterEditorAction.prototype, "_updateButton", uiSourceCodeScriptFormatted);
+        scriptFormatter._toggleFormatScriptSource();
+    }
+
+    function uiSourceCodeScriptFormatted()
+    {
+        InspectorTest.addResult("pretty printed location: " + link.textContent);
+        Sources.sourceFormatter.discardFormattedUISourceCode(UI.panels.sources.visibleView.uiSourceCode());
+        InspectorTest.addResult("reverted location: " + link.textContent);
+
+        var count1 = liveLocationsCount();
+        linkifier.reset();
+        var count2 = liveLocationsCount();
+
+        InspectorTest.addResult("listeners removed from raw source code: " + (count1 - count2));
+
+        InspectorTest.completeDebuggerTest();
+    }
+
+    function liveLocationsCount()
+    {
+        var modelData = Bindings.debuggerWorkspaceBinding._debuggerModelToData.get(script.debuggerModel);
+        var locations = modelData._locations.get(script);
+        return locations.size;
+    }
+}
+
+</script>
+</head>
+
+<body onload="onload()">
+<p>
+Tests that Linkifier works correctly.
+<p>
+
+</body>
+</html>

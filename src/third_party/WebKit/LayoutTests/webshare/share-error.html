@@ -1,0 +1,24 @@
+<!DOCTYPE html>
+<script src="../resources/testharness.js"></script>
+<script src="../resources/testharnessreport.js"></script>
+<script src="../resources/mojo-helpers.js"></script>
+<script src="resources/mock-share-service.js"></script>
+<script>
+
+share_test((t, webshare, mock) => {
+  mock.pushShareResult('the title', 'the message', 'data:the url',
+                       webshare.ShareError.CANCELED);
+  return callWithKeyDown(() => promise_rejects(
+      t, 'AbortError',
+      navigator.share({title: 'the title', text: 'the message', url: 'data:the url'})));
+}, 'share with user cancellation');
+
+share_test((t, webshare, mock) => {
+  mock.pushShareResult('the title', 'the message', 'data:the url',
+                       webshare.ShareError.INTERNAL_ERROR);
+  return callWithKeyDown(() => promise_rejects(
+      t, 'AbortError',
+      navigator.share({title: 'the title', text: 'the message', url: 'data:the url'})));
+}, 'share with invalid url template');
+
+</script>

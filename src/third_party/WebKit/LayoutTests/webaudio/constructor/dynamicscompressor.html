@@ -1,0 +1,94 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>
+      Test Constructor: DynamicsCompressor
+    </title>
+    <script src="../../resources/testharness.js"></script>
+    <script src="../../resources/testharnessreport.js"></script>
+    <script src="../resources/audit-util.js"></script>
+    <script src="../resources/audit.js"></script>
+    <script src="audionodeoptions.js"></script>
+  </head>
+  <body>
+    <script id="layout-test-code">
+      let context;
+
+      let audit = Audit.createTaskRunner();
+
+      audit.define('initialize', (task, should) => {
+        context = initializeContext(should);
+        task.done();
+      });
+
+      audit.define('invalid constructor', (task, should) => {
+        testInvalidConstructor(should, 'DynamicsCompressorNode', context);
+        task.done();
+      });
+
+      audit.define('default constructor', (task, should) => {
+        let prefix = 'node0';
+        let node =
+            testDefaultConstructor(should, 'DynamicsCompressorNode', context, {
+              prefix: prefix,
+              numberOfInputs: 1,
+              numberOfOutputs: 1,
+              channelCount: 2,
+              channelCountMode: 'max',
+              channelInterpretation: 'speakers'
+            });
+
+        testDefaultAttributes(should, node, prefix, [
+          {name: 'threshold', value: -24}, {name: 'knee', value: 30},
+          {name: 'ratio', value: 12}, {name: 'reduction', value: 0},
+          {name: 'attack', value: Math.fround(0.003)},
+          {name: 'release', value: 0.25}
+        ]);
+
+        task.done();
+      });
+
+      audit.define('test AudioNodeOptions', (task, should) => {
+        testAudioNodeOptions(should, context, 'DynamicsCompressorNode');
+        task.done();
+      });
+
+      audit.define('constructor with options', (task, should) => {
+        let node;
+        let options =
+            {threshold: -33, knee: 15, ratio: 7, attack: 0.625, release: 0.125};
+
+        should(
+            () => {
+              node = new DynamicsCompressorNode(context, options);
+            },
+            'node1 = new DynamicsCompressorNode(c, ' + JSON.stringify(options) +
+                ')')
+            .notThrow();
+        should(
+            node instanceof DynamicsCompressorNode,
+            'node1 instanceof DynamicsCompressorNode')
+            .beEqualTo(true);
+
+        should(node.threshold.value, 'node1.threshold.value')
+            .beEqualTo(options.threshold);
+        should(node.knee.value, 'node1.knee.value').beEqualTo(options.knee);
+        should(node.ratio.value, 'node1.ratio.value').beEqualTo(options.ratio);
+        should(node.attack.value, 'node1.attack.value')
+            .beEqualTo(options.attack);
+        should(node.release.value, 'node1.release.value')
+            .beEqualTo(options.release);
+
+        should(node.channelCount, 'node1.channelCount').beEqualTo(2);
+        should(node.channelCountMode, 'node1.channelCountMode')
+            .beEqualTo('max');
+        should(node.channelInterpretation, 'node1.channelInterpretation')
+            .beEqualTo('speakers');
+
+        task.done();
+      });
+
+      audit.run();
+    </script>
+  </body>
+</html>

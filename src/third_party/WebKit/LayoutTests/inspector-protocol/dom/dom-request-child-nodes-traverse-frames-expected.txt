@@ -1,0 +1,148 @@
+Tests how DOM.requestChildNodes pierces through frames.
+{
+    method : DOM.setChildNodes
+    params : {
+        nodes : [
+            [0] : {
+                attributes : [
+                    [0] : id
+                    [1] : depth-1
+                ]
+                backendNodeId : <backendNodeId>
+                childNodeCount : 1
+                children : [
+                    [0] : {
+                        attributes : [
+                            [0] : id
+                            [1] : depth-2
+                        ]
+                        backendNodeId : <backendNodeId>
+                        childNodeCount : 1
+                        children : [
+                            [0] : {
+                                attributes : [
+                                    [0] : id
+                                    [1] : depth-3
+                                ]
+                                backendNodeId : <backendNodeId>
+                                childNodeCount : 1
+                                children : [
+                                    [0] : {
+                                        attributes : [
+                                            [0] : src
+                                            [1] : iframe.html
+                                        ]
+                                        backendNodeId : <backendNodeId>
+                                        childNodeCount : 0
+                                        children : [
+                                        ]
+                                        contentDocument : {
+                                            backendNodeId : <backendNodeId>
+                                            baseURL : <baseURL>
+                                            childNodeCount : 1
+                                            children : [
+                                                [0] : {
+                                                    attributes : [
+                                                    ]
+                                                    backendNodeId : <backendNodeId>
+                                                    childNodeCount : 2
+                                                    children : [
+                                                        [0] : {
+                                                            attributes : [
+                                                            ]
+                                                            backendNodeId : <backendNodeId>
+                                                            childNodeCount : 0
+                                                            children : [
+                                                            ]
+                                                            localName : head
+                                                            nodeId : <nodeId>
+                                                            nodeName : HEAD
+                                                            nodeType : 1
+                                                            nodeValue : 
+                                                            parentId : <parentId>
+                                                        }
+                                                        [1] : {
+                                                            attributes : [
+                                                            ]
+                                                            backendNodeId : <backendNodeId>
+                                                            childNodeCount : 1
+                                                            children : [
+                                                                [0] : {
+                                                                    attributes : [
+                                                                        [0] : id
+                                                                        [1] : element_in_an_iframe
+                                                                    ]
+                                                                    backendNodeId : <backendNodeId>
+                                                                    childNodeCount : 0
+                                                                    children : [
+                                                                    ]
+                                                                    localName : div
+                                                                    nodeId : <nodeId>
+                                                                    nodeName : DIV
+                                                                    nodeType : 1
+                                                                    nodeValue : 
+                                                                    parentId : <parentId>
+                                                                }
+                                                            ]
+                                                            localName : body
+                                                            nodeId : <nodeId>
+                                                            nodeName : BODY
+                                                            nodeType : 1
+                                                            nodeValue : 
+                                                            parentId : <parentId>
+                                                        }
+                                                    ]
+                                                    frameId : <frameId>
+                                                    localName : html
+                                                    nodeId : <nodeId>
+                                                    nodeName : HTML
+                                                    nodeType : 1
+                                                    nodeValue : 
+                                                    parentId : <parentId>
+                                                }
+                                            ]
+                                            documentURL : <documentURL>
+                                            localName : 
+                                            nodeId : <nodeId>
+                                            nodeName : #document
+                                            nodeType : 9
+                                            nodeValue : 
+                                            xmlVersion : 
+                                        }
+                                        frameId : <frameId>
+                                        localName : iframe
+                                        nodeId : <nodeId>
+                                        nodeName : IFRAME
+                                        nodeType : 1
+                                        nodeValue : 
+                                        parentId : <parentId>
+                                    }
+                                ]
+                                localName : div
+                                nodeId : <nodeId>
+                                nodeName : DIV
+                                nodeType : 1
+                                nodeValue : 
+                                parentId : <parentId>
+                            }
+                        ]
+                        localName : div
+                        nodeId : <nodeId>
+                        nodeName : DIV
+                        nodeType : 1
+                        nodeValue : 
+                        parentId : <parentId>
+                    }
+                ]
+                localName : div
+                nodeId : <nodeId>
+                nodeName : DIV
+                nodeType : 1
+                nodeValue : 
+                parentId : <parentId>
+            }
+        ]
+        parentId : <parentId>
+    }
+}
+

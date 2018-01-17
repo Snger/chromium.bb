@@ -1,0 +1,44 @@
+<html>
+<head>
+<script src="../../http/tests/inspector/inspector-test.js"></script>
+<script>
+
+function A() {
+    this.testFoo = "abc";
+}
+
+function B() { 
+    this.testBar = "cde";
+}
+
+B.prototype = new A();
+b = new B();
+
+async function test()
+{
+    var result = await InspectorTest.RuntimeAgent.evaluate("window.b");
+    var properties = await InspectorTest.RuntimeAgent.getProperties(result.objectId, /* isOwnProperty */ false);
+
+    if (!properties) {
+        InspectorTest.addResult("Properties do not exist");
+        InspectorTest.completeTest();
+        return;
+    }
+ 
+    for (var property of properties) {
+        if (property.name.match(/^test/)) 
+            InspectorTest.addResult("property.name==\"" + property.name + "\" isOwn==\"" + property.isOwn + "\"");
+    }
+    InspectorTest.completeTest();
+
+}
+</script>
+</head>
+
+<body onload="runTest()">
+<p>
+Tests RemoteObject.getProperties.
+</p>
+
+</body>
+</html>

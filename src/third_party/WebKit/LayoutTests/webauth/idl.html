@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<script src=../resources/testharness.js></script>
+<script src=../resources/testharnessreport.js></script>
+<script src=../resources/WebIDLParser.js></script>
+<script src=../resources/idlharness.js></script>
+<script type="text/plain" id="tested">
+[SecureContext]
+interface PublicKeyCredential : Credential {
+    [SameObject] readonly attribute ArrayBuffer           rawId;
+    [SameObject] readonly attribute AuthenticatorResponse response;
+};
+
+partial dictionary CredentialCreationOptions {
+    MakeCredentialOptions? publicKey;
+};
+
+partial dictionary CredentialRequestOptions {
+    PublicKeyCredentialRequestOptions? publicKey;
+};
+
+[SecureContext]
+interface AuthenticatorResponse {
+    [SameObject] readonly attribute ArrayBuffer clientDataJSON;
+};
+
+[SecureContext]
+interface AuthenticatorAttestationResponse : AuthenticatorResponse {
+    [SameObject] readonly attribute ArrayBuffer attestationObject;
+};
+
+[SecureContext]
+interface AuthenticatorAssertionResponse : AuthenticatorResponse {
+    [SameObject] readonly attribute ArrayBuffer      authenticatorData;
+    [SameObject] readonly attribute ArrayBuffer      signature;
+};
+
+dictionary PublicKeyCredentialParameters {
+    required PublicKeyCredentialType  type;
+    required AlgorithmIdentifier   algorithm;
+};
+
+dictionary MakeCredentialOptions {
+    required PublicKeyCredentialEntity rp;
+    required PublicKeyCredentialUserEntity user;
+
+    required BufferSource                         challenge;
+    required sequence<PublicKeyCredentialParameters> parameters;
+
+    unsigned long                        timeout;
+    sequence<PublicKeyCredentialDescriptor> excludeCredentials = [];
+    AuthenticatorSelectionCriteria       authenticatorSelection;
+};
+
+dictionary PublicKeyCredentialEntity {
+    DOMString id;
+    DOMString name;
+    USVString icon;
+};
+
+dictionary PublicKeyCredentialUserEntity : PublicKeyCredentialEntity {
+    DOMString displayName;
+};
+
+dictionary AuthenticatorSelectionCriteria {
+    AuthenticatorAttachment    attachment;
+    boolean       requireResidentKey = false;
+};
+
+enum AuthenticatorAttachment {
+    "platform",
+    "cross-platform"
+};
+
+dictionary PublicKeyCredentialRequestOptions {
+    required BufferSource                challenge;
+    unsigned long                        timeout;
+    USVString                            rpId;
+    sequence<PublicKeyCredentialDescriptor> allowCredentials = [];
+};
+
+dictionary CollectedClientData {
+    required DOMString           challenge;
+    required DOMString           origin;
+    required DOMString           hashAlgorithm;
+    DOMString                    tokenBindingId;
+};
+
+enum PublicKeyCredentialType {
+    "public-key"
+};
+
+dictionary PublicKeyCredentialDescriptor {
+    required PublicKeyCredentialType type;
+    required BufferSource id;
+    sequence<Transport>   transports;
+};
+
+enum Transport {
+    "usb",
+    "nfc",
+    "ble"
+};
+
+interface WebAuthentication {
+    Promise<AuthenticatorAttestationResponse> makeCredential (
+        MakeCredentialOptions	                publicKey
+    );
+
+    Promise<AuthenticatorAssertionResponse> getAssertion (
+        PublicKeyCredentialRequestOptions     publicKey
+    );
+};
+
+</script>
+<script>
+(function() {
+    "use strict";
+    var idl_array = new IdlArray();
+    idl_array.add_idls(document.querySelector('#tested').textContent);
+    idl_array.add_objects({
+      WebAuthentication: ['navigator.authentication']
+    });
+    idl_array.test();
+})();
+</script>

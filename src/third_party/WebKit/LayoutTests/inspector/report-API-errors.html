@@ -1,0 +1,36 @@
+<html>
+<head>
+<script src="../http/tests/inspector/inspector-test.js"></script>
+<script>
+
+function test()
+{
+
+    console.error = function()
+    {
+        InspectorTest.addResult(String.sprintf.apply(this, arguments));
+    }
+
+    InspectorTest.NetworkAgent.setUserAgentOverride(1);
+    InspectorTest.NetworkAgent.setUserAgentOverride();
+    InspectorTest.NetworkAgent.setUserAgentOverride("123", "not a function");
+    InspectorTest.NetworkAgent.setUserAgentOverride("123", undefined);
+    InspectorTest.RuntimeAgent.evaluate("true", "test");
+    InspectorTest.RuntimeAgent.evaluate("true", "test", function(){});
+    InspectorTest.RuntimeAgent.evaluate("true", "test", undefined, function(){});
+    InspectorTest.mainTarget._onMessage('{"method": "wrongDomain.something-strange", "params": {}}');
+    InspectorTest.mainTarget._onMessage('{"method": "Inspector.something-strange", "params": {}}');
+
+    InspectorTest.completeTest();
+}
+
+</script>
+</head>
+
+<body onload="runTest()">
+<p>
+Tests that InspectorBackendStub is catching incorrect arguments.
+</p>
+
+</body>
+</html>

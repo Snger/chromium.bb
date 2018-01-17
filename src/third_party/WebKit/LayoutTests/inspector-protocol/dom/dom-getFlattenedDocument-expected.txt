@@ -1,0 +1,406 @@
+Tests DOM.getFlattenedDocument method.
+{
+    nodes : [
+        [0] : {
+            attributes : [
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 0
+            children : [
+            ]
+            localName : head
+            nodeId : <nodeId>
+            nodeName : HEAD
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [1] : {
+            backendNodeId : <backendNodeId>
+            localName : 
+            nodeId : <nodeId>
+            nodeName : #text
+            nodeType : 3
+            nodeValue :  A     
+            parentId : <parentId>
+        }
+        [2] : {
+            backendNodeId : <backendNodeId>
+            localName : 
+            nodeId : <nodeId>
+            nodeName : #text
+            nodeType : 3
+            nodeValue :  B       
+            parentId : <parentId>
+        }
+        [3] : {
+            backendNodeId : <backendNodeId>
+            localName : 
+            nodeId : <nodeId>
+            nodeName : #text
+            nodeType : 3
+            nodeValue :  C         
+            parentId : <parentId>
+        }
+        [4] : {
+            backendNodeId : <backendNodeId>
+            localName : 
+            nodeId : <nodeId>
+            nodeName : #text
+            nodeType : 3
+            nodeValue :  D           
+            parentId : <parentId>
+        }
+        [5] : {
+            backendNodeId : <backendNodeId>
+            localName : 
+            nodeId : <nodeId>
+            nodeName : #text
+            nodeType : 3
+            nodeValue :  E           
+            parentId : <parentId>
+        }
+        [6] : {
+            attributes : [
+                [0] : id
+                [1] : E
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 1
+            children : [
+            ]
+            localName : div
+            nodeId : <nodeId>
+            nodeName : DIV
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [7] : {
+            attributes : [
+                [0] : id
+                [1] : D
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 2
+            children : [
+            ]
+            localName : div
+            nodeId : <nodeId>
+            nodeName : DIV
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [8] : {
+            attributes : [
+                [0] : id
+                [1] : C
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 2
+            children : [
+            ]
+            localName : div
+            nodeId : <nodeId>
+            nodeName : DIV
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [9] : {
+            attributes : [
+                [0] : id
+                [1] : B
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 2
+            children : [
+            ]
+            localName : div
+            nodeId : <nodeId>
+            nodeName : DIV
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [10] : {
+            attributes : [
+                [0] : id
+                [1] : A
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 2
+            children : [
+            ]
+            localName : div
+            nodeId : <nodeId>
+            nodeName : DIV
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [11] : {
+            backendNodeId : <backendNodeId>
+            localName : 
+            nodeId : <nodeId>
+            nodeName : #text
+            nodeType : 3
+            nodeValue :  @font-face {   font-family: 'ahem';   src: url(../../../resources/Ahem.ttf); } 
+            parentId : <parentId>
+        }
+        [12] : {
+            attributes : [
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 1
+            children : [
+            ]
+            localName : style
+            nodeId : <nodeId>
+            nodeName : STYLE
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [13] : {
+            attributes : [
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 1
+            children : [
+            ]
+            localName : head
+            nodeId : <nodeId>
+            nodeName : HEAD
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [14] : {
+            backendNodeId : <backendNodeId>
+            localName : 
+            nodeId : <nodeId>
+            nodeName : #text
+            nodeType : 3
+            nodeValue :  Hello from the iframe. 
+            parentId : <parentId>
+        }
+        [15] : {
+            attributes : [
+                [0] : style
+                [1] : font-family: ahem;
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 1
+            children : [
+            ]
+            localName : div
+            nodeId : <nodeId>
+            nodeName : DIV
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [16] : {
+            attributes : [
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 1
+            children : [
+            ]
+            localName : body
+            nodeId : <nodeId>
+            nodeName : BODY
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [17] : {
+            attributes : [
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 2
+            children : [
+            ]
+            frameId : <frameId>
+            localName : html
+            nodeId : <nodeId>
+            nodeName : HTML
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [18] : {
+            attributes : [
+                [0] : src
+                [1] : ./simple-iframe.html
+                [2] : width
+                [3] : 400
+                [4] : height
+                [5] : 200
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 0
+            children : [
+            ]
+            contentDocument : {
+                backendNodeId : <backendNodeId>
+                baseURL : <baseURL>
+                childNodeCount : 1
+                children : [
+                ]
+                documentURL : <documentURL>
+                localName : 
+                nodeId : <nodeId>
+                nodeName : #document
+                nodeType : 9
+                nodeValue : 
+                xmlVersion : 
+            }
+            frameId : <frameId>
+            localName : iframe
+            nodeId : <nodeId>
+            nodeName : IFRAME
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [19] : {
+            backendNodeId : <backendNodeId>
+            localName : 
+            nodeId : <nodeId>
+            nodeName : #text
+            nodeType : 3
+            nodeValue :  :host {     color: red; } 
+            parentId : <parentId>
+        }
+        [20] : {
+            attributes : [
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 1
+            children : [
+            ]
+            localName : style
+            nodeId : <nodeId>
+            nodeName : STYLE
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [21] : {
+            attributes : [
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 0
+            children : [
+            ]
+            localName : div
+            nodeId : <nodeId>
+            nodeName : DIV
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [22] : {
+            backendNodeId : <backendNodeId>
+            localName : 
+            nodeId : <nodeId>
+            nodeName : #text
+            nodeType : 3
+            nodeValue : Hi from a template!
+            parentId : <parentId>
+        }
+        [23] : {
+            attributes : [
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 1
+            children : [
+            ]
+            localName : h1
+            nodeId : <nodeId>
+            nodeName : H1
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [24] : {
+            attributes : [
+                [0] : id
+                [1] : shadow-host
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 0
+            children : [
+            ]
+            localName : div
+            nodeId : <nodeId>
+            nodeName : DIV
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+            shadowRoots : [
+                [0] : {
+                    backendNodeId : <backendNodeId>
+                    childNodeCount : 3
+                    children : [
+                    ]
+                    localName : 
+                    nodeId : <nodeId>
+                    nodeName : #document-fragment
+                    nodeType : 11
+                    nodeValue : 
+                    shadowRootType : open
+                }
+            ]
+        }
+        [25] : {
+            attributes : [
+                [0] : class
+                [1] : body-class
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 3
+            children : [
+            ]
+            localName : body
+            nodeId : <nodeId>
+            nodeName : BODY
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [26] : {
+            attributes : [
+            ]
+            backendNodeId : <backendNodeId>
+            childNodeCount : 2
+            children : [
+            ]
+            frameId : <frameId>
+            localName : html
+            nodeId : <nodeId>
+            nodeName : HTML
+            nodeType : 1
+            nodeValue : 
+            parentId : <parentId>
+        }
+        [27] : {
+            backendNodeId : <backendNodeId>
+            baseURL : <baseURL>
+            childNodeCount : 1
+            children : [
+            ]
+            documentURL : <documentURL>
+            localName : 
+            nodeId : <nodeId>
+            nodeName : #document
+            nodeType : 9
+            nodeValue : 
+            xmlVersion : 
+        }
+    ]
+}
+
