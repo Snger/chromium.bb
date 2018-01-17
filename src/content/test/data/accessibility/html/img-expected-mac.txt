@@ -1,0 +1,5 @@
+AXWebArea
+++AXGroup
+++++AXImage AXRoleDescription='image' AXDescription='pipe'
+++++AXUnknown
+++++AXImage AXRoleDescription='image' AXDescription='  '
