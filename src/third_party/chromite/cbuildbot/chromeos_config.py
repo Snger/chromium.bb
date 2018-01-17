@@ -8,8 +8,8 @@ from __future__ import print_function
 
 import copy
 
-from chromite.cbuildbot import config_lib
-from chromite.cbuildbot import constants
+from chromite.lib import config_lib
+from chromite.lib import constants
 from chromite.lib import factory
 
 
@@ -319,13 +319,13 @@ class HWTestList(object):
             config_lib.HWTestConfig('kernel_daily_benchmarks',
                                     **default_dict)]
 
-  def ToolchainTestMedium(self, **kwargs):
+  def ToolchainTestMedium(self, machine_pool, **kwargs):
     """Return list of HWTESTConfigs to run toolchain LLVM correctness tests.
 
     Since the kernel is not built with LLVM, it makes no sense for the
     toolchain to run kernel tests on LLVM builds.
     """
-    default_dict = dict(pool=constants.HWTEST_SUITES_POOL, async=False,
+    default_dict = dict(pool=machine_pool, async=False,
                         file_bugs=False,
                         priority=constants.HWTEST_DEFAULT_PRIORITY)
     default_dict.update(kwargs)
@@ -423,12 +423,12 @@ _arm_internal_release_boards = frozenset([
     'elm',
     'gale',
     'gru',
+    'hana',
     'kevin',
     'kevin-tpm2',
     'nyan',
     'nyan_big',
     'nyan_blaze',
-    'nyan_freon',
     'nyan_kitty',
     'oak',
     'peach_pi',
@@ -452,7 +452,6 @@ _arm_internal_release_boards = frozenset([
 
 _arm_external_boards = frozenset([
     'arm-generic',
-    'arm-generic_freon',
     'arm64-generic',
     'arm64-llvmpipe',
 ])
@@ -468,6 +467,7 @@ _x86_internal_release_boards = frozenset([
     'buddy',
     'butterfly',
     'candy',
+    'caroline',
     'cave',
     'celes',
     'celes-cheets',
@@ -511,6 +511,7 @@ _x86_internal_release_boards = frozenset([
     'parrot_ivb',
     'pbody',
     'peppy',
+    'pyro',
     'quawks',
     'rambi',
     'reef',
@@ -521,6 +522,7 @@ _x86_internal_release_boards = frozenset([
     'sentry',
     'setzer',
     'slippy',
+    'snappy',
     'squawks',
     'stout',
     'strago',
@@ -616,16 +618,23 @@ _cheets_x86_boards = _cheets_boards | frozenset([
     'kunimitsu',
     'lars',
     'lulu',
+    'pyro',
     'reef',
     'reks',
     'samus',
     'sentry',
     'setzer',
+    'snappy',
     'strago',
     'terra',
     'ultima',
     'umaro',
     'wizpig',
+])
+
+_beaglebone_boards = frozenset([
+    'beaglebone',
+    'beaglebone_servo',
 ])
 
 _lakitu_boards = frozenset([
@@ -657,7 +666,18 @@ _base_layout_boards = _lakitu_boards
 _no_unittest_boards = frozenset((
 ))
 
-_no_vmtest_boards = _arm_boards | _brillo_boards | _cheets_x86_boards
+_cheets_vmtest_boards = frozenset([
+    'cyan',
+])
+
+_no_vmtest_boards = (_arm_boards | _brillo_boards |
+                     _cheets_x86_boards - _cheets_vmtest_boards)
+
+# List of boards that run VMTests but only the smoke tests, not the AU tests
+# until b/31341543 has been fixed.
+_smoke_only_vmtest_boards = frozenset([
+    'cyan',
+])
 
 # This is a list of configs that should be included on the main waterfall, but
 # aren't included by default (see IsDefaultMainWaterfall). This loosely
@@ -679,18 +699,12 @@ _waterfall_config_map = {
         # ASAN
         'amd64-generic-asan',
         'x86-generic-asan',
-
-        # Utility
-        'chromiumos-sdk',
-
     ]),
 
     constants.WATERFALL_INTERNAL: frozenset([
         # Experimental Paladins.
         'reef-paladin',
         'gale-paladin',
-        'gru-paladin',
-        'guado_moblab-paladin',
         'lakitu_next-paladin',
 
         # Incremental Builders.
@@ -700,29 +714,7 @@ _waterfall_config_map = {
 
         # Firmware Builders.
         'link-depthcharge-full-firmware',
-
-        # Toolchain Builders: 4 architectures {amd64,arm,x86,arm64}
-        #                   x 3 toolchains {gcc,llvm,llvm-next}
-        'amd64-gcc-toolchain',
-        'amd64-llvm-toolchain',
-        'amd64-llvm-next-toolchain',
-        'arm-gcc-toolchain',
-        'arm-llvm-toolchain',
-        'arm-llvm-next-toolchain',
-        'x86-gcc-toolchain',
-        'x86-llvm-toolchain',
-        'x86-llvm-next-toolchain',
-        'arm64-gcc-toolchain',
-        'arm64-llvm-toolchain',
-        'arm64-llvm-next-toolchain',
     ]),
-
-    constants.WATERFALL_RELEASE: frozenset([
-    ]),
-
-    constants.WATERFALL_INFRA: frozenset([
-        'config-updater',
-    ])
 }
 
 
@@ -885,14 +877,9 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
     hw_test_list: Object to help create lists of standard HW Tests.
     is_release_branch: True if config for a release branch, False for TOT.
   """
-  default_hw_tests_override = config_lib.BuildConfig(
+  site_config.AddTemplate(
+      'default_hw_tests_override',
       hw_tests_override=hw_test_list.DefaultList(
-          num=constants.HWTEST_TRYBOT_NUM, pool=constants.HWTEST_TRYBOT_POOL,
-          file_bugs=False),
-  )
-
-  default_paladin_hw_tests_override = config_lib.BuildConfig(
-      hw_tests_override=hw_test_list.DefaultListNonCanary(
           num=constants.HWTEST_TRYBOT_NUM, pool=constants.HWTEST_TRYBOT_POOL,
           file_bugs=False),
   )
@@ -911,6 +898,13 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
   )
 
   site_config.AddTemplate(
+      'smoke_only_vmtest_builder',
+      vm_tests=[config_lib.VMTestConfig(constants.SMOKE_SUITE_TEST_TYPE)],
+      vm_tests_override=None,
+      run_gce_tests=False,
+  )
+
+  site_config.AddTemplate(
       'no_hwtest_builder',
       hw_tests=[],
       hw_tests_override=[],
@@ -920,7 +914,7 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
 
   site_config.AddTemplate(
       'full',
-      default_hw_tests_override,
+      site_config.templates.default_hw_tests_override,
       # Full builds are test builds to show that we can build from scratch,
       # so use settings to build from scratch, and archive the results.
       usepkg_build_packages=False,
@@ -955,7 +949,9 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
 
   site_config.AddTemplate(
       'paladin',
-      default_paladin_hw_tests_override,
+      hw_tests_override=hw_test_list.DefaultListNonCanary(
+          num=constants.HWTEST_TRYBOT_NUM, pool=constants.HWTEST_TRYBOT_POOL,
+          file_bugs=False),
       chroot_replace=False,
       important=True,
       build_type=constants.PALADIN_TYPE,
@@ -979,7 +975,7 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
   # For that reason, they don't uprev.
   site_config.AddTemplate(
       'incremental',
-      default_hw_tests_override,
+      site_config.templates.default_hw_tests_override,
       build_type=constants.INCREMENTAL_TYPE,
       chroot_replace=False,
       uprev=False,
@@ -987,6 +983,14 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
       description='Incremental Builds',
       doc='http://www.chromium.org/chromium-os/build/builder-overview#'
           'TOC-Continuous',
+  )
+
+  site_config.AddTemplate(
+      'external',
+      internal=False,
+      overlays=constants.PUBLIC_OVERLAYS,
+      manifest_repo_url=site_config.params['MANIFEST_URL'],
+      manifest=constants.DEFAULT_MANIFEST,
   )
 
   # This builds with more source available.
@@ -1039,12 +1043,13 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
       rootfs_verification=False,
       paygen=False,
       signer_tests=False,
+      images=remove_images(['recovery', 'factory_install']),
   )
 
   # This adds Chrome branding.
   site_config.AddTemplate(
       'official_chrome',
-      useflags=[constants.USE_CHROME_INTERNAL],
+      useflags=append_useflags([constants.USE_CHROME_INTERNAL]),
   )
 
   # This sets chromeos_official.
@@ -1056,7 +1061,7 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
 
   site_config.AddTemplate(
       'asan',
-      default_hw_tests_override,
+      site_config.templates.default_hw_tests_override,
       profile='asan',
       disk_layout='2gb-rootfs',
       # TODO(deymo): ASan builders generate bigger files, in particular a bigger
@@ -1071,7 +1076,7 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
 
   site_config.AddTemplate(
       'telemetry',
-      default_hw_tests_override,
+      site_config.templates.default_hw_tests_override,
       build_type=constants.INCREMENTAL_TYPE,
       uprev=False,
       overlays=constants.PUBLIC_OVERLAYS,
@@ -1083,7 +1088,7 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
 
   site_config.AddTemplate(
       'external_chromium_pfq',
-      default_hw_tests_override,
+      site_config.templates.default_hw_tests_override,
       build_type=constants.CHROME_PFQ_TYPE,
       important=True,
       uprev=False,
@@ -1180,21 +1185,6 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
   )
 
   site_config.AddTemplate(
-      'android_pfq',
-      default_hw_tests_override,
-      build_type=constants.ANDROID_PFQ_TYPE,
-      important=True,
-      uprev=False,
-      overlays=constants.BOTH_OVERLAYS,
-      manifest_version=True,
-      android_rev=constants.ANDROID_REV_LATEST,
-      description='Preflight Android Uprev & Build (internal)',
-      vm_tests=[config_lib.VMTestConfig(constants.SMOKE_SUITE_TEST_TYPE),
-                config_lib.VMTestConfig(constants.SIMPLE_AU_TEST_TYPE)],
-      vm_tests_override=None,
-  )
-
-  site_config.AddTemplate(
       'tot_asan_informational',
       site_config.templates.chromium_pfq_informational,
       site_config.templates.asan,
@@ -1222,7 +1212,6 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
       site_config.templates.paladin,
       site_config.templates.internal,
       site_config.templates.official_chrome,
-      _template='paladin',
       manifest=constants.OFFICIAL_MANIFEST,
       overlays=constants.BOTH_OVERLAYS,
       prebuilts=constants.PRIVATE,
@@ -1234,59 +1223,10 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
   site_config.AddTemplate(
       'internal_nowithdebug_paladin',
       site_config.templates.internal_paladin,
-      _template='paladin',
       useflags=append_useflags(['-cros-debug']),
       description=(site_config.templates.paladin.description +
                    ' (internal, nowithdebug)'),
       prebuilts=False,
-  )
-
-  site_config.AddTemplate(
-      'pre_cq',
-      site_config.templates.paladin,
-      build_type=constants.INCREMENTAL_TYPE,
-      build_packages_in_background=True,
-      pre_cq=True,
-      archive=False,
-      chrome_sdk=False,
-      chroot_replace=True,
-      debug_symbols=False,
-      prebuilts=False,
-      cpe_export=False,
-      vm_tests=[config_lib.VMTestConfig(constants.SMOKE_SUITE_TEST_TYPE)],
-      vm_tests_override=None,
-      description='Verifies compilation, building an image, and vm/unit tests '
-                  'if supported.',
-      doc='http://www.chromium.org/chromium-os/build/builder-overview#'
-          'TOC-Pre-CQ',
-      health_alert_recipients=['chromeos-infra-eng@grotations.appspotmail.com'],
-      health_threshold=3,
-  )
-
-  # Pre-CQ targets that only check compilation and unit tests.
-  site_config.AddTemplate(
-      'unittest_only_pre_cq',
-      site_config.templates.pre_cq,
-      site_config.templates.no_vmtest_builder,
-      description='Verifies compilation and unit tests only',
-      compilecheck=True,
-  )
-
-  # Pre-CQ targets that don't run VMTests.
-  site_config.AddTemplate(
-      'no_vmtest_pre_cq',
-      site_config.templates.pre_cq,
-      site_config.templates.no_vmtest_builder,
-      description='Verifies compilation, building an image, and unit tests '
-                  'if supported.',
-  )
-
-  # Pre-CQ targets that only check compilation.
-  site_config.AddTemplate(
-      'compile_only_pre_cq',
-      site_config.templates.unittest_only_pre_cq,
-      description='Verifies compilation only',
-      unittests=False,
   )
 
   # Internal incremental builders don't use official chrome because we want
@@ -1295,7 +1235,6 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
       'internal_incremental',
       site_config.templates.internal,
       site_config.templates.incremental,
-      _template='incremental',
       overlays=constants.BOTH_OVERLAYS,
       description='Incremental Builds (internal)',
   )
@@ -1306,7 +1245,7 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
   site_config.AddTemplate(
       'test_ap',
       site_config.templates.internal,
-      default_hw_tests_override,
+      site_config.templates.default_hw_tests_override,
       build_type=constants.INCREMENTAL_TYPE,
       description='WiFi AP images used in testing',
       profile='testbed-ap',
@@ -1322,6 +1261,7 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
       description='Run Unittests repeatedly to look for flake.',
 
       builder_class_name='test_builders.UnittestStressBuilder',
+      active_waterfall=constants.WATERFALL_TRYBOT,
 
       # Make this available, so we can stress a previous build.
       manifest_version=True,
@@ -1332,7 +1272,7 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
       site_config.templates.full,
       site_config.templates.official,
       site_config.templates.internal,
-      default_hw_tests_override,
+      site_config.templates.default_hw_tests_override,
       build_type=constants.CANARY_TYPE,
       build_timeout=12 * 60 * 60 if is_release_branch else (7 * 60 + 50) * 60,
       useflags=append_useflags(['-cros-debug']),
@@ -1426,7 +1366,6 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
                                   warn_only=True, num=1),
           config_lib.HWTestConfig(constants.HWTEST_AU_SUITE,
                                   warn_only=True, num=1)],
-      _template='release',
   )
 
   site_config.AddTemplate(
@@ -1437,18 +1376,6 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
           config_lib.HWTestConfig(constants.HWTEST_ARC_COMMIT_SUITE, num=1),
           config_lib.HWTestConfig(constants.HWTEST_AU_SUITE,
                                   warn_only=True, num=1)],
-      _template='release',
-  )
-
-  site_config.AddTemplate(
-      'wificell_pre_cq',
-      site_config.templates.pre_cq,
-      unittests=False,
-      hw_tests=hw_test_list.WiFiCellPoolPreCQ(),
-      hw_tests_override=hw_test_list.WiFiCellPoolPreCQ(),
-      archive=True,
-      image_test=False,
-      description='WiFi tests acting as pre-cq for WiFi related changes',
   )
 
   # Factory and Firmware releases much inherit from these classes.
@@ -1460,14 +1387,21 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
   site_config.AddTemplate(
       'factory',
       site_config.templates.release,
+      site_config.templates.no_hwtest_builder,
+      site_config.templates.no_vmtest_builder,
+      afdo_use=False,
+      chrome_sdk=False,
+      chrome_sdk_build_chrome=False,
+      description='Factory Builds',
+      factory_toolkit=True,
+      hwqual=False,
+      images=['test', 'factory_install'],
+      image_test=False,
+      paygen=False,
+      signer_tests=False,
+      sign_types=['factory'],
       upload_hw_test_artifacts=False,
       upload_symbols=False,
-      hw_tests=[],
-      chrome_sdk=False,
-      description='Factory Builds',
-      paygen=False,
-      afdo_use=False,
-      sign_types=['factory'],
   )
 
   site_config.AddTemplate(
@@ -1484,7 +1418,7 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
       dev_installer_prebuilts=False,
       upload_hw_test_artifacts=True,
       upload_symbols=False,
-      useflags=['chromeless_tty'],
+      useflags=append_useflags(['chromeless_tty']),
       signer_tests=False,
       trybot_list=False,
       paygen=False,
@@ -1524,14 +1458,12 @@ def CreateBuilderTemplates(site_config, hw_test_list, is_release_branch):
       build_type=constants.PAYLOADS_TYPE,
       builder_class_name='release_builders.GeneratePayloadsBuilder',
       description='Regenerate release payloads.',
-
       # Sync to the code used to do the build the first time.
       manifest_version=True,
-
       # This is the actual work we want to do.
       paygen=True,
-
       upload_hw_test_artifacts=False,
+      active_waterfall=constants.WATERFALL_TRYBOT,
   )
 
 
@@ -1576,25 +1508,23 @@ def CreateBoardConfigs(site_config, ge_build_config):
       board_config.update(site_config.templates.no_unittest_builder)
     if board in _no_vmtest_boards:
       board_config.update(site_config.templates.no_vmtest_builder)
+    if board in _smoke_only_vmtest_boards:
+      board_config.update(site_config.templates.smoke_only_vmtest_builder)
+    if board in _beaglebone_boards:
+      board_config.apply(site_config.templates.beaglebone)
 
-    # Note: board_config configs should not specify a useflag list. Convert any
-    # useflags that this board_config config has accrued (for instance,
-    # 'chrome_internal', via official_chrome) into an append_useflags callable.
-    # This is because the board board_config config is the last config to be
-    # derived from when creating a board-specific config,
-    if 'useflags' in board_config:
-      board_config['useflags'] = append_useflags(board_config.useflags)
     result[board] = board_config
 
   return result
 
 
-def ToolchainBuilders(site_config, hw_test_list):
+def ToolchainBuilders(site_config, board_configs, hw_test_list):
   """Define templates used for toolchain builders.
 
   Args:
     site_config: config_lib.SiteConfig to be modified by adding templates
                  and configs.
+    board_configs: Dictionary mapping board names to per-board configurations.
     hw_test_list: Object to help create lists of standard HW Tests.
   """
   site_config.AddTemplate(
@@ -1608,7 +1538,9 @@ def ToolchainBuilders(site_config, hw_test_list):
       buildslave_type=constants.GCE_BEEFY_BUILD_SLAVE_TYPE,
       images=['base', 'test', 'recovery'],
       build_timeout=(15 * 60 + 50) * 60,
-      useflags=append_useflags(['-cros-debug']),
+      # Need to re-enable platform_SyncCrash after issue 658864 is fixed.
+      useflags=append_useflags(['-cros-debug', '-test_security_OpenFDs',
+                                '-test_platform_SyncCrash']),
       afdo_use=True,
       manifest=constants.OFFICIAL_MANIFEST,
       manifest_version=True,
@@ -1616,9 +1548,38 @@ def ToolchainBuilders(site_config, hw_test_list):
       trybot_list=False,
       description="Toolchain Builds (internal)",
   )
+  site_config.AddTemplate(
+      'gcc_toolchain',
+      site_config.templates.toolchain,
+      description='Full release build with next minor GCC toolchain revision',
+      gcc_githash='svn-mirror/google/gcc-4_9',
+      latest_toolchain=True,
+      hw_tests=hw_test_list.ToolchainTestFull(),
+      hw_tests_override=hw_test_list.ToolchainTestFull(),
+  )
+  site_config.AddTemplate(
+      'llvm_toolchain',
+      site_config.templates.toolchain,
+      description='Full release build with LLVM toolchain',
+      profile='llvm',
+      hw_tests=hw_test_list.ToolchainTestMedium(constants.HWTEST_SUITES_POOL),
+      hw_tests_override=hw_test_list.ToolchainTestMedium(
+          constants.HWTEST_SUITES_POOL),
+  )
+  site_config.AddTemplate(
+      'llvm_next_toolchain',
+      site_config.templates.llvm_toolchain,
+      description='Full release build with LLVM (next) toolchain',
+      useflags=['clang', 'llvm-next', '-test_security_OpenFDs',
+                '-test_platform_SyncCrash'],
+  )
+
+  ### Toolchain waterfall entries.
+  ### Toolchain builder configs: 4 architectures {amd64,arm,x86,arm64}
+  ###                          x 3 toolchains {gcc,llvm,llvm-next}
+  ### All of these builders should be slaves of 'master-toolchain'.
 
   ### Master toolchain config.
-
   site_config.Add(
       'master-toolchain',
       site_config.templates.toolchain,
@@ -1629,132 +1590,343 @@ def ToolchainBuilders(site_config, hw_test_list):
       health_alert_recipients=['c-compiler-chrome@google.com'],
       health_threshold=1,
       afdo_use=False,
+      important=True,
+      active_waterfall=constants.WATERFALL_INTERNAL,
       buildslave_type=constants.GCE_WIMPY_BUILD_SLAVE_TYPE,
   )
 
-  # Toolchain-specific mixins.
+  def toolchainSlaveHelper(name, board, *args, **kwargs):
+    site_config.Add(
+        name + '-gcc-toolchain',
+        site_config.templates.gcc_toolchain,
+        *args,
+        boards=['peppy' if name == 'amd64' else board],
+        important=True,
+        active_waterfall=constants.WATERFALL_INTERNAL,
+        **kwargs
+    )
 
+    if board == 'x86-alex':
+      site_config.Add(
+          name + '-llvm-toolchain',
+          site_config.templates.llvm_toolchain,
+          *args,
+          boards=[board],
+          important=True,
+          active_waterfall=constants.WATERFALL_INTERNAL,
+          **kwargs
+      )
+    else:
+      site_config.Add(
+          name + '-llvm-toolchain',
+          site_config.templates.llvm_toolchain,
+          *args,
+          boards=[board],
+          important=True,
+          active_waterfall=constants.WATERFALL_INTERNAL,
+          hw_tests=hw_test_list.ToolchainTestMedium(constants.HWTEST_MACH_POOL),
+          hw_tests_override=hw_test_list.ToolchainTestMedium(
+              constants.HWTEST_MACH_POOL),
+          **kwargs
+      )
+
+    site_config.Add(
+        name + '-llvm-next-toolchain',
+        site_config.templates.llvm_next_toolchain,
+        *args,
+        boards=[board],
+        important=True,
+        active_waterfall=constants.WATERFALL_INTERNAL,
+        **kwargs
+    )
+
+  # Create all waterfall slave builders.
+  toolchainSlaveHelper('amd64', 'samus')
+  toolchainSlaveHelper('x86', 'x86-alex',
+                       hw_tests=hw_test_list.ToolchainTestLight(),
+                       hw_tests_override=hw_test_list.ToolchainTestLight())
+  toolchainSlaveHelper('arm', 'veyron_jaq')
+  toolchainSlaveHelper('arm64', 'elm')
+
+  #
+  # Create toolchain tryjob builders.
+  #
+  toolchain_tryjob_boards = frozenset([
+      'chell',
+      'daisy',
+      'link',
+      'lulu',
+      'nyan_big',
+      'peach_pit',
+      'peppy',
+      'sentry',
+      'squawks',
+      'terra',
+  ])
+  site_config.AddForBoards(
+      'gcc-toolchain',
+      toolchain_tryjob_boards,
+      board_configs,
+      site_config.templates.gcc_toolchain,
+  )
+  site_config.AddForBoards(
+      'llvm-toolchain',
+      toolchain_tryjob_boards,
+      board_configs,
+      site_config.templates.llvm_toolchain,
+  )
+  site_config.AddForBoards(
+      'llvm-next-toolchain',
+      toolchain_tryjob_boards,
+      board_configs,
+      site_config.templates.llvm_next_toolchain,
+  )
+
+def PreCqBuilders(site_config, board_configs, hw_test_list):
+  """Create all build configs associated with the PreCQ.
+
+  Args:
+    site_config: config_lib.SiteConfig to be modified by adding templates
+                 and configs.
+    board_configs: Dictionary mapping board names to per-board configurations.
+    hw_test_list: Object to help create lists of standard HW Tests.
+  """
   site_config.AddTemplate(
-      'gcc_builder',
-      description='Full release build with next minor GCC toolchain revision',
-      gcc_githash='svn-mirror/google/gcc-4_9',
-      latest_toolchain=True,
-      hw_tests=hw_test_list.ToolchainTestFull(),
-      hw_tests_override=hw_test_list.ToolchainTestFull(),
+      'pre_cq',
+      site_config.templates.paladin,
+      active_waterfall=constants.WATERFALL_TRYBOT,
+      build_type=constants.INCREMENTAL_TYPE,
+      build_packages_in_background=True,
+      pre_cq=True,
+      archive=False,
+      chrome_sdk=False,
+      chroot_replace=True,
+      debug_symbols=False,
+      prebuilts=False,
+      cpe_export=False,
+      vm_tests=[config_lib.VMTestConfig(constants.SMOKE_SUITE_TEST_TYPE)],
+      vm_tests_override=None,
+      description='Verifies compilation, building an image, and vm/unit tests '
+                  'if supported.',
+      doc='http://www.chromium.org/chromium-os/build/builder-overview#'
+          'TOC-Pre-CQ',
+      health_alert_recipients=['chromeos-infra-eng@grotations.appspotmail.com'],
+      health_threshold=3,
   )
+
+  # Pre-CQ targets that only check compilation and unit tests.
   site_config.AddTemplate(
-      'llvm_builder',
-      description='Full release build with LLVM toolchain',
-      profile='llvm',
-      hw_tests=hw_test_list.ToolchainTestMedium(),
-      hw_tests_override=hw_test_list.ToolchainTestMedium(),
+      'unittest_only_pre_cq',
+      site_config.templates.pre_cq,
+      site_config.templates.no_vmtest_builder,
+      description='Verifies compilation and unit tests only',
+      compilecheck=True,
   )
+
+  # Pre-CQ targets that don't run VMTests.
   site_config.AddTemplate(
-      'llvm_next_builder',
-      site_config.templates.llvm_builder,
-      description='Full release build with LLVM (next) toolchain',
-      useflags=append_useflags(['llvm-next', 'clang']),
+      'no_vmtest_pre_cq',
+      site_config.templates.pre_cq,
+      site_config.templates.no_vmtest_builder,
+      description='Verifies compilation, building an image, and unit tests '
+                  'if supported.',
   )
+
+  # Pre-CQ targets that only check compilation.
   site_config.AddTemplate(
-      'test_light',
-      hw_tests=hw_test_list.ToolchainTestLight(),
-      hw_tests_override=hw_test_list.ToolchainTestLight(),
+      'compile_only_pre_cq',
+      site_config.templates.unittest_only_pre_cq,
+      description='Verifies compilation only',
+      unittests=False,
   )
 
-  ### Toolchain builder configs: 4 architectures {amd64,arm,x86,arm64}
-  ###                          x 3 toolchains {gcc,llvm,llvm-next}
-  ### All of these builders should be slaves of 'master-toolchain'.
+  site_config.AddWithoutTemplate(
+      'pre-cq-launcher',
+      site_config.templates.paladin,
+      site_config.templates.internal_paladin,
+      site_config.templates.no_vmtest_builder,
+      site_config.templates.no_hwtest_builder,
+      boards=[],
+      build_type=constants.PRE_CQ_LAUNCHER_TYPE,
+      active_waterfall=constants.WATERFALL_INTERNAL,
+      buildslave_type=constants.GCE_WIMPY_BUILD_SLAVE_TYPE,
+      description='Launcher for Pre-CQ builders',
+      trybot_list=False,
+      manifest_version=False,
+      # Every Pre-CQ launch failure should send out an alert.
+      health_threshold=1,
+      health_alert_recipients=['chromeos-infra-eng@grotations.appspotmail.com',
+                               'tree'],
+      doc='http://www.chromium.org/chromium-os/build/builder-overview#'
+          'TOC-Pre-CQ',
+  )
+
+
+  # Add a pre-cq config for every board.
+  site_config.AddForBoards(
+      'pre-cq',
+      _all_boards,
+      board_configs,
+      site_config.templates.pre_cq,
+  )
+  site_config.AddForBoards(
+      'no-vmtest-pre-cq',
+      _all_boards,
+      board_configs,
+      site_config.templates.no_vmtest_pre_cq,
+  )
+  site_config.AddForBoards(
+      'compile-only-pre-cq',
+      _all_boards,
+      board_configs,
+      site_config.templates.compile_only_pre_cq,
+  )
+  site_config.Add(
+      constants.BINHOST_PRE_CQ,
+      site_config.templates.pre_cq,
+      site_config.templates.no_vmtest_pre_cq,
+      site_config.templates.internal,
+      boards=[],
+      binhost_test=True,
+  )
+
+  # TODO(davidjames): Add peach_pit, nyan, and beaglebone to pre-cq.
+  # TODO(davidjames): Update daisy_spring to build images again.
+  site_config.AddGroup(
+      'mixed-a-pre-cq',
+      # daisy_spring w/kernel 3.8.
+      site_config['daisy_spring-compile-only-pre-cq'],
+      # lumpy w/kernel 3.8.
+      site_config['lumpy-compile-only-pre-cq'],
+  )
+
+  site_config.AddGroup(
+      'mixed-b-pre-cq',
+      # samus w/kernel 3.14.
+      site_config['samus-compile-only-pre-cq'],
+  )
+
+  site_config.AddGroup(
+      'mixed-c-pre-cq',
+      # brillo
+      site_config['storm-compile-only-pre-cq'],
+  )
+
+  site_config.AddGroup(
+      'external-mixed-pre-cq',
+      site_config['x86-generic-no-vmtest-pre-cq'],
+      site_config['amd64-generic-no-vmtest-pre-cq'],
+  )
+
+  site_config.AddGroup(
+      'kernel-3_14-a-pre-cq',
+      site_config['x86-generic-no-vmtest-pre-cq'],
+      site_config['arm-generic-no-vmtest-pre-cq']
+  )
+
+  site_config.AddGroup(
+      'kernel-3_14-b-pre-cq',
+      site_config['storm-no-vmtest-pre-cq'],
+  )
+
+  site_config.AddGroup(
+      'kernel-3_14-c-pre-cq',
+      site_config['veyron_pinky-no-vmtest-pre-cq'],
+  )
+
+  # Wifi specific PreCQ.
+  site_config.AddTemplate(
+      'wificell_pre_cq',
+      site_config.templates.pre_cq,
+      unittests=False,
+      hw_tests=hw_test_list.WiFiCellPoolPreCQ(),
+      hw_tests_override=hw_test_list.WiFiCellPoolPreCQ(),
+      archive=True,
+      image_test=False,
+      description='WiFi tests acting as pre-cq for WiFi related changes',
+  )
+
+  site_config.AddGroup(
+      'mixed-wificell-pre-cq',
+      site_config.Add(
+          'winky-wificell-pre-cq',
+          site_config.templates.wificell_pre_cq,
+          board_configs['winky']),
+      site_config.Add(
+          'veyron_speedy-wificell-pre-cq',
+          site_config.templates.wificell_pre_cq,
+          board_configs['veyron_speedy']),
+      site_config.Add(
+          'veyron_jerry-wificell-pre-cq',
+          site_config.templates.wificell_pre_cq,
+          board_configs['veyron_jerry']),
+      site_config.Add(
+          'daisy-wificell-pre-cq',
+          site_config.templates.wificell_pre_cq,
+          board_configs['daisy']),
+  )
+
+
+def AndroidPfqBuilders(site_config, board_configs, hw_test_list):
+  """Create all build configs associated with the Android PFQ.
+
+  Args:
+    site_config: config_lib.SiteConfig to be modified by adding templates
+                 and configs.
+    board_configs: Dictionary mapping board names to per-board configurations.
+    hw_test_list: Object to help create lists of standard HW Tests.
+  """
+  site_config.AddTemplate(
+      'android_pfq',
+      site_config.templates.default_hw_tests_override,
+      build_type=constants.ANDROID_PFQ_TYPE,
+      important=True,
+      uprev=False,
+      overlays=constants.BOTH_OVERLAYS,
+      manifest_version=True,
+      android_rev=constants.ANDROID_REV_LATEST,
+      description='Preflight Android Uprev & Build (internal)',
+      vm_tests=[config_lib.VMTestConfig(constants.SMOKE_SUITE_TEST_TYPE),
+                config_lib.VMTestConfig(constants.SIMPLE_AU_TEST_TYPE)],
+      vm_tests_override=None,
+  )
 
   site_config.Add(
-      'amd64-gcc-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.gcc_builder,
-      boards=['peppy'],
+      'master-android-pfq',
+      site_config.templates.android_pfq,
+      site_config.templates.internal,
+      buildslave_type=constants.GCE_WIMPY_BUILD_SLAVE_TYPE,
+      boards=[],
+      master=True,
+      push_overlays=constants.BOTH_OVERLAYS,
   )
 
-  site_config.Add(
-      'amd64-llvm-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.llvm_builder,
-      boards=['falco'],
-  )
+  _android_pfq_hwtest_boards = frozenset([
+      'cyan',
+      'samus',
+      'veyron_minnie',
+  ])
 
-  site_config.Add(
-      'amd64-llvm-next-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.llvm_next_builder,
-      boards=['peppy'],
-  )
+  _android_pfq_no_hwtest_boards = frozenset([
+      'glados-cheets',
+  ])
 
-  site_config.Add(
-      'arm-gcc-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.gcc_builder,
-      boards=['veyron_jaq'],
+  site_config.AddForBoards(
+      'android-pfq',
+      _android_pfq_hwtest_boards,
+      board_configs,
+      site_config.templates.android_pfq,
+      hw_tests=hw_test_list.SharedPoolAndroidPFQ(),
   )
-
-  site_config.Add(
-      'arm-llvm-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.llvm_builder,
-      boards=['veyron_jaq'],
-  )
-
-  site_config.Add(
-      'arm-llvm-next-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.llvm_next_builder,
-      boards=['veyron_jaq'],
-  )
-
-  site_config.Add(
-      'x86-gcc-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.gcc_builder,
-      site_config.templates.test_light,
-      boards=['x86-alex'],
-  )
-
-  site_config.Add(
-      'x86-llvm-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.llvm_builder,
-      site_config.templates.test_light,
-      boards=['x86-alex'],
-  )
-
-  site_config.Add(
-      'x86-llvm-next-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.llvm_next_builder,
-      site_config.templates.test_light,
-      boards=['x86-alex'],
-  )
-
-  site_config.Add(
-      'arm64-gcc-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.gcc_builder,
-      boards=['elm'],
-  )
-
-  site_config.Add(
-      'arm64-llvm-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.llvm_builder,
-      boards=['elm'],
-  )
-
-  site_config.Add(
-      'arm64-llvm-next-toolchain',
-      site_config.templates.toolchain,
-      site_config.templates.llvm_next_builder,
-      boards=['elm'],
+  site_config.AddForBoards(
+      'android-pfq',
+      _android_pfq_no_hwtest_boards,
+      board_configs,
+      site_config.templates.android_pfq,
   )
 
 
-def _GetConfig(site_config, ge_build_config, board_configs,
-               hw_test_list, is_release_branch):
+def _GetConfig(site_config, board_configs, hw_test_list):
   """Method with un-refactored build configs/templates.
 
   Args:
@@ -1765,35 +1937,6 @@ def _GetConfig(site_config, ge_build_config, board_configs,
     hw_test_list: Object to help create lists of standard HW Tests.
     is_release_branch: True if config for a release branch, False for TOT.
   """
-
-  _base_configs = board_configs
-
-  builder_to_boards_dict = config_lib.GroupBoardsByBuilder(
-      ge_build_config[config_lib.CONFIG_TEMPLATE_BOARDS])
-
-  _all_release_builder_boards = builder_to_boards_dict[
-      config_lib.CONFIG_TEMPLATE_RELEASE]
-
-
-  site_config.AddWithoutTemplate(
-      'chromiumos-sdk',
-      site_config.templates.full,
-      site_config.templates.no_hwtest_builder,
-      # The amd64-host has to be last as that is when the toolchains
-      # are bundled up for inclusion in the sdk.
-      boards=[
-          'x86-generic', 'arm-generic', 'amd64-generic', 'peppy'
-      ],
-      build_type=constants.CHROOT_BUILDER_TYPE,
-      buildslave_type=constants.BAREMETAL_BUILD_SLAVE_TYPE,
-      builder_class_name='sdk_builders.ChrootSdkBuilder',
-      use_sdk=False,
-      trybot_list=True,
-      prebuilts=constants.PUBLIC,
-      description='Build the SDK and all the cross-compilers',
-      doc='http://www.chromium.org/chromium-os/build/builder-overview#'
-          'TOC-Continuous',
-  )
 
   site_config.Add(
       'master-chromium-pfq',
@@ -1809,52 +1952,7 @@ def _GetConfig(site_config, ge_build_config, board_configs,
                                'chrome'],
   )
 
-  site_config.Add(
-      'master-android-pfq',
-      site_config.templates.android_pfq,
-      site_config.templates.internal,
-      buildslave_type=constants.GCE_WIMPY_BUILD_SLAVE_TYPE,
-      boards=[],
-      master=True,
-      push_overlays=constants.BOTH_OVERLAYS,
-  )
-
-  site_config.AddWithoutTemplate(
-      'config-updater',
-      site_config.templates.no_hwtest_builder,
-      important=True,
-      vm_tests=[],
-      description='Build Config Updater',
-      build_type=constants.CONFIG_UPDATER_TYPE,
-      boards=[],
-      builder_class_name='config_builders.UpdateConfigBuilder',
-      buildslave_type=constants.GCE_WIMPY_BUILD_SLAVE_TYPE,
-  )
-
-  def _CreateConfigsForBoards(config_base, boards, name_suffix, **kwargs):
-    """Create configs based on |config_base| for all boards in |boards|.
-
-    Note: Existing configs will not be overwritten.
-
-    Args:
-      config_base: A BuildConfig instance to inherit from.
-      boards: A set of boards to create configs for.
-      name_suffix: A naming suffix. Configs will have names of the form
-                   board-name_suffix.
-      **kwargs: Additional keyword arguments to be used in AddConfig.
-    """
-    for board in boards:
-      config_name = '%s-%s' % (board, name_suffix)
-      if config_name not in site_config:
-        # We copy the base because there seem to be cases where Add() modifies
-        # it directly (which is a bug).
-        site_config.Add(config_name,
-                        config_base.deepcopy(),
-                        _base_configs[board],
-                        **kwargs)
-
   _chromium_pfq_important_boards = frozenset([
-      'arm-generic_freon',
       'arm-generic',
       'daisy',
       'veyron_jerry',
@@ -1864,125 +1962,70 @@ def _GetConfig(site_config, ge_build_config, board_configs,
 
   def _AddFullConfigs():
     """Add x86 and arm full configs."""
-    defaults = config_lib.DefaultSettings()
     external_overrides = config_lib.BuildConfig(
-        manifest=defaults['manifest'],
+        manifest=constants.DEFAULT_MANIFEST,
         useflags=append_useflags(['-%s' % constants.USE_CHROME_INTERNAL]),
     )
-    _CreateConfigsForBoards(
-        site_config.templates.full,
-        _all_full_boards,
+    site_config.AddForBoards(
         config_lib.CONFIG_TYPE_FULL,
-        internal=defaults['internal'],
+        _all_full_boards,
+        board_configs,
+        site_config.templates.full,
+        internal=False,
         manifest_repo_url=site_config.params['MANIFEST_URL'],
-        overlays=defaults['overlays'],
+        overlays=constants.PUBLIC_OVERLAYS,
         prebuilts=constants.PUBLIC,
         **external_overrides)
-    _CreateConfigsForBoards(
-        site_config.templates.chromium_pfq_informational,
-        _all_full_boards,
+    site_config.AddForBoards(
         'tot-chromium-pfq-informational',
+        _all_full_boards,
+        board_configs,
+        site_config.templates.chromium_pfq_informational,
         important=False,
-        internal=defaults['internal'],
+        internal=False,
         manifest_repo_url=site_config.params['MANIFEST_URL'],
         overlays=constants.PUBLIC_OVERLAYS,
         **external_overrides)
-    _CreateConfigsForBoards(
-        site_config.templates.chromium_pfq_informational_gn,
-        _all_full_boards,
+    site_config.AddForBoards(
         'tot-chromium-pfq-informational-gn',
+        _all_full_boards,
+        board_configs,
+        site_config.templates.chromium_pfq_informational_gn,
         important=False,
-        internal=defaults['internal'],
+        internal=False,
         manifest_repo_url=site_config.params['MANIFEST_URL'],
         overlays=constants.PUBLIC_OVERLAYS,
         **external_overrides)
     # Create important configs, then non-important configs.
-    _CreateConfigsForBoards(
-        site_config.templates.chromium_pfq,
+    site_config.AddForBoards(
+        'chromium-pfq',
         _chromium_pfq_important_boards,
-        'chromium-pfq', **external_overrides)
-    _CreateConfigsForBoards(
+        board_configs,
         site_config.templates.chromium_pfq,
-        _all_full_boards,
-        'chromium-pfq', important=False,
+        **external_overrides)
+    site_config.AddForBoards(
+        'chromium-pfq',
+        _all_full_boards - _chromium_pfq_important_boards,
+        board_configs,
+        site_config.templates.chromium_pfq,
+        important=False,
         **external_overrides)
 
   _AddFullConfigs()
 
-
   _chrome_pfq_important_boards = frozenset([
+      'cyan',
+      'daisy_skate',
+      'falco',
+      'lumpy',
+      'nyan',
+      'peach_pit',
       'peppy',
+      'tricky',
+      'veyron_minnie',
       'veyron_pinky',
       'veyron_rialto',
-      'nyan',
-  ])
-
-  site_config.Add(
-      'x86-alex-chrome-pfq',
-      site_config.templates.chrome_pfq,
-      _base_configs['x86-alex'],
-  )
-
-  site_config.Add(
-      'lumpy-chrome-pfq',
-      site_config.templates.chrome_pfq,
-      _base_configs['lumpy'],
-      afdo_generate=True,
-      # Disable hugepages before collecting AFDO profile.
-      useflags=append_useflags(['-transparent_hugepage']),
-      hw_tests=[hw_test_list.AFDORecordTest()] + hw_test_list.SharedPoolPFQ(),
-  )
-
-  site_config.Add(
-      'cyan-chrome-pfq',
-      site_config.templates.chrome_pfq,
-      _base_configs['cyan'],
-      hw_tests=hw_test_list.SharedPoolAndroidPFQ(),
-  )
-
-  site_config.Add(
-      'daisy_skate-chrome-pfq',
-      site_config.templates.chrome_pfq,
-      _base_configs['daisy_skate'],
-      hw_tests=hw_test_list.SharedPoolPFQ(),
-  )
-
-  site_config.Add(
-      'falco-chrome-pfq',
-      site_config.templates.chrome_pfq,
-      _base_configs['falco'],
-      hw_tests=hw_test_list.SharedPoolPFQ(),
-  )
-
-  site_config.Add(
-      'veyron_minnie-chrome-pfq',
-      site_config.templates.chrome_pfq,
-      _base_configs['veyron_minnie'],
-      hw_tests=hw_test_list.SharedPoolAndroidPFQ(),
-  )
-
-  site_config.Add(
-      'peach_pit-chrome-pfq',
-      site_config.templates.chrome_pfq,
-      _base_configs['peach_pit'],
-      hw_tests=hw_test_list.SharedPoolPFQ(),
-  )
-
-  site_config.Add(
-      'tricky-chrome-pfq',
-      site_config.templates.chrome_pfq,
-      _base_configs['tricky'],
-      hw_tests=hw_test_list.SharedPoolPFQ(),
-  )
-
-  _android_pfq_hwtest_boards = frozenset([
-      'cyan',
-      'samus',
-      'veyron_minnie',
-  ])
-
-  _android_pfq_no_hwtest_boards = frozenset([
-      'glados-cheets',
+      'x86-alex',
   ])
 
   _telemetry_boards = frozenset([
@@ -1991,10 +2034,11 @@ def _GetConfig(site_config, ge_build_config, board_configs,
       'x86-generic',
   ])
 
-  _CreateConfigsForBoards(
-      site_config.templates.telemetry,
-      _telemetry_boards,
+  site_config.AddForBoards(
       'telemetry',
+      _telemetry_boards,
+      board_configs,
+      site_config.templates.telemetry,
   )
 
   site_config.Add(
@@ -2042,22 +2086,22 @@ def _GetConfig(site_config, ge_build_config, board_configs,
   site_config.Add(
       'x86-generic-incremental',
       site_config.templates.incremental,
-      _base_configs['x86-generic'],
+      board_configs['x86-generic'],
   )
 
+  # Build external source, for an internal board.
   site_config.Add(
       'daisy-incremental',
       site_config.templates.incremental,
-      _base_configs['daisy'].derive(
-          config_lib.BuildConfig.delete_keys(site_config.templates.internal),
-          manifest=config_lib.BuildConfig.delete_key()),
+      board_configs['daisy'],
+      site_config.templates.external,
       useflags=append_useflags(['-chrome_internal']),
   )
 
   site_config.Add(
       'amd64-generic-incremental',
       site_config.templates.incremental,
-      _base_configs['amd64-generic'],
+      board_configs['amd64-generic'],
       # This builder runs on a VM, so it can't run VM tests.
       vm_tests=[],
   )
@@ -2065,7 +2109,7 @@ def _GetConfig(site_config, ge_build_config, board_configs,
   site_config.Add(
       'x32-generic-incremental',
       site_config.templates.incremental,
-      _base_configs['x32-generic'],
+      board_configs['x32-generic'],
       # This builder runs on a VM, so it can't run VM tests.
       vm_tests=[],
   )
@@ -2073,7 +2117,7 @@ def _GetConfig(site_config, ge_build_config, board_configs,
   site_config.Add(
       'x86-generic-asan-paladin',
       site_config.templates.paladin,
-      _base_configs['x86-generic'],
+      board_configs['x86-generic'],
       site_config.templates.asan,
       description='Paladin build with Address Sanitizer (Clang)',
       important=False,
@@ -2082,7 +2126,7 @@ def _GetConfig(site_config, ge_build_config, board_configs,
   site_config.Add(
       'amd64-generic-asan-paladin',
       site_config.templates.paladin,
-      _base_configs['amd64-generic'],
+      board_configs['amd64-generic'],
       site_config.templates.asan,
       description='Paladin build with Address Sanitizer (Clang)',
       important=False,
@@ -2094,40 +2138,49 @@ def _GetConfig(site_config, ge_build_config, board_configs,
       'parrot',
   ])
 
-  _CreateConfigsForBoards(
-      site_config.templates.chrome_perf,
-      _chrome_perf_boards,
+  site_config.AddForBoards(
       'chrome-perf',
-      trybot_list=True)
+      _chrome_perf_boards,
+      board_configs,
+      site_config.templates.chrome_perf,
+      trybot_list=True,
+  )
 
-  # pylint: disable=bad-continuation
-  _CreateConfigsForBoards(
-      site_config.templates.chromium_pfq_informational,
-      ['x86-generic', 'amd64-generic'],
+  site_config.AddForBoards(
       'telem-chromium-pfq-informational',
-      **site_config.templates.telemetry.derive(
-          site_config.templates.chrome_try,
-          _template=(config_lib.BuildConfig.delete_key()))
+      ['x86-generic', 'amd64-generic'],
+      board_configs,
+      site_config.templates.chromium_pfq_informational,
+      site_config.templates.telemetry,
+      site_config.templates.chrome_try,
   )
 
   #
   # Internal Builds
   #
-
-  _CreateConfigsForBoards(
-      site_config.templates.internal_nowithdebug_paladin,
-      ['x86-generic', 'amd64-generic'],
+  site_config.AddForBoards(
       'nowithdebug-paladin',
+      ['x86-generic', 'amd64-generic'],
+      board_configs,
+      site_config.templates.paladin,
+      site_config.templates.internal_nowithdebug_paladin,
       important=False,
   )
 
   site_config.Add(
       'x86-mario-nowithdebug-paladin',
+      site_config.templates.paladin,
       site_config.templates.internal_nowithdebug_paladin,
       boards=['x86-mario'])
 
   # Used for builders which build completely from source except Chrome.
-  full_compile_paladin = site_config.templates.paladin.derive(
+
+  # These boards pass with -clang-clean CFLAG, so ensure they stay that way.
+  site_config.AddForBoards(
+      'full-compile-paladin',
+      ['falco', 'nyan'],
+      board_configs,
+      site_config.templates.paladin,
       board_replace=True,
       chrome_binhost_only=True,
       chrome_sdk=False,
@@ -2138,34 +2191,6 @@ def _GetConfig(site_config, ge_build_config, board_configs,
       unittests=False,
       upload_hw_test_artifacts=False,
       vm_tests=[],
-  )
-
-  # falco is the only board that has the -clang-clean CFLAG right now,
-  # so it's important that falco stays as a full-compile builder.
-  # TODO(yunlian): Add -clang-clean to more boards.
-  # See https://chromium-review.googlesource.com/#/c/275862/
-  _CreateConfigsForBoards(
-      full_compile_paladin,
-      ['falco', 'nyan'],
-      'full-compile-paladin',
-  )
-
-  site_config.AddWithoutTemplate(
-      constants.BRANCH_UTIL_CONFIG,
-      site_config.templates.internal_paladin,
-      site_config.templates.no_vmtest_builder,
-      site_config.templates.no_hwtest_builder,
-      boards=[],
-      # Disable postsync_patch to prevent conflicting patches from being applied
-      # - e.g., patches from 'master' branch being applied to a branch.
-      postsync_patch=False,
-      # Disable postsync_reexec to continue running the 'master' branch chromite
-      # for all stages, rather than the chromite in the branch buildroot.
-      postsync_reexec=False,
-      # Need to reset the paladin build_type we inherited.
-      build_type=None,
-      builder_class_name='release_builders.CreateBranchBuilder',
-      description='Used for creating/deleting branches (TPMs only)',
   )
 
   site_config.Add(
@@ -2181,28 +2206,19 @@ def _GetConfig(site_config, ge_build_config, board_configs,
       hw_tests=[hw_test_list.AFDORecordTest()],
   )
 
-  site_config.AddGroup(
-      'test-ap-group',
-      site_config.Add('stumpy-test-ap',
-                      site_config.templates.test_ap,
-                      boards=['stumpy']),
-      site_config.Add('panther-test-ap',
-                      site_config.templates.test_ap,
-                      boards=['panther']),
-      site_config.Add('whirlwind-test-ap',
-                      site_config.templates.test_ap,
-                      boards=['whirlwind']),
-  )
-
   # Create our unittest stress build configs (used for tryjobs only)
-  _CreateConfigsForBoards(site_config.templates.unittest_stress,
-                          _all_boards,
-                          'unittest-stress')
+  site_config.AddForBoards(
+      'unittest-stress',
+      _all_boards,
+      board_configs,
+      site_config.templates.unittest_stress,
+  )
 
   ### Master paladin (CQ builder).
 
   site_config.Add(
       'master-paladin',
+      site_config.templates.paladin,
       site_config.templates.internal_paladin,
       boards=[],
       buildslave_type=constants.BAREMETAL_BUILD_SLAVE_TYPE,
@@ -2237,6 +2253,7 @@ def _GetConfig(site_config, ge_build_config, board_configs,
   # under test.
   site_config.Add(
       'wolf-tot-paladin',
+      site_config.templates.paladin,
       site_config.templates.internal_paladin,
       boards=['wolf'],
       do_not_apply_cq_patches=True,
@@ -2258,9 +2275,10 @@ def _GetConfig(site_config, ge_build_config, board_configs,
       'daisy_skate',
       'daisy_spring',
       'elm',
-      'nyan_freon',
       'falco',
       'glados',
+      'guado_moblab',
+      'gru',
       'lakitu',
       'leon',
       'link',
@@ -2342,8 +2360,8 @@ def _GetConfig(site_config, ge_build_config, board_configs,
 
   # *-cheets devices run a different suite
   _paladin_cheets_hwtest_boards = frozenset([
-    'cyan',
-    'veyron_minnie',
+      'cyan',
+      'veyron_minnie',
   ])
 
   _paladin_chroot_replace_boards = frozenset([
@@ -2357,10 +2375,10 @@ def _GetConfig(site_config, ge_build_config, board_configs,
 
   def _CreatePaladinConfigs():
     for board in _paladin_boards:
-      assert board in _base_configs, '%s not in _base_configs' % board
+      assert board in board_configs, '%s not in board_configs' % board
       config_name = '%s-%s' % (board, constants.PALADIN_TYPE)
       customizations = config_lib.BuildConfig()
-      base_config = _base_configs[board]
+      base_config = board_configs[board]
       if board in _paladin_hwtest_boards:
         customizations.update(hw_tests=hw_test_list.DefaultListCQ())
       if board in _paladin_moblab_hwtest_boards:
@@ -2456,6 +2474,7 @@ def _GetConfig(site_config, ge_build_config, board_configs,
 
   site_config.Add(
       'lumpy-incremental-paladin',
+      site_config.templates.paladin,
       site_config.templates.internal_paladin,
       boards=['lumpy'],
       build_before_patching=True,
@@ -2504,140 +2523,27 @@ def _GetConfig(site_config, ge_build_config, board_configs,
   ShardHWTestsBetweenBuilders('lumpy-paladin', 'stumpy-paladin')
   ShardHWTestsBetweenBuilders('elm-paladin', None)
 
-  # Add a pre-cq config for every board.
-  _CreateConfigsForBoards(site_config.templates.pre_cq, _all_boards, 'pre-cq')
-
-  _CreateConfigsForBoards(
-      site_config.templates.no_vmtest_pre_cq,
-      _all_boards,
-      'no-vmtest-pre-cq')
-  _CreateConfigsForBoards(
-      site_config.templates.compile_only_pre_cq,
-      _all_boards,
-      'compile-only-pre-cq')
-
-  site_config.Add(
-      constants.BINHOST_PRE_CQ,
-      site_config.templates.pre_cq,
-      site_config.templates.no_vmtest_pre_cq,
-      site_config.templates.internal,
-      boards=[],
-      binhost_test=True,
-  )
-
-  # TODO(davidjames): Add peach_pit, nyan, and beaglebone to pre-cq.
-  # TODO(davidjames): Update daisy_spring to build images again.
-  site_config.AddGroup(
-      'mixed-a-pre-cq',
-      # daisy_spring w/kernel 3.8.
-      site_config['daisy_spring-compile-only-pre-cq'],
-      # lumpy w/kernel 3.8.
-      site_config['lumpy-compile-only-pre-cq'],
-  )
-
-  site_config.AddGroup(
-      'mixed-b-pre-cq',
-      # samus w/kernel 3.14.
-      site_config['samus-compile-only-pre-cq'],
-  )
-
-  site_config.AddGroup(
-      'mixed-c-pre-cq',
-      # brillo
-      site_config['storm-compile-only-pre-cq'],
-  )
-
-  site_config.AddGroup(
-      'external-mixed-pre-cq',
-      site_config['x86-generic-no-vmtest-pre-cq'],
-      site_config['amd64-generic-no-vmtest-pre-cq'],
-  )
-
-  site_config.AddGroup(
-      'kernel-3_14-a-pre-cq',
-      site_config['x86-generic-no-vmtest-pre-cq'],
-      site_config['arm-generic-no-vmtest-pre-cq']
-  )
-
-  site_config.AddGroup(
-      'kernel-3_14-b-pre-cq',
-      site_config['storm-no-vmtest-pre-cq'],
-  )
-
-  site_config.AddGroup(
-      'kernel-3_14-c-pre-cq',
-      site_config['veyron_pinky-no-vmtest-pre-cq'],
-  )
-
-  site_config.AddWithoutTemplate(
-      'pre-cq-launcher',
-      site_config.templates.internal_paladin,
-      site_config.templates.no_vmtest_builder,
-      site_config.templates.no_hwtest_builder,
-      boards=[],
-      build_type=constants.PRE_CQ_LAUNCHER_TYPE,
-      buildslave_type=constants.GCE_WIMPY_BUILD_SLAVE_TYPE,
-      description='Launcher for Pre-CQ builders',
-      trybot_list=False,
-      manifest_version=False,
-      # Every Pre-CQ launch failure should send out an alert.
-      health_threshold=1,
-      health_alert_recipients=['chromeos-infra-eng@grotations.appspotmail.com',
-                               'tree'],
-      doc='http://www.chromium.org/chromium-os/build/builder-overview#'
-          'TOC-Pre-CQ',
-  )
-
-
   site_config.Add(
       'mario-incremental',
+      site_config.templates.incremental,
       site_config.templates.internal_incremental,
       boards=['x86-mario'],
   )
 
   site_config.Add(
       'lakitu-incremental',
+      site_config.templates.incremental,
       site_config.templates.internal_incremental,
-      _base_configs['lakitu'],
+      board_configs['lakitu'],
       site_config.templates.lakitu_test_customizations,
   )
 
   site_config.Add(
       'lakitu_next-incremental',
+      site_config.templates.incremental,
       site_config.templates.internal_incremental,
-      _base_configs['lakitu_next'],
+      board_configs['lakitu_next'],
       site_config.templates.lakitu_test_customizations,
-  )
-
-  _grouped_config = config_lib.BuildConfig(
-      build_packages_in_background=True,
-      chrome_sdk_build_chrome=False,
-      unittests=None,
-      vm_tests=[],
-  )
-
-  _grouped_variant_config = _grouped_config.derive(
-      chrome_sdk=False,
-  )
-
-  _grouped_variant_release = site_config.templates.release.derive(
-      _grouped_variant_config,
-  )
-
-  ### Master release config.
-
-  site_config.Add(
-      'master-release',
-      site_config.templates.release,
-      boards=[],
-      buildslave_type=constants.GCE_WIMPY_BUILD_SLAVE_TYPE,
-      master=True,
-      sync_chrome=False,
-      chrome_sdk=False,
-      health_alert_recipients=['chromeos-infra-eng@grotations.appspotmail.com',
-                               'tree'],
-      afdo_use=False,
-      branch_util_test=True,
   )
 
   # Now generate generic release-afdo configs if we haven't created anything
@@ -2646,7 +2552,7 @@ def _GetConfig(site_config, ge_build_config, board_configs,
   # that want to measure performance changes caused by their changes.
   def _AddAFDOConfigs():
     for board in _all_release_boards:
-      base = _base_configs[board]
+      base = board_configs[board]
 
       config_name = '%s-%s' % (board, config_lib.CONFIG_TYPE_RELEASE_AFDO)
       if config_name in site_config:
@@ -2680,14 +2586,6 @@ def _GetConfig(site_config, ge_build_config, board_configs,
 
   _AddAFDOConfigs()
 
-  ### Release configs.
-
-  _critical_for_chrome_boards = frozenset([
-      'daisy',
-      'lumpy',
-      'parrot',
-  ])
-
   ### Informational hwtest
 
   _chrome_informational_hwtest_boards = frozenset([
@@ -2701,114 +2599,53 @@ def _GetConfig(site_config, ge_build_config, board_configs,
   # If you want an important PFQ, you'll have to declare it yourself.
 
   def _AddInformationalConfigs():
-    _CreateConfigsForBoards(
-        site_config.templates.chrome_pfq_informational,
-        _chrome_informational_hwtest_boards,
+    site_config.AddForBoards(
         'tot-chrome-pfq-informational',
+        _chrome_informational_hwtest_boards,
+        board_configs,
+        site_config.templates.chrome_pfq_informational,
         important=False,
         hw_tests=hw_test_list.DefaultListPFQ(
-            pool=constants.HWTEST_CONTINUOUS_POOL))
-    informational_boards = list(set(_all_release_boards) - set(_cheets_boards))
-    _CreateConfigsForBoards(
-        site_config.templates.chrome_pfq_informational,
-        informational_boards,
+            pool=constants.HWTEST_CONTINUOUS_POOL),
+    )
+    informational_boards = set(_all_release_boards) - set(_cheets_boards)
+    site_config.AddForBoards(
         'tot-chrome-pfq-informational',
+        informational_boards-_chrome_informational_hwtest_boards,
+        board_configs,
+        site_config.templates.chrome_pfq_informational,
         important=False)
-    _CreateConfigsForBoards(
-        site_config.templates.chrome_pfq_informational_gn,
-        informational_boards,
+    site_config.AddForBoards(
         'tot-chrome-pfq-informational-gn',
+        informational_boards,
+        board_configs,
+        site_config.templates.chrome_pfq_informational_gn,
         important=False)
-    _CreateConfigsForBoards(
-        site_config.templates.chrome_pfq_cheets_informational,
+    site_config.AddForBoards(
+        'tot-chrome-pfq-cheets-informational',
         _cheets_boards,
-        'tot-chrome-pfq-cheets-informational', important=False)
+        board_configs,
+        site_config.templates.chrome_pfq_cheets_informational,
+        important=False)
 
-  def _AddReleaseConfigs():
-    _CreateConfigsForBoards(
+  def _AddPfqConfigs():
+    site_config.AddForBoards(
+        'chrome-pfq',
+        _chrome_pfq_important_boards,
+        board_configs,
         site_config.templates.chrome_pfq,
-        _chrome_pfq_important_boards, 'chrome-pfq')
-    _CreateConfigsForBoards(
+        important=True
+    )
+    site_config.AddForBoards(
+        'chrome-pfq',
+        _all_release_boards - _chrome_pfq_important_boards,
+        board_configs,
         site_config.templates.chrome_pfq,
-        _all_release_boards, 'chrome-pfq', important=False)
-    _CreateConfigsForBoards(
-        site_config.templates.android_pfq,
-        _android_pfq_hwtest_boards,
-        'android-pfq',
-        hw_tests=hw_test_list.SharedPoolAndroidPFQ())
-    _CreateConfigsForBoards(
-        site_config.templates.android_pfq,
-        _android_pfq_no_hwtest_boards,
-        'android-pfq')
-    _CreateConfigsForBoards(
-        site_config.templates.release,
-        _critical_for_chrome_boards,
-        config_lib.CONFIG_TYPE_RELEASE,
-        critical_for_chrome=True)
-    _CreateConfigsForBoards(
-        site_config.templates.release,
-        _all_release_boards | _all_release_builder_boards,
-        config_lib.CONFIG_TYPE_RELEASE)
+        important=False,
+    )
 
   _AddInformationalConfigs()
-  _AddReleaseConfigs()
-
-  site_config.AddGroup(
-      'mixed-wificell-pre-cq',
-      site_config.Add(
-          'winky-wificell-pre-cq',
-          site_config.templates.wificell_pre_cq,
-          _base_configs['winky']),
-      site_config.Add(
-          'veyron_speedy-wificell-pre-cq',
-          site_config.templates.wificell_pre_cq,
-          _base_configs['veyron_speedy']),
-      site_config.Add(
-          'veyron_jerry-wificell-pre-cq',
-          site_config.templates.wificell_pre_cq,
-          _base_configs['veyron_jerry']),
-      site_config.Add(
-          'daisy-wificell-pre-cq',
-          site_config.templates.wificell_pre_cq,
-          _base_configs['daisy']),
-  )
-
-  ### Per-chipset release groups
-
-  def _AddGroupConfig(name, base_board, group_boards=None,
-                      group_variant_boards=None, **kwargs):
-    """Generate full & release group configs."""
-    def _boards_list(x):
-      # Make sure _boards_list is a valid list (not None or tuple)
-      return [] if x is None else list(x)
-
-    group_boards = _boards_list(group_boards)
-    group_variant_boards = _boards_list(group_variant_boards)
-
-    for group in ('release', 'full'):
-      configs = []
-
-      all_boards = [base_board] + group_boards + group_variant_boards
-      desc = '%s; Group config (boards: %s)' % (
-          site_config['%s-%s' % (base_board, group)].description,
-          ', '.join(all_boards))
-
-      for board in all_boards:
-        if board in group_boards:
-          subconfig = _grouped_config
-        elif board in group_variant_boards:
-          subconfig = _grouped_variant_config
-        else:
-          subconfig = {}
-        board_config = '%s-%s' % (board, group)
-        configs.append(site_config[board_config].derive(subconfig, **kwargs))
-
-        config_name = '%s-%s-group' % (name, group)
-        important = group == 'release' and kwargs.get('important', True)
-      site_config.AddGroup(
-          config_name, *configs, description=desc,
-          important=important
-      )
+  _AddPfqConfigs()
 
   _firmware_boards = frozenset([
       'asuka',
@@ -2817,6 +2654,7 @@ def _GetConfig(site_config, ge_build_config, board_configs,
       'banon',
       'butterfly',
       'candy',
+      'caroline',
       'cave',
       'chell',
       'clapper',
@@ -2831,6 +2669,7 @@ def _GetConfig(site_config, ge_build_config, board_configs,
       'gale',
       'glimmer',
       'gnawty',
+      'gru',
       'jecht',
       'kefka',
       'kevin',
@@ -2910,7 +2749,7 @@ def _GetConfig(site_config, ge_build_config, board_configs,
       site_config.Add(
           '%s-%s' % (board, config_lib.CONFIG_TYPE_FIRMWARE),
           site_config.templates.firmware,
-          _base_configs[board],
+          board_configs[board],
           site_config.templates.no_vmtest_builder,
       )
 
@@ -2918,14 +2757,14 @@ def _GetConfig(site_config, ge_build_config, board_configs,
       site_config.Add(
           '%s-%s-%s' % (board, 'depthcharge', config_lib.CONFIG_TYPE_FIRMWARE),
           site_config.templates.depthcharge_firmware,
-          _base_configs[board],
+          board_configs[board],
           site_config.templates.no_vmtest_builder,
       )
       site_config.Add(
           '%s-%s-%s-%s' % (board, 'depthcharge', config_lib.CONFIG_TYPE_FULL,
                            config_lib.CONFIG_TYPE_FIRMWARE),
           site_config.templates.depthcharge_full_firmware,
-          _base_configs[board],
+          board_configs[board],
           site_config.templates.no_vmtest_builder,
       )
 
@@ -2939,15 +2778,63 @@ def _GetConfig(site_config, ge_build_config, board_configs,
       boards=['x86-mario'],
   )
 
-  # Add special builders to help with cbuildbot development/testing.
-  site_config.AddWithoutTemplate(
-      'sync-test-cbuildbot',
-      site_config.templates.no_hwtest_builder,
+
+def ReleaseBuilders(site_config, board_configs, ge_build_config,
+                    is_release_branch):
+  """Create all release builders.
+
+  Args:
+    site_config: config_lib.SiteConfig to be modified by adding templates
+                 and configs.
+    board_configs: Dictionary mapping board names to per-board configurations.
+    ge_build_config: Dictionary containing the decoded GE configuration file.
+    is_release_branch: True if config for a release branch, False for TOT.
+  """
+  ### Master release config.
+  site_config.Add(
+      'master-release',
+      site_config.templates.release,
       boards=[],
-      build_type=constants.INCREMENTAL_TYPE,
-      builder_class_name='test_builders.ManifestVersionedSyncBuilder',
-      chroot_replace=True,
+      buildslave_type=constants.GCE_WIMPY_BUILD_SLAVE_TYPE,
+      master=True,
+      sync_chrome=False,
+      chrome_sdk=False,
+      health_alert_recipients=['chromeos-infra-eng@grotations.appspotmail.com',
+                               'tree'],
+      afdo_use=False,
+      branch_util_test=True,
   )
+
+  ### Release configs.
+
+  _critical_for_chrome_boards = frozenset([
+      'daisy',
+      'lumpy',
+      'parrot',
+  ])
+
+  site_config.AddForBoards(
+      config_lib.CONFIG_TYPE_RELEASE,
+      _critical_for_chrome_boards,
+      board_configs,
+      site_config.templates.release,
+      critical_for_chrome=True,
+  )
+
+  builder_to_boards_dict = config_lib.GroupBoardsByBuilder(
+      ge_build_config[config_lib.CONFIG_TEMPLATE_BOARDS])
+
+  _all_release_builder_boards = builder_to_boards_dict[
+      config_lib.CONFIG_TEMPLATE_RELEASE]
+
+  site_config.AddForBoards(
+      config_lib.CONFIG_TYPE_RELEASE,
+      ((_all_release_boards | _all_release_builder_boards) -
+       _critical_for_chrome_boards),
+      board_configs,
+      site_config.templates.release,
+  )
+
 
   def GetReleaseConfigName(board):
     """Convert a board name into a release config name."""
@@ -2987,45 +2874,38 @@ def _GetConfig(site_config, ge_build_config, board_configs,
       for board in builder_ungrouped_dict[builder]:
         config_name = GetConfigName(builder,
                                     board[config_lib.CONFIG_TEMPLATE_NAME])
-        site_config[config_name] = site_config[config_name].derive(
-            **_GetConfigValues(builder, board))
+        site_config[config_name].apply(
+            _GetConfigValues(builder, board),
+        )
 
   def _AdjustGroupedReleaseConfigs(builder_group_dict):
     """Adjust leader and follower configs for grouped boards"""
-
-    # Leaders are built on baremetal builders and run all tests needed by the
-    # related boards.
-    leader_config = config_lib.BuildConfig(
-       important=True,
-    )
-
-    # Followers are built on GCE instances, and turn off testing that breaks
-    # on GCE. The missing tests run on the leader board.
-    follower_config = leader_config.derive(
-        buildslave_type=constants.GCE_BEEFY_BUILD_SLAVE_TYPE,
-        chrome_sdk_build_chrome=False,
-        vm_tests=[],
-    )
-
     for builder in builder_group_dict:
       for group in builder_group_dict[builder]:
         board_group = builder_group_dict[builder][group]
 
-        # Adjust the leader boards.
+        # Leaders are built on baremetal builders and run all tests needed by
+        # the related boards.
         for board in board_group.leader_boards:
           config_name = GetConfigName(builder,
                                       board[config_lib.CONFIG_TEMPLATE_NAME])
-          site_config[config_name] = site_config[config_name].derive(
-              leader_config, **_GetConfigValues(builder, board))
+          site_config[config_name].apply(
+              _GetConfigValues(builder, board),
+          )
 
-        # Adjust all follower boards based on above options.
+        # Followers are built on GCE instances, and turn off testing that breaks
+        # on GCE. The missing tests run on the leader board.
         for board in board_group.follower_boards:
           config_name = GetConfigName(builder,
                                       board[config_lib.CONFIG_TEMPLATE_NAME])
-          site_config[config_name] = site_config[config_name].derive(
-              follower_config, **_GetConfigValues(builder, board))
+          site_config[config_name].apply(
+              _GetConfigValues(builder, board),
+              buildslave_type=constants.GCE_BEEFY_BUILD_SLAVE_TYPE,
+              chrome_sdk_build_chrome=False,
+              vm_tests=[],
+          )
 
-  def _AdjustTemplateConfigs():
+  def _AdjustReleaseConfigs():
     """Adjust ungrouped and grouped release configs"""
     (builder_group_dict, builder_ungrouped_dict) = (
         config_lib.GroupBoardsByBuilderAndBoardGroup(
@@ -3033,166 +2913,39 @@ def _GetConfig(site_config, ge_build_config, board_configs,
     _AdjustUngroupedReleaseConfigs(builder_ungrouped_dict)
     _AdjustGroupedReleaseConfigs(builder_group_dict)
 
-  _AdjustTemplateConfigs()
-
-  def MergeOverwrittenConfigs(*args, **kwargs):
-    """Merge overwritten configs."""
-    result = config_lib.BuildConfig()
-    result.apply(*args, **kwargs)
-    return result
-
-  overwritten_configs = {
-      'amd64-generic-chromium-pfq': {
-          'disk_layout': '2gb-rootfs',
-          'useflags': [],
-      },
-
-      'beaglebone-paladin': {
-          'chrome_sdk': False,
-          'image_test': False,
-          'rootfs_verification': False,
-          'sync_chrome': False,
-          'vm_tests': [],
-      },
-
-      'beaglebone_servo-paladin': {
-          'chrome_sdk': False,
-          'image_test': False,
-          'rootfs_verification': False,
-          'sync_chrome': False,
-          'vm_tests': [],
-      },
-
-      'lakitu-pre-cq': MergeOverwrittenConfigs(
-          site_config.templates.lakitu_test_customizations,
-          _template='pre_cq',
-       ),
-
-      'lakitu_next-pre-cq': MergeOverwrittenConfigs(
-          site_config.templates.lakitu_test_customizations,
-          _template='pre_cq',
-       ),
-
-      ### Arm release configs
-      'smaug-release' : {
-          'paygen': False,
-          'sign_types':['nv_lp0_firmware'],
-      },
-
-      # beaglebone build doesn't generate signed images, so don't try
-      # to release them.
-      'beaglebone-release': MergeOverwrittenConfigs(
-          site_config.templates.beaglebone,
-          _template='release',
-          buildslave_type=constants.GCE_BEEFY_BUILD_SLAVE_TYPE,
-          images=['base', 'test'],
-      ),
-
-      'beaglebone_servo-release': MergeOverwrittenConfigs(
-          site_config.templates.beaglebone,
-          _template='release',
-          payload_image='base',
-          buildslave_type=constants.GCE_BEEFY_BUILD_SLAVE_TYPE,
-          images=['base', 'test'],
-      ),
-
-      # Hw Lab can't test storm, yet.
-      'storm-release': {
-          'paygen_skip_testing':True,
-          'signer_tests':False,
-      },
-
-      'veyron_mickey-release': {
-          'vm_tests':[],
-      },
-
-      'whirlwind-release': {
-          'dev_installer_prebuilts':True,
-      },
-
-      'lakitu-release': MergeOverwrittenConfigs(
-          site_config.templates.lakitu_test_customizations,
-          _template='release',
-          sign_types=['base'],
-          images=['base', 'recovery', 'test'],
-      ),
-
-      'lakitu_next-release': MergeOverwrittenConfigs(
-          site_config.templates.lakitu_test_customizations,
-          _template='release',
-          signer_tests=False,
-          images=['base', 'recovery', 'test'],
-      ),
-
-      'guado_labstation-release': {
-          'hw_tests':[config_lib.HWTestConfig(constants.HWTEST_CANARY_SUITE,
-                      num=1, timeout=120*60, warn_only=True,
-                      async=True, retry=False, max_retries=None,
-                      file_bugs=False),
-          ],
-           'image_test':False,
-           'images':['test'],
-           'signer_tests':False,
-           'paygen':False,
-           'vm_tests':[],
-      }
-  }
-
-  def _OverwriteBoardConfigs():
-    """Given boards, overwrite special configs if needed."""
     for board in _cheets_boards:
       config_name = GetReleaseConfigName(board)
       # For boards in _cheets_boards, use cheets_release template
-      site_config[config_name] = site_config[config_name].derive(
+      site_config[config_name].apply(
           site_config.templates.cheets_release,
-          _base_configs[board],
-          _template='release',
+          board_configs[board],
       )
 
     for board in _moblab_boards:
       config_name = GetReleaseConfigName(board)
       # If the board is in _moblab_boards, use moblab_release template
-      site_config[config_name] = site_config[config_name].derive(
+      site_config[config_name].apply(
           site_config.templates.moblab_release,
-          _base_configs[board],
-          _template='release',
+          board_configs[board],
       )
 
-    for config_name in overwritten_configs:
-      site_config[config_name] = site_config[config_name].derive(
-        **overwritten_configs[config_name])
+  _AdjustReleaseConfigs()
 
-  _OverwriteBoardConfigs()
 
-  def _AddPayloadConfigs():
-    """Create <board>-payloads configs for all payload generating boards.
+def AddPayloadTryjobs(site_config):
+  """Create <board>-payloads configs for all payload generating boards.
 
-    We create a config named 'board-payloads' for every board which has a
-    config with 'paygen' True. The idea is that we have a build that generates
-    payloads, we need to have a tryjob to re-attempt them on failure.
-    """
-    payload_boards = set()
-
-    def _search_config_and_children(search_config):
-      # If paygen is enabled, add it's boards to our list of payload boards.
-      if search_config['paygen']:
-        for board in search_config['boards']:
-          payload_boards.add(board)
-
-      # Recurse on any child configs.
-      for child in search_config['child_configs']:
-        _search_config_and_children(child)
-
-    # Search all configs for boards that generate payloads.
-    for _, search_config in site_config.iteritems():
-      _search_config_and_children(search_config)
-
-    # Generate a payloads trybot config for every board that generates payloads.
-    for board in payload_boards:
-      name = '%s-payloads' % board
-      site_config.Add(name, site_config.templates.payloads, boards=[board])
-
-  _AddPayloadConfigs()
+  We create a config named 'board-payloads' for every board which has a
+  config with 'paygen' True. The idea is that we have a build that generates
+  payloads, we need to have a tryjob to re-attempt them on failure.
+  """
+  for board in _all_release_boards:
+    if site_config['%s-release' % board].paygen:
+      site_config.Add(
+          '%s-payloads' % board,
+          site_config.templates.payloads,
+          boards=[board],
+      )
 
 
 def InsertHwTestsOverrideDefaults(build, hw_test_list):
@@ -3251,6 +3004,219 @@ def InsertWaterfallDefaults(site_config, is_release_branch):
         site_config[name]['active_waterfall'] = waterfall
 
 
+def ApplyCustomOverrides(site_config, hw_test_list):
+  """Method with to override specific flags for specific builders.
+
+  Generally try really hard to avoid putting anything here that isn't
+  a really special case for a single specific builder. This is performed
+  after every other bit of processing, so it always has the final say.
+
+  Args:
+    site_config: config_lib.SiteConfig containing builds to have their
+                 waterfall values updated.
+    hw_test_list: Object to help create lists of standard HW Tests.
+  """
+  overwritten_configs = {
+      'amd64-generic-chromium-pfq': {
+          'disk_layout': '2gb-rootfs',
+          'useflags': [],
+      },
+
+      'beaglebone-paladin': {
+          'chrome_sdk': False,
+          'image_test': False,
+          'rootfs_verification': False,
+          'sync_chrome': False,
+      },
+
+      'beaglebone_servo-paladin': {
+          'chrome_sdk': False,
+          'image_test': False,
+          'rootfs_verification': False,
+          'sync_chrome': False,
+      },
+
+      'lakitu-pre-cq':
+          site_config.templates.lakitu_test_customizations,
+
+      'lakitu_next-pre-cq':
+          site_config.templates.lakitu_test_customizations,
+
+      ### Arm release configs
+      'smaug-release' : {
+          'paygen': False,
+          'sign_types':['nv_lp0_firmware'],
+      },
+
+      # Move beaglebone-release to GCE until we're smart enough to put
+      # everything there that doesn't use VM Tests.
+      'beaglebone-release': {
+          'buildslave_type': constants.GCE_BEEFY_BUILD_SLAVE_TYPE,
+      },
+
+      'beaglebone_servo-release': {
+          'buildslave_type': constants.GCE_BEEFY_BUILD_SLAVE_TYPE,
+      },
+
+      # Hw Lab can't test storm, yet.
+      'storm-release': {
+          'paygen_skip_testing':True,
+          'signer_tests':False,
+      },
+
+      'whirlwind-release': {
+          'dev_installer_prebuilts':True,
+      },
+
+      'lakitu-release': config_lib.BuildConfig().apply(
+          site_config.templates.lakitu_test_customizations,
+          sign_types=['base'],
+      ),
+
+      'lakitu_next-release': config_lib.BuildConfig().apply(
+          site_config.templates.lakitu_test_customizations,
+          signer_tests=False,
+      ),
+
+      'guado_labstation-release': {
+          'hw_tests': [
+              config_lib.HWTestConfig(constants.HWTEST_CANARY_SUITE,
+                                      num=1, timeout=120*60, warn_only=True,
+                                      async=True, retry=False, max_retries=None,
+                                      file_bugs=False),
+          ],
+          'image_test':False,
+          'images':['test'],
+          'signer_tests':False,
+          'paygen':False,
+          'vm_tests':[],
+      },
+
+      'lumpy-chrome-pfq': {
+          'afdo_generate': True,
+          # Disable hugepages before collecting AFDO profile.
+          'useflags': append_useflags(['-transparent_hugepage']),
+          'hw_tests': ([hw_test_list.AFDORecordTest()] +
+                       hw_test_list.SharedPoolPFQ()),
+      },
+
+      'cyan-chrome-pfq': {
+          'hw_tests': hw_test_list.SharedPoolAndroidPFQ(),
+      },
+
+      'daisy_skate-chrome-pfq': {
+          'hw_tests': hw_test_list.SharedPoolPFQ(),
+      },
+
+      'falco-chrome-pfq': {
+          'hw_tests': hw_test_list.SharedPoolPFQ(),
+      },
+
+      'veyron_minnie-chrome-pfq': {
+          'hw_tests': hw_test_list.SharedPoolAndroidPFQ(),
+      },
+
+      'peach_pit-chrome-pfq': {
+          'hw_tests': hw_test_list.SharedPoolPFQ(),
+      },
+
+      'tricky-chrome-pfq': {
+          'hw_tests': hw_test_list.SharedPoolPFQ(),
+      },
+  }
+
+  for config_name, overrides  in overwritten_configs.iteritems():
+    # TODO: Turn this assert into a unittest.
+    # config = site_config[config_name]
+    # for k, v in overrides.iteritems():
+    #   assert config[k] != v, ('Unnecessary override: %s: %s' %
+    #                           (config_name, k))
+    site_config[config_name].apply(**overrides)
+
+
+def SpecialtyBuilders(site_config):
+  """Add a variety of specialized builders or tryjobs."""
+  site_config.AddWithoutTemplate(
+      'chromiumos-sdk',
+      site_config.templates.full,
+      site_config.templates.no_hwtest_builder,
+      # The amd64-host has to be last as that is when the toolchains
+      # are bundled up for inclusion in the sdk.
+      boards=[
+          'x86-generic', 'arm-generic', 'amd64-generic', 'veyron_jaq'
+      ],
+      build_type=constants.CHROOT_BUILDER_TYPE,
+      active_waterfall=constants.WATERFALL_EXTERNAL,
+      buildslave_type=constants.BAREMETAL_BUILD_SLAVE_TYPE,
+      builder_class_name='sdk_builders.ChrootSdkBuilder',
+      use_sdk=False,
+      trybot_list=True,
+      prebuilts=constants.PUBLIC,
+      description='Build the SDK and all the cross-compilers',
+      doc='http://www.chromium.org/chromium-os/build/builder-overview#'
+          'TOC-Continuous',
+  )
+
+  site_config.AddWithoutTemplate(
+      'config-updater',
+      site_config.templates.no_hwtest_builder,
+      important=True,
+      vm_tests=[],
+      description=('Build Config Updater reads updated GE config files from'
+                   ' GS, and commits them to chromite after running tests.'),
+      build_type=constants.CONFIG_UPDATER_TYPE,
+      boards=[],
+      builder_class_name='config_builders.UpdateConfigBuilder',
+      active_waterfall=constants.WATERFALL_INFRA,
+      buildslave_type=constants.GCE_WIMPY_BUILD_SLAVE_TYPE,
+  )
+
+  site_config.AddWithoutTemplate(
+      constants.BRANCH_UTIL_CONFIG,
+      site_config.templates.paladin,
+      site_config.templates.internal_paladin,
+      site_config.templates.no_vmtest_builder,
+      site_config.templates.no_hwtest_builder,
+      boards=[],
+      # Disable postsync_patch to prevent conflicting patches from being applied
+      # - e.g., patches from 'master' branch being applied to a branch.
+      postsync_patch=False,
+      # Disable postsync_reexec to continue running the 'master' branch chromite
+      # for all stages, rather than the chromite in the branch buildroot.
+      postsync_reexec=False,
+      # Need to reset the paladin build_type we inherited.
+      build_type=None,
+      builder_class_name='release_builders.CreateBranchBuilder',
+      description='Used for creating/deleting branches (TPMs only)',
+      active_waterfall=constants.WATERFALL_TRYBOT,
+  )
+
+  site_config.AddWithoutTemplate(
+      'sync-test-cbuildbot',
+      site_config.templates.no_hwtest_builder,
+      boards=[],
+      build_type=constants.INCREMENTAL_TYPE,
+      builder_class_name='test_builders.ManifestVersionedSyncBuilder',
+      chroot_replace=True,
+      description='Sync tryjob to help with cbuildbot development',
+      active_waterfall=constants.WATERFALL_TRYBOT,
+  )
+
+  site_config.AddGroup(
+      'test-ap-group',
+      site_config.Add('stumpy-test-ap',
+                      site_config.templates.test_ap,
+                      boards=['stumpy']),
+      site_config.Add('panther-test-ap',
+                      site_config.templates.test_ap,
+                      boards=['panther']),
+      site_config.Add('whirlwind-test-ap',
+                      site_config.templates.test_ap,
+                      boards=['whirlwind']),
+      description='Create images used to power access points in WiFi lab.',
+  )
+
+
 @factory.CachedFunctionCall
 def GetConfig():
   """Create the Site configuration for all ChromeOS builds.
@@ -3276,11 +3242,21 @@ def GetConfig():
 
   board_configs = CreateBoardConfigs(site_config, ge_build_config)
 
-  ToolchainBuilders(site_config, hw_test_list)
+  ToolchainBuilders(site_config, board_configs, hw_test_list)
+
+  ReleaseBuilders(site_config, board_configs, ge_build_config,
+                  is_release_branch)
+
+  AddPayloadTryjobs(site_config)
+
+  SpecialtyBuilders(site_config)
 
   # Fill in templates and build configurations.
-  _GetConfig(site_config, ge_build_config, board_configs,
-             hw_test_list, is_release_branch)
+  _GetConfig(site_config, board_configs, hw_test_list)
+
+  AndroidPfqBuilders(site_config, board_configs, hw_test_list)
+
+  PreCqBuilders(site_config, board_configs, hw_test_list)
 
   # Insert default HwTests for tryjobs.
   for build in site_config.itervalues():
@@ -3288,5 +3264,7 @@ def GetConfig():
 
   # Assign waterfalls to builders that don't have them yet.
   InsertWaterfallDefaults(site_config, is_release_branch)
+
+  ApplyCustomOverrides(site_config, hw_test_list)
 
   return site_config

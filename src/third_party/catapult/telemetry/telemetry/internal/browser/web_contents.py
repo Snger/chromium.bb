@@ -5,13 +5,19 @@
 import os
 
 from telemetry.core import exceptions
-from telemetry.core import util
+
+import py_utils
+
+from py_trace_event import trace_event
 
 DEFAULT_WEB_CONTENTS_TIMEOUT = 90
 
 # TODO(achuith, dtu, nduca): Add unit tests specifically for WebContents,
 # independent of Tab.
 class WebContents(object):
+
+  __metaclass__ = trace_event.TracedMetaClass
+
   """Represents web contents in the browser"""
   def __init__(self, inspector_backend):
     self._inspector_backend = inspector_backend
@@ -107,21 +113,21 @@ class WebContents(object):
       timeout: The number of seconds to wait for the expression to be True.
 
     Raises:
-      exceptions.TimeoutException: On a timeout.
+      py_utils.TimeoutException: On a timeout.
       exceptions.Error: See EvaluateJavaScript() for a detailed list of
       possible exceptions.
     """
     def IsJavaScriptExpressionTrue():
       try:
         return bool(self.EvaluateJavaScript(expr))
-      except exceptions.TimeoutException:
+      except py_utils.TimeoutException:
         # If the main thread is busy for longer than Evaluate's timeout, we
         # may time out here early. Instead, we want to wait for the full
         # timeout of this method.
         return False
     try:
-      util.WaitFor(IsJavaScriptExpressionTrue, timeout)
-    except exceptions.TimeoutException as e:
+      py_utils.WaitFor(IsJavaScriptExpressionTrue, timeout)
+    except py_utils.TimeoutException as e:
       # Try to make timeouts a little more actionable by dumping console output.
       debug_message = None
       try:
@@ -132,7 +138,7 @@ class WebContents(object):
         debug_message = (
             'Exception thrown when trying to capture console output: %s' %
             repr(e))
-      raise exceptions.TimeoutException(
+      raise py_utils.TimeoutException(
           e.message + '\n' + debug_message)
 
   def HasReachedQuiescence(self):
@@ -194,7 +200,7 @@ class WebContents(object):
     Raises:
       exceptions.EvaluateException
       exceptions.WebSocketDisconnected
-      exceptions.TimeoutException
+      py_utils.TimeoutException
       exceptions.DevtoolsTargetCrashException
     """
     return self._inspector_backend.ExecuteJavaScript(
@@ -208,7 +214,7 @@ class WebContents(object):
     Raises:
       exceptions.EvaluateException
       exceptions.WebSocketDisconnected
-      exceptions.TimeoutException
+      py_utils.TimeoutException
       exceptions.DevtoolsTargetCrashException
     """
     return self._inspector_backend.EvaluateJavaScript(
@@ -219,7 +225,7 @@ class WebContents(object):
 
     Raises:
       exceptions.WebSocketDisconnected
-      exceptions.TimeoutException
+      py_utils.TimeoutException
       exceptions.DevtoolsTargetCrashException
     """
     return self._inspector_backend.EnableAllContexts()
@@ -232,7 +238,7 @@ class WebContents(object):
     the timeout has been exceeded.
 
     Raises:
-      exceptions.TimeoutException
+      py_utils.TimeoutException
       exceptions.DevtoolsTargetCrashException
     """
     self._inspector_backend.WaitForNavigate(timeout)
@@ -246,7 +252,7 @@ class WebContents(object):
     the page exists, but before any script on the page itself has executed.
 
     Raises:
-      exceptions.TimeoutException
+      py_utils.TimeoutException
       exceptions.DevtoolsTargetCrashException
     """
     self._inspector_backend.Navigate(url, script_to_evaluate_on_commit, timeout)
@@ -296,7 +302,7 @@ class WebContents(object):
       interactionMarkerName: The name of the interaction markers to generate.
 
     Raises:
-      exceptions.TimeoutException
+      py_utils.TimeoutException
       exceptions.DevtoolsTargetCrashException
     """
     return self._inspector_backend.SynthesizeScrollGesture(
@@ -338,7 +344,7 @@ class WebContents(object):
       isSystemKey: Whether the event was a system key event (default: False).
 
     Raises:
-      exceptions.TimeoutException
+      py_utils.TimeoutException
       exceptions.DevtoolsTargetCrashException
     """
     return self._inspector_backend.DispatchKeyEvent(

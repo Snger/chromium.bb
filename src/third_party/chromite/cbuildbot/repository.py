@@ -12,12 +12,13 @@ import re
 import shutil
 import time
 
-from chromite.cbuildbot import config_lib
+from chromite.lib import config_lib
 from chromite.cbuildbot import commands
-from chromite.cbuildbot import constants
+from chromite.lib import constants
 from chromite.lib import cros_build_lib
 from chromite.lib import cros_logging as logging
 from chromite.lib import git
+from chromite.lib import metrics
 from chromite.lib import osutils
 from chromite.lib import path_util
 from chromite.lib import retry_util
@@ -388,14 +389,32 @@ class RepoRepository(object):
            self._referenced_repo]
     git.RunGit('.', cmd)
 
+  def _ForceSyncSupported(self):
+    """Detect whether --force-sync is supported
+
+    When repo changes its internal object layout, it'll refuse to sync unless
+    this option is specified.
+    """
+    result = cros_build_lib.RunCommand([self.repo_cmd, 'sync', '--help'],
+                                       capture_output=True, cwd=self.directory)
+    return '--force-sync' in result.output
+
   def _CleanUpAndRunCommand(self, *args, **kwargs):
-    """Clean up repository and run command"""
+    """Clean up repository and run command.
+
+    This is only called in repo network Sync retries.
+    """
     commands.BuildRootGitCleanup(self.directory)
     local_manifest = kwargs.pop('local_manifest', None)
     # Always re-initialize to the current branch.
     self.Initialize(local_manifest)
     # Fix existing broken mirroring configurations.
     self._EnsureMirroring()
+
+    fields = {'manifest_repo': self.manifest_repo_url}
+    metrics.Counter(constants.MON_REPO_SYNC_RETRY_COUNT).increment(
+        fields=fields)
+
     cros_build_lib.RunCommand(*args, **kwargs)
 
   def Sync(self, local_manifest=None, jobs=None, all_branches=True,
@@ -426,6 +445,8 @@ class RepoRepository(object):
       self._EnsureMirroring()
 
       cmd = [self.repo_cmd, '--time', 'sync']
+      if self._ForceSyncSupported():
+        cmd += ['--force-sync']
       if jobs:
         cmd += ['--jobs', str(jobs)]
       if not all_branches or self._depth is not None:
@@ -435,6 +456,9 @@ class RepoRepository(object):
         cmd.append('--cache-dir=%s' % self.git_cache_dir)
       # Do the network half of the sync; retry as necessary to get the content.
       try:
+        fields = {'manifest_repo': self.manifest_repo_url}
+        metrics.Counter(constants.MON_REPO_SYNC_COUNT).increment(fields=fields)
+
         cros_build_lib.RunCommand(cmd + ['-n'], cwd=self.directory)
       except cros_build_lib.RunCommandError:
         if constants.SYNC_RETRIES > 0:
@@ -445,7 +469,9 @@ class RepoRepository(object):
           time.sleep(DEFAULT_SLEEP_TIME)
           retry_util.RetryCommand(self._CleanUpAndRunCommand,
                                   constants.SYNC_RETRIES - 1,
-                                  cmd + ['-n'], cwd=self.directory,
+                                  cmd + ['-n'],
+                                  cwd=self.directory,
+                                  local_manifest=local_manifest,
                                   sleep=DEFAULT_SLEEP_TIME,
                                   backoff_factor=2,
                                   log_retries=True)

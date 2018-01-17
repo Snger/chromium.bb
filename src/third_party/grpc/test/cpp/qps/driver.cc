@@ -45,6 +45,7 @@
 #include <grpc/support/host_port.h>
 #include <grpc/support/log.h>
 
+#include "src/core/lib/profiling/timers.h"
 #include "src/core/lib/support/env.h"
 #include "src/proto/grpc/testing/services.grpc.pb.h"
 #include "test/core/util/port.h"
@@ -83,7 +84,7 @@ static std::unordered_map<string, std::deque<int>> get_hosts_and_cores(
       auto stub = WorkerService::NewStub(
           CreateChannel(*it, InsecureChannelCredentials()));
       grpc::ClientContext ctx;
-      ctx.set_fail_fast(false);
+      ctx.set_wait_for_ready(true);
       CoreRequest dummy;
       CoreResponse cores;
       grpc::Status s = stub->CoreCount(&ctx, dummy, &cores);
@@ -167,7 +168,7 @@ namespace runsc {
 static ClientContext* AllocContext(list<ClientContext>* contexts) {
   contexts->emplace_back();
   auto context = &contexts->back();
-  context->set_fail_fast(false);
+  context->set_wait_for_ready(true);
   return context;
 }
 
@@ -366,9 +367,34 @@ std::unique_ptr<ScenarioResult> RunScenario(
     if (!clients[i].stream->Write(args)) {
       gpr_log(GPR_ERROR, "Could not write args to client %zu", i);
     }
+  }
+
+  for (size_t i = 0; i < num_clients; i++) {
     ClientStatus init_status;
     if (!clients[i].stream->Read(&init_status)) {
       gpr_log(GPR_ERROR, "Client %zu did not yield initial status", i);
+    }
+  }
+
+  // Send an initial mark: clients can use this to know that everything is ready
+  // to start
+  gpr_log(GPR_INFO, "Initiating");
+  ServerArgs server_mark;
+  server_mark.mutable_mark()->set_reset(true);
+  ClientArgs client_mark;
+  client_mark.mutable_mark()->set_reset(true);
+  ServerStatus server_status;
+  ClientStatus client_status;
+  for (size_t i = 0; i < num_clients; i++) {
+    auto client = &clients[i];
+    if (!client->stream->Write(client_mark)) {
+      gpr_log(GPR_ERROR, "Couldn't write mark to client %zu", i);
+    }
+  }
+  for (size_t i = 0; i < num_clients; i++) {
+    auto client = &clients[i];
+    if (!client->stream->Read(&client_status)) {
+      gpr_log(GPR_ERROR, "Couldn't get status from client %zu", i);
     }
   }
 
@@ -380,10 +406,6 @@ std::unique_ptr<ScenarioResult> RunScenario(
 
   // Start a run
   gpr_log(GPR_INFO, "Starting");
-  ServerArgs server_mark;
-  server_mark.mutable_mark()->set_reset(true);
-  ClientArgs client_mark;
-  client_mark.mutable_mark()->set_reset(true);
   for (size_t i = 0; i < num_servers; i++) {
     auto server = &servers[i];
     if (!server->stream->Write(server_mark)) {
@@ -396,8 +418,6 @@ std::unique_ptr<ScenarioResult> RunScenario(
       gpr_log(GPR_ERROR, "Couldn't write mark to client %zu", i);
     }
   }
-  ServerStatus server_status;
-  ClientStatus client_status;
   for (size_t i = 0; i < num_servers; i++) {
     auto server = &servers[i];
     if (!server->stream->Read(&server_status)) {
@@ -418,6 +438,8 @@ std::unique_ptr<ScenarioResult> RunScenario(
   gpr_sleep_until(gpr_time_add(
       start,
       gpr_time_from_seconds(warmup_seconds + benchmark_seconds, GPR_TIMESPAN)));
+
+  gpr_timer_set_enabled(0);
 
   // Finish a run
   std::unique_ptr<ScenarioResult> result(new ScenarioResult);
@@ -508,7 +530,7 @@ bool RunQuit() {
         CreateChannel(workers[i], InsecureChannelCredentials()));
     Void dummy;
     grpc::ClientContext ctx;
-    ctx.set_fail_fast(false);
+    ctx.set_wait_for_ready(true);
     Status s = stub->QuitWorker(&ctx, dummy, &dummy);
     if (!s.ok()) {
       gpr_log(GPR_ERROR, "Worker %zu could not be properly quit because %s", i,

@@ -31,14 +31,15 @@ tr.exportTo('tr.ui.b', function() {
   ChartBase2D.prototype = {
     __proto__: ChartBase.prototype,
 
-    decorate: function() {
-      ChartBase.prototype.decorate.call(this);
+    decorate() {
+      super.decorate();
       Polymer.dom(this).classList.add('chart-base-2d');
       this.xScale_ = d3.scale.linear();
       this.yScale_ = d3.scale.linear();
       this.isYLogScale_ = false;
       this.yLogScaleMin_ = undefined;
-      this.dataRange_ = new tr.b.Range();
+      this.autoDataRange_ = new tr.b.Range();
+      this.overrideDataRange_ = undefined;
       this.hideXAxis_ = false;
       this.hideYAxis_ = false;
       this.data_ = [];
@@ -124,13 +125,18 @@ tr.exportTo('tr.ui.b', function() {
     },
 
     getYScaleDomain_: function(minValue, maxValue) {
-      if (this.isYLogScale_)
+      if (this.overrideDataRange_ !== undefined) {
+        return [this.dataRange.min, this.dataRange.max];
+      }
+      if (this.isYLogScale_) {
         return [this.getYScaleMin_(), maxValue];
+      }
       return [Math.min(minValue, this.getYScaleMin_()), maxValue];
     },
 
     getSampleWidth_: function(data, index, leftSide) {
-      var leftIndex, rightIndex;
+      var leftIndex;
+      var rightIndex;
       if (leftSide) {
         leftIndex = Math.max(index - 1, 0);
         rightIndex = index;
@@ -176,16 +182,8 @@ tr.exportTo('tr.ui.b', function() {
       this.xScale_.domain(d3.extent(this.data_, this.getXForDatum_.bind(this)));
 
       // Y.
-      var yRange = new tr.b.Range();
-      for (var i = 0; i < this.data_.length; i++) {
-        for (var key in this.data_[i]) {
-          if (!isNaN(Math.max(this.data_[i][key])))
-            yRange.addValue(this.data_[i][key]);
-        }
-      }
-
       this.yScale_.range([height, 0]);
-      this.yScale_.domain([yRange.min, yRange.max]);
+      this.yScale_.domain([this.dataRange.min, this.dataRange.max]);
     },
 
     updateBrushContents_: function(brushSel) {
@@ -205,6 +203,7 @@ tr.exportTo('tr.ui.b', function() {
       tr.b.requestAnimationFrame(() => {
         this.drawXAxisTicks_(xAxis);
         this.drawXAxisLabel_(label);
+        xAxis[0][0].style.opacity = 1;
       });
     },
 
@@ -234,23 +233,37 @@ tr.exportTo('tr.ui.b', function() {
           tick.style.opacity = 0;
         }
       });
-      xAxis[0][0].style.opacity = 1;
+    },
+
+    set overrideDataRange(range) {
+      this.overrideDataRange_ = range;
+    },
+
+    get dataRange() {
+      if (this.overrideDataRange_ !== undefined) {
+        return this.overrideDataRange_;
+      }
+      return this.autoDataRange_;
     },
 
     updateDataRange_: function() {
+      if (this.overrideDataRange_ !== undefined) {
+        return;
+      }
+
       var dataBySeriesKey = this.getDataBySeriesKey_();
-      this.dataRange_.reset();
+      this.autoDataRange_.reset();
       tr.b.iterItems(dataBySeriesKey, function(series, values) {
         for (var i = 0; i < values.length; i++) {
-          this.dataRange_.addValue(values[i][series]);
+          this.autoDataRange_.addValue(values[i][series]);
         }
       }, this);
 
       // Choose the closest power of 10, rounded down, as the smallest tick
       // to display.
       this.yLogScaleMin_ = undefined;
-      if (this.dataRange_.min !== undefined) {
-        var minValue = this.dataRange_.min;
+      if (this.autoDataRange_.min !== undefined) {
+        var minValue = this.autoDataRange_.min;
         if (minValue === 0)
           minValue = 1;
 
@@ -284,12 +297,12 @@ tr.exportTo('tr.ui.b', function() {
       if (this.isYLogScale_) {
         if (this.yLogScaleMin_ === undefined)
           return;
-        var minValue = this.dataRange_.min;
+        var minValue = this.dataRange.min;
         if (minValue === 0)
           minValue = 1;
 
         var largestPower = Math.ceil(
-            Math.log(this.dataRange_.max) / Math.log(10)) + 1;
+            Math.log(this.dataRange.max) / Math.log(10)) + 1;
         var smallestPower = Math.floor(
             Math.log(minValue) / Math.log(10));
         var tickValues = [];
@@ -458,7 +471,7 @@ tr.exportTo('tr.ui.b', function() {
   };
 
   return {
-    ChartBase2D: ChartBase2D
+    ChartBase2D
   };
 });
 </script>

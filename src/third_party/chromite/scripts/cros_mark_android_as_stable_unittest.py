@@ -10,7 +10,7 @@ import itertools
 import mock
 import os
 
-from chromite.cbuildbot import constants
+from chromite.lib import constants
 from chromite.lib import cros_build_lib
 from chromite.lib import cros_logging as logging
 from chromite.lib import cros_test_lib
@@ -275,6 +275,8 @@ class CrosMarkAndroidAsStable(cros_test_lib.MockTempDirTestCase):
   def testMarkAndroidEBuildAsStable(self):
     """Test updating of ebuild."""
     self.PatchObject(cros_build_lib, 'RunCommand')
+    self.PatchObject(portage_util.EBuild, 'GetCrosWorkonVars',
+                     return_value=None)
     git_mock = self.PatchObject(git, 'RunGit')
     commit_mock = self.PatchObject(portage_util.EBuild, 'CommitChange')
     stable_candidate = portage_util.EBuild(self.old2)

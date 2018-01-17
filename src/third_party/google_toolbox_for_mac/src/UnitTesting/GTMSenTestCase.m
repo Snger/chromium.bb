@@ -19,12 +19,7 @@
 #import "GTMSenTestCase.h"
 
 #import <unistd.h>
-#if GTM_IPHONE_SIMULATOR
 #import <objc/message.h>
-#endif
-
-#import "GTMObjC2Runtime.h"
-#import "GTMUnitTestDevLog.h"
 
 #if GTM_IPHONE_SDK
 #import <UIKit/UIKit.h>
@@ -401,29 +396,13 @@ static NSInteger MethodSort(id a, id b, void *context) {
 
 @implementation GTMTestCase
 
-- (void)invokeTest {
-  NSAutoreleasePool *localPool = [[NSAutoreleasePool alloc] init];
-  Class devLogClass = NSClassFromString(@"GTMUnitTestDevLog");
-  if (devLogClass) {
-    [devLogClass performSelector:@selector(enableTracking)];
-    [devLogClass performSelector:@selector(verifyNoMoreLogsExpected)];
-
-  }
-  [super invokeTest];
-  if (devLogClass) {
-    [devLogClass performSelector:@selector(verifyNoMoreLogsExpected)];
-    [devLogClass performSelector:@selector(disableTracking)];
-  }
-  [localPool drain];
-}
-
 + (BOOL)isAbstractTestCase {
   NSString *name = NSStringFromClass(self);
   return [name rangeOfString:@"AbstractTest"].location != NSNotFound;
 }
 
 + (NSArray *)testInvocations {
-  NSArray *invocations = nil;
+  NSArray *invocations = @[];
   if (![self isAbstractTestCase]) {
     invocations = [super testInvocations];
   }

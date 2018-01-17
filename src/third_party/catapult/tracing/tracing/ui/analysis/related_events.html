@@ -35,25 +35,25 @@ found in the LICENSE file.
 function* getEventInFlowEvents(event) {
   if (!event.inFlowEvents)
     return;
-  yield * event.inFlowEvents;
+  yield* event.inFlowEvents;
 }
 
 function* getEventOutFlowEvents(event) {
   if (!event.outFlowEvents)
     return;
-  yield * event.outFlowEvents;
+  yield* event.outFlowEvents;
 }
 
 function* getEventAncestors(event) {
   if (!event.enumerateAllAncestors)
     return;
-  yield * event.enumerateAllAncestors();
+  yield* event.enumerateAllAncestors();
 }
 
 function* getEventDescendents(event) {
   if (!event.enumerateAllDescendents)
     return;
-  yield * event.enumerateAllDescendents();
+  yield* event.enumerateAllDescendents();
 }
 
 Polymer({
@@ -152,9 +152,9 @@ Polymer({
         'Add all events that have led to the selected one(s), connected by ' +
             'flow arrows or by call stack.',
         eventSet,
-        function*(event) {
-          yield * getEventInFlowEvents(event);
-          yield * getEventAncestors(event);
+        function* (event) {
+          yield* getEventInFlowEvents(event);
+          yield* getEventAncestors(event);
           if (event.startSlice)
             yield event.startSlice;
         }.bind(this)));
@@ -163,9 +163,9 @@ Polymer({
         'Add all events that have been caused by the selected one(s), ' +
             'connected by flow arrows or by call stack.',
         eventSet,
-        function*(event) {
-          yield * getEventOutFlowEvents(event);
-          yield * getEventDescendents(event);
+        function* (event) {
+          yield* getEventOutFlowEvents(event);
+          yield* getEventDescendents(event);
           if (event.endSlice)
             yield event.endSlice;
         }.bind(this)));
@@ -174,11 +174,11 @@ Polymer({
         'Add all events connected to the selected one(s) by flow arrows or ' +
             'by call stack.',
         eventSet,
-        function*(event) {
-          yield * getEventInFlowEvents(event);
-          yield * getEventOutFlowEvents(event);
-          yield * getEventAncestors(event);
-          yield * getEventDescendents(event);
+        function* (event) {
+          yield* getEventInFlowEvents(event);
+          yield* getEventOutFlowEvents(event);
+          yield* getEventAncestors(event);
+          yield* getEventDescendents(event);
           if (event.startSlice)
             yield event.startSlice;
           if (event.endSlice)

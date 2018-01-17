@@ -15,7 +15,7 @@ from telemetry.internal.platform import win_platform_backend
 from telemetry.timeline import trace_data
 from telemetry.timeline import tracing_config
 
-SNAPSHOT_KEYS = ['pid', 'name', 'path', 'pCpu', 'pMem']
+SNAPSHOT_KEYS = ['pid', 'ppid', 'name', 'pCpu', 'pMem']
 TRACE_EVENT_KEYS = ['name', 'tid', 'pid', 'ph', 'args', 'local', 'id', 'ts']
 
 
@@ -129,18 +129,5 @@ class CpuTracingAgentTest(unittest.TestCase):
     data = json.loads(builder.GetTraceFor(trace_data.CPU_TRACE_DATA))
     self.assertTrue(data)
     for snapshot in data:
-      for process in snapshot['args']['snapshot']['processes']:
-        self.assertTrue(process['pCpu'] >= cpu_tracing_agent.DEFAULT_MIN_PCPU)
-
-  @decorators.Enabled('linux', 'mac')
-  def testParseLine(self):
-    collector = self._agent._collector
-    invalid_inputs = ['', '1000 chrome', '1000 chrome 1.0 1.0 1.0']
-    for invalid_input in invalid_inputs:
-      self.assertFalse(collector._ParseLine(invalid_input))
-    valid_input = '1000 chrome 20.0 10.0 '
-    output = collector._ParseLine(valid_input)
-    self.assertEquals(output['pCpu'], '20.0')
-    self.assertEquals(output['pMem'], '10.0')
-    self.assertEquals(output['pid'], '1000')
-    self.assertEquals(output['path'], 'chrome')
+      # We know that at least Python is running in every snapshot.
+      self.assertTrue(len(snapshot['args']['snapshot']['processes']) > 0)

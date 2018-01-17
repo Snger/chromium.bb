@@ -80,7 +80,6 @@ set(Tests
   LeakTest
   LeakTimeoutTest
   LoadTest
-  MinimizeCorpusTest
   NullDerefTest
   NullDerefOnEmptyTest
   NthRunCrashTest
@@ -98,13 +97,18 @@ set(Tests
   SingleStrcmpTest
   SingleStrncmpTest
   SpamyTest
+  ShrinkControlFlowTest
+  ShrinkValueProfileTest
   StrcmpTest
+  StrncmpOOBTest
   StrncmpTest
   StrstrTest
+  SwapCmpTest
   SwitchTest
   ThreadedLeakTest
   ThreadedTest
   TimeoutTest
+  TraceMallocTest
   )
 
 if(APPLE)
@@ -131,6 +135,11 @@ add_executable(LLVMFuzzer-Unittest
   FuzzerFnAdapterUnittest.cpp
   )
 
+add_executable(LLVMFuzzer-StandaloneInitializeTest
+  InitializeTest.cpp
+  ../standalone/StandaloneFuzzTargetMain.c
+  )
+
 target_link_libraries(LLVMFuzzer-Unittest
   gtest
   gtest_main
@@ -146,21 +155,18 @@ set_target_properties(LLVMFuzzer-Unittest
   PROPERTIES RUNTIME_OUTPUT_DIRECTORY
   "${CMAKE_CURRENT_BINARY_DIR}"
 )
+
+set(TestBinaries ${TestBinaries} LLVMFuzzer-StandaloneInitializeTest)
+set_target_properties(LLVMFuzzer-StandaloneInitializeTest
+  PROPERTIES RUNTIME_OUTPUT_DIRECTORY
+  "${CMAKE_CURRENT_BINARY_DIR}"
+)
+
 ###############################################################################
 # Additional tests
 ###############################################################################
 
 include_directories(..)
-
-if(APPLE)
-  message(WARNING "DataflowSanitizer is not supported on Apple platforms."
-    " Building and running LibFuzzer DataflowSanitizer tests is disabled."
-    )
-  set(HAS_DFSAN 0)
-else()
-  set(HAS_DFSAN 1)
-  add_subdirectory(dfsan)
-endif()
 
 add_subdirectory(uninstrumented)
 add_subdirectory(no-coverage)

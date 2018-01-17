@@ -348,7 +348,8 @@ class StartBisectTest(testing_common.TestCase):
                     'blog.chromium.org': {},
                     'dev.chromium.org': {},
                     'test.blogspot.com': {},
-                    'http___test.com_': {}
+                    'http___test.com_': {},
+                    'Wikipedia (1 tab)': {}
                 },
                 'vm_final_size_renderer': {
                     'ref': {},
@@ -369,16 +370,17 @@ class StartBisectTest(testing_common.TestCase):
 
     response = self.testapp.post('/start_try_job', {
         'test_path': ('ChromiumPerf/win7/page_cycler.morejs/'
-                      'times/page_load_time'),
+                      'times/Wikipedia (1 tab)'),
         'step': 'prefill-info',
     })
     info = json.loads(response.body)
     self.assertEqual('win_perf_bisect', info['bisect_bot'])
     self.assertEqual('foo@chromium.org', info['email'])
     self.assertEqual('page_cycler.morejs', info['suite'])
-    self.assertEqual('times/page_load_time', info['default_metric'])
+    self.assertEqual('times/Wikipedia (1 tab)', info['default_metric'])
     self.assertEqual('ChromiumPerf', info['master'])
     self.assertFalse(info['internal_only'])
+    self.assertFalse(info['is_admin'])
     self.assertTrue(info['use_archive'])
     self.assertEqual(
         [
@@ -392,6 +394,7 @@ class StartBisectTest(testing_common.TestCase):
         ], info['all_bots'])
     self.assertEqual(
         [
+            'times/Wikipedia (1 tab)',
             'times/blog.chromium.org',
             'times/dev.chromium.org',
             'times/http___test.com_',
@@ -399,6 +402,7 @@ class StartBisectTest(testing_common.TestCase):
             'times/test.blogspot.com'
         ],
         info['all_metrics'])
+    self.assertEqual(info['story_filter'], 'Wikipedia..1.tab.')
 
     response = self.testapp.post('/start_try_job', {
         'test_path': ('ChromiumPerf/win7/page_cycler.morejs/'
@@ -410,6 +414,8 @@ class StartBisectTest(testing_common.TestCase):
         ['vm_final_size_renderer/vm_final_size_renderer',
          'vm_final_size_renderer/vm_final_size_renderer_extcs1'],
         info['all_metrics'])
+    # vm_final_size_renderer is not a story, so no filter.
+    self.assertEqual(info['story_filter'], '')
 
     response = self.testapp.post('/start_try_job', {
         'test_path': 'ChromiumPerf/win7/blink_perf/Animation_balls',
@@ -417,6 +423,7 @@ class StartBisectTest(testing_common.TestCase):
     })
     info = json.loads(response.body)
     self.assertEqual('Animation_balls/Animation_balls', info['default_metric'])
+    self.assertEqual(info['story_filter'], 'Animation.balls')
 
     response = self.testapp.post('/start_try_job', {
         'test_path': 'ChromiumPerf/android-nexus7/blink_perf/Animation_balls',
@@ -424,6 +431,7 @@ class StartBisectTest(testing_common.TestCase):
     })
     info = json.loads(response.body)
     self.assertEqual('android_nexus7_perf_bisect', info['bisect_bot'])
+    self.assertEqual(info['story_filter'], 'Animation.balls')
 
     response = self.testapp.post('/start_try_job', {
         'test_path': ('ChromiumPerf/chromium-rel-win8-dual/'
@@ -520,12 +528,13 @@ class StartBisectTest(testing_common.TestCase):
             'bisect_bot': 'win_perf_bisect',
             'master_name': 'ChromiumPerf',
             'suite': 'page_cycler.morejs',
-            'metric': 'times/page_load_time',
+            'metric': 'times/http___test.com_',
             'good_revision': '12345',
             'bad_revision': '23456',
             'repeat_count': '15',
             'max_time_minutes': '8',
             'bug_id': '-1',
+            'story_filter': 'http...test\\.com.',
         },
         {
             'command': ('src/tools/perf/run_benchmark -v '
@@ -533,10 +542,11 @@ class StartBisectTest(testing_common.TestCase):
                         '--upload-results '
                         '--pageset-repeat=1 '
                         '--also-run-disabled-tests '
+                        "--story-filter='http...test\\.com.' "
                         'page_cycler.morejs'),
             'good_revision': '12345',
             'bad_revision': '23456',
-            'metric': 'times/page_load_time',
+            'metric': 'times/http___test.com_',
             'recipe_tester_name': 'win_perf_bisect',
             'repeat_count': '15',
             'max_time_minutes': '8',

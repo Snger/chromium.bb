@@ -15,6 +15,8 @@
 #include "compiler/translator/PoolAlloc.h"
 #include "compiler/translator/TranslatorESSL.h"
 
+using namespace sh;
+
 template <typename T>
 class ConstantFinder : public TIntermTraverser
 {
@@ -107,7 +109,7 @@ class ConstantFoldingTest : public testing::Test
         allocator.push();
         SetGlobalPoolAllocator(&allocator);
         ShBuiltInResources resources;
-        ShInitBuiltInResources(&resources);
+        InitBuiltInResources(&resources);
 
         mTranslatorESSL = new TranslatorESSL(GL_FRAGMENT_SHADER, SH_GLES3_SPEC);
         ASSERT_TRUE(mTranslatorESSL->Init(resources));
@@ -825,6 +827,45 @@ TEST_F(ConstantFoldingTest, FoldBitShiftRightDifferentSignedness)
     ASSERT_TRUE(constantFoundInAST(0x3u));
 }
 
+// Test that folding signed bit shift right extends the sign bit.
+// ESSL 3.00.6 section 5.9 Expressions.
+TEST_F(ConstantFoldingTest, FoldBitShiftRightExtendSignBit)
+{
+    const std::string &shaderString =
+        "#version 300 es\n"
+        "precision mediump float;\n"
+        "out vec4 my_FragColor;\n"
+        "void main()\n"
+        "{\n"
+        "    const int i = 0x8fffe000 >> 6;\n"
+        "    uint u = uint(i);"
+        "    my_FragColor = vec4(u);\n"
+        "}\n";
+    compile(shaderString);
+    // The bits of the operand are 0x8fffe000 = 1000 1111 1111 1111 1110 0000 0000 0000
+    // After shifting, they become              1111 1110 0011 1111 1111 1111 1000 0000 = 0xfe3fff80
+    ASSERT_TRUE(constantFoundInAST(0xfe3fff80u));
+}
+
+// Signed bit shift left should interpret its operand as a bit pattern. As a consequence a number
+// may turn from positive to negative when shifted left.
+// ESSL 3.00.6 section 5.9 Expressions.
+TEST_F(ConstantFoldingTest, FoldBitShiftLeftInterpretedAsBitPattern)
+{
+    const std::string &shaderString =
+        "#version 300 es\n"
+        "precision mediump float;\n"
+        "out vec4 my_FragColor;\n"
+        "void main()\n"
+        "{\n"
+        "    const int i = 0x1fffffff << 3;\n"
+        "    uint u = uint(i);"
+        "    my_FragColor = vec4(u);\n"
+        "}\n";
+    compile(shaderString);
+    ASSERT_TRUE(constantFoundInAST(0xfffffff8u));
+}
+
 // Test that dividing the minimum signed integer by -1 works.
 // ESSL 3.00.6 section 4.1.3 Integers:
 // "However, for the case where the minimum representable value is divided by -1, it is allowed to
@@ -984,4 +1025,40 @@ TEST_F(ConstantFoldingTest, FoldMinimumSignedIntegerNegation)
     compile(shaderString);
     // Negating the minimum signed integer overflows the positive range, so it wraps back to itself.
     ASSERT_TRUE(constantFoundInAST(-0x7fffffff - 1));
+}
+
+// Test that folding of shifting the minimum representable integer works.
+TEST_F(ConstantFoldingTest, FoldMinimumSignedIntegerRightShift)
+{
+    const std::string &shaderString =
+        "#version 300 es\n"
+        "precision mediump float;\n"
+        "out vec4 my_FragColor;\n"
+        "void main()\n"
+        "{\n"
+        "    int i = (0x80000000 >> 1);\n"
+        "    int j = (0x80000000 >> 7);\n"
+        "    my_FragColor = vec4(i, j, i, j);\n"
+        "}\n";
+    compile(shaderString);
+    ASSERT_TRUE(constantFoundInAST(-0x40000000));
+    ASSERT_TRUE(constantFoundInAST(-0x01000000));
+}
+
+// Test that folding of shifting by 0 works.
+TEST_F(ConstantFoldingTest, FoldShiftByZero)
+{
+    const std::string &shaderString =
+        "#version 300 es\n"
+        "precision mediump float;\n"
+        "out vec4 my_FragColor;\n"
+        "void main()\n"
+        "{\n"
+        "    int i = (3 >> 0);\n"
+        "    int j = (73 << 0);\n"
+        "    my_FragColor = vec4(i, j, i, j);\n"
+        "}\n";
+    compile(shaderString);
+    ASSERT_TRUE(constantFoundInAST(3));
+    ASSERT_TRUE(constantFoundInAST(73));
 }

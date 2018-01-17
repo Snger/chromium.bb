@@ -10,19 +10,25 @@
 
 package org.appspot.apprtc;
 
-import org.appspot.apprtc.AppRTCClient.SignalingParameters;
-
 import android.content.Context;
 import android.os.Environment;
 import android.os.ParcelFileDescriptor;
 import android.util.Log;
-
+import java.io.File;
+import java.io.IOException;
+import java.util.Collections;
+import java.util.EnumSet;
+import java.util.LinkedList;
+import java.util.List;
+import java.util.Timer;
+import java.util.TimerTask;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
+import org.appspot.apprtc.AppRTCClient.SignalingParameters;
 import org.webrtc.AudioSource;
 import org.webrtc.AudioTrack;
-import org.webrtc.Camera1Enumerator;
-import org.webrtc.Camera2Enumerator;
-import org.webrtc.CameraEnumerationAndroid;
-import org.webrtc.CameraEnumerator;
 import org.webrtc.CameraVideoCapturer;
 import org.webrtc.DataChannel;
 import org.webrtc.EglBase;
@@ -45,17 +51,6 @@ import org.webrtc.VideoSource;
 import org.webrtc.VideoTrack;
 import org.webrtc.voiceengine.WebRtcAudioManager;
 import org.webrtc.voiceengine.WebRtcAudioUtils;
-
-import java.io.File;
-import java.io.IOException;
-import java.util.EnumSet;
-import java.util.LinkedList;
-import java.util.Timer;
-import java.util.TimerTask;
-import java.util.concurrent.Executors;
-import java.util.concurrent.ScheduledExecutorService;
-import java.util.regex.Matcher;
-import java.util.regex.Pattern;
 
 /**
  * Peer connection client implementation.
@@ -84,9 +79,6 @@ public class PeerConnectionClient {
   private static final String DTLS_SRTP_KEY_AGREEMENT_CONSTRAINT = "DtlsSrtpKeyAgreement";
   private static final int HD_VIDEO_WIDTH = 1280;
   private static final int HD_VIDEO_HEIGHT = 720;
-  private static final int MAX_VIDEO_WIDTH = 1280;
-  private static final int MAX_VIDEO_HEIGHT = 1280;
-  private static final int MAX_VIDEO_FPS = 30;
   private static final int BPS_IN_KBPS = 1000;
 
   private static final PeerConnectionClient instance = new PeerConnectionClient();
@@ -107,7 +99,7 @@ public class PeerConnectionClient {
   private boolean isError;
   private Timer statsTimer;
   private VideoRenderer.Callbacks localRender;
-  private VideoRenderer.Callbacks remoteRender;
+  private List<VideoRenderer.Callbacks> remoteRenders;
   private SignalingParameters signalingParameters;
   private MediaConstraints pcConstraints;
   private int videoWidth;
@@ -125,8 +117,7 @@ public class PeerConnectionClient {
   private boolean isInitiator;
   private SessionDescription localSdp; // either offer or answer SDP
   private MediaStream mediaStream;
-  private int numberOfCameras;
-  private CameraVideoCapturer videoCapturer;
+  private VideoCapturer videoCapturer;
   // enableVideo is set to true if video should be rendered and sent.
   private boolean renderVideo;
   private VideoTrack localVideoTrack;
@@ -143,14 +134,12 @@ public class PeerConnectionClient {
     public final boolean videoCallEnabled;
     public final boolean loopback;
     public final boolean tracing;
-    public final boolean useCamera2;
     public final int videoWidth;
     public final int videoHeight;
     public final int videoFps;
     public final int videoMaxBitrate;
     public final String videoCodec;
     public final boolean videoCodecHwAcceleration;
-    public final boolean captureToTexture;
     public final int audioStartBitrate;
     public final String audioCodec;
     public final boolean noAudioProcessing;
@@ -162,13 +151,11 @@ public class PeerConnectionClient {
     public final boolean enableLevelControl;
 
     public PeerConnectionParameters(boolean videoCallEnabled, boolean loopback, boolean tracing,
-        boolean useCamera2, int videoWidth, int videoHeight, int videoFps, int videoMaxBitrate,
-        String videoCodec, boolean videoCodecHwAcceleration, boolean captureToTexture,
-        int audioStartBitrate, String audioCodec, boolean noAudioProcessing, boolean aecDump,
-        boolean useOpenSLES, boolean disableBuiltInAEC, boolean disableBuiltInAGC,
-        boolean disableBuiltInNS, boolean enableLevelControl) {
+        int videoWidth, int videoHeight, int videoFps, int videoMaxBitrate, String videoCodec,
+        boolean videoCodecHwAcceleration, int audioStartBitrate, String audioCodec,
+        boolean noAudioProcessing, boolean aecDump, boolean useOpenSLES, boolean disableBuiltInAEC,
+        boolean disableBuiltInAGC, boolean disableBuiltInNS, boolean enableLevelControl) {
       this.videoCallEnabled = videoCallEnabled;
-      this.useCamera2 = useCamera2;
       this.loopback = loopback;
       this.tracing = tracing;
       this.videoWidth = videoWidth;
@@ -177,7 +164,6 @@ public class PeerConnectionClient {
       this.videoMaxBitrate = videoMaxBitrate;
       this.videoCodec = videoCodec;
       this.videoCodecHwAcceleration = videoCodecHwAcceleration;
-      this.captureToTexture = captureToTexture;
       this.audioStartBitrate = audioStartBitrate;
       this.audioCodec = audioCodec;
       this.noAudioProcessing = noAudioProcessing;
@@ -286,13 +272,20 @@ public class PeerConnectionClient {
 
   public void createPeerConnection(final EglBase.Context renderEGLContext,
       final VideoRenderer.Callbacks localRender, final VideoRenderer.Callbacks remoteRender,
-      final SignalingParameters signalingParameters) {
+      final VideoCapturer videoCapturer, final SignalingParameters signalingParameters) {
+    createPeerConnection(renderEGLContext, localRender, Collections.singletonList(remoteRender),
+        videoCapturer, signalingParameters);
+  }
+  public void createPeerConnection(final EglBase.Context renderEGLContext,
+      final VideoRenderer.Callbacks localRender, final List<VideoRenderer.Callbacks> remoteRenders,
+      final VideoCapturer videoCapturer, final SignalingParameters signalingParameters) {
     if (peerConnectionParameters == null) {
       Log.e(TAG, "Creating peer connection without initializing factory.");
       return;
     }
     this.localRender = localRender;
-    this.remoteRender = remoteRender;
+    this.remoteRenders = remoteRenders;
+    this.videoCapturer = videoCapturer;
     this.signalingParameters = signalingParameters;
     executor.execute(new Runnable() {
       @Override
@@ -409,8 +402,7 @@ public class PeerConnectionClient {
     }
 
     // Check if there is a camera on device and disable video call if not.
-    numberOfCameras = CameraEnumerationAndroid.getDeviceCount();
-    if (numberOfCameras == 0) {
+    if (videoCapturer == null) {
       Log.w(TAG, "No camera on device. Switch to audio only call.");
       videoCallEnabled = false;
     }
@@ -430,10 +422,7 @@ public class PeerConnectionClient {
       if (videoFps == 0) {
         videoFps = 30;
       }
-
-      videoWidth = Math.min(videoWidth, MAX_VIDEO_WIDTH);
-      videoHeight = Math.min(videoHeight, MAX_VIDEO_HEIGHT);
-      videoFps = Math.min(videoFps, MAX_VIDEO_FPS);
+      Logging.d(TAG, "Capturing format: " + videoWidth + "x" + videoHeight + "@" + videoFps);
     }
 
     // Create audio constraints.
@@ -465,36 +454,6 @@ public class PeerConnectionClient {
     } else {
       sdpMediaConstraints.mandatory.add(
           new MediaConstraints.KeyValuePair("OfferToReceiveVideo", "false"));
-    }
-  }
-
-  private void createCapturer(CameraEnumerator enumerator) {
-    final String[] deviceNames = enumerator.getDeviceNames();
-
-    // First, try to find front facing camera
-    Logging.d(TAG, "Looking for front facing cameras.");
-    for (String deviceName : deviceNames) {
-      if (enumerator.isFrontFacing(deviceName)) {
-        Logging.d(TAG, "Creating front facing camera capturer.");
-        videoCapturer = enumerator.createCapturer(deviceName, null);
-
-        if (videoCapturer != null) {
-          return;
-        }
-      }
-    }
-
-    // Front facing camera not found, try something else
-    Logging.d(TAG, "Looking for other cameras.");
-    for (String deviceName : deviceNames) {
-      if (!enumerator.isFrontFacing(deviceName)) {
-        Logging.d(TAG, "Creating other camera capturer.");
-        videoCapturer = enumerator.createCapturer(deviceName, null);
-
-        if (videoCapturer != null) {
-          return;
-        }
-      }
     }
   }
 
@@ -534,23 +493,6 @@ public class PeerConnectionClient {
 
     mediaStream = factory.createLocalMediaStream("ARDAMS");
     if (videoCallEnabled) {
-      if (peerConnectionParameters.useCamera2) {
-        if (!peerConnectionParameters.captureToTexture) {
-          reportError(context.getString(R.string.camera2_texture_only_error));
-          return;
-        }
-
-        Logging.d(TAG, "Creating capturer using camera2 API.");
-        createCapturer(new Camera2Enumerator(context));
-      } else {
-        Logging.d(TAG, "Creating capturer using camera1 API.");
-        createCapturer(new Camera1Enumerator(peerConnectionParameters.captureToTexture));
-      }
-
-      if (videoCapturer == null) {
-        reportError("Failed to open camera");
-        return;
-      }
       mediaStream.addTrack(createVideoTrack(videoCapturer));
     }
 
@@ -598,6 +540,7 @@ public class PeerConnectionClient {
       } catch (InterruptedException e) {
         throw new RuntimeException(e);
       }
+      videoCapturerStopped = true;
       videoCapturer.dispose();
       videoCapturer = null;
     }
@@ -1003,13 +946,17 @@ public class PeerConnectionClient {
   }
 
   private void switchCameraInternal() {
-    if (!videoCallEnabled || numberOfCameras < 2 || isError || videoCapturer == null) {
-      Log.e(TAG, "Failed to switch camera. Video: " + videoCallEnabled + ". Error : " + isError
-              + ". Number of cameras: " + numberOfCameras);
-      return; // No video is sent or only one camera is available or error happened.
+    if (videoCapturer instanceof CameraVideoCapturer) {
+      if (!videoCallEnabled || isError || videoCapturer == null) {
+        Log.e(TAG, "Failed to switch camera. Video: " + videoCallEnabled + ". Error : " + isError);
+        return; // No video is sent or only one camera is available or error happened.
+      }
+      Log.d(TAG, "Switch camera");
+      CameraVideoCapturer cameraVideoCapturer = (CameraVideoCapturer) videoCapturer;
+      cameraVideoCapturer.switchCamera(null);
+    } else {
+      Log.d(TAG, "Will not switch camera, video caputurer is not a camera");
     }
-    Log.d(TAG, "Switch camera");
-    videoCapturer.switchCamera(null);
   }
 
   public void switchCamera() {
@@ -1109,7 +1056,9 @@ public class PeerConnectionClient {
           if (stream.videoTracks.size() == 1) {
             remoteVideoTrack = stream.videoTracks.get(0);
             remoteVideoTrack.setEnabled(renderVideo);
-            remoteVideoTrack.addRenderer(new VideoRenderer(remoteRender));
+            for (VideoRenderer.Callbacks remoteRender : remoteRenders) {
+              remoteVideoTrack.addRenderer(new VideoRenderer(remoteRender));
+            }
           }
         }
       });

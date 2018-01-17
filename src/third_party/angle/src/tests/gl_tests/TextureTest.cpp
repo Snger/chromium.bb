@@ -1194,6 +1194,16 @@ TEST_P(Texture2DTest, NegativeAPISubImage)
     const GLubyte *pixels[20] = { 0 };
     glTexSubImage2D(GL_TEXTURE_2D, 0, 1, 1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
     EXPECT_GL_ERROR(GL_INVALID_VALUE);
+
+    if (extensionEnabled("GL_EXT_texture_storage"))
+    {
+        // Create a 1-level immutable texture.
+        glTexStorage2DEXT(GL_TEXTURE_2D, 1, GL_RGBA8, 2, 2);
+
+        // Try calling sub image on the second level.
+        glTexSubImage2D(GL_TEXTURE_2D, 1, 1, 1, 1, 1, GL_RGBA, GL_UNSIGNED_BYTE, pixels);
+        EXPECT_GL_ERROR(GL_INVALID_OPERATION);
+    }
 }
 
 // Test that querying GL_TEXTURE_BINDING* doesn't cause an unexpected error.
@@ -3647,6 +3657,31 @@ TEST_P(Texture2DTestES3, StaleUnpackData)
 
     ASSERT_GL_NO_ERROR();
     EXPECT_PIXEL_COLOR_EQ(0, 0, GLColor::green);
+}
+
+// This test covers a D3D format redefinition bug for 3D textures. The base level format was not
+// being properly checked, and the texture storage of the previous texture format was persisting.
+// This would result in an ASSERT in debug and incorrect rendering in release.
+// See http://anglebug.com/1609 and WebGL 2 test conformance2/misc/views-with-offsets.html.
+TEST_P(Texture3DTestES3, FormatRedefinitionBug)
+{
+    GLTexture tex;
+    glBindTexture(GL_TEXTURE_3D, tex.get());
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_RGBA8, 1, 1, 1, 0, GL_RGBA, GL_UNSIGNED_BYTE, nullptr);
+
+    GLFramebuffer framebuffer;
+    glBindFramebuffer(GL_FRAMEBUFFER, framebuffer.get());
+    glFramebufferTextureLayer(GL_FRAMEBUFFER, GL_COLOR_ATTACHMENT0, tex.get(), 0, 0);
+
+    glCheckFramebufferStatus(GL_FRAMEBUFFER);
+
+    std::vector<uint8_t> pixelData(100, 0);
+
+    glTexImage3D(GL_TEXTURE_3D, 0, GL_RGB565, 1, 1, 1, 0, GL_RGB, GL_UNSIGNED_SHORT_5_6_5, nullptr);
+    glTexSubImage3D(GL_TEXTURE_3D, 0, 0, 0, 0, 1, 1, 1, GL_RGB, GL_UNSIGNED_SHORT_5_6_5,
+                    pixelData.data());
+
+    ASSERT_GL_NO_ERROR();
 }
 
 // Use this to select which configurations (e.g. which renderer, which GLES major version) these tests should be run against.

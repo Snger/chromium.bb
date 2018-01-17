@@ -176,7 +176,7 @@ es3fTextureFormatTests.Texture2DFormatCase.prototype.iterate = function() {
     // Compare and log.
     var isOk = glsTextureTestUtil.compareImages(referenceFrame, renderedFrame, threshold);
 
-    assertMsgOptions(isOk, es3fTextureFormatTests.testDescription(), true, true);
+    assertMsgOptions(isOk, es3fTextureFormatTests.testDescription(), true, false);
     return tcuTestCase.IterateResult.STOP;
 };
 
@@ -318,7 +318,7 @@ es3fTextureFormatTests.TextureCubeFormatCase.prototype.testFace = function(face)
     }
     var isOk = glsTextureTestUtil.compareImages(referenceFrame, renderedFrame, threshold, skipPixels);
 
-    assertMsgOptions(isOk, 'Face: ' + this.m_curFace + ' ' + es3fTextureFormatTests.testDescription(), true, true);
+    assertMsgOptions(isOk, 'Face: ' + this.m_curFace + ' ' + es3fTextureFormatTests.testDescription(), true, false);
     return isOk;
 };
 
@@ -443,7 +443,7 @@ es3fTextureFormatTests.Texture2DArrayFormatCase.prototype.testLayer = function(l
     // Compare and log.
     var isOk = glsTextureTestUtil.compareImages(referenceFrame, renderedFrame, threshold);
 
-    assertMsgOptions(isOk, 'Layer: ' + this.m_curLayer + ' ' + es3fTextureFormatTests.testDescription(), true, true);
+    assertMsgOptions(isOk, 'Layer: ' + this.m_curLayer + ' ' + es3fTextureFormatTests.testDescription(), true, false);
     return isOk;
 };
 
@@ -569,7 +569,7 @@ es3fTextureFormatTests.Texture3DFormatCase.prototype.testSlice = function(sliceN
     // Compare and log.
     var isOk = glsTextureTestUtil.compareImages(referenceFrame, renderedFrame, threshold);
 
-    assertMsgOptions(isOk, 'Slice: ' + this.m_curSlice + ' ' + es3fTextureFormatTests.testDescription(), true, true);
+    assertMsgOptions(isOk, 'Slice: ' + this.m_curSlice + ' ' + es3fTextureFormatTests.testDescription(), true, false);
     return isOk;
 };
 
@@ -676,7 +676,7 @@ es3fTextureFormatTests.Compressed2DFormatCase.prototype.iterate = function() {
     // Compare and log.
     var isOk = glsTextureTestUtil.compareImages(referenceFrame, renderedFrame, threshold);
 
-    assertMsgOptions(isOk, es3fTextureFormatTests.testDescription(), true, true);
+    assertMsgOptions(isOk, es3fTextureFormatTests.testDescription(), true, false);
     return tcuTestCase.IterateResult.STOP;
 };
 
@@ -772,7 +772,7 @@ es3fTextureFormatTests.CompressedCubeFormatCase.prototype.testFace = function(fa
     // Compare and log.
     var isOk = glsTextureTestUtil.compareImages(referenceFrame, renderedFrame, threshold);
 
-    assertMsgOptions(isOk, 'Face: ' + this.m_curFace + ' ' + es3fTextureFormatTests.testDescription(), true, true);
+    assertMsgOptions(isOk, 'Face: ' + this.m_curFace + ' ' + es3fTextureFormatTests.testDescription(), true, false);
     return isOk;
 };
 
@@ -1125,8 +1125,8 @@ es3fTextureFormatTests.genTestCases = function() {
         ['gl.COMPRESSED_RGBA8_ETC2_EAC', 'etc2_eac_rgba8', tcuCompressedTexture.Format.ETC2_EAC_RGBA8],
         ['gl.COMPRESSED_SRGB8_ALPHA8_ETC2_EAC', 'etc2_eac_srgb8_alpha8', tcuCompressedTexture.Format.ETC2_EAC_SRGB8_ALPHA8]
     ];
-    if (!gluTextureUtil.enableCompressedTextureES30()) {
-        debug('Skipping ETC2 texture format tests: no support for WEBGL_compressed_texture_es3_0');
+    if (!gluTextureUtil.enableCompressedTextureETC()) {
+        debug('Skipping ETC2/EAC texture format tests: no support for WEBGL_compressed_texture_etc');
         etc2Formats = [];
     }
     etc2Formats.forEach(function(elem) {

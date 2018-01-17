@@ -19,24 +19,29 @@ class VMTest(object):
 
   CATAPULT_RUN_TESTS = \
       '/usr/local/telemetry/src/third_party/catapult/telemetry/bin/run_tests'
-  TEST_PATTERNS = ['browser_unittest.BrowserTest', 'CrOS']
-  GUEST_TEST_PATTERNS = ['testBrowserCreation']
+  TEST_PATTERNS = ['testBrowserCreation']
+  GUEST_TEST_PATTERNS = []
 
-  def __init__(self, image_path, catapult_tests, guest, start_vm, ssh_port):
+  def __init__(self, image_path, qemu_path, enable_kvm, display, catapult_tests,
+               guest, start_vm, ssh_port):
     self.start_time = datetime.datetime.utcnow()
     self.test_pattern = catapult_tests
     self.guest = guest
     self.start_vm = start_vm
     self.ssh_port = ssh_port
 
-    self._vm = cros_vm.VM(image_path=image_path, ssh_port=ssh_port)
+    self._vm = cros_vm.VM(image_path=image_path, qemu_path=qemu_path,
+                          enable_kvm=enable_kvm, display=display,
+                          ssh_port=ssh_port)
 
   def __del__(self):
     if self._vm and self.start_vm:
       self._vm.Stop()
 
-    logging.info('Time elapsed %d sec.',
-                 (datetime.datetime.utcnow() - self.start_time).total_seconds())
+    elapsed = datetime.datetime.utcnow() - self.start_time
+    # Don't need trailing milliseconds.
+    logging.info('Time elapsed %s.',
+                 datetime.timedelta(seconds=elapsed.seconds))
 
   def StartVM(self):
     """Start a VM if necessary.
@@ -123,24 +128,30 @@ def ParseCommandLine(argv):
   """
 
   parser = commandline.ArgumentParser(description=__doc__)
-  parser.add_argument('--start-vm', action='store_true',
+  parser.add_argument('--start-vm', action='store_true', default=False,
                       help='Start a new VM before running tests.')
   parser.add_argument('--catapult-tests',
                       help='Catapult test pattern to run, passed to run_tests.')
-  parser.add_argument('--guest', action='store_true',
+  parser.add_argument('--guest', action='store_true', default=False,
                       help='Run tests in incognito mode.')
   parser.add_argument('--build-dir', type='path',
                       help='Directory for building and deploying chrome.')
-  parser.add_argument('--build', action='store_true',
+  parser.add_argument('--build', action='store_true', default=False,
                       help='Before running tests, build chrome using ninja, '
                       '--build-dir must be specified.')
-  parser.add_argument('--deploy', action='store_true',
+  parser.add_argument('--deploy', action='store_true', default=False,
                       help='Before running tests, deploy chrome to the VM, '
                       '--build-dir must be specified.')
   parser.add_argument('--image-path', type='path',
                       help='Path to VM image to launch with --start-vm.')
-  parser.add_argument('--kvm-path', type='path',
-                      help='Path of kvm binary to launch with --start-vm.')
+  parser.add_argument('--qemu-path', type='path',
+                      help='Path of qemu binary to launch with --start-vm.')
+  parser.add_argument('--disable-kvm', dest='enable_kvm',
+                      action='store_false', default=True,
+                      help='Disable KVM, use software emulation.')
+  parser.add_argument('--no-display', dest='display',
+                      action='store_false', default=True,
+                      help='Do not display video output.')
   parser.add_argument('--ssh-port', type=int, default=cros_vm.VM.SSH_PORT,
                       help='ssh port to communicate with VM.')
   return parser.parse_args(argv)
@@ -149,8 +160,10 @@ def ParseCommandLine(argv):
 def main(argv):
   args = ParseCommandLine(argv)
   vm_test = VMTest(image_path=args.image_path,
-                   catapult_tests=args.catapult_tests, guest=args.guest,
-                   start_vm=args.start_vm, ssh_port=args.ssh_port)
+                   qemu_path=args.qemu_path, enable_kvm=args.enable_kvm,
+                   display=args.display, catapult_tests=args.catapult_tests,
+                   guest=args.guest, start_vm=args.start_vm,
+                   ssh_port=args.ssh_port)
 
   if (args.build or args.deploy) and not args.build_dir:
     args.error('Must specifiy --build-dir with --build or --deploy.')

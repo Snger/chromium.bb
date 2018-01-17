@@ -607,7 +607,6 @@ class ChromiumOSUpdater(ChromiumOSFlashUpdater):
   STATEFUL_TEST_FILE = '.test_file_to_be_deleted'
   UPDATED_MARKER = '/var/run/update_engine_autoupdate_completed'
   _LAB_MACHINE_FILE = '/mnt/stateful_partition/.labmachine'
-  AUTO_DIR = '/usr/local/autotest'
   KERNEL_A = {'name': 'KERN-A', 'kernel': 2, 'root': 3}
   KERNEL_B = {'name': 'KERN-B', 'kernel': 4, 'root': 5}
   KERNEL_UPDATE_TIMEOUT = 120
@@ -616,8 +615,8 @@ class ChromiumOSUpdater(ChromiumOSFlashUpdater):
   REBOOT_TIMEOUT = 480
 
   def __init__(self, device, build_name, payload_dir, dev_dir='',
-               log_file=None, tempdir=None, autodir=None,
-               clobber_stateful=True, local_devserver=False, yes=False):
+               log_file=None, tempdir=None, clobber_stateful=True,
+               local_devserver=False, yes=False):
     """Initialize a ChromiumOSUpdater for auto-update a chromium OS device.
 
     Args:
@@ -630,7 +629,6 @@ class ChromiumOSUpdater(ChromiumOSFlashUpdater):
           the tempdir for cros flash is /tmp/cros-flash****/, used to
           temporarily keep files when transferring devserver package, and
           reserve devserver and update engine logs.
-      autodir: the directory of autotest files in the device.
       clobber_stateful: whether to do a clean stateful update. The default is
           True for CrOS update.
       local_devserver: Indecate whether users use their local devserver.
@@ -658,17 +656,11 @@ class ChromiumOSUpdater(ChromiumOSFlashUpdater):
     else:
       self.update_version = build_name
 
-    if not autodir:
-      self.device_auto_dir = self.AUTO_DIR
-    else:
-      self.device_auto_dir = autodir
-
-
   def _cgpt(self, flag, kernel, dev='$(rootdev -s -d)'):
     """Return numeric cgpt value for the specified flag, kernel, device."""
     cmd = ['cgpt', 'show', '-n', '-i', '%d' % kernel['kernel'], flag, dev]
     return int(self.device.RunCommand(
-        cmd, capture_output=True).output.strip())
+        cmd, capture_output=True, log_output=True).output.strip())
 
   def _GetKernelPriority(self, kernel):
     """Return numeric priority for the specified kernel.
@@ -709,9 +701,19 @@ class ChromiumOSUpdater(ChromiumOSFlashUpdater):
     """Get release version of the device."""
     lsb_release_content = self.device.RunCommand(
         ['cat', '/etc/lsb-release'],
-        capture_output=True).output.strip()
-    return auto_update_util.GetChromeosReleaseVersion(
-        lsb_release_content=lsb_release_content)
+        capture_output=True, log_output=True).output.strip()
+    regex = r'^CHROMEOS_RELEASE_VERSION=(.+)$'
+    return auto_update_util.GetChromeosBuildInfo(
+        lsb_release_content=lsb_release_content, regex=regex)
+
+  def _GetReleaseBuilderPath(self):
+    """Get release version of the device."""
+    lsb_release_content = self.device.RunCommand(
+        ['cat', '/etc/lsb-release'],
+        capture_output=True, log_output=True).output.strip()
+    regex = r'^CHROMEOS_RELEASE_BUILDER_PATH=(.+)$'
+    return auto_update_util.GetChromeosBuildInfo(
+        lsb_release_content=lsb_release_content, regex=regex)
 
   def CheckVersion(self):
     """Check the image running in DUT has the expected version.
@@ -720,9 +722,16 @@ class ChromiumOSUpdater(ChromiumOSFlashUpdater):
       True if the DUT's image version matches the version that the
       ChromiumOSUpdater tries to update to.
     """
-    booted_version = self._GetReleaseVersion()
-    return (self.update_version and
-            self.update_version.endswith(booted_version))
+    if not self.update_version:
+      return False
+
+    # Use CHROMEOS_RELEASE_BUILDER_PATH to match the build version if it exists
+    # in lsb-release, otherwise, continue using CHROMEOS_RELEASE_VERSION.
+    release_builder_path = self._GetReleaseBuilderPath()
+    if release_builder_path:
+      return self.update_version == release_builder_path
+
+    return self.update_version.endswith(self._GetReleaseVersion())
 
   def _ResetUpdateEngine(self):
     """Resets the host to prepare for a clean update regardless of state."""
@@ -778,7 +787,8 @@ class ChromiumOSUpdater(ChromiumOSFlashUpdater):
           period=5)
     except timeout_util.TimeoutError:
       services_status = self.device.RunCommand(
-          ['status', 'system-services'], capture_output=True).output
+          ['status', 'system-services'], capture_output=True,
+          log_output=True).output
       logging.debug('System services_status: %r' % services_status)
       if services_status != 'system-services start/running\n':
         event = ('Chrome failed to reach login screen')
@@ -878,12 +888,14 @@ class ChromiumOSUpdater(ChromiumOSFlashUpdater):
     """Post-check for stateful update for CrOS host."""
     logging.debug('Start post check for stateful update...')
     self.device.Reboot(timeout_sec=self.REBOOT_TIMEOUT)
-    check_file_cmd = 'test -f %s; echo $?'
+    check_file_cmd = 'test -f %s'
     for folder in self.STATEFUL_FOLDER_TO_CHECK:
       test_file_path = os.path.join(folder, self.STATEFUL_TEST_FILE)
       result = self.device.RunCommand([check_file_cmd % test_file_path],
                                       **self._cmd_kwargs_omit_error)
-      if result.returncode == 1:
+
+      # If stateful update succeeds, these test files should not exist.
+      if result.returncode == 0:
         raise StatefulUpdateError('failed to post-check stateful update.')
 
   def PreSetupRootfsUpdate(self):
@@ -916,6 +928,15 @@ class ChromiumOSUpdater(ChromiumOSFlashUpdater):
                               'active kernel partition.')
 
     self.inactive_kernel = inactive_kernel
+    # The issue is that certain AU tests leave the TPM in a bad state which
+    # most commonly shows up in provisioning.  Executing this 'crossystem'
+    # command before rebooting clears the problem state during the reboot.
+    # It's also worth mentioning that this isn't a complete fix:  The bad
+    # TPM state in theory might happen some time other than during
+    # provisioning.  Also, the bad TPM state isn't supposed to happen at
+    # all; this change is just papering over the real bug.
+    self.device.RunCommand('crossystem clear_tpm_owner_request=1',
+                           **self._cmd_kwargs_omit_error)
     self.device.Reboot(timeout_sec=self.REBOOT_TIMEOUT)
 
   def PostCheckCrOSUpdate(self):
@@ -938,9 +959,3 @@ class ChromiumOSUpdater(ChromiumOSFlashUpdater):
           '%s instead' % (self.device.hostname,
                           self.update_version,
                           self._GetReleaseVersion()))
-
-    logging.debug('Cleaning up old autotest directories...')
-    try:
-      self.device.RunCommand(['rm', '-rf', self.device_auto_dir])
-    except cros_build_lib.RunCommandError as e:
-      logging.debug('Cannot clean up the old autotest directories: %s', e)

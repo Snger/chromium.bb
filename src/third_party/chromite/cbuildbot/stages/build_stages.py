@@ -9,10 +9,11 @@ from __future__ import print_function
 import glob
 import os
 
+from chromite.cbuildbot import buildbucket_lib
 from chromite.cbuildbot import chroot_lib
 from chromite.cbuildbot import commands
-from chromite.cbuildbot import constants
-from chromite.cbuildbot import failures_lib
+from chromite.lib import constants
+from chromite.lib import failures_lib
 from chromite.cbuildbot import repository
 from chromite.cbuildbot.stages import generic_stages
 from chromite.cbuildbot.stages import test_stages
@@ -90,7 +91,7 @@ class CleanUpStage(generic_stages.BuilderStage):
 
   def _DeleteAutotestSitePackages(self):
     """Clears any previously downloaded site-packages."""
-    logging.info('Deteing autotest site packages.')
+    logging.info('Deleting autotest site packages.')
     site_packages_dir = os.path.join(self._build_root, 'src', 'third_party',
                                      'autotest', 'files', 'site-packages')
     # Note that these shouldn't be recreated but might be around from stale
@@ -100,6 +101,51 @@ class CleanUpStage(generic_stages.BuilderStage):
   def _WipeOldOutput(self):
     logging.info('Wiping old output.')
     commands.WipeOldOutput(self._build_root)
+
+  def CancelObsoleteSlaveBuilds(self):
+    """Cancel the obsolete slave builds scheduled by the previous master."""
+    logging.info('Cancelling obsolete slave builds.')
+
+    if buildbucket_lib.GetServiceAccount(constants.CHROMEOS_SERVICE_ACCOUNT):
+      buildbucket_client = buildbucket_lib.BuildbucketClient(
+          service_account=constants.CHROMEOS_SERVICE_ACCOUNT)
+
+      buildbucket_ids = []
+      # Search for scheduled/started slave builds in chromiumos waterfall
+      # and chromeos waterfall.
+      for status in [constants.BUILDBUCKET_BUILDER_STATUS_SCHEDULED,
+                     constants.BUILDBUCKET_BUILDER_STATUS_STARTED]:
+        builds = buildbucket_client.SearchAllBuilds(
+            self._run.options.test_tryjob,
+            self._run.options.debug,
+            buckets=[constants.CHROMIUMOS_BUILDBUCKET_BUCKET,
+                     constants.CHROMEOS_BUILDBUCKET_BUCKET],
+            tags=['build_type:%s' % self._run.config.build_type,
+                  'master:False',],
+            status=status)
+
+        ids = buildbucket_lib.ExtractBuildIds(builds)
+        if ids:
+          logging.info('Found builds %s in status %s.', ids, status)
+          buildbucket_ids.extend(ids)
+
+      if buildbucket_ids:
+        # Only enable cancellation when debug is False and cidb is in Prod mode
+        cancel_dryrun = self._run.options.debug or not self._run.InProduction()
+        logging.info('Going to cancel buildbucket_ids: %s', buildbucket_ids)
+        cancel_content = buildbucket_client.CancelBatchBuildsRequest(
+            buildbucket_ids,
+            self._run.options.test_tryjob,
+            dryrun=cancel_dryrun)
+
+        result_map = buildbucket_lib.GetResultMap(cancel_content)
+        for build_id, result in result_map.iteritems():
+          # Check if the result contains error messages.
+          if buildbucket_lib.GetNestedAttr(result, ['error']):
+            # TODO(nxia): Get build url and log url in the warnings.
+            logging.warning("Error cancelling build %s with reason: %s. "
+                            "Please check the status of the build.",
+                            build_id, buildbucket_lib.GetErrorReason(result))
 
   @failures_lib.SetFailureType(failures_lib.InfrastructureFailure)
   def PerformStage(self):
@@ -144,6 +190,12 @@ class CleanUpStage(generic_stages.BuilderStage):
         tasks.append(self._DeleteChroot)
       else:
         tasks.append(self._CleanChroot)
+
+      # Only enable CancelObsoleteSlaveBuilds on the master-paladin,
+      # it checks for builds in ChromiumOs and ChromeOs waterfalls.
+      if self._run.config.name == constants.CQ_MASTER:
+        tasks.append(self.CancelObsoleteSlaveBuilds)
+
       parallel.RunParallelSteps(tasks)
 
 

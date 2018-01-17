@@ -8,6 +8,7 @@ import os
 import sys
 import time
 
+import py_utils
 from py_utils import cloud_storage  # pylint: disable=import-error
 
 from telemetry.core import exceptions
@@ -87,7 +88,8 @@ def _RunStoryAndProcessErrorIfNeeded(story, results, state, test):
     if isinstance(test, story_test.StoryTest):
       test.Measure(state.platform, results)
   except (legacy_page_test.Failure, exceptions.TimeoutException,
-          exceptions.LoginException, exceptions.ProfilingException):
+          exceptions.LoginException, exceptions.ProfilingException,
+          py_utils.TimeoutException):
     ProcessError()
   except exceptions.Error:
     ProcessError()
@@ -282,6 +284,11 @@ def RunBenchmark(benchmark, finder_options):
 
   benchmark_metadata = benchmark.GetMetadata()
   possible_browser = browser_finder.FindBrowser(finder_options)
+  if not possible_browser:
+    print ('Cannot find browser of type %s. To list out all '
+           'available browsers, rerun your command with '
+           '--browser=list' %  finder_options.browser_options.browser_type)
+    return 1
   if (possible_browser and
     not decorators.IsBenchmarkEnabled(benchmark, possible_browser)):
     print '%s is disabled on the selected browser' % benchmark.Name()

@@ -22,17 +22,24 @@ from telemetry.internal.actions.repaint_continuously import (
 from telemetry.internal.actions.repeatable_scroll import RepeatableScrollAction
 from telemetry.internal.actions.scroll import ScrollAction
 from telemetry.internal.actions.scroll_bounce import ScrollBounceAction
+from telemetry.internal.actions.scroll_to_element import ScrollToElementAction
 from telemetry.internal.actions.seek import SeekAction
 from telemetry.internal.actions.swipe import SwipeAction
 from telemetry.internal.actions.tap import TapAction
 from telemetry.internal.actions.wait import WaitForElementAction
 from telemetry.web_perf import timeline_interaction_record
 
+from py_trace_event import trace_event
+
+import py_utils
+
 
 _DUMP_WAIT_TIME = 3
 
 
 class ActionRunner(object):
+
+  __metaclass__ = trace_event.TracedMetaClass
 
   def __init__(self, tab, skip_waits=False):
     self._tab = tab
@@ -107,6 +114,19 @@ class ActionRunner(object):
       An instance of action_runner.Interaction
     """
     return self.CreateInteraction('Gesture_' + label, repeatable)
+
+  def WaitForNetworkQuiescence(self, timeout_in_seconds=10):
+    """ Wait for network quiesence on the page.
+    Args:
+      timeout_in_seconds: maximum amount of time (seconds) to wait for network
+        quiesence unil raising exception.
+
+    Raises:
+      py_utils.TimeoutException when the timeout is reached but the page's
+        network is not quiet.
+    """
+
+    py_utils.WaitFor(self.tab.HasReachedQuiescence, timeout_in_seconds)
 
   def MeasureMemory(self, deterministic_mode=False):
     """Add a memory measurement to the trace being recorded.
@@ -392,6 +412,21 @@ class ActionRunner(object):
         direction=direction, distance=distance, distance_expr=distance_expr,
         speed_in_pixels_per_second=speed_in_pixels_per_second,
         use_touch=use_touch, synthetic_gesture_source=synthetic_gesture_source))
+
+  def ScrollPageToElement(self, selector=None, element_function=None,
+                          speed_in_pixels_per_second=800):
+    """Perform scroll gesture on page until an element is in view.
+
+    Args:
+      selector: A CSS selector describing the element.
+      element_function: A JavaScript function (as string) that is used
+          to retrieve the element. For example:
+          'function() { return foo.element; }'.
+      speed_in_pixels_per_second: Speed to scroll.
+    """
+    self._RunAction(ScrollToElementAction(
+        selector=selector, element_function=element_function,
+        speed_in_pixels_per_second=speed_in_pixels_per_second))
 
   def RepeatableBrowserDrivenScroll(self, x_scroll_distance_ratio=0.0,
                                     y_scroll_distance_ratio=0.5,

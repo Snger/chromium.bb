@@ -8,11 +8,14 @@ import difflib
 import hashlib
 import json
 import logging
+import pipes
+import re
 
 import httplib2
 
 from google.appengine.api import users
 from google.appengine.api import app_identity
+from google.appengine.api import urlfetch
 
 from dashboard import buildbucket_job
 from dashboard import can_bisect
@@ -20,10 +23,12 @@ from dashboard import list_tests
 from dashboard import quick_logger
 from dashboard.common import namespaced_stored_object
 from dashboard.common import request_handler
+from dashboard.common import stored_object
 from dashboard.common import utils
 from dashboard.models import graph_data
 from dashboard.models import try_job
 from dashboard.services import buildbucket_service
+from dashboard.services import gitiles_service
 from dashboard.services import issue_tracker_service
 from dashboard.services import rietveld_service
 
@@ -128,6 +133,9 @@ class StartBisectHandler(request_handler.RequestHandler):
     internal_only = self.request.get('internal_only') == 'true'
     bisect_bot = self.request.get('bisect_bot')
     bypass_no_repro_check = self.request.get('bypass_no_repro_check') == 'true'
+    use_staging_bot = self.request.get('use_staging_bot') == 'true'
+    if use_staging_bot:
+      bisect_bot = _GuessStagingBot(master_name, bisect_bot) or bisect_bot
 
     bisect_config = GetBisectConfig(
         bisect_bot=bisect_bot,
@@ -139,6 +147,7 @@ class StartBisectHandler(request_handler.RequestHandler):
         repeat_count=self.request.get('repeat_count', 10),
         max_time_minutes=self.request.get('max_time_minutes', 20),
         bug_id=bug_id,
+        story_filter=self.request.get('story_filter'),
         use_archive=self.request.get('use_archive'),
         bisect_mode=self.request.get('bisect_mode', 'mean'),
         bypass_no_repro_check=bypass_no_repro_check)
@@ -232,23 +241,29 @@ def _PrefillInfo(test_path):
   if suite.internal_only and not utils.IsInternalUser():
     return {'error': 'Unauthorized access, please use corp account to login.'}
 
+  if users.is_current_user_admin():
+    info['is_admin'] = True
+  else:
+    info['is_admin'] = False
+
   info['email'] = user.email()
 
   info['all_metrics'] = []
   metric_keys = list_tests.GetTestDescendants(graph_key, has_rows=True)
+
   for metric_key in metric_keys:
     metric_path = utils.TestPath(metric_key)
     if metric_path.endswith('/ref') or metric_path.endswith('_ref'):
       continue
     info['all_metrics'].append(GuessMetric(metric_path))
   info['default_metric'] = GuessMetric(test_path)
-
+  info['story_filter'] = GuessStoryFilter(test_path)
   return info
 
 
 def GetBisectConfig(
     bisect_bot, master_name, suite, metric, good_revision, bad_revision,
-    repeat_count, max_time_minutes, bug_id, use_archive=None,
+    repeat_count, max_time_minutes, bug_id, story_filter=None, use_archive=None,
     bisect_mode='mean', bypass_no_repro_check=False):
   """Fills in a JSON response with the filled-in config file.
 
@@ -272,7 +287,7 @@ def GetBisectConfig(
     A dictionary with the result; if successful, this will contain "config",
     which is a config string; if there's an error, this will contain "error".
   """
-  command = GuessCommand(bisect_bot, suite, metric=metric)
+  command = GuessCommand(bisect_bot, suite, story_filter=story_filter)
   if not command:
     return {'error': 'Could not guess command for %r.' % suite}
 
@@ -401,11 +416,11 @@ def GuessBisectBot(master_name, bot_name):
 
 
 def GuessCommand(
-    bisect_bot, suite, metric=None, rerun_option=None):
+    bisect_bot, suite, story_filter=None, rerun_option=None):
   """Returns a command to use in the bisect configuration."""
   if suite in _NON_TELEMETRY_TEST_COMMANDS:
     return _GuessCommandNonTelemetry(suite, bisect_bot)
-  return _GuessCommandTelemetry(suite, bisect_bot, metric, rerun_option)
+  return _GuessCommandTelemetry(suite, bisect_bot, story_filter, rerun_option)
 
 
 def _GuessCommandNonTelemetry(suite, bisect_bot):
@@ -433,12 +448,8 @@ def _GuessCommandNonTelemetry(suite, bisect_bot):
   return ' '.join(command)
 
 
-def _GuessCommandTelemetry(
-    suite, bisect_bot, metric,  # pylint: disable=unused-argument
-    rerun_option):
+def _GuessCommandTelemetry(suite, bisect_bot, story_filter, rerun_option):
   """Returns a command to use given that |suite| is a Telemetry benchmark."""
-  # TODO(qyearsley): Use metric to add a --story-filter flag for Telemetry.
-  # See: http://crbug.com/448628
   command = []
 
   test_cmd = 'src/tools/perf/run_benchmark'
@@ -452,6 +463,8 @@ def _GuessCommandTelemetry(
       '--pageset-repeat=1',
       '--also-run-disabled-tests',
   ])
+  if story_filter:
+    command.append('--story-filter=%s' % pipes.quote(story_filter))
 
   # Test command might be a little different from the test name on the bots.
   if suite == 'blink_perf':
@@ -480,6 +493,43 @@ def _GuessBrowserName(bisect_bot):
     if bisect_bot.startswith(bot_name_prefix):
       return browser_name
   return default
+
+
+def GuessStoryFilter(test_path):
+  """Returns a suitable "story filter" to use in the bisect config.
+
+  Args:
+    test_path: The slash-separated test path used by the dashboard.
+
+  Returns:
+    A regex pattern that matches the story referred to by the test_path, or
+    an empty string if the test_path does not refer to a story and no story
+    filter should be used.
+  """
+  test_path_parts = test_path.split('/')
+  suite_name, story_name = test_path_parts[2], test_path_parts[-1]
+  if suite_name in _NON_TELEMETRY_TEST_COMMANDS:
+    return ''
+  test_key = utils.TestKey(test_path)
+  subtest_keys = list_tests.GetTestDescendants(test_key)
+  try:
+    subtest_keys.remove(test_key)
+  except ValueError:
+    pass
+  if subtest_keys:  # Stories do not have subtests.
+    return ''
+  if story_name.startswith('after_'):
+    # TODO(perezju,#1811): Remove this hack after deprecating the
+    # memory.top_10_mobile benchmark.
+    story_name = story_name[len('after_'):]
+
+  # During import, some chars in story names got replaced by "_" so they
+  # could be safely included in the test_path. At this point we don't know
+  # what the original characters were. Additionally, some special characters
+  # and argument quoting are not interpreted correctly, e.g. by bisect
+  # scripts (crbug.com/662472). We thus keep only a small set of "safe chars"
+  # and replace all others with match-any-character regex dots.
+  return re.sub(r'[^a-zA-Z0-9]', '.', story_name)
 
 
 # TODO(eakuefner): Make bisect work with value-level summaries and delete this.
@@ -588,6 +638,7 @@ def PerformBisect(bisect_job):
   else:
     comment = 'Started bisect job: %s' % result
   if bisect_job.bug_id:
+    logging.info('Commenting on bug %s for bisect job', bisect_job.bug_id)
     issue_tracker = issue_tracker_service.IssueTrackerService(
         utils.ServiceAccountHttp())
     issue_tracker.AddBugComment(bisect_job.bug_id, comment, send_email=False)
@@ -619,7 +670,12 @@ def _PerformPerfTryJob(perf_job):
   perf_job.config = utils.BisectConfigPythonString(config_dict)
 
   # Get the base config file contents and make a patch.
-  base_config = utils.DownloadChromiumFile(_PERF_CONFIG_PATH)
+  try:
+    base_config = gitiles_service.FileContents('chromium/src', 'master',
+                                               _PERF_CONFIG_PATH)
+  except urlfetch.Error:
+    base_config = None
+
   if not base_config:
     return {'error': 'Error downloading base config'}
   patch, base_checksum, base_hashes = _CreatePatch(
@@ -743,3 +799,15 @@ def _GetTryServerBucket(bisect_job):
         'Could not get bucket to be used by buildbucket, using default.')
     return default
   return master_bucket_map.get(bisect_job.master_name, default)
+
+def _GuessStagingBot(master_name, production_bot_name):
+  staging_bot_map = stored_object.Get('staging_bot_map') or {
+      'ChromiumPerf': [
+          ['win', 'staging_win_perf_bisect'],
+          ['mac', 'staging_mac_10_10_perf_bisect'],
+          ['linux', 'staging_linux_perf_bisect'],
+          ['android', 'staging_android_nexus5X_perf_bisect']]
+  }
+  for infix, staging_bot in staging_bot_map[master_name]:
+    if infix in production_bot_name:
+      return staging_bot

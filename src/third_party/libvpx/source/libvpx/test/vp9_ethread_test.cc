@@ -20,10 +20,12 @@
 namespace {
 class VPxEncoderThreadTest
     : public ::libvpx_test::EncoderTest,
-      public ::libvpx_test::CodecTestWith2Params<libvpx_test::TestMode, int> {
+      public ::libvpx_test::CodecTestWith4Params<libvpx_test::TestMode, int,
+                                                 int, int> {
  protected:
   VPxEncoderThreadTest()
-      : EncoderTest(GET_PARAM(0)), encoder_initialized_(false), tiles_(2),
+      : EncoderTest(GET_PARAM(0)), encoder_initialized_(false),
+        tiles_(GET_PARAM(3)), threads_(GET_PARAM(4)),
         encoding_mode_(GET_PARAM(1)), set_cpu_used_(GET_PARAM(2)) {
     init_flags_ = VPX_CODEC_USE_PSNR;
     md5_.clear();
@@ -63,6 +65,7 @@ class VPxEncoderThreadTest
         encoder->Control(VP8E_SET_ARNR_MAXFRAMES, 7);
         encoder->Control(VP8E_SET_ARNR_STRENGTH, 5);
         encoder->Control(VP8E_SET_ARNR_TYPE, 3);
+        encoder->Control(VP9E_SET_FRAME_PARALLEL_DECODING, 0);
       } else {
         encoder->Control(VP8E_SET_ENABLEAUTOALTREF, 0);
         encoder->Control(VP9E_SET_AQ_MODE, 3);
@@ -91,6 +94,7 @@ class VPxEncoderThreadTest
 
   bool encoder_initialized_;
   int tiles_;
+  int threads_;
   ::libvpx_test::TestMode encoding_mode_;
   int set_cpu_used_;
   std::vector<std::string> md5_;
@@ -111,7 +115,7 @@ TEST_P(VPxEncoderThreadTest, EncoderResultTest) {
   md5_.clear();
 
   // Encode using multiple threads.
-  cfg_.g_threads = 4;
+  cfg_.g_threads = threads_;
   ASSERT_NO_FATAL_FAILURE(RunLoop(&video));
   multi_thr_md5 = md5_;
   md5_.clear();
@@ -124,5 +128,7 @@ VP9_INSTANTIATE_TEST_CASE(VPxEncoderThreadTest,
                           ::testing::Values(::libvpx_test::kTwoPassGood,
                                             ::libvpx_test::kOnePassGood,
                                             ::libvpx_test::kRealTime),
-                          ::testing::Range(1, 9));
+                          ::testing::Range(0, 9),   // cpu_used
+                          ::testing::Range(0, 3),   // tile_columns
+                          ::testing::Range(2, 5));  // threads
 }  // namespace

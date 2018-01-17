@@ -223,7 +223,7 @@ UI element tests that make sure that an element is instantiable should have
 names that start with “`instantiate`”. These tests should, as a general rule,
 should not make assertions.
 
-## ES6 features
+## ECMAScript 2015 (ES6) features
 
 **Use of ES6 features is prohibited unless explicitly approved in the table below.** However, we're currently working to allow them.
 
@@ -231,8 +231,8 @@ should not make assertions.
 |---------------------------------------------------------------------------------------------------------------------------------------------|---------------------------------------------------------------------------------|
 | [Arrows](https://github.com/lukehoban/es6features#arrows)                                                                                   | [Approved](https://github.com/catapult-project/catapult/issues/2165)            |
 | [Classes](https://github.com/lukehoban/es6features#classes)                                                                                 | [Approved](https://github.com/catapult-project/catapult/issues/2176)            |
-| [Enhanced object literals](https://github.com/lukehoban/es6features#enhanced-object-literals)                                               | To be discussed                                                                 |
-| [Template strings](https://github.com/lukehoban/es6features#template-strings)                                                               | To be discussed                                                                 |
+| [Enhanced object literals](https://github.com/lukehoban/es6features#enhanced-object-literals)                                               | Approved                                                                        |
+| [Template strings](https://github.com/lukehoban/es6features#template-strings)                                                               | Approved                                                                        |
 | [Destructuring](https://github.com/lukehoban/es6features#destructuring)                                                                     | Approved                                                                        |
 | [Default, rest, and spread](https://github.com/lukehoban/es6features#default--rest--spread)                                                 | To be discussed                                                                 |
 | [`let` and `const`](https://github.com/lukehoban/es6features#let--const)                                                                    | To be discussed                                                                 |
@@ -250,6 +250,23 @@ should not make assertions.
 | [Binary and octal literals](https://github.com/lukehoban/es6features#binary-and-octal-literals)                                             | To be discussed                                                                 |
 | [Reflect API](https://github.com/lukehoban/es6features#reflect-api)                                                                         | To be discussed                                                                 |
 | [Tail calls](https://github.com/lukehoban/es6features#tail-calls)                                                                           | To be discussed                                                                 |
+
+## ECMAScript 2016 (ES7) features
+
+**Use of ES7 features is prohibited unless explicitly approved in the table below.** However, we're currently working to allow them.
+
+| Feature                  | Status          |
+|--------------------------|-----------------|
+| [Array.prototype.includes](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Array/includes) | To be discussed |
+| [Exponentiation operator](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Operators/Arithmetic_Operators#Exponentiation_(**))  | To be discussed |
+
+## ECMAScript 2017 (ES8) features
+
+**Use of ES8 features is prohibited unless explicitly approved in the table below.** Generally, ES8 features are still experimental and liable to change and therefore not fit for use in Catapult. However, in a few rare cases, features may be stable enough for use.
+
+| Feature                  | Status          |
+|--------------------------|-----------------|
+| [Object.entries](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/entries) and [Object.values](https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/Object/values) | To be discussed |
 
 ### Possible feature statuses
   - **Approved**: this feature is approved for general use.
@@ -273,14 +290,6 @@ should:
 If fixing the problem is hard but a simple workaround is possible, then using
 the workaround is OK so long as:
 
-  1. An issue is created to track the problem
-  2. The defensive code is wrapped in a `// TODO` linking to the issue
-  3. The TODO and defensive code are removed after the problem is fixed
-
-## Issues
-
-Issues should either:
-
-  * Not have a BUG= tag
-  * Have a BUG=catapult:#123 bug referring to issue 123 in our github tracker.
-  * Have a BUG=chromium:456 bug referring to issue 456 in the chromium tracker.
+  1. An issue is created to track the problem.
+  2. The defensive patch is wrapped in a `// TODO` linking to that issue.
+  3. The todo and defensive patch are removed after the problem is fixed.

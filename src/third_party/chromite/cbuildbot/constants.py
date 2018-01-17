@@ -249,8 +249,11 @@ MON_CL_FALSE_REJ_COUNT = ('chromeos/cbuildbot/submitted_change/'
 # Major is used for tracking heavy API breakage- for example, no longer
 # supporting the --resume option.
 REEXEC_API_MAJOR = 0
-REEXEC_API_MINOR = 3
+REEXEC_API_MINOR = 4
 REEXEC_API_VERSION = '%i.%i' % (REEXEC_API_MAJOR, REEXEC_API_MINOR)
+
+# Minor version 4 is the first to support --git-cache-dir
+REEXEC_API_GIT_CACHE_DIR = 4
 
 # Minor version 3 is the first to support --master-build-id
 REEXEC_API_MASTER_BUILD_ID = 3
@@ -946,7 +949,7 @@ EXTRA_BUCKETS_FILES_BLACKLIST = [
 
 # AFDO common constants.
 # How long does the AFDO_record autotest have to generate the AFDO perf data.
-AFDO_GENERATE_TIMEOUT = 80 * 60
+AFDO_GENERATE_TIMEOUT = 100 * 60
 
 # Stats dashboard elastic search and statsd constants.
 # Host and port information specified in topology.py.

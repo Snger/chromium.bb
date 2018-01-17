@@ -20,9 +20,9 @@ import sys
 import time
 from xml.dom import minidom
 
-from chromite.cbuildbot import config_lib
-from chromite.cbuildbot import constants
-from chromite.cbuildbot import failures_lib
+from chromite.lib import config_lib
+from chromite.lib import constants
+from chromite.lib import failures_lib
 from chromite.cbuildbot import lkgm_manager
 from chromite.cbuildbot import tree_status
 from chromite.cbuildbot import triage_lib
@@ -1581,7 +1581,10 @@ class ValidationPool(object):
     changes_in_manifest = []
     changes_not_in_manifest = []
     for change in changes:
+      # TODO: temp log to debug crbug.com/661704
+      logging.info('Checking for change %s', change)
       if change.GetCheckout(manifest, strict=False):
+        logging.info('Found manifest change %s', change)
         changes_in_manifest.append(change)
       elif change.IsMergeable():
         logging.info('Found non-manifest change %s', change)
@@ -2517,6 +2520,23 @@ class ValidationPool(object):
            'your change will be retried. Otherwise it will be rejected at '
            'the end of this CQ run.')
     self.SendNotification(change, msg)
+
+  def HandleNoConfigTargetFailure(self, change, config):
+    """Handler for when the target config not found.
+
+    This handler removes the commit queue ready and trybot ready bits,
+    and sends out the notifications explaining the config errors.
+
+    Args:
+      change: GerritPatch instance to operate upon.
+      config: The name (string) of the config to test.
+    """
+    msg = ('No configuration target found for %s.\nYou can check the available '
+           'configs by running `cbuildbot --list --all`.\nThe config may have '
+           'been changed or removed, you can try to rebase your CL so it can '
+           'get re-screened by the Pre-cq-launcher.' % config)
+    self.SendNotification(change, msg)
+    self.RemoveReady(change)
 
   def HandleValidationTimeout(self, changes=None, sanity=True):
     """Handles changes that timed out.

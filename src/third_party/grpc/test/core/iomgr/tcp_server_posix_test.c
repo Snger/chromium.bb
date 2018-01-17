@@ -118,8 +118,11 @@ static void on_connect(grpc_exec_ctx *exec_ctx, void *arg, grpc_endpoint *tcp,
   grpc_endpoint_shutdown(exec_ctx, tcp);
   grpc_endpoint_destroy(exec_ctx, tcp);
 
+  on_connect_result temp_result;
+  on_connect_result_set(&temp_result, acceptor);
+
   gpr_mu_lock(g_mu);
-  on_connect_result_set(&g_result, acceptor);
+  g_result = temp_result;
   g_nconnects++;
   GPR_ASSERT(
       GRPC_LOG_IF_ERROR("pollset_kick", grpc_pollset_kick(g_pollset, NULL)));
@@ -314,11 +317,10 @@ static void test_connect(unsigned n) {
   GPR_ASSERT(grpc_tcp_server_port_fd(s, 0, 0) >= 0);
 
   grpc_tcp_server_unref(&exec_ctx, s);
+  grpc_exec_ctx_finish(&exec_ctx);
 
   /* Weak ref lost. */
   GPR_ASSERT(weak_ref.server == NULL);
-
-  grpc_exec_ctx_finish(&exec_ctx);
 }
 
 static void destroy_pollset(grpc_exec_ctx *exec_ctx, void *p,

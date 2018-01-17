@@ -22,9 +22,9 @@ from xml.dom import minidom
 
 from chromite.cbuildbot import buildbucket_lib
 from chromite.cbuildbot import chroot_lib
-from chromite.cbuildbot import config_lib
-from chromite.cbuildbot import constants
-from chromite.cbuildbot import failures_lib
+from chromite.lib import config_lib
+from chromite.lib import constants
+from chromite.lib import failures_lib
 from chromite.cbuildbot import lkgm_manager
 from chromite.cbuildbot import manifest_version
 from chromite.cbuildbot import repository
@@ -366,11 +366,22 @@ class SyncStage(generic_stages.BuilderStage):
     # at self.internal when it can always be retrieved from config?
     self.internal = self._run.config.internal
 
-    self.buildbucket_http = None
+    self.buildbucket_client = None
     if buildbucket_lib.GetServiceAccount(constants.CHROMEOS_SERVICE_ACCOUNT):
-      self.buildbucket_http = buildbucket_lib.BuildBucketAuth(
-          service_account=buildbucket_lib.GetServiceAccount(
-              constants.CHROMEOS_SERVICE_ACCOUNT))
+      self.buildbucket_client = buildbucket_lib.BuildbucketClient(
+          service_account=constants.CHROMEOS_SERVICE_ACCOUNT)
+
+    if (self._run.config.name == constants.CQ_MASTER and
+        self._run.InProduction() and
+        self.buildbucket_client is None):
+      # If it's CQ-master build, running on a buildbot and in production
+      # mode, buildbucket_client cannot be None in order to schedule
+      # slave builds.
+      raise buildbucket_lib.NoBuildbucketClientException(
+          'Buildbucket_client is None. '
+          'Please check if the buildbot has a valid service account file. '
+          'Please find the service account json file at %s.' %
+          constants.CHROMEOS_SERVICE_ACCOUNT)
 
   def _GetManifestVersionsRepoUrl(self, internal=None, test=False):
     if internal is None:
@@ -487,13 +498,15 @@ class SyncStage(generic_stages.BuilderStage):
     return bucket
 
   def PostSlaveBuildToBuildbucket(self, build_name, build_config,
-                                  master_build_id, dryrun):
+                                  master_build_id, buildset_tag, dryrun):
     """Send a Put slave build request to Buildbucket.
 
     Args:
       build_name: Salve build name to put to Buildbucket.
       build_config: Slave build config to put to Buildbucket.
       master_build_id: Master build id of the slave build.
+      buildset_tag: The buildset tag for strong consistent tag queries.
+                    More context: crbug.com/661689
       dryrun: Whether a dryrun.
     """
     body = json.dumps({
@@ -506,16 +519,23 @@ class SyncStage(generic_stages.BuilderStage):
                 'cbb_master_build_id': master_build_id,
             }
         }),
+        'tags':['buildset:%s' % buildset_tag,
+                'build_type:%s' % build_config.build_type,
+                'master:False',
+                'cbb_config:%s' % build_name,
+                'cbb_master_build_id:%s' % master_build_id]
     })
 
-    content = buildbucket_lib.PutBuildBucket(
-        body, self.buildbucket_http, self._run.options.test_tryjob,
-        dryrun)
+    content = self.buildbucket_client.PutBuildRequest(
+        body, self._run.options.test_tryjob, dryrun)
 
     buildbucket_id = buildbucket_lib.GetBuildId(content)
+    created_ts = buildbucket_lib.GetBuildCreated_ts(content)
 
-    logging.info('Buildbucket_id for %s: %s' %
-                 (build_name, buildbucket_id))
+    logging.info('Build_name %s buildbucket_id %s created_timestamp %s',
+                 build_name, buildbucket_id, created_ts)
+
+    return (buildbucket_id, created_ts)
 
   def ScheduleSlaveBuildsViaBuildbucket(self, important_only, dryrun):
     """Schedule slave builds by sending PUT requests to Buildbucket.
@@ -524,35 +544,43 @@ class SyncStage(generic_stages.BuilderStage):
       important_only: Whether only schedule important slave builds.
       dryrun: Whether a dryrun.
     """
-    if self.buildbucket_http is None:
-      if cros_build_lib.HostIsCIBuilder() and not dryrun:
-        # If it's a buildbot running on a CI builder and not in dryrun.
-        # mode, buildbucket_http cannot be None in order to trigger slave
-        # builds.
-        raise buildbucket_lib.NoBuildBucketHttpException(
-            'No Buildbucket http instance in this CI Builder. '
-            'Please check the service account file %s.' %
-            constants.CHROMEOS_SERVICE_ACCOUNT)
-      else:
-        logging.info('No buildbucket_http. Skip scheduling slaves.')
-        return
+    if self.buildbucket_client is None:
+      logging.info('No buildbucket_client. Skip scheduling slaves.')
+      return
 
     build_id, _ = self._run.GetCIDBHandle()
     if build_id is None:
       logging.info('No build id. Skip scheduling slaves.')
       return
 
+    buildset_tag = 'cbuildbot/%s/%s/%s' % (
+        self._run.manifest_branch, self._run.config.name, build_id)
+
+    scheduled_slave_builds = []
+    unscheduled_slave_builds = []
+
     # Get all active slave build configs.
     slave_config_map = self._GetSlaveConfigMap(important_only)
     for slave_name, slave_config in slave_config_map.iteritems():
       try:
-        self.PostSlaveBuildToBuildbucket(slave_name, slave_config,
-                                         build_id, dryrun)
+        buildbucket_id, created_ts = self.PostSlaveBuildToBuildbucket(
+            slave_name, slave_config, build_id, buildset_tag, dryrun)
+
+        scheduled_slave_builds.append((slave_name, buildbucket_id, created_ts))
       except buildbucket_lib.BuildbucketResponseException as e:
-        # TODO: Catch and log the error. Should raise the exception
-        # when Buildbucket is enabled to trigger slave builds and
-        # scheduling important slave builds are failed.
-        logging.error('Failed to schedule %s: %s' % (slave_name, e))
+        # Use 16-digit ts to be consistent with the created_ts from Buildbucket
+        current_ts = int(round(time.time() * 1000000))
+        unscheduled_slave_builds.append((slave_name, None, current_ts))
+        if important_only or slave_config.important:
+          raise
+        else:
+          logging.warning('Failed to schedule %s current timestamp %s: %s'
+                          % (slave_name, current_ts, e))
+
+    self._run.attrs.metadata.ExtendKeyListWithList(
+        'scheduled_slaves', scheduled_slave_builds)
+    self._run.attrs.metadata.ExtendKeyListWithList(
+        'unscheduled_slaves', unscheduled_slave_builds)
 
   @failures_lib.SetFailureType(failures_lib.InfrastructureFailure)
   def PerformStage(self):
@@ -677,7 +705,9 @@ class ManifestVersionedSyncStage(SyncStage):
         force=self._force,
         branch=self._run.manifest_branch,
         dry_run=dry_run,
-        master=self._run.config.master))
+        master=self._run.config.master,
+        testjob=self._run.options.test_tryjob,
+        buildbucket_client=self.buildbucket_client))
 
   def _SetAndroidVersionIfApplicable(self, manifest):
     """If 'android' is in |manifest|, write version to the BuilderRun object.
@@ -905,7 +935,9 @@ class MasterSlaveLKGMSyncStage(ManifestVersionedSyncStage):
         force=self._force,
         branch=self._run.manifest_branch,
         dry_run=self._run.options.debug,
-        master=self._run.config.master)
+        master=self._run.config.master,
+        testjob=self._run.options.test_tryjob,
+        buildbucket_client=self.buildbucket_client)
 
   def Initialize(self):
     """Override: Creates an LKGMManager rather than a ManifestManager."""
@@ -1172,13 +1204,6 @@ class CommitQueueSyncStage(MasterSlaveLKGMSyncStage):
     # Clear the chroot version as we are in the middle of building it.
     chroot_manager.ClearChrootVersion()
 
-    # Syncing to a pinned manifest ensures that we have the specified
-    # revisions, but, unfortunately, repo won't bother to update branches.
-    # Sync with an unpinned manifest first to ensure that branches are updated
-    # (e.g. in case somebody adds a new branch to a repo.) See crbug.com/482077
-    if not self.skip_sync:
-      self.repo.Sync(self._run.config.manifest, network_only=True)
-
     # Sync to the provided manifest on slaves. On the master, we're
     # already synced to this manifest, so self.skip_sync is set and
     # this is a no-op.
@@ -1216,11 +1241,8 @@ class CommitQueueSyncStage(MasterSlaveLKGMSyncStage):
     if (self._run.config.name == constants.CQ_MASTER and
         not self._run.options.force_version and
         self._run.options.buildbot):
-      # TODO: dryrun is default to True now, should set
-      # dryrun=self._run.options.debug after confirming the buildbucket
-      # server works and removing the git-based schedulers.
       self.ScheduleSlaveBuildsViaBuildbucket(important_only=False,
-                                             dryrun=True)
+                                             dryrun=self._run.options.debug)
 
 
 class PreCQSyncStage(SyncStage):
@@ -1457,7 +1479,7 @@ class PreCQLauncherStage(SyncStage):
 
     return config_buildbucket_id_map
 
-  def LaunchTrybot(self, plan, configs):
+  def LaunchTrybot(self, pool, plan, configs):
     """Launch a Pre-CQ run with the provided list of CLs.
 
     Args:
@@ -1465,6 +1487,16 @@ class PreCQLauncherStage(SyncStage):
       plan: The list of patches to test in the pre-cq tryjob.
       configs: A list of pre-cq config names to launch.
     """
+    # Verify the configs to test are in the cbuildbot config list.
+    for config in configs:
+      if config not in self._run.site_config:
+        for change in plan:
+          logging.error('No such configuraton target: %s. '
+                        'Skipping trybots for %s %s',
+                        config, str(change), change.url)
+          pool.HandleNoConfigTargetFailure(change, config)
+          return
+
     cmd = ['cbuildbot', '--remote',
            '--timeout', str(self.INFLIGHT_TIMEOUT * 60)] + configs
     for patch in plan:
@@ -1634,17 +1666,15 @@ class PreCQLauncherStage(SyncStage):
       testjob: Whether to use the test instance of the buildbucket server.
     """
     buildbucket_id = old_build_action.buildbucket_id
-    get_content = buildbucket_lib.GetBuildBucket(
-        buildbucket_id, self.buildbucket_http, testjob,
-        dryrun=self._run.options.debug)
+    get_content = self.buildbucket_client.GetBuildRequest(
+        buildbucket_id, testjob, dryrun=self._run.options.debug)
 
     status = buildbucket_lib.GetBuildStatus(get_content)
-    if status in [buildbucket_lib.STARTED_STATUS,
-                  buildbucket_lib.SCHEDULED_STATUS]:
+    if status in [constants.BUILDBUCKET_BUILDER_STATUS_SCHEDULED,
+                  constants.BUILDBUCKET_BUILDER_STATUS_STARTED]:
       logging.info('Cancelling old build %s %s', buildbucket_id, status)
-      cancel_content = buildbucket_lib.CancelBuildBucket(
-          buildbucket_id, self.buildbucket_http, testjob,
-          dryrun=self._run.options.debug)
+      cancel_content = self.buildbucket_client.CancelBuildRequest(
+          buildbucket_id, testjob, dryrun=self._run.options.debug)
       cancel_status = buildbucket_lib.GetBuildStatus(cancel_content)
       if cancel_status:
         logging.info('Cancelled buildbucket_id: %s status: %s \ncontent: %s',
@@ -1739,7 +1769,7 @@ class PreCQLauncherStage(SyncStage):
     _, db = self._run.GetCIDBHandle()
     action_history = db.GetActionsForChanges(changes)
 
-    if self.buildbucket_http is not None:
+    if self.buildbucket_client is not None:
       for change in changes:
         self._ProcessOldPatchPreCQRuns(db, change, action_history)
 
@@ -1841,7 +1871,7 @@ class PreCQLauncherStage(SyncStage):
                      launch_count_limit, configs,
                      cros_patch.GetChangesAsString(plan))
       else:
-        self.LaunchTrybot(plan, configs)
+        self.LaunchTrybot(pool, plan, configs)
         launch_count += len(configs)
         cl_launch_count += len(configs) * len(plan)
 

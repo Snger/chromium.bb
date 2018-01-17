@@ -14,6 +14,8 @@ from telemetry.timeline import model
 from telemetry.timeline import tracing_config
 from telemetry.web_perf import timeline_interaction_record as tir_module
 
+import py_utils
+
 
 class ActionRunnerInteractionTest(tab_test_case.TabTestCase):
 
@@ -211,7 +213,7 @@ class ActionRunnerTest(tab_test_case.TabTestCase):
     action_runner.WaitForElement('#test1', timeout_in_seconds=0.2)
     def WaitForElement():
       action_runner.WaitForElement(text='oo', timeout_in_seconds=0.2)
-    self.assertRaises(exceptions.TimeoutException, WaitForElement)
+    self.assertRaises(py_utils.TimeoutException, WaitForElement)
 
   def testClickElement(self):
     self.Navigate('page_with_clickables.html')
@@ -259,6 +261,51 @@ class ActionRunnerTest(tab_test_case.TabTestCase):
     def WillFail():
       action_runner.TapElement('#notfound')
     self.assertRaises(exceptions.EvaluateException, WillFail)
+
+
+  def testScrollToElement(self):
+    self.Navigate('page_with_swipeables.html')
+    action_runner = action_runner_module.ActionRunner(self._tab,
+                                                      skip_waits=True)
+
+    off_screen_element = 'document.querySelectorAll("#off-screen")[0]'
+    top_bottom_element = 'document.querySelector("#top-bottom")'
+    viewport_comparator_js_template = '''
+      (function(elem) {
+        var rect = elem.getBoundingClientRect();
+
+        if (rect.bottom < 0) {
+          // The bottom of the element is above the viewport.
+          return -1;
+        }
+        if (rect.top - window.innerHeight > 0) {
+          // rect.top provides the pixel offset of the element from the
+          // top of the page. Because that exceeds the viewport's height,
+          // we know that the element is below the viewport.
+          return 1;
+        }
+        return 0;
+      })(
+    '''
+    viewport_comparator_off_screen_js = (
+        viewport_comparator_js_template + '%s);' % off_screen_element)
+    viewport_comparator_top_bottom_js = (
+        viewport_comparator_js_template + '%s);' % top_bottom_element)
+
+    self.assertEqual(
+        action_runner.EvaluateJavaScript(viewport_comparator_off_screen_js), 1)
+    action_runner.ScrollPageToElement(selector='#off-screen',
+                                      speed_in_pixels_per_second=5000)
+    self.assertEqual(
+        action_runner.EvaluateJavaScript(viewport_comparator_off_screen_js), 0)
+
+    self.assertEqual(
+        action_runner.EvaluateJavaScript(viewport_comparator_top_bottom_js), -1)
+    action_runner.ScrollPageToElement(selector='#top-bottom',
+                                      speed_in_pixels_per_second=5000)
+    self.assertEqual(
+        action_runner.EvaluateJavaScript(viewport_comparator_top_bottom_js), 0)
+
 
   @decorators.Disabled('android',   # crbug.com/437065.
                        'chromeos')  # crbug.com/483212.
@@ -308,6 +355,14 @@ class ActionRunnerTest(tab_test_case.TabTestCase):
     action_runner.SwipePage(direction='left', left_start_ratio=0.9)
     self.assertTrue(action_runner.EvaluateJavaScript(
         '(document.scrollingElement || document.body).scrollLeft') > 75)
+
+  def testWaitForNetworkQuiescenceSmoke(self):
+    self.Navigate('blank.html')
+    action_runner = action_runner_module.ActionRunner(self._tab)
+    action_runner.WaitForNetworkQuiescence()
+    self.assertEqual(
+        self._tab.EvaluateJavaScript('document.location.pathname;'),
+        '/blank.html')
 
   def testEnterText(self):
     self.Navigate('blank.html')

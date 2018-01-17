@@ -43,6 +43,8 @@
 #include <memory>
 #include <utility>
 
+#include "third_party/libyuv/include/libyuv/convert_from.h"
+#include "third_party/libyuv/include/libyuv/scale.h"
 #include "webrtc/api/androidvideotracksource.h"
 #include "webrtc/api/android/jni/androidmediadecoder_jni.h"
 #include "webrtc/api/android/jni/androidmediaencoder_jni.h"
@@ -731,7 +733,7 @@ class StatsObserverWrapper : public StatsObserver {
 // Wrapper dispatching rtc::VideoSinkInterface to a Java VideoRenderer
 // instance.
 class JavaVideoRendererWrapper
-    : public rtc::VideoSinkInterface<cricket::VideoFrame> {
+    : public rtc::VideoSinkInterface<webrtc::VideoFrame> {
  public:
   JavaVideoRendererWrapper(JNIEnv* jni, jobject j_callbacks)
       : j_callbacks_(jni, j_callbacks),
@@ -751,7 +753,7 @@ class JavaVideoRendererWrapper
 
   virtual ~JavaVideoRendererWrapper() {}
 
-  void OnFrame(const cricket::VideoFrame& video_frame) override {
+  void OnFrame(const webrtc::VideoFrame& video_frame) override {
     ScopedLocalRefFrame local_ref_frame(jni());
     jobject j_frame =
         (video_frame.video_frame_buffer()->native_handle() != nullptr)
@@ -767,13 +769,12 @@ class JavaVideoRendererWrapper
   // Make a shallow copy of |frame| to be used with Java. The callee has
   // ownership of the frame, and the frame should be released with
   // VideoRenderer.releaseNativeFrame().
-  static jlong javaShallowCopy(const cricket::VideoFrame* frame) {
-    return jlongFromPointer(new cricket::WebRtcVideoFrame(
-        frame->video_frame_buffer(), frame->rotation(), frame->timestamp_us()));
+  static jlong javaShallowCopy(const webrtc::VideoFrame* frame) {
+    return jlongFromPointer(new webrtc::VideoFrame(*frame));
   }
 
   // Return a VideoRenderer.I420Frame referring to the data in |frame|.
-  jobject CricketToJavaI420Frame(const cricket::VideoFrame* frame) {
+  jobject CricketToJavaI420Frame(const webrtc::VideoFrame* frame) {
     jintArray strides = jni()->NewIntArray(3);
     jint* strides_array = jni()->GetIntArrayElements(strides, NULL);
     strides_array[0] = frame->video_frame_buffer()->StrideY();
@@ -804,7 +805,7 @@ class JavaVideoRendererWrapper
   }
 
   // Return a VideoRenderer.I420Frame referring texture object in |frame|.
-  jobject CricketToJavaTextureFrame(const cricket::VideoFrame* frame) {
+  jobject CricketToJavaTextureFrame(const webrtc::VideoFrame* frame) {
     NativeHandleImpl* handle = reinterpret_cast<NativeHandleImpl*>(
         frame->video_frame_buffer()->native_handle());
     jfloatArray sampling_matrix = handle->sampling_matrix.ToJava(jni());
@@ -852,6 +853,13 @@ JOW(void, DataChannel_unregisterObserverNative)(
 
 JOW(jstring, DataChannel_label)(JNIEnv* jni, jobject j_dc) {
   return JavaStringFromStdString(jni, ExtractNativeDC(jni, j_dc)->label());
+}
+
+JOW(jint, DataChannel_id)(JNIEnv* jni, jobject j_dc) {
+  int id = ExtractNativeDC(jni, j_dc)->id();
+  RTC_CHECK_LE(id, std::numeric_limits<int32_t>::max())
+      << "id overflowed jint!";
+  return static_cast<jint>(id);
 }
 
 JOW(jobject, DataChannel_state)(JNIEnv* jni, jobject j_dc) {
@@ -942,7 +950,7 @@ JOW(void, VideoRenderer_freeWrappedVideoRenderer)(JNIEnv*, jclass, jlong j_p) {
 
 JOW(void, VideoRenderer_releaseNativeFrame)(
     JNIEnv* jni, jclass, jlong j_frame_ptr) {
-  delete reinterpret_cast<const cricket::VideoFrame*>(j_frame_ptr);
+  delete reinterpret_cast<const webrtc::VideoFrame*>(j_frame_ptr);
 }
 
 JOW(void, MediaStreamTrack_free)(JNIEnv*, jclass, jlong j_p) {
@@ -2003,6 +2011,84 @@ JOW(void, VideoRenderer_nativeCopyPlane)(
   }
 }
 
+JOW(void, FileVideoCapturer_nativeI420ToNV21)(
+    JNIEnv *jni, jclass, jbyteArray j_src_buffer, jint width, jint height,
+    jbyteArray j_dst_buffer) {
+  size_t src_size = jni->GetArrayLength(j_src_buffer);
+  size_t dst_size = jni->GetArrayLength(j_dst_buffer);
+  int src_stride = width;
+  int dst_stride = width;
+  RTC_CHECK_GE(src_size, src_stride * height * 3 / 2);
+  RTC_CHECK_GE(dst_size, dst_stride * height * 3 / 2);
+
+  jbyte* src_bytes = jni->GetByteArrayElements(j_src_buffer, 0);
+  uint8_t* src = reinterpret_cast<uint8_t*>(src_bytes);
+  jbyte* dst_bytes = jni->GetByteArrayElements(j_dst_buffer, 0);
+  uint8_t* dst = reinterpret_cast<uint8_t*>(dst_bytes);
+
+  uint8_t* src_y = src;
+  size_t src_stride_y = src_stride;
+  uint8_t* src_u = src + src_stride * height;
+  size_t src_stride_u = src_stride / 2;
+  uint8_t* src_v = src + src_stride * height * 5 / 4;
+  size_t src_stride_v = src_stride / 2;
+
+  uint8_t* dst_y = dst;
+  size_t dst_stride_y = dst_stride;
+  size_t dst_stride_uv = dst_stride;
+  uint8_t* dst_uv = dst + dst_stride * height;
+
+  int ret = libyuv::I420ToNV21(src_y, src_stride_y, src_u, src_stride_u, src_v,
+                               src_stride_v, dst_y, dst_stride_y, dst_uv,
+                               dst_stride_uv, width, height);
+  jni->ReleaseByteArrayElements(j_src_buffer, src_bytes, 0);
+  jni->ReleaseByteArrayElements(j_dst_buffer, dst_bytes, 0);
+  if (ret) {
+    LOG(LS_ERROR) << "Error converting I420 frame to NV21: " << ret;
+  }
+}
+
+JOW(void, VideoFileRenderer_nativeI420Scale)(
+    JNIEnv *jni, jclass,
+    jobject j_src_buffer_y, jint j_src_stride_y,
+    jobject j_src_buffer_u, jint j_src_stride_u,
+    jobject j_src_buffer_v, jint j_src_stride_v,
+    jint width, jint height,
+    jbyteArray j_dst_buffer, jint dstWidth, jint dstHeight) {
+  size_t src_size_y = jni->GetDirectBufferCapacity(j_src_buffer_y);
+  size_t src_size_u = jni->GetDirectBufferCapacity(j_src_buffer_u);
+  size_t src_size_v = jni->GetDirectBufferCapacity(j_src_buffer_v);
+  size_t dst_size = jni->GetDirectBufferCapacity(j_dst_buffer);
+  int dst_stride = dstWidth;
+  RTC_CHECK_GE(src_size_y, j_src_stride_y * height);
+  RTC_CHECK_GE(src_size_u, j_src_stride_u * height / 4);
+  RTC_CHECK_GE(src_size_v, j_src_stride_v * height / 4);
+  RTC_CHECK_GE(dst_size, dst_stride * height * 3 / 2);
+  uint8_t* src_y =
+      reinterpret_cast<uint8_t*>(jni->GetDirectBufferAddress(j_src_buffer_y));
+  uint8_t* src_u =
+      reinterpret_cast<uint8_t*>(jni->GetDirectBufferAddress(j_src_buffer_u));
+  uint8_t* src_v =
+      reinterpret_cast<uint8_t*>(jni->GetDirectBufferAddress(j_src_buffer_v));
+  uint8_t* dst =
+      reinterpret_cast<uint8_t*>(jni->GetDirectBufferAddress(j_dst_buffer));
+
+  uint8_t* dst_y = dst;
+  size_t dst_stride_y = dst_stride;
+  uint8_t* dst_u = dst + dst_stride * dstHeight;
+  size_t dst_stride_u = dst_stride / 2;
+  uint8_t* dst_v = dst + dst_stride * dstHeight * 5 / 4;
+  size_t dst_stride_v = dst_stride / 2;
+
+  int ret = libyuv::I420Scale(
+      src_y, j_src_stride_y, src_u, j_src_stride_u, src_v, j_src_stride_v,
+      width, height, dst_y, dst_stride_y, dst_u, dst_stride_u, dst_v,
+      dst_stride_v, dstWidth, dstHeight, libyuv::kFilterBilinear);
+  if (ret) {
+    LOG(LS_ERROR) << "Error scaling I420 frame: " << ret;
+  }
+}
+
 JOW(jstring, MediaStreamTrack_nativeId)(JNIEnv* jni, jclass, jlong j_p) {
   return JavaStringFromStdString(
       jni, reinterpret_cast<MediaStreamTrackInterface*>(j_p)->id());
@@ -2036,7 +2122,7 @@ JOW(void, VideoTrack_nativeAddRenderer)(
   LOG(LS_INFO) << "VideoTrack::nativeAddRenderer";
   reinterpret_cast<VideoTrackInterface*>(j_video_track_pointer)
       ->AddOrUpdateSink(
-          reinterpret_cast<rtc::VideoSinkInterface<cricket::VideoFrame>*>(
+          reinterpret_cast<rtc::VideoSinkInterface<webrtc::VideoFrame>*>(
               j_renderer_pointer),
           rtc::VideoSinkWants());
 }
@@ -2046,7 +2132,7 @@ JOW(void, VideoTrack_nativeRemoveRenderer)(
     jlong j_video_track_pointer, jlong j_renderer_pointer) {
   reinterpret_cast<VideoTrackInterface*>(j_video_track_pointer)
       ->RemoveSink(
-          reinterpret_cast<rtc::VideoSinkInterface<cricket::VideoFrame>*>(
+          reinterpret_cast<rtc::VideoSinkInterface<webrtc::VideoFrame>*>(
               j_renderer_pointer));
 }
 

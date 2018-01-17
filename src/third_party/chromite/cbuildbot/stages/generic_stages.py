@@ -23,9 +23,9 @@ except ImportError:
   mox = None
 
 from chromite.cbuildbot import commands
-from chromite.cbuildbot import failures_lib
-from chromite.cbuildbot import results_lib
-from chromite.cbuildbot import constants
+from chromite.lib import failures_lib
+from chromite.lib import results_lib
+from chromite.lib import constants
 from chromite.cbuildbot import repository
 from chromite.lib import cros_build_lib
 from chromite.lib import cros_logging as logging
@@ -116,8 +116,7 @@ class BuilderStage(object):
     self._portage_extra_env = {}
     useflags = self._run.config.useflags[:]
 
-    if self._run.options.clobber:
-      self._portage_extra_env['IGNORE_PREFLIGHT_BINHOST'] = '1'
+    self._portage_extra_env['IGNORE_PREFLIGHT_BINHOST'] = '1'
 
     if self._run.options.chrome_root:
       self._portage_extra_env['CHROME_ORIGIN'] = 'LOCAL_SOURCE'
@@ -362,11 +361,16 @@ class BuilderStage(object):
         self._run.config, self._run.options,
         important_only=important_only, active_only=active_only)
 
-  def _Begin(self):
-    """Called before a stage is performed. May be overriden."""
+  def _BeginStepForBuildbot(self, tag=None):
+    """Called before a stage is performed.
 
-    # Tell the buildbot we are starting a new step for the waterfall
-    logging.PrintBuildbotStepName(self.name)
+    Args:
+      tag: Extra tag to add to the stage name on the waterfall.
+    """
+    waterfall_name = self.name
+    if tag is not None:
+      waterfall_name += tag
+    logging.PrintBuildbotStepName(waterfall_name)
 
     self._PrintLoudly('Start Stage %s - %s\n\n%s' % (
         self.name, cros_build_lib.UserDateTimeFormat(), self.__doc__))
@@ -486,30 +490,39 @@ class BuilderStage(object):
     """Record a successful or failed result."""
     results_lib.Results.Record(*args, **kwargs)
 
+  def _ShouldSkipStage(self):
+    """Decide if we were requested to skip this stage."""
+    return (
+        self.option_name and not getattr(self._run.options, self.option_name) or
+        self.config_name and not getattr(self._run.config, self.config_name))
+
   def Run(self):
     """Have the builder execute the stage."""
-    self._Begin()
+    skip_stage = self._ShouldSkipStage()
+    previous_record = results_lib.Results.PreviouslyCompletedRecord(self.name)
+    if skip_stage:
+      self._BeginStepForBuildbot(' : [SKIPPED]')
+    elif previous_record is not None:
+      self._BeginStepForBuildbot(' : [PREVIOUSLY PROCESSED]')
+    else:
+      self._BeginStepForBuildbot()
+
     try:
       # Set default values
       result = None
       cidb_result = None
       description = None
-      previous_record = None
       board = ''
       elapsed_time = None
       start_time = time.time()
 
-      # See if this stage should be skipped.
-      if (self.option_name and
-          not getattr(self._run.options, self.option_name) or
-          self.config_name and not getattr(self._run.config, self.config_name)):
+      if skip_stage:
         self._StartBuildStageInCIDB()
         self._PrintLoudly('Not running Stage %s' % self.name)
         self.HandleSkip()
         result = results_lib.Results.SKIPPED
         return
 
-      previous_record = results_lib.Results.PreviouslyCompletedRecord(self.name)
       if previous_record:
         self._StartBuildStageInCIDB()
         self._PrintLoudly('Stage %s processed previously' % self.name)

@@ -55,11 +55,13 @@ END2END_FIXTURES = {
     'h2_census': default_unsecure_fixture_options,
     'h2_load_reporting': default_unsecure_fixture_options,
     'h2_fakesec': default_secure_fixture_options._replace(ci_mac=False),
+    'h2_fake_resolver': default_unsecure_fixture_options,
     'h2_fd': fd_unsecure_fixture_options,
     'h2_full': default_unsecure_fixture_options,
     'h2_full+pipe': default_unsecure_fixture_options._replace(
         platforms=['linux']),
     'h2_full+trace': default_unsecure_fixture_options._replace(tracing=True),
+    'h2_http_proxy': default_unsecure_fixture_options._replace(ci_mac=False),
     'h2_oauth2': default_secure_fixture_options._replace(ci_mac=False),
     'h2_proxy': default_unsecure_fixture_options._replace(includes_proxy=True,
                                                           ci_mac=False),
@@ -244,7 +246,7 @@ def main():
           {
               'name': '%s_test' % f,
               'args': [t],
-              'exclude_configs': [],
+              'exclude_configs': END2END_FIXTURES[f].exclude_configs,
               'platforms': END2END_FIXTURES[f].platforms,
               'ci_platforms': (END2END_FIXTURES[f].platforms
                                if END2END_FIXTURES[f].ci_mac else without(
