@@ -18,6 +18,7 @@
 
 #include <ft2build.h>
 #include FT_INTERNAL_DEBUG_H
+#include FT_CONFIG_CONFIG_H
 #include FT_INTERNAL_CALC_H
 #include FT_INTERNAL_STREAM_H
 #include FT_INTERNAL_SFNT_H
@@ -162,7 +163,7 @@
       /* This may not be the right place for this, but it works...  */
       /* Note that we have to unconditionally load the tweaks since */
       /* it is possible that glyphs individually switch ClearType's */
-      /* backwards compatibility mode on and off.                   */
+      /* backward compatibility mode on and off.                    */
       sph_set_tweaks( loader, glyph_index );
     }
 #endif /* TT_SUPPORT_SUBPIXEL_HINTING_INFINALITY */
@@ -777,8 +778,8 @@
     }
     else
     {
-      loader->exec->metrics.x_scale = loader->size->metrics.x_scale;
-      loader->exec->metrics.y_scale = loader->size->metrics.y_scale;
+      loader->exec->metrics.x_scale = loader->size->metrics->x_scale;
+      loader->exec->metrics.y_scale = loader->size->metrics->y_scale;
     }
 #endif
 
@@ -820,11 +821,11 @@
 #endif
 
 #ifdef TT_SUPPORT_SUBPIXEL_HINTING_MINIMAL
-    /* Save possibly modified glyph phantom points unless in v40 backwards */
+    /* Save possibly modified glyph phantom points unless in v40 backward  */
     /* compatibility mode, where no movement on the x axis means no reason */
     /* to change bearings or advance widths.                               */
     if ( !( driver->interpreter_version == TT_INTERPRETER_VERSION_40 &&
-            !loader->exec->backwards_compatibility ) )
+            !loader->exec->backward_compatibility ) )
     {
 #endif
       loader->pp1 = zone->cur[zone->n_points - 4];
@@ -925,7 +926,7 @@
       TT_Driver  driver = (TT_Driver)FT_FACE_DRIVER( face );
 
       FT_String*  family         = face->root.family_name;
-      FT_UInt     ppem           = loader->size->metrics.x_ppem;
+      FT_UInt     ppem           = loader->size->metrics->x_ppem;
       FT_String*  style          = face->root.style_name;
       FT_UInt     x_scale_factor = 1000;
 #endif
@@ -954,9 +955,9 @@
         if ( ( loader->load_flags & FT_LOAD_NO_SCALE ) == 0 ||
              x_scale_factor != 1000                         )
         {
-          x_scale = FT_MulDiv( loader->size->metrics.x_scale,
+          x_scale = FT_MulDiv( loader->size->metrics->x_scale,
                                (FT_Long)x_scale_factor, 1000 );
-          y_scale = loader->size->metrics.y_scale;
+          y_scale = loader->size->metrics->y_scale;
 
           /* compensate for any scaling by de/emboldening; */
           /* the amount was determined via experimentation */
@@ -976,8 +977,8 @@
         /* scale the glyph */
         if ( ( loader->load_flags & FT_LOAD_NO_SCALE ) == 0 )
         {
-          x_scale = loader->size->metrics.x_scale;
-          y_scale = loader->size->metrics.y_scale;
+          x_scale = loader->size->metrics->x_scale;
+          y_scale = loader->size->metrics->y_scale;
 
           do_scale = TRUE;
         }
@@ -1135,8 +1136,8 @@
 
       if ( !( loader->load_flags & FT_LOAD_NO_SCALE ) )
       {
-        FT_Fixed  x_scale = loader->size->metrics.x_scale;
-        FT_Fixed  y_scale = loader->size->metrics.y_scale;
+        FT_Fixed  x_scale = loader->size->metrics->x_scale;
+        FT_Fixed  y_scale = loader->size->metrics->y_scale;
 
 
         x = FT_MulFix( x, x_scale );
@@ -1469,8 +1470,8 @@
 
     if ( ( loader->load_flags & FT_LOAD_NO_SCALE ) == 0 )
     {
-      x_scale = loader->size->metrics.x_scale;
-      y_scale = loader->size->metrics.y_scale;
+      x_scale = loader->size->metrics->x_scale;
+      y_scale = loader->size->metrics->y_scale;
     }
     else
     {
@@ -2037,7 +2038,7 @@
 
     y_scale = 0x10000L;
     if ( ( loader->load_flags & FT_LOAD_NO_SCALE ) == 0 )
-      y_scale = size->metrics.y_scale;
+      y_scale = size->metrics->y_scale;
 
     if ( glyph->format != FT_GLYPH_FORMAT_COMPOSITE )
       FT_Outline_Get_CBox( &glyph->outline, &bbox );
@@ -2052,24 +2053,24 @@
     glyph->metrics.horiBearingY = bbox.yMax;
     glyph->metrics.horiAdvance  = loader->pp2.x - loader->pp1.x;
 
-    /* Adjust advance width to the value contained in the hdmx table    */
-    /* unless FT_LOAD_COMPUTE_METRICS is set or backwards compatibility */
-    /* mode of the v40 interpreter is active.  See `ttinterp.h' for     */
-    /* details on backwards compatibility mode.                         */
+    /* Adjust advance width to the value contained in the hdmx table   */
+    /* unless FT_LOAD_COMPUTE_METRICS is set or backward compatibility */
+    /* mode of the v40 interpreter is active.  See `ttinterp.h' for    */
+    /* details on backward compatibility mode.                         */
     if (
 #ifdef TT_SUPPORT_SUBPIXEL_HINTING_MINIMAL
-         !( driver->interpreter_version == TT_INTERPRETER_VERSION_40 &&
-            ( loader->exec && loader->exec->backwards_compatibility  ) ) &&
+         !( driver->interpreter_version == TT_INTERPRETER_VERSION_40  &&
+            ( loader->exec && loader->exec->backward_compatibility  ) ) &&
 #endif
-         !face->postscript.isFixedPitch                                  &&
-         IS_HINTED( loader->load_flags )                                 &&
-         !( loader->load_flags & FT_LOAD_COMPUTE_METRICS )               )
+         !face->postscript.isFixedPitch                                 &&
+         IS_HINTED( loader->load_flags )                                &&
+         !( loader->load_flags & FT_LOAD_COMPUTE_METRICS )              )
     {
       FT_Byte*  widthp;
 
 
       widthp = tt_face_get_device_metrics( face,
-                                           size->metrics.x_ppem,
+                                           size->metrics->x_ppem,
                                            glyph_index );
 
 #ifdef TT_SUPPORT_SUBPIXEL_HINTING_INFINALITY
@@ -2099,8 +2100,8 @@
     }
 
     /* set glyph dimensions */
-    glyph->metrics.width  = bbox.xMax - bbox.xMin;
-    glyph->metrics.height = bbox.yMax - bbox.yMin;
+    glyph->metrics.width  = SUB_LONG( bbox.xMax, bbox.xMin );
+    glyph->metrics.height = SUB_LONG( bbox.yMax, bbox.yMin );
 
     /* Now take care of vertical metrics.  In the case where there is */
     /* no vertical information within the font (relatively common),   */
@@ -2136,7 +2137,8 @@
         /*       table in the font.  Otherwise, we use the     */
         /*       values defined in the horizontal header.      */
 
-        height = (FT_Short)FT_DivFix( bbox.yMax - bbox.yMin,
+        height = (FT_Short)FT_DivFix( SUB_LONG( bbox.yMax,
+                                                bbox.yMin ),
                                       y_scale );
         if ( face->os2.version != 0xFFFFU )
           advance = (FT_Pos)( face->os2.sTypoAscender -
@@ -2338,13 +2340,19 @@
 #ifdef TT_SUPPORT_SUBPIXEL_HINTING_MINIMAL
       if ( driver->interpreter_version == TT_INTERPRETER_VERSION_40 )
       {
-        subpixel_hinting_lean   = TRUE;
-        grayscale_cleartype     = !FT_BOOL( load_flags         &
-                                            FT_LOAD_TARGET_LCD     ||
-                                            load_flags           &
-                                            FT_LOAD_TARGET_LCD_V   );
-        exec->vertical_lcd_lean = FT_BOOL( load_flags           &
-                                           FT_LOAD_TARGET_LCD_V );
+        subpixel_hinting_lean =
+          FT_BOOL( FT_LOAD_TARGET_MODE( load_flags ) !=
+                   FT_RENDER_MODE_MONO               );
+        grayscale_cleartype =
+          FT_BOOL( subpixel_hinting_lean         &&
+                   !( ( load_flags         &
+                        FT_LOAD_TARGET_LCD )   ||
+                      ( load_flags           &
+                        FT_LOAD_TARGET_LCD_V ) ) );
+        exec->vertical_lcd_lean =
+          FT_BOOL( subpixel_hinting_lean    &&
+                   ( load_flags           &
+                     FT_LOAD_TARGET_LCD_V ) );
       }
       else
       {
@@ -2620,7 +2628,13 @@
          IS_DEFAULT_INSTANCE                     )
     {
       error = load_sbit_image( size, glyph, glyph_index, load_flags );
-      if ( !error )
+      if ( error )
+      {
+        /* return error if font is not scalable */
+        if ( !FT_IS_SCALABLE( glyph->face ) )
+          return error;
+      }
+      else
       {
         if ( FT_IS_SCALABLE( glyph->face ) )
         {
@@ -2636,11 +2650,11 @@
           if ( !glyph->metrics.horiAdvance && glyph->linearHoriAdvance )
             glyph->metrics.horiAdvance =
               FT_MulFix( glyph->linearHoriAdvance,
-                         size->metrics.x_scale );
+                         size->metrics->x_scale );
           if ( !glyph->metrics.vertAdvance && glyph->linearVertAdvance )
             glyph->metrics.vertAdvance =
               FT_MulFix( glyph->linearVertAdvance,
-                         size->metrics.y_scale );
+                         size->metrics->y_scale );
         }
 
         return FT_Err_Ok;
@@ -2736,7 +2750,7 @@
     /* TrueType glyphs at all sizes using the bytecode interpreter. */
     /*                                                              */
     if ( !( load_flags & FT_LOAD_NO_SCALE ) &&
-         size->metrics.y_ppem < 24          )
+         size->metrics->y_ppem < 24         )
       glyph->outline.flags |= FT_OUTLINE_HIGH_PRECISION;
 
   Exit:
