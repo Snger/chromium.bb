@@ -7,7 +7,6 @@
 #include <string>
 #include <utility>
 
-#include "ash/system/devicetype_utils.h"
 #include "base/bind.h"
 #include "base/i18n/timezone.h"
 #include "base/json/json_reader.h"
@@ -29,6 +28,7 @@
 #include "extensions/browser/extension_registry.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/webui/web_ui_util.h"
+#include "ui/chromeos/devicetype_utils.h"
 #include "ui/display/screen.h"
 
 namespace {
@@ -275,11 +275,12 @@ void ArcSupportHost::ShowPage(UIPage ui_page) {
       DCHECK(active_directory_auth_federation_url_.is_valid());
       DCHECK(!active_directory_auth_device_management_url_prefix_.empty());
       message.SetString(kPage, "active-directory-auth");
-      message.SetString(std::string(kOptions) + "." + kFederationUrl,
-                        active_directory_auth_federation_url_.spec());
-      message.SetString(
-          std::string(kOptions) + "." + kDeviceManagementUrlPrefix,
-          active_directory_auth_device_management_url_prefix_);
+      message.SetPath(
+          {kOptions, kFederationUrl},
+          base::Value(active_directory_auth_federation_url_.spec()));
+      message.SetPath(
+          {kOptions, kDeviceManagementUrlPrefix},
+          base::Value(active_directory_auth_device_management_url_prefix_));
       break;
     default:
       NOTREACHED();
@@ -506,7 +507,7 @@ bool ArcSupportHost::Initialize() {
       l10n_util::GetStringUTF16(IDS_ARC_SERVER_COMMUNICATION_ERROR));
   loadtime_data->SetString(
       "controlledByPolicy",
-      l10n_util::GetStringUTF16(IDS_OPTIONS_CONTROLLED_SETTING_POLICY));
+      l10n_util::GetStringUTF16(IDS_CONTROLLED_SETTING_POLICY));
   loadtime_data->SetString(
       "learnMoreStatistics",
       l10n_util::GetStringUTF16(IDS_ARC_OPT_IN_LEARN_MORE_STATISTICS));

@@ -186,9 +186,6 @@ PaletteTray::PaletteTray(Shelf* shelf)
 
   Shell::Get()->AddShellObserver(this);
   ui::InputDeviceManager::GetInstance()->AddObserver(this);
-
-  if (!drag_controller())
-    set_drag_controller(base::MakeUnique<TrayDragController>(shelf));
 }
 
 PaletteTray::~PaletteTray() {
@@ -218,10 +215,34 @@ void PaletteTray::OnSessionStateChanged(session_manager::SessionState state) {
 void PaletteTray::OnLockStateChanged(bool locked) {
   UpdateIconVisibility();
 
-  // The user can eject the stylus during the lock screen transition, which will
-  // open the palette. Make sure to close it if that happens.
-  if (locked)
+  if (locked) {
+    palette_tool_manager_->DisableActiveTool(PaletteGroup::MODE);
+
+    // The user can eject the stylus during the lock screen transition, which
+    // will open the palette. Make sure to close it if that happens.
     HidePalette();
+  }
+}
+
+void PaletteTray::OnLocalStatePrefServiceInitialized(
+    PrefService* pref_service) {
+  local_state_pref_service_ = pref_service;
+
+  // If a device has an internal stylus or the flag to force stylus is set, mark
+  // the has seen stylus flag as true since we know the user has a stylus.
+  if (palette_utils::HasInternalStylus() ||
+      palette_utils::HasForcedStylusInput()) {
+    local_state_pref_service_->SetBoolean(prefs::kHasSeenStylus, true);
+  }
+
+  pref_change_registrar_ = base::MakeUnique<PrefChangeRegistrar>();
+  pref_change_registrar_->Init(local_state_pref_service_);
+  pref_change_registrar_->Add(
+      prefs::kHasSeenStylus,
+      base::Bind(&PaletteTray::OnHasSeenStylusPrefChanged,
+                 base::Unretained(this)));
+
+  OnHasSeenStylusPrefChanged();
 }
 
 void PaletteTray::ClickedOutsideBubble() {
@@ -338,6 +359,16 @@ void PaletteTray::RecordPaletteModeCancellation(PaletteModeCancelType type) {
 
 void PaletteTray::OnActiveToolChanged() {
   ++num_actions_in_bubble_;
+
+  // If there is no tool currently active and the palette tray button was active
+  // (eg. a mode was deactivated without pressing the palette tray button), make
+  // the palette tray button inactive.
+  if (palette_tool_manager_->GetActiveTool(PaletteGroup::MODE) ==
+          PaletteToolId::NONE &&
+      is_active()) {
+    SetIsActive(false);
+  }
+
   UpdateTrayIcon();
 }
 
@@ -346,8 +377,10 @@ aura::Window* PaletteTray::GetWindow() {
 }
 
 void PaletteTray::AnchorUpdated() {
-  if (bubble_)
+  if (bubble_) {
+    UpdateClippingWindowBounds();
     bubble_->bubble_view()->UpdateBubble();
+  }
 }
 
 void PaletteTray::Initialize() {
@@ -360,27 +393,6 @@ void PaletteTray::Initialize() {
   // which will take care of showing the palette.
   palette_enabled_subscription_ = delegate->AddPaletteEnableListener(base::Bind(
       &PaletteTray::OnPaletteEnabledPrefChanged, weak_factory_.GetWeakPtr()));
-
-  local_state_pref_service_ = Shell::Get()->GetLocalStatePrefService();
-
-  // |local_state_pref_service_| may be null in tests.
-  // TODO(crbug.com/751191): Remove the check for Mash.
-  if (Shell::GetAshConfig() == Config::MASH || !local_state_pref_service_)
-    return;
-
-  // If a device has an internal stylus, mark the has seen stylus flag as true
-  // since we know the user has a stylus.
-  if (palette_utils::HasInternalStylus())
-    local_state_pref_service_->SetBoolean(prefs::kHasSeenStylus, true);
-
-  pref_change_registrar_ = base::MakeUnique<PrefChangeRegistrar>();
-  pref_change_registrar_->Init(local_state_pref_service_);
-  pref_change_registrar_->Add(
-      prefs::kHasSeenStylus,
-      base::Bind(&PaletteTray::OnHasSeenStylusPrefChanged,
-                 base::Unretained(this)));
-
-  OnHasSeenStylusPrefChanged();
 }
 
 bool PaletteTray::PerformAction(const ui::Event& event) {
@@ -446,33 +458,18 @@ void PaletteTray::ShowBubble(bool show_by_click) {
       gfx::Insets(0, kPaddingBetweenTitleAndLeftEdge, 0, 0)));
   bubble_view->AddChildView(title_view);
 
-  // Function for creating a separator.
-  auto build_separator = []() {
-    auto* separator = new views::Separator();
-    separator->SetColor(kPaletteSeparatorColor);
-    separator->SetBorder(views::CreateEmptyBorder(
-        gfx::Insets(kPaddingBetweenTitleAndSeparator, 0,
-                    kMenuSeparatorVerticalPadding, 0)));
-    return separator;
-  };
-
-  // Add horizontal separator between the title and the tools.
-  bubble_view->AddChildView(build_separator());
+  // Add horizontal separator between the title and tools.
+  auto* separator = new views::Separator();
+  separator->SetColor(kPaletteSeparatorColor);
+  separator->SetBorder(views::CreateEmptyBorder(gfx::Insets(
+      kPaddingBetweenTitleAndSeparator, 0, kMenuSeparatorVerticalPadding, 0)));
+  bubble_view->AddChildView(separator);
 
   // Add palette tools.
   // TODO(tdanderson|jdufault): Use SystemMenuButton to get the material design
   // ripples.
-  std::vector<PaletteToolView> action_views =
-      palette_tool_manager_->CreateViewsForGroup(PaletteGroup::ACTION);
-  for (const PaletteToolView& view : action_views)
-    bubble_view->AddChildView(view.view);
-
-  // Add horizontal separator between action tools and mode tools.
-  bubble_view->AddChildView(build_separator());
-
-  std::vector<PaletteToolView> mode_views =
-      palette_tool_manager_->CreateViewsForGroup(PaletteGroup::MODE);
-  for (const PaletteToolView& view : mode_views)
+  std::vector<PaletteToolView> views = palette_tool_manager_->CreateViews();
+  for (const PaletteToolView& view : views)
     bubble_view->AddChildView(view.view);
 
   // Show the bubble.

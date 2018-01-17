@@ -67,9 +67,6 @@ extern const char kEasyUnlockAppId[];
 // The extension id of the Enterprise Web Store component application.
 extern const char kEnterpriseWebStoreAppId[];
 
-// The extension id of the feedback component extension.
-extern const char kFeedbackExtensionId[];
-
 // The extension id of the Files Manager application.
 extern const char kFilesManagerAppId[];
 

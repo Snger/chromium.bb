@@ -425,7 +425,7 @@ UserSessionManager::UserSessionManager()
       should_launch_browser_(true),
       waiting_for_child_account_status_(false),
       weak_factory_(this) {
-  net::NetworkChangeNotifier::AddConnectionTypeObserver(this);
+  net::NetworkChangeNotifier::AddNetworkChangeObserver(this);
   user_manager::UserManager::Get()->AddSessionStateObserver(this);
 }
 
@@ -436,7 +436,7 @@ UserSessionManager::~UserSessionManager() {
   // / UserSessionManager objects.
   if (user_manager::UserManager::IsInitialized())
     user_manager::UserManager::Get()->RemoveSessionStateObserver(this);
-  net::NetworkChangeNotifier::RemoveConnectionTypeObserver(this);
+  net::NetworkChangeNotifier::RemoveNetworkChangeObserver(this);
 }
 
 void UserSessionManager::SetShouldObtainHandleInTests(
@@ -902,7 +902,7 @@ void UserSessionManager::OnSessionRestoreStateChanged(
   }
 }
 
-void UserSessionManager::OnConnectionTypeChanged(
+void UserSessionManager::OnNetworkChanged(
     net::NetworkChangeNotifier::ConnectionType type) {
   user_manager::UserManager* user_manager = user_manager::UserManager::Get();
   if (type == net::NetworkChangeNotifier::CONNECTION_NONE ||
@@ -1907,19 +1907,6 @@ void UserSessionManager::RunCallbackOnLocaleLoaded(
     InputEventsBlocker* /* input_events_blocker */,
     const locale_util::LanguageSwitchResult& /* result */) {
   callback.Run();
-}
-
-// static
-bool UserSessionManager::NeedRestartToApplyPerSessionFlagsForProfile(
-    const Profile* profile) {
-  if (base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kLoginUser))
-    return false;
-
-  const base::CommandLine user_flags(
-      CreatePerSessionCommandLine(const_cast<Profile*>(profile)));
-  std::set<base::CommandLine::StringType> command_line_difference;
-  return NeedRestartToApplyPerSessionFlags(user_flags,
-                                           &command_line_difference);
 }
 
 void UserSessionManager::RemoveProfileForTesting(Profile* profile) {

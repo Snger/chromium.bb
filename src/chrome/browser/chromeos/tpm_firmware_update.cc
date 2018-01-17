@@ -37,10 +37,9 @@ bool SettingsAllowUpdateViaPowerwash(const base::Value* settings) {
   if (!settings)
     return false;
 
-  base::Value::const_dict_iterator allow_powerwash = settings->FindKeyOfType(
+  const base::Value* const allow_powerwash = settings->FindKeyOfType(
       kSettingsKeyAllowPowerwash, base::Value::Type::BOOLEAN);
-  return allow_powerwash != settings->DictEnd() &&
-         allow_powerwash->second.GetBool();
+  return allow_powerwash && allow_powerwash->GetBool();
 }
 
 }  // namespace
@@ -51,8 +50,8 @@ std::unique_ptr<base::DictionaryValue> DecodeSettingsProto(
       base::MakeUnique<base::DictionaryValue>();
 
   if (settings.has_allow_user_initiated_powerwash()) {
-    result->SetKey(kSettingsKeyAllowPowerwash,
-                   base::Value(settings.allow_user_initiated_powerwash()));
+    result->SetPath({kSettingsKeyAllowPowerwash},
+                    base::Value(settings.allow_user_initiated_powerwash()));
   }
 
   return result;

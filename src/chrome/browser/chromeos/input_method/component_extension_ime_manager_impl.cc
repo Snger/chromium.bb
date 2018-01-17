@@ -106,8 +106,7 @@ void DoLoadExtension(Profile* profile,
       GetComponentLoader(profile)->Add(manifest, file_path);
   if (loaded_extension_id.empty()) {
     LOG(ERROR) << "Failed to add an IME extension(id=\"" << extension_id
-               << ", path=\"" << file_path.LossyDisplayName()
-               << "\") to ComponentLoader";
+               << ", path=\"" << file_path << "\") to ComponentLoader";
     return;
   }
   // Register IME extension with ExtensionPrefValueMap.

@@ -41,7 +41,6 @@ const char kDriveExtensionId[] = "ghbmnnjooekpmoecnnnilnnbdlolhkhi";
 const char kDriveHostedAppId[] = "apdfllckaahabafndbhieahigkjlhalf";
 const char kEasyUnlockAppId[] = "mkaemigholebcgchlkbankmihknojeak";
 const char kEnterpriseWebStoreAppId[] = "afchcafgojfnemjkcbhfekplkmjaldaa";
-const char kFeedbackExtensionId[] = "gfdkimpbcpahaombhbimeihdjnejgicl";
 const char kFilesManagerAppId[] = "hhaomjibdihmijegdhdafkllkbggdgoj";
 const char kGmailAppId[] = "pjkljhegncpnkpknbcohdijeoejaedia";
 const char kGoogleDocAppId[] = "aohghmighlieiainnegkcijnfilokake";

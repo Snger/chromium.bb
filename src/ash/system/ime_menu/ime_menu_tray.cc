@@ -311,9 +311,6 @@ ImeMenuTray::ImeMenuTray(Shelf* shelf)
   SystemTrayNotifier* tray_notifier = Shell::Get()->system_tray_notifier();
   tray_notifier->AddIMEObserver(this);
   tray_notifier->AddVirtualKeyboardObserver(this);
-
-  if (!drag_controller())
-    set_drag_controller(base::MakeUnique<TrayDragController>(shelf));
 }
 
 ImeMenuTray::~ImeMenuTray() {
@@ -334,8 +331,8 @@ void ImeMenuTray::ShowImeMenuBubbleInternal(bool show_by_click) {
   init_params.parent_window = GetBubbleWindowContainer();
   init_params.anchor_view = GetBubbleAnchor();
   init_params.anchor_alignment = GetAnchorAlignment();
-  init_params.min_width = kTrayMenuMinimumWidth;
-  init_params.max_width = kTrayMenuMinimumWidth;
+  init_params.min_width = kTrayMenuWidth;
+  init_params.max_width = kTrayMenuWidth;
   init_params.close_on_deactivate = true;
   init_params.show_by_click = show_by_click;
 
@@ -471,6 +468,7 @@ void ImeMenuTray::ShowBubble(bool show_by_click) {
     keyboard_controller->HideKeyboard(
         keyboard::KeyboardController::HIDE_REASON_AUTOMATIC);
   } else {
+    base::RecordAction(base::UserMetricsAction("Tray_ImeMenu_Opened"));
     ShowImeMenuBubbleInternal(show_by_click);
   }
 }

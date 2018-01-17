@@ -12,7 +12,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/time/time.h"
 #include "chrome/browser/chromeos/arc/arc_session_manager.h"
-#include "components/arc/arc_service.h"
+#include "chromeos/audio/cras_audio_handler.h"
 #include "components/arc/common/voice_interaction_framework.mojom.h"
 #include "components/arc/instance_holder.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -37,7 +37,8 @@ class ArcBridgeService;
 // to ARC to be used by VoiceInteractionSession. This class lives on the UI
 // thread.
 class ArcVoiceInteractionFrameworkService
-    : public KeyedService,
+    : public chromeos::CrasAudioHandler::AudioObserver,
+      public KeyedService,
       public mojom::VoiceInteractionFrameworkHost,
       public InstanceHolder<mojom::VoiceInteractionFrameworkInstance>::Observer,
       public ArcSessionManager::Observer,
@@ -77,6 +78,9 @@ class ArcVoiceInteractionFrameworkService
 
   // session_manager::SessionManagerObserver overrides.
   void OnSessionStateChanged() override;
+
+  // CrasAudioHandler::AudioObserver overrides.
+  void OnHotwordTriggered(uint64_t tv_sec, uint64_t tv_nsec) override;
 
   // Starts a voice interaction session after user-initiated interaction.
   // Records a timestamp and sets number of allowed requests to 2 since by
@@ -126,9 +130,11 @@ class ArcVoiceInteractionFrameworkService
  private:
   void NotifyMetalayerStatusChanged(bool visible);
 
-  bool InitiateUserInteraction();
+  bool InitiateUserInteraction(bool is_toggle);
 
   void SetVoiceInteractionSetupCompletedInternal(bool completed);
+
+  bool IsHomescreenActive();
 
   void StartVoiceInteractionSetupWizardActivity();
 
@@ -136,8 +142,11 @@ class ArcVoiceInteractionFrameworkService
   ArcBridgeService* const arc_bridge_service_;  // Owned by ArcServiceManager
   mojo::Binding<mojom::VoiceInteractionFrameworkHost> binding_;
 
-  // Whether there is a pending request to start voice interaction.
+  // Whether there is a pending request to start/toggle voice interaction.
   bool is_request_pending_ = false;
+
+  // Whether the pending request is toggle the voice interaction.
+  bool is_pending_request_toggle_ = false;
 
   // Whether we should launch runtime setup flow for voice interaction.
   bool should_start_runtime_flow_ = false;

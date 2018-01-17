@@ -67,6 +67,7 @@
 #include "chrome/browser/chromeos/settings/cros_settings.h"
 #include "chrome/browser/chromeos/system/device_disabling_manager.h"
 #include "chrome/browser/chromeos/system/timezone_resolver_manager.h"
+#include "chrome/browser/chromeos/system/timezone_util.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/metrics/metrics_reporting_state.h"
 #include "chrome/browser/profiles/profile.h"
@@ -263,10 +264,12 @@ WizardController::WizardController(LoginDisplayHost* host, OobeUI* oobe_ui)
       session_manager::SessionManager::Get()->IsSessionStarted();
   if (!ash_util::IsRunningInMash()) {
     AccessibilityManager* accessibility_manager = AccessibilityManager::Get();
-    CHECK(accessibility_manager);
-    accessibility_subscription_ = accessibility_manager->RegisterCallback(
-        base::Bind(&WizardController::OnAccessibilityStatusChanged,
-                   base::Unretained(this)));
+    if (accessibility_manager) {
+      // accessibility_manager could be null in Tests.
+      accessibility_subscription_ = accessibility_manager->RegisterCallback(
+          base::Bind(&WizardController::OnAccessibilityStatusChanged,
+                     base::Unretained(this)));
+    }
   } else {
     NOTIMPLEMENTED();
   }
@@ -443,6 +446,10 @@ BaseScreen* WizardController::CreateScreen(OobeScreen screen) {
   }
 
   return nullptr;
+}
+
+void WizardController::SetCurrentScreenForTesting(BaseScreen* screen) {
+  current_screen_ = screen;
 }
 
 void WizardController::ShowNetworkScreen() {
@@ -1283,6 +1290,9 @@ void WizardController::OnExit(BaseScreen& /* screen */,
     case ScreenExitCode::WAIT_FOR_CONTAINER_READY_FINISHED:
       OnWaitForContainerReadyFinished();
       break;
+    case ScreenExitCode::WAIT_FOR_CONTAINER_READY_ERROR:
+      OnOobeFlowFinished();
+      break;
     default:
       NOTREACHED();
   }
@@ -1526,9 +1536,7 @@ void WizardController::OnTimezoneResolved(
   if (!timezone->timeZoneId.empty()) {
     VLOG(1) << "Resolve TimeZone: setting timezone to '" << timezone->timeZoneId
             << "'";
-
-    system::TimezoneSettings::GetInstance()->SetTimezoneFromID(
-        base::UTF8ToUTF16(timezone->timeZoneId));
+    chromeos::system::SetSystemAndSigninScreenTimezone(timezone->timeZoneId);
   }
 }
 

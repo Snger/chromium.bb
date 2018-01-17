@@ -204,9 +204,6 @@ SystemTray::SystemTray(Shelf* shelf) : TrayBackgroundView(shelf) {
   // horizontal shelf and that is sufficient to indicate separation, no
   // separator is required.
   set_separator_visibility(false);
-
-  if (!drag_controller())
-    set_drag_controller(base::MakeUnique<TrayDragController>(shelf));
 }
 
 SystemTray::~SystemTray() {
@@ -218,12 +215,11 @@ SystemTray::~SystemTray() {
 }
 
 void SystemTray::InitializeTrayItems(
-    SystemTrayDelegate* delegate,
     WebNotificationTray* web_notification_tray) {
   DCHECK(web_notification_tray);
   web_notification_tray_ = web_notification_tray;
   TrayBackgroundView::Initialize();
-  CreateItems(delegate);
+  CreateItems();
 }
 
 void SystemTray::Shutdown() {
@@ -231,7 +227,7 @@ void SystemTray::Shutdown() {
   web_notification_tray_ = nullptr;
 }
 
-void SystemTray::CreateItems(SystemTrayDelegate* delegate) {
+void SystemTray::CreateItems() {
   AddTrayItem(base::MakeUnique<TrayUser>(this));
 
   // Crucially, this trailing padding has to be inside the user item(s).
@@ -268,7 +264,8 @@ void SystemTray::CreateItems(SystemTrayDelegate* delegate) {
   AddTrayItem(base::WrapUnique(tray_scale_));
   AddTrayItem(base::MakeUnique<TrayBrightness>(this));
   AddTrayItem(base::MakeUnique<TrayKeyboardBrightness>(this));
-  AddTrayItem(base::MakeUnique<TrayCapsLock>(this));
+  tray_caps_lock_ = new TrayCapsLock(this);
+  AddTrayItem(base::WrapUnique(tray_caps_lock_));
   if (NightLightController::IsFeatureEnabled()) {
     tray_night_light_ = new TrayNightLight(this);
     AddTrayItem(base::WrapUnique(tray_night_light_));
@@ -451,8 +448,8 @@ void SystemTray::ShowItems(const std::vector<SystemTrayItem*>& items,
 
     TrayBubbleView::InitParams init_params;
     init_params.anchor_alignment = GetAnchorAlignment();
-    init_params.min_width = kTrayMenuMinimumWidth;
-    init_params.max_width = kTrayPopupMaxWidth;
+    init_params.min_width = kTrayMenuWidth;
+    init_params.max_width = kTrayMenuWidth;
     // The bubble is not initially activatable, but will become activatable if
     // the user presses Tab. For behavioral consistency with the non-activatable
     // scenario, don't close on deactivation after Tab either.
@@ -533,6 +530,7 @@ void SystemTray::UpdateAfterShelfAlignmentChange() {
 
 void SystemTray::AnchorUpdated() {
   if (system_bubble_) {
+    UpdateClippingWindowBounds();
     system_bubble_->bubble_view()->UpdateBubble();
     // Should check |system_bubble_| again here. Since UpdateBubble above
     // set the bounds of the bubble which will stop the current animation.

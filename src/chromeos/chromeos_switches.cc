@@ -209,9 +209,6 @@ const char kDisableMultiDisplayLayout[] = "disable-multi-display-layout";
 const char kDisableNetworkPortalNotification[] =
     "disable-network-portal-notification";
 
-// Disables new channel switcher UI.
-const char kDisableNewChannelSwitcherUI[] = "disable-new-channel-switcher-ui";
-
 // Disables the new Korean IME in chrome://settings/languages.
 const char kDisableNewKoreanIme[] = "disable-new-korean-ime";
 
@@ -256,6 +253,9 @@ const char kEnableArc[] = "enable-arc";
 
 // Enables ARC OptIn flow in OOBE.
 const char kEnableArcOOBEOptIn[] = "enable-arc-oobe-optin";
+
+// Enables the Cast Receiver.
+const char kEnableCastReceiver[] = "enable-cast-receiver";
 
 // Enables native ChromeVox support for Arc.
 const char kEnableChromeVoxArcSupport[] = "enable-chromevox-arc-support";
@@ -527,6 +527,12 @@ const char kVoiceInteractionLocales[] = "voice-interaction-supported-locales";
 // Enables license type selection by user during enrollment.
 const char kEnterpriseEnableLicenseTypeSelection[] =
     "enterprise-enable-license-type-selection";
+
+// Disables per-user timezone.
+const char kDisablePerUserTimezone[] = "disable-per-user-timezone";
+
+// Enables a rename action for external drive such as USB and SD.
+const char kEnableExternalDriveRename[] = "enable-external-drive-rename";
 
 bool WakeOnWifiEnabled() {
   return !base::CommandLine::ForCurrentProcess()->HasSwitch(kDisableWakeOnWifi);

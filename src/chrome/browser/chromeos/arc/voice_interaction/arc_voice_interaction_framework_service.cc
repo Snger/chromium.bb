@@ -21,6 +21,7 @@
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
 #include "base/task_scheduler/post_task.h"
+#include "chrome/browser/chromeos/arc/boot_phase_monitor/arc_boot_phase_monitor_bridge.h"
 #include "chrome/browser/chromeos/login/helper.h"
 #include "chrome/browser/chromeos/login/ui/login_display_host_impl.h"
 #include "chrome/browser/profiles/profile.h"
@@ -209,12 +210,14 @@ ArcVoiceInteractionFrameworkService::ArcVoiceInteractionFrameworkService(
   arc_bridge_service_->voice_interaction_framework()->AddObserver(this);
   ArcSessionManager::Get()->AddObserver(this);
   session_manager::SessionManager::Get()->AddObserver(this);
+  chromeos::CrasAudioHandler::Get()->AddAudioObserver(this);
 }
 
 ArcVoiceInteractionFrameworkService::~ArcVoiceInteractionFrameworkService() {
+  chromeos::CrasAudioHandler::Get()->RemoveAudioObserver(this);
+  session_manager::SessionManager::Get()->RemoveObserver(this);
   ArcSessionManager::Get()->RemoveObserver(this);
   arc_bridge_service_->voice_interaction_framework()->RemoveObserver(this);
-  session_manager::SessionManager::Get()->RemoveObserver(this);
 }
 
 void ArcVoiceInteractionFrameworkService::OnInstanceReady() {
@@ -229,7 +232,11 @@ void ArcVoiceInteractionFrameworkService::OnInstanceReady() {
 
   if (is_request_pending_) {
     is_request_pending_ = false;
-    framework_instance->StartVoiceInteractionSession();
+    if (is_pending_request_toggle_) {
+      framework_instance->ToggleVoiceInteractionSession(IsHomescreenActive());
+    } else {
+      framework_instance->StartVoiceInteractionSession(IsHomescreenActive());
+    }
   }
 }
 
@@ -255,8 +262,6 @@ void ArcVoiceInteractionFrameworkService::CaptureFocusedWindow(
   }
   ui::GrabWindowSnapshotAsyncJPEG(
       window, gfx::Rect(window->bounds().size()),
-      base::CreateTaskRunnerWithTraits(
-          {base::MayBlock(), base::TaskPriority::USER_BLOCKING}),
       base::Bind(&ScreenshotCallback, callback));
 }
 
@@ -388,6 +393,11 @@ void ArcVoiceInteractionFrameworkService::OnSessionStateChanged() {
   session_manager::SessionManager::Get()->RemoveObserver(this);
 }
 
+void ArcVoiceInteractionFrameworkService::OnHotwordTriggered(uint64_t tv_sec,
+                                                             uint64_t tv_nsec) {
+  InitiateUserInteraction(false /* is_toggle */);
+}
+
 void ArcVoiceInteractionFrameworkService::StartVoiceInteractionSetupWizard() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
@@ -493,7 +503,7 @@ void ArcVoiceInteractionFrameworkService::StartSessionFromUserInteraction(
     const gfx::Rect& rect) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
-  if (!InitiateUserInteraction())
+  if (!InitiateUserInteraction(false /* is_toggle */))
     return;
 
   if (rect.IsEmpty()) {
@@ -502,7 +512,7 @@ void ArcVoiceInteractionFrameworkService::StartSessionFromUserInteraction(
             arc_bridge_service_->voice_interaction_framework(),
             StartVoiceInteractionSession);
     DCHECK(framework_instance);
-    framework_instance->StartVoiceInteractionSession();
+    framework_instance->StartVoiceInteractionSession(IsHomescreenActive());
   } else {
     mojom::VoiceInteractionFrameworkInstance* framework_instance =
         ARC_GET_INSTANCE_FOR_METHOD(
@@ -517,7 +527,7 @@ void ArcVoiceInteractionFrameworkService::StartSessionFromUserInteraction(
 void ArcVoiceInteractionFrameworkService::ToggleSessionFromUserInteraction() {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
-  if (!InitiateUserInteraction())
+  if (!InitiateUserInteraction(true /* is_toggle */))
     return;
 
   mojom::VoiceInteractionFrameworkInstance* framework_instance =
@@ -525,7 +535,7 @@ void ArcVoiceInteractionFrameworkService::ToggleSessionFromUserInteraction() {
           arc_bridge_service_->voice_interaction_framework(),
           ToggleVoiceInteractionSession);
   DCHECK(framework_instance);
-  framework_instance->ToggleVoiceInteractionSession();
+  framework_instance->ToggleVoiceInteractionSession(IsHomescreenActive());
 }
 
 bool ArcVoiceInteractionFrameworkService::ValidateTimeSinceUserInteraction() {
@@ -568,7 +578,8 @@ void ArcVoiceInteractionFrameworkService::StartVoiceInteractionOobe() {
   display_host->StartVoiceInteractionOobe();
 }
 
-bool ArcVoiceInteractionFrameworkService::InitiateUserInteraction() {
+bool ArcVoiceInteractionFrameworkService::InitiateUserInteraction(
+    bool is_toggle) {
   VLOG(1) << "Start voice interaction.";
   PrefService* prefs = Profile::FromBrowserContext(context_)->GetPrefs();
   if (!prefs->GetBoolean(prefs::kArcVoiceInteractionValuePropAccepted)) {
@@ -589,10 +600,12 @@ bool ArcVoiceInteractionFrameworkService::InitiateUserInteraction() {
         ash::VoiceInteractionState::NOT_READY);
   }
 
+  ArcBootPhaseMonitorBridge::RecordFirstAppLaunchDelayUMA(context_);
   if (!arc_bridge_service_->voice_interaction_framework()->has_instance()) {
     VLOG(1) << "Instance not ready.";
     SetArcCpuRestriction(false);
     is_request_pending_ = true;
+    is_pending_request_toggle_ = is_toggle;
     return false;
   }
 
@@ -607,6 +620,11 @@ void ArcVoiceInteractionFrameworkService::
   prefs->SetBoolean(prefs::kArcVoiceInteractionValuePropAccepted, completed);
 
   ash::Shell::Get()->NotifyVoiceInteractionSetupCompleted(completed);
+}
+
+bool ArcVoiceInteractionFrameworkService::IsHomescreenActive() {
+  // Homescreen is considered to be active if there are no active windows.
+  return !ash::Shell::Get()->activation_client()->GetActiveWindow();
 }
 
 void ArcVoiceInteractionFrameworkService::
@@ -624,7 +642,7 @@ void ArcVoiceInteractionFrameworkService::
   if (should_start_runtime_flow_) {
     should_start_runtime_flow_ = false;
     VLOG(1) << "Starting runtime setup flow.";
-    framework_instance->StartVoiceInteractionSession();
+    framework_instance->StartVoiceInteractionSession(IsHomescreenActive());
     return;
   }
   framework_instance->StartVoiceInteractionSetupWizard();

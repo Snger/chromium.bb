@@ -9,7 +9,10 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "base/test/histogram_tester.h"
+#include "base/test/scoped_task_environment.h"
 #include "base/test/simple_test_clock.h"
+#include "base/test/test_simple_task_runner.h"
 #include "base/timer/mock_timer.h"
 #include "chromeos/components/tether/ble_constants.h"
 #include "components/cryptauth/data_with_timestamp.h"
@@ -212,10 +215,12 @@ class BleSynchronizerTest : public testing::Test {
 
     test_clock_ = new base::SimpleTestClock();
     test_clock_->Advance(TimeDeltaMillis(kTimeBetweenEachCommandMs));
+    test_task_runner_ = base::MakeRefCounted<base::TestSimpleTaskRunner>();
 
     synchronizer_ = base::MakeUnique<BleSynchronizer>(mock_adapter_);
     synchronizer_->SetTestDoubles(base::WrapUnique(mock_timer_),
-                                  base::WrapUnique(test_clock_));
+                                  base::WrapUnique(test_clock_),
+                                  test_task_runner_);
   }
 
   base::TimeDelta TimeDeltaMillis(int64_t num_millis) {
@@ -244,22 +249,32 @@ class BleSynchronizerTest : public testing::Test {
 
   void InvokeRegisterCallback(bool success,
                               const std::string& expected_id,
-                              size_t reg_arg_index) {
+                              size_t reg_arg_index,
+                              size_t expected_registration_result_count) {
     EXPECT_TRUE(register_args_list_.size() >= reg_arg_index);
     EXPECT_EQ(*CreateUUIDList(expected_id),
               register_args_list_[reg_arg_index]->service_uuids);
 
+    BleSynchronizer::BluetoothAdvertisementResult expected_result;
     if (success) {
       register_args_list_[reg_arg_index]->callback.Run(
-          make_scoped_refptr(new device::MockBluetoothAdvertisement()));
+          base::MakeRefCounted<device::MockBluetoothAdvertisement>());
+      expected_result = BleSynchronizer::BluetoothAdvertisementResult::SUCCESS;
     } else {
       register_args_list_[reg_arg_index]->error_callback.Run(
           device::BluetoothAdvertisement::ErrorCode::
               INVALID_ADVERTISEMENT_ERROR_CODE);
+      expected_result = BleSynchronizer::BluetoothAdvertisementResult::
+          INVALID_ADVERTISEMENT_ERROR_CODE;
     }
+
+    histogram_tester_.ExpectBucketCount(
+        "InstantTethering.BluetoothAdvertisementRegistrationResult",
+        expected_result, expected_registration_result_count);
 
     // Reset to make sure that this callback is never double-invoked.
     register_args_list_[reg_arg_index].reset();
+    test_task_runner_->RunUntilIdle();
   }
 
   void OnAdvertisementRegistered(
@@ -281,19 +296,30 @@ class BleSynchronizerTest : public testing::Test {
                    base::Unretained(this)));
   }
 
-  void InvokeUnregisterCallback(bool success, size_t unreg_arg_index) {
+  void InvokeUnregisterCallback(bool success,
+                                size_t unreg_arg_index,
+                                size_t expected_unregistration_result_count) {
     EXPECT_TRUE(unregister_args_list_.size() >= unreg_arg_index);
 
+    BleSynchronizer::BluetoothAdvertisementResult expected_result;
     if (success) {
       unregister_args_list_[unreg_arg_index]->callback.Run();
+      expected_result = BleSynchronizer::BluetoothAdvertisementResult::SUCCESS;
     } else {
       unregister_args_list_[unreg_arg_index]->error_callback.Run(
           device::BluetoothAdvertisement::ErrorCode::
               INVALID_ADVERTISEMENT_ERROR_CODE);
+      expected_result = BleSynchronizer::BluetoothAdvertisementResult::
+          INVALID_ADVERTISEMENT_ERROR_CODE;
     }
+
+    histogram_tester_.ExpectBucketCount(
+        "InstantTethering.BluetoothAdvertisementUnregistrationResult",
+        expected_result, expected_unregistration_result_count);
 
     // Reset to make sure that this callback is never double-invoked.
     unregister_args_list_[unreg_arg_index].reset();
+    test_task_runner_->RunUntilIdle();
   }
 
   void OnAdvertisementUnregistered() { ++num_unregister_success_; }
@@ -311,7 +337,9 @@ class BleSynchronizerTest : public testing::Test {
                    base::Unretained(this)));
   }
 
-  void InvokeStartDiscoveryCallback(bool success, size_t start_arg_index) {
+  void InvokeStartDiscoveryCallback(bool success,
+                                    size_t start_arg_index,
+                                    size_t expected_discovery_result_count) {
     EXPECT_TRUE(start_discovery_args_list_.size() >= start_arg_index);
 
     if (success) {
@@ -321,8 +349,13 @@ class BleSynchronizerTest : public testing::Test {
       start_discovery_args_list_[start_arg_index]->error_callback.Run();
     }
 
+    histogram_tester_.ExpectUniqueSample(
+        "InstantTethering.BluetoothDiscoverySessionStarted", success ? 1 : 0,
+        expected_discovery_result_count);
+
     // Reset to make sure that this callback is never double-invoked.
     start_discovery_args_list_[start_arg_index].reset();
+    test_task_runner_->RunUntilIdle();
   }
 
   void OnDiscoverySessionStarted(
@@ -352,6 +385,7 @@ class BleSynchronizerTest : public testing::Test {
 
     // Reset to make sure that this callback is never double-invoked.
     stop_discovery_args_list_[stop_arg_index].reset();
+    test_task_runner_->RunUntilIdle();
   }
 
   void OnDiscoverySessionStopped() { ++num_stop_success_; }
@@ -377,6 +411,7 @@ class BleSynchronizerTest : public testing::Test {
         new StopDiscoverySessionArgs(callback, error_callback)));
   }
 
+  const base::test::ScopedTaskEnvironment scoped_task_environment_;
   const scoped_refptr<FakeBluetoothAdvertisement> fake_advertisement_;
   const std::unique_ptr<device::MockBluetoothDiscoverySession>
       fake_discovery_session_;
@@ -387,6 +422,7 @@ class BleSynchronizerTest : public testing::Test {
 
   base::MockTimer* mock_timer_;
   base::SimpleTestClock* test_clock_;
+  scoped_refptr<base::TestSimpleTaskRunner> test_task_runner_;
 
   std::vector<std::unique_ptr<RegisterAdvertisementArgs>> register_args_list_;
   std::vector<std::unique_ptr<UnregisterAdvertisementArgs>>
@@ -409,43 +445,51 @@ class BleSynchronizerTest : public testing::Test {
 
   std::unique_ptr<BleSynchronizer> synchronizer_;
 
+  base::HistogramTester histogram_tester_;
+
  private:
   DISALLOW_COPY_AND_ASSIGN(BleSynchronizerTest);
 };
 
 TEST_F(BleSynchronizerTest, TestRegisterSuccess) {
   RegisterAdvertisement(kId1);
-  InvokeRegisterCallback(true /* success */, kId1, 0u /* reg_arg_index */);
+  InvokeRegisterCallback(true /* success */, kId1, 0u /* reg_arg_index */,
+                         1u /* expected_registration_result_count */);
   EXPECT_EQ(1, num_register_success_);
 }
 
 TEST_F(BleSynchronizerTest, TestRegisterError) {
   RegisterAdvertisement(kId1);
-  InvokeRegisterCallback(false /* success */, kId1, 0u /* reg_arg_index */);
+  InvokeRegisterCallback(false /* success */, kId1, 0u /* reg_arg_index */,
+                         1u /* expected_registration_result_count */);
   EXPECT_EQ(1, num_register_error_);
 }
 
 TEST_F(BleSynchronizerTest, TestUnregisterSuccess) {
   UnregisterAdvertisement();
-  InvokeUnregisterCallback(true /* success */, 0u /* reg_arg_index */);
+  InvokeUnregisterCallback(true /* success */, 0u /* reg_arg_index */,
+                           1 /* expected_unregistration_result_count */);
   EXPECT_EQ(1, num_unregister_success_);
 }
 
 TEST_F(BleSynchronizerTest, TestUnregisterError) {
   UnregisterAdvertisement();
-  InvokeUnregisterCallback(false /* success */, 0u /* reg_arg_index */);
+  InvokeUnregisterCallback(false /* success */, 0u /* reg_arg_index */,
+                           1 /* expected_unregistration_result_count */);
   EXPECT_EQ(1, num_unregister_error_);
 }
 
 TEST_F(BleSynchronizerTest, TestStartSuccess) {
   StartDiscoverySession();
-  InvokeStartDiscoveryCallback(true /* success */, 0u /* reg_arg_index */);
+  InvokeStartDiscoveryCallback(true /* success */, 0u /* reg_arg_index */,
+                               1 /* expected_discovery_result_count */);
   EXPECT_EQ(1, num_start_success_);
 }
 
 TEST_F(BleSynchronizerTest, TestStartError) {
   StartDiscoverySession();
-  InvokeStartDiscoveryCallback(false /* success */, 0u /* reg_arg_index */);
+  InvokeStartDiscoveryCallback(false /* success */, 0u /* reg_arg_index */,
+                               1 /* expected_discovery_result_count */);
   EXPECT_EQ(1, num_start_error_);
 }
 
@@ -471,13 +515,15 @@ TEST_F(BleSynchronizerTest, TestStop_DeletedDiscoverySession) {
 
   // The RegisterAdvertisement() command should be sent without the need for a
   // delay, since the previous command was not actually sent.
-  InvokeRegisterCallback(true /* success */, kId1, 0u /* reg_arg_index */);
+  InvokeRegisterCallback(true /* success */, kId1, 0u /* reg_arg_index */,
+                         1u /* expected_registration_result_count */);
   EXPECT_EQ(1, num_register_success_);
 }
 
 TEST_F(BleSynchronizerTest, TestThrottling) {
   RegisterAdvertisement(kId1);
-  InvokeRegisterCallback(true /* success */, kId1, 0u /* reg_arg_index */);
+  InvokeRegisterCallback(true /* success */, kId1, 0u /* reg_arg_index */,
+                         1u /* expected_registration_result_count */);
   EXPECT_EQ(1, num_register_success_);
 
   // Advance to one millisecond before the limit.
@@ -494,7 +540,8 @@ TEST_F(BleSynchronizerTest, TestThrottling) {
   test_clock_->Advance(TimeDeltaMillis(kTimeBetweenEachCommandMs));
   mock_timer_->Fire();
 
-  InvokeUnregisterCallback(true /* success */, 0u /* reg_arg_index */);
+  InvokeUnregisterCallback(true /* success */, 0u /* reg_arg_index */,
+                           1 /* expected_unregistration_result_count */);
   EXPECT_EQ(1, num_unregister_success_);
 
   // Now, register 2 advertisements at the same time.
@@ -510,7 +557,8 @@ TEST_F(BleSynchronizerTest, TestThrottling) {
   mock_timer_->Fire();
 
   EXPECT_EQ(2u, register_args_list_.size());
-  InvokeRegisterCallback(false /* success */, kId2, 1u /* reg_arg_index */);
+  InvokeRegisterCallback(false /* success */, kId2, 1u /* reg_arg_index */,
+                         1u /* expected_registration_result_count */);
   EXPECT_EQ(1, num_register_error_);
 
   // Advance the clock and fire the timer. This should result in the next
@@ -519,7 +567,8 @@ TEST_F(BleSynchronizerTest, TestThrottling) {
   mock_timer_->Fire();
 
   EXPECT_EQ(3u, register_args_list_.size());
-  InvokeRegisterCallback(true /* success */, kId3, 2u /* reg_arg_index */);
+  InvokeRegisterCallback(true /* success */, kId3, 2u /* reg_arg_index */,
+                         2u /* expected_registration_result_count */);
   EXPECT_EQ(2, num_register_success_);
 
   // Advance the clock before doing anything else. The next request should not
@@ -528,7 +577,8 @@ TEST_F(BleSynchronizerTest, TestThrottling) {
   test_clock_->Advance(TimeDeltaMillis(kTimeBetweenEachCommandMs));
 
   UnregisterAdvertisement();
-  InvokeUnregisterCallback(false /* success */, 1u /* reg_arg_index */);
+  InvokeUnregisterCallback(false /* success */, 1u /* reg_arg_index */,
+                           1 /* expected_unregistration_result_count */);
   EXPECT_EQ(1, num_unregister_error_);
 }
 

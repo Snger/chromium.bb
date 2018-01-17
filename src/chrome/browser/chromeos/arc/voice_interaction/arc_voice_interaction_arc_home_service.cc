@@ -158,13 +158,7 @@ ArcVoiceInteractionArcHomeService::~ArcVoiceInteractionArcHomeService() =
 
 void ArcVoiceInteractionArcHomeService::Shutdown() {
   ResetTimeouts();
-
-  // TODO(hidehiko): Currently, the lifetime of ArcBridgeService and
-  // BrowserContextKeyedService is not nested.
-  // If ArcServiceManager::Get() returns nullptr, it is already destructed,
-  // so do not touch it.
-  if (ArcServiceManager::Get())
-    arc_bridge_service_->voice_interaction_arc_home()->RemoveObserver(this);
+  arc_bridge_service_->voice_interaction_arc_home()->RemoveObserver(this);
 }
 
 void ArcVoiceInteractionArcHomeService::LockPai() {
