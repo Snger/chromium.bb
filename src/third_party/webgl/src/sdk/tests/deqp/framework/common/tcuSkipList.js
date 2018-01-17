@@ -141,31 +141,6 @@ goog.scope(function() {
         _skip("blit.rect.nearest_consistency_out_of_bounds_min_reverse_dst_y");
         _skip("blit.rect.nearest_consistency_out_of_bounds_min_reverse_src_dst_y");
 
-        _setReason("Mac OSX drivers handle R11F_G11F_B10F format incorrectly");
-        // https://github.com/KhronosGroup/WebGL/issues/1832
-        // deqp/functional/gles3/fragmentoutput/basic.float.html
-        _skip("fragment_outputs.basic.float.r11f_g11f_b10f_mediump*");
-        _skip("fragment_outputs.basic.float.r11f_g11f_b10f_highp*");
-        // deqp/functional/gles3/fragmentoutput/array.float.html
-        _skip("fragment_outputs.array.float.r11f_g11f_b10f_mediump*");
-        _skip("fragment_outputs.array.float.r11f_g11f_b10f_highp*");
-        // deqp/functional/gles3/fragmentoutput/random_00.html
-        _skip("fragment_outputs.random.57");
-        // deqp/functional/gles3/fragmentoutput/random_02.html
-        _skip("fragment_outputs.random.11");
-        // deqp/functional/gles3/fborender/resize_01.html
-        _skip("render.resize.rbo_r11f_g11f_b10f");
-        // deqp/functional/gles3/fborender/recreate_color_02.html
-        _skip("render.recreate_color.rbo_r11f_g11f_b10f_depth_stencil_rbo_depth24_stencil8");
-        // deqp/functional/gles3/fbocolorbuffer/clear.html
-        _skip("color.clear.r11f_g11f_b10f");
-        // deqp/functional/gles3/fbomultisample.2_samples.html
-        _skip("msaa.2_samples.r11f_g11f_b10f");
-        // deqp/functional/gles3/fbomultisample.4_samples.html
-        _skip("msaa.4_samples.r11f_g11f_b10f");
-        // deqp/functional/gles3/fbomultisample.8_samples.html
-        _skip("msaa.8_samples.r11f_g11f_b10f");
-
         _setReason("Missing shadow sampler functions in D3D11");
         // https://github.com/KhronosGroup/WebGL/issues/1870
         // deqp/functional/gles3/shadertexturefunction/texture.html
@@ -228,25 +203,6 @@ goog.scope(function() {
         // deqp/functional/gles3/clipping.html
         _skip("clipping.wide_points_full_viewport");
         _skip("clipping.wide_points_partial_viewport");
-
-
-        _setReason("Mac AMD drivers handle instanced rendering incorrectly under certain situation");
-        // crbug.com/645298
-        // deqp/functional/gles3/instancedrendering.html
-        _skip("instanced_rendering.draw_arrays_instanced.attribute_divisor.4_instances");
-        _skip("instanced_rendering.draw_arrays_instanced.attribute_divisor.20_instances");
-        _skip("instanced_rendering.draw_arrays_instanced.mixed.4_instances");
-        _skip("instanced_rendering.draw_arrays_instanced.mixed.20_instances");
-        _skip("instanced_rendering.draw_elements_instanced.attribute_divisor.4_instances");
-        _skip("instanced_rendering.draw_elements_instanced.attribute_divisor.20_instances");
-        _skip("instanced_rendering.draw_elements_instanced.mixed.4_instances");
-        _skip("instanced_rendering.draw_elements_instanced.mixed.20_instances");
-
-        _setReason("Mac AMD drivers readPixels from RGB buffer into PIXEL_PACK_BUFFER got alpha values wrong");
-        // crbug.com/646182
-        // deqp/functional/gles3/pixelbufferobject.html
-        _skip("pixel_buffer_object.renderbuffer.rgb8_triangles");
-        _skip("pixel_buffer_object.renderbuffer.rgb8_clears");
 
         _setReason("Some Windows AMD D3D11 drivers have issues with blit and depth/stencil formats.");
         // crbug.com/638323

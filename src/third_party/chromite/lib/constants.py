@@ -254,6 +254,14 @@ MON_CL_FALSE_REJ_COUNT = ('chromeos/cbuildbot/submitted_change/'
 MON_REPO_SYNC_COUNT = 'chromeos/cbuildbot/repo/sync_count'
 MON_REPO_SYNC_RETRY_COUNT = 'chromeos/cbuildbot/repo/sync_retry_count'
 MON_GIT_FETCH_COUNT = 'chromeos/cbuildbot/git/fetch_count'
+MON_GIT_FETCH_RETRY_COUNT = 'chromeos/cbuildbot/git/fetch_retry_count'
+
+MON_BB_RETRY_BUILD_COUNT = ('chromeos/cbuildbot/buildbucket/'
+                            'retry_build_count')
+MON_BB_CANCEL_BATCH_BUILDS_COUNT = ('chromeos/cbuildbot/buildbucket/'
+                                    'cancel_batch_builds_count')
+MON_BB_CANCEL_PRE_CQ_BUILD_COUNT = ('chromeos/cbuildbot/buildbucket/'
+                                    'cancel_pre_cq_build_count')
 
 # Re-execution API constants.
 # Used by --resume and --bootstrap to decipher which options they
@@ -313,6 +321,8 @@ ANDROID_BUILD_TARGETS = {
     # get rid of this.
     'ARM': ('linux-cheets_arm-user', r'(\.zip|/adb)$'),
     'X86': ('linux-cheets_x86-user', r'\.zip$'),
+    'X86_USERDEBUG': ('linux-cheets_x86-userdebug', r'\.zip$'),
+    'AOSP_X86_USERDEBUG': ('linux-aosp_cheets_x86-userdebug', r'\.zip$'),
     'SDK_TOOLS': ('linux-static_sdk_tools', r'/(aapt|adb)$'),
 }
 ANDROID_GTS_BUILD_BRANCH = 'git_mnc-dev'
@@ -323,8 +333,20 @@ ARC_BUCKET_URL = 'gs://chromeos-arc-images/builds'
 ARC_BUCKET_ACLS = {
     'ARM': 'googlestorage_acl_arm.txt',
     'X86': 'googlestorage_acl_x86.txt',
-    'SDK_TOOLS': 'googlestorage_acl_cts.txt',
+    'X86_USERDEBUG': 'googlestorage_acl_x86.txt',
+    'AOSP_X86_USERDEBUG': 'googlestorage_acl_x86.txt',
+    'SDK_TOOLS': 'googlestorage_acl_public.txt',
     'XTS': 'googlestorage_acl_cts.txt',
+}
+# x86-user, x86-userdebug and x86-eng builders create build artifacts with the
+# same name, e.g. cheets_x86-target_files-${VERSION}.zip. Chrome OS builders
+# that need to select x86-user or x86-userdebug artifacts at emerge time need
+# the artifacts to have different filenames to avoid checksum failures. These
+# targets will have their artifacts renamed when the PFQ copies them from the
+# the Android bucket to the ARC++ bucket (b/33072485).
+ARC_BUILDS_NEED_ARTIFACTS_RENAMED = {
+    'X86_USERDEBUG',
+    'AOSP_X86_USERDEBUG',
 }
 
 GOB_COOKIE_PATH = os.path.expanduser('~/.git-credential-cache/cookie')
@@ -910,6 +932,7 @@ IMAGE_NAME_TO_TYPE = dict((v, k) for k, v in IMAGE_TYPE_TO_NAME.iteritems())
 
 METADATA_JSON = 'metadata.json'
 PARTIAL_METADATA_JSON = 'partial-metadata.json'
+METADATA_TAGS = 'tags'
 DELTA_SYSROOT_TAR = 'delta_sysroot.tar.xz'
 DELTA_SYSROOT_BATCH = 'batch'
 
@@ -994,3 +1017,13 @@ CHROMEOS_SERVICE_ACCOUNT = os.path.join('/', 'creds', 'service_accounts',
 TRYSERVER_BUILDBUCKET_BUCKET = 'master.chromiumos.tryserver'
 CHROMEOS_BUILDBUCKET_BUCKET = 'master.chromeos'
 CHROMIUMOS_BUILDBUCKET_BUCKET = 'master.chromiumos'
+
+# Build retry limit on buildbucket
+BUILDBUCKET_BUILD_RETRY_LIMIT = 2
+
+# TODO(nxia): consolidate all run.metadata key constants,
+# add a unit test to avoid duplicated keys in run_metadata
+
+# Builder_run metadata keys
+METADATA_SCHEDULED_SLAVES = 'scheduled_slaves'
+METADATA_UNSCHEDULED_SLAVES = 'unscheduled_slaves'

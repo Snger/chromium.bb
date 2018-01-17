@@ -25,8 +25,6 @@ interface WebGLTransformFeedback : WebGLObject {
 interface WebGLVertexArrayObject : WebGLObject {
 };
 
-typedef (Float32Array or sequence<GLfloat>) Float32List;
-typedef (Int32Array or sequence<GLint>) Int32List;
 typedef (Uint32Array or sequence<GLuint>) Uint32List;
 
 [NoInterfaceObject]
@@ -318,7 +316,7 @@ interface WebGL2RenderingContextBase
   // MapBufferRange, in particular its read-only and write-only modes,
   // can not be exposed safely to JavaScript. GetBufferSubData
   // replaces it for the purpose of fetching data back from the GPU.
-  void getBufferSubData(GLenum target, GLintptr srcByteOffset, ArrayBufferView dstData,
+  void getBufferSubData(GLenum target, GLintptr srcByteOffset, ArrayBufferView dstBuffer,
                         optional GLuint dstOffset = 0, optional GLuint length = 0);
 
   /* Framebuffer objects */
@@ -399,19 +397,19 @@ interface WebGL2RenderingContextBase
                          GLint x, GLint y, GLsizei width, GLsizei height);
 
   void compressedTexImage2D(GLenum target, GLint level, GLenum internalformat, GLsizei width,
-                            GLsizei height, GLint border, GLintptr offset);
+                            GLsizei height, GLint border, GLsizei imageSize, GLintptr offset);
   void compressedTexImage2D(GLenum target, GLint level, GLenum internalformat, GLsizei width,
                             GLsizei height, GLint border, ArrayBufferView srcData,
                             optional GLuint srcOffset = 0, optional GLuint srcLengthOverride = 0);
 
   void compressedTexImage3D(GLenum target, GLint level, GLenum internalformat, GLsizei width,
-                            GLsizei height, GLsizei depth, GLint border, GLintptr offset);
+                            GLsizei height, GLsizei depth, GLint border, GLsizei imageSize, GLintptr offset);
   void compressedTexImage3D(GLenum target, GLint level, GLenum internalformat, GLsizei width,
                             GLsizei height, GLsizei depth, GLint border, ArrayBufferView srcData,
                             optional GLuint srcOffset = 0, optional GLuint srcLengthOverride = 0);
 
   void compressedTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
-                               GLsizei width, GLsizei height, GLenum format, GLintptr offset);
+                               GLsizei width, GLsizei height, GLenum format, GLsizei imageSize, GLintptr offset);
   void compressedTexSubImage2D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
                                GLsizei width, GLsizei height, GLenum format,
                                ArrayBufferView srcData,
@@ -420,7 +418,7 @@ interface WebGL2RenderingContextBase
 
   void compressedTexSubImage3D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
                                GLint zoffset, GLsizei width, GLsizei height, GLsizei depth,
-                               GLenum format, GLintptr offset);
+                               GLenum format, GLsizei imageSize, GLintptr offset);
   void compressedTexSubImage3D(GLenum target, GLint level, GLint xoffset, GLint yoffset,
                                GLint zoffset, GLsizei width, GLsizei height, GLsizei depth,
                                GLenum format, ArrayBufferView srcData,

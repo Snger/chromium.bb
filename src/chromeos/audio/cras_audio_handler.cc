@@ -50,7 +50,7 @@ bool IsSameAudioDevice(const AudioDevice& a, const AudioDevice& b) {
 
 bool IsDeviceInList(const AudioDevice& device, const AudioNodeList& node_list) {
   for (const AudioNode& node : node_list) {
-    if (device.stable_device_id == node.stable_device_id)
+    if (device.stable_device_id == node.StableDeviceId())
       return true;
   }
   return false;
@@ -268,13 +268,36 @@ void CrasAudioHandler::ChangeActiveNodes(const NodeIdList& new_active_ids) {
       output_devices.push_back(*device);
   }
   if (!input_devices.empty())
-    SetActiveNodes(input_devices, true /* is_input */);
+    SetActiveDevices(input_devices, true /* is_input */);
   if (!output_devices.empty())
-    SetActiveNodes(output_devices, false /* is_input */);
+    SetActiveDevices(output_devices, false /* is_input */);
 }
 
-void CrasAudioHandler::SetActiveNodes(const AudioDeviceList& devices,
+bool CrasAudioHandler::SetActiveInputNodes(const NodeIdList& node_ids) {
+  return SetActiveNodes(node_ids, true /* is_input */);
+}
+
+bool CrasAudioHandler::SetActiveOutputNodes(const NodeIdList& node_ids) {
+  return SetActiveNodes(node_ids, false /* is_input */);
+}
+
+bool CrasAudioHandler::SetActiveNodes(const NodeIdList& node_ids,
                                       bool is_input) {
+  chromeos::AudioDeviceList devices;
+  for (uint64_t id : node_ids) {
+    const chromeos::AudioDevice* device = GetDeviceFromId(id);
+    if (!device || device->is_input != is_input)
+      return false;
+
+    devices.push_back(*device);
+  }
+
+  SetActiveDevices(devices, is_input);
+  return true;
+}
+
+void CrasAudioHandler::SetActiveDevices(const AudioDeviceList& devices,
+                                        bool is_input) {
   std::set<uint64_t> new_active_ids;
   for (const auto& active_device : devices) {
     CHECK_EQ(is_input, active_device.is_input);
@@ -1139,8 +1162,19 @@ void CrasAudioHandler::HandleHotPlugDevice(
       SwitchToDevice(hotplug_device, true, ACTIVATE_BY_PRIORITY);
     }
   } else if (last_state_active) {
-    VLOG(1) << "Hotplug a device, restore to active: "
-            << hotplug_device.ToString();
+    if (!last_activate_by_user &&
+        device_priority_queue.top().id != hotplug_device.id) {
+      // This handles crbug.com/698809. Before the device is powered off, unplug
+      // the external output device, leave the internal audio device(such as
+      // internal speaker) active. Then turn off the power, plug in the exteranl
+      // device, turn on power. On some device, cras sends NodesChanged first
+      // signal with only external device; then later it sends another
+      // NodesChanged signal with internal audio device also discovered.
+      // For such case, do not switch to the lower priority device which was
+      // made active not by user's choice.
+      return;
+    }
+
     SwitchToDevice(hotplug_device, true, ACTIVATE_BY_RESTORE_PREVIOUS_STATE);
   } else {
     // Do not active the device if its previous state is inactive.

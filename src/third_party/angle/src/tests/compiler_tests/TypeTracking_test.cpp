@@ -91,7 +91,6 @@ TEST_F(TypeTrackingTest, FunctionPrototypeMangling)
     compile(shaderString);
     ASSERT_FALSE(foundErrorInIntermediateTree());
     ASSERT_TRUE(foundInIntermediateTree("Function Prototype: fun(f1;"));
-    ASSERT_TRUE(foundInIntermediateTree("Function Definition: fun(f1;"));
 }
 
 TEST_F(TypeTrackingTest, BuiltInFunctionResultPrecision)
@@ -197,7 +196,7 @@ TEST_F(TypeTrackingTest, BuiltInBoolFunctionResultType)
     ASSERT_FALSE(foundErrorInIntermediateTree());
     ASSERT_TRUE(foundInIntermediateTree("any (bool)"));
     ASSERT_TRUE(foundInIntermediateTree("all (bool)"));
-    ASSERT_TRUE(foundInIntermediateTree("Negate conditional (4-component vector of bool)"));
+    ASSERT_TRUE(foundInIntermediateTree("component-wise not (4-component vector of bool)"));
 }
 
 TEST_F(TypeTrackingTest, BuiltInVecToBoolFunctionResultType)
@@ -215,8 +214,9 @@ TEST_F(TypeTrackingTest, BuiltInVecToBoolFunctionResultType)
         "}\n";
     compile(shaderString);
     ASSERT_FALSE(foundErrorInIntermediateTree());
-    ASSERT_TRUE(foundInIntermediateTree("Less Than (2-component vector of bool)"));
-    ASSERT_TRUE(foundInIntermediateTree("Greater Than (2-component vector of bool)"));
+    ASSERT_TRUE(foundInIntermediateTree("component-wise less than (2-component vector of bool)"));
+    ASSERT_TRUE(
+        foundInIntermediateTree("component-wise greater than (2-component vector of bool)"));
 }
 
 TEST_F(TypeTrackingTest, Texture2DResultTypeAndPrecision)

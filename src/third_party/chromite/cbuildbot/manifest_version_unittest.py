@@ -6,19 +6,21 @@
 
 from __future__ import print_function
 
-import datetime
 import mock
 import os
 import tempfile
 
-from chromite.cbuildbot import buildbucket_lib
+from chromite.cbuildbot import build_status
+from chromite.cbuildbot import build_status_unittest
 from chromite.cbuildbot import manifest_version
 from chromite.cbuildbot import repository
 from chromite.lib import constants
-from chromite.lib import failures_lib
+from chromite.lib import config_lib
 from chromite.lib import cros_build_lib_unittest
-from chromite.lib import git
 from chromite.lib import cros_test_lib
+from chromite.lib import failures_lib
+from chromite.lib import git
+from chromite.lib import metadata_lib
 from chromite.lib import osutils
 
 
@@ -170,13 +172,14 @@ class BuildSpecsManagerTest(cros_test_lib.MockTempDirTestCase):
     osutils.SafeMakedirs(self.tmpmandir)
     self.manager = None
 
-  def BuildManager(self, buildbucket_client=None):
+  def BuildManager(self, config=None, metadata=None,
+                   buildbucket_client=None):
     repo = repository.RepoRepository(
         self.source_repo, self.tempdir, self.branch)
     manager = manifest_version.BuildSpecsManager(
         repo, self.manifest_repo, self.build_names, self.incr_type, False,
-        branch=self.branch, dry_run=True,
-        testjob=False, buildbucket_client=buildbucket_client)
+        branch=self.branch, dry_run=True, config=config, metadata=metadata,
+        buildbucket_client=buildbucket_client)
     manager.manifest_dir = self.tmpmandir
     # Shorten the sleep between attempts.
     manager.SLEEP_TIMEOUT = 1
@@ -255,8 +258,8 @@ class BuildSpecsManagerTest(cros_test_lib.MockTempDirTestCase):
       osutils.Touch(m)
 
     # Fake BuilderStatus with status MISSING.
-    missing = manifest_version.BuilderStatus(constants.BUILDER_STATUS_MISSING,
-                                             None)
+    missing = build_status.BuilderStatus(constants.BUILDER_STATUS_MISSING,
+                                         None)
 
     # Fail 1, pass 2, leave 3,4 unprocessed.
     manifest_version.CreateSymlink(m1, os.path.join(
@@ -338,9 +341,9 @@ class BuildSpecsManagerTest(cros_test_lib.MockTempDirTestCase):
     self.manager = self.BuildManager()
     failed_msg = failures_lib.BuildFailureMessage(
         'you failed', ['traceback'], True, 'taco', 'bot')
-    failed_input_status = manifest_version.BuilderStatus(
+    failed_input_status = build_status.BuilderStatus(
         constants.BUILDER_STATUS_FAILED, failed_msg)
-    passed_input_status = manifest_version.BuilderStatus(
+    passed_input_status = build_status.BuilderStatus(
         constants.BUILDER_STATUS_PASSED, None)
 
     failed_output_status = self.manager._UnpickleBuildStatus(
@@ -362,110 +365,13 @@ class BuildSpecsManagerTest(cros_test_lib.MockTempDirTestCase):
       builders: List of builders to get status for.
       status_runs: List of dictionaries of expected build and status.
     """
-    self.PatchObject(manifest_version.BuildSpecsManager,
-                     'GetSlaveStatusesFromCIDB', side_effect=status_runs)
-
-    final_status_dict = status_runs[-1]
-    build_statuses = [
-        manifest_version.BuilderStatus(final_status_dict.get(x), None)
-        for x in builders
-    ]
-    self.PatchObject(manifest_version.BuildSpecsManager,
-                     'GetBuildStatus',
-                     side_effect=build_statuses)
-
-    return self.manager.GetBuildersStatus('builderid', builders)
-
-  def testGetBuildersStatusBothFinished(self):
-    """Tests GetBuilderStatus where both builds have finished."""
-    self.manager = self.BuildManager()
-    status_runs = [{'build1': constants.BUILDER_STATUS_FAILED,
-                    'build2': constants.BUILDER_STATUS_PASSED}]
-    statuses = self._GetBuildersStatus(['build1', 'build2'], status_runs)
-    self.assertTrue(statuses['build1'].Failed())
-    self.assertTrue(statuses['build2'].Passed())
-
-  def testGetBuildersStatusLoop(self):
-    """Tests GetBuilderStatus where builds are inflight."""
-    self.manager = self.BuildManager()
-    status_runs = [{'build1': constants.BUILDER_STATUS_INFLIGHT,
-                    'build2': constants.BUILDER_STATUS_MISSING},
-                   {'build1': constants.BUILDER_STATUS_FAILED,
-                    'build2': constants.BUILDER_STATUS_INFLIGHT},
-                   {'build1': constants.BUILDER_STATUS_FAILED,
-                    'build2': constants.BUILDER_STATUS_PASSED}]
-    statuses = self._GetBuildersStatus(['build1', 'build2'], status_runs)
-    self.assertTrue(statuses['build1'].Failed())
-    self.assertTrue(statuses['build2'].Passed())
-
-  def testGetSlaveStatusesFromBuildbucket(self):
-    """Test GetSlaveStatusesFromBuildbucket"""
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2'
-    }
-
-    buildbucket_client_mock = mock.Mock()
-    self.manager = self.BuildManager(
-        buildbucket_client=buildbucket_client_mock)
-
-    # Test completed builds.
-    build_status = expected_status = {
-        'status': 'COMPLETED',
-        'result': 'SUCCESS'
-    }
-    content = {
-        'build':build_status
-    }
-    buildbucket_client_mock.GetBuildRequest.return_value = content
-    status_dict = self.manager.GetSlaveStatusesFromBuildbucket(
-        buildbucket_id_dict)
-    self.assertEqual(status_dict['build1'], expected_status)
-    self.assertEqual(status_dict['build2'], expected_status)
-
-    # Test started builds.
-    build_status = {
-        'status': 'STARTED',
-    }
-    expected_status = {
-        'status': 'STARTED',
-        'result': None
-    }
-    content = {
-        'build':build_status
-    }
-    buildbucket_client_mock.GetBuildRequest.return_value = content
-    status_dict = self.manager.GetSlaveStatusesFromBuildbucket(
-        buildbucket_id_dict)
-    self.assertEqual(status_dict['build1'], expected_status)
-    self.assertEqual(status_dict['build2'], expected_status)
-
-    # Test BuildbucketResponseException failures.
-    buildbucket_client_mock.GetBuildRequest.side_effect = (
-        buildbucket_lib.BuildbucketResponseException)
-    status_dict = self.manager.GetSlaveStatusesFromBuildbucket(
-        buildbucket_id_dict)
-    self.assertIsNone(status_dict.get('build1'))
-    self.assertIsNone(status_dict.get('build2'))
-
-  def _GetBuildersStatusWithBuildbucket(self, builders, status_runs,
-                                        buildbucket_id_dict):
-    """Test a call to BuildSpecsManager.GetBuildersStatus.
-
-    Args:
-      builders: List of builders to get status for.
-      status_runs: List of dictionaries of expected build and status.
-      buildbucket_id_dict: A dict mapping build names to buildbucket_ids.
-    """
-    result_dict = {'SUCCESS': 'pass', 'FAILURE': 'fail'}
-    self.PatchObject(manifest_version.BuildSpecsManager,
-                     'GetSlaveStatusesFromBuildbucket',
+    self.PatchObject(build_status.SlaveStatus,
+                     '_GetSlaveStatusesFromCIDB',
                      side_effect=status_runs)
 
     final_status_dict = status_runs[-1]
     build_statuses = [
-        manifest_version.BuilderStatus(
-            result_dict.get(final_status_dict.get(x).get('result')), None)
+        build_status.BuilderStatus(final_status_dict.get(x).status, None)
         for x in builders
     ]
     self.PatchObject(manifest_version.BuildSpecsManager,
@@ -473,483 +379,268 @@ class BuildSpecsManagerTest(cros_test_lib.MockTempDirTestCase):
                      side_effect=build_statuses)
 
     return self.manager.GetBuildersStatus(
-        'builderid', builders, buildbucket_id_dict=buildbucket_id_dict)
+        'builderid', mock.Mock(), builders)
 
-  def testGetBuildersStatusBothFinishedWithBuildbucket(self):
-    """Tests GetBuilderStatus where both Buildbucket builds have finished."""
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2'
-    }
-    buildbucket_client_mock = mock.Mock()
-    self.manager = self.BuildManager(buildbucket_client=buildbucket_client_mock)
+  def testGetBuildersStatusBothFinished(self):
+    """Tests GetBuilderStatus where both builds have finished."""
+    self.manager = self.BuildManager()
     status_runs = [{
-        'build1': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_FAILURE
-        },
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_SUCCESS
-        }
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_INFLIGHT),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_INFLIGHT)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_FAILED),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_PASSED)
     }]
-    statuses = self._GetBuildersStatusWithBuildbucket(
-        ['build1', 'build2'], status_runs, buildbucket_id_dict)
+    statuses = self._GetBuildersStatus(['build1', 'build2'], status_runs)
+
     self.assertTrue(statuses['build1'].Failed())
     self.assertTrue(statuses['build2'].Passed())
 
-class SlaveStatusTest(cros_test_lib.TestCase):
-  """Test methods testing methods in SalveStatus class."""
+  def testGetBuildersStatusLoop(self):
+    """Tests GetBuilderStatus where builds are inflight."""
+    self.manager = self.BuildManager()
+    status_runs = [{
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_INFLIGHT),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_MISSING)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_INFLIGHT),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_MISSING)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_FAILED),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_INFLIGHT)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_FAILED),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_PASSED)
+    }]
+    statuses = self._GetBuildersStatus(['build1', 'build2'], status_runs)
+    self.assertTrue(statuses['build1'].Failed())
+    self.assertTrue(statuses['build2'].Passed())
 
-  def testGetMissing(self):
-    """Tests GetMissing returns the missing builders."""
-    status = {'build1': constants.BUILDER_STATUS_FAILED,
-              'build2': constants.BUILDER_STATUS_INFLIGHT}
-    builders_array = ['build1', 'build2', 'missing_builder']
-    slaveStatus = manifest_version.SlaveStatus(status, datetime.datetime.now(),
-                                               builders_array, set())
+  def _CreateCanaryMasterManager(self, config=None, metadata=None,
+                                 buildbucket_client=None):
+    if config is None:
+      config = config_lib.BuildConfig(name='master-release',
+                                      master=True)
+    if metadata is None:
+      metadata = metadata_lib.CBuildbotMetadata()
 
-    self.assertEqual(slaveStatus.GetMissing(), ['missing_builder'])
+    if buildbucket_client is None:
+      buildbucket_client = mock.Mock()
 
-  def testGetMissingWithBuildbucket(self):
-    """Tests GetMissing returns the missing builders with Buildbucket."""
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2'
-    }
-    status = {
-        'build1': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_SCHEDULED,
-            'result': None
-        },
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_STARTED,
-            'result': None
-        }
-    }
-    builders_array = ['build1', 'build2', 'missing_builder']
-    slaveStatus = manifest_version.SlaveStatus(status, datetime.datetime.now(),
-                                               builders_array, set(),
-                                               buildbucket_id_dict)
+    return self.BuildManager(
+        config=config, metadata=metadata,
+        buildbucket_client=buildbucket_client)
 
-    self.assertEqual(slaveStatus.GetMissing(), ['missing_builder'])
+  def _GetBuildersStatusWithBuildbucket(self, builders, status_runs,
+                                        buildbucket_info_dicts):
+    """Test a call to BuildSpecsManager.GetBuildersStatus.
 
-  def testGetMissingNone(self):
-    """Tests GetMissing returns nothing when all builders are accounted for."""
-    status = {'build1': constants.BUILDER_STATUS_FAILED,
-              'build2': constants.BUILDER_STATUS_INFLIGHT}
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, datetime.datetime.now(),
-                                               builders_array, set())
-
-    self.assertEqual(slaveStatus.GetMissing(), [])
-
-  def testGetMissingNoneWithBuildbucket(self):
-    """Tests GetMissing returns nothing with Buildbucket."""
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2'
-    }
-    status = {
-        'build1': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_SCHEDULED,
-            'result': None
-        },
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_STARTED,
-            'result': None
-        }
-    }
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, datetime.datetime.now(),
-                                               builders_array, set(),
-                                               buildbucket_id_dict)
-
-    self.assertEqual(slaveStatus.GetMissing(), [])
-
-  def testGetCompleted(self):
-    """Tests GetCompleted returns the right builders that have completed."""
-    status = {'passed': constants.BUILDER_STATUS_PASSED,
-              'failed': constants.BUILDER_STATUS_FAILED,
-              'aborted': constants.BUILDER_STATUS_ABORTED,
-              'skipped': constants.BUILDER_STATUS_SKIPPED,
-              'forgiven': constants.BUILDER_STATUS_FORGIVEN,
-              'inflight': constants.BUILDER_STATUS_INFLIGHT,
-              'missing': constants.BUILDER_STATUS_MISSING,
-              'planned': constants.BUILDER_STATUS_PLANNED}
-    builders_array = ['passed', 'failed', 'aborted', 'skipped', 'forgiven',
-                      'inflight', 'missing', 'planning']
-    previous_completed = set(['passed'])
-    expected_completed = set(['passed', 'failed', 'aborted', 'skipped',
-                              'forgiven'])
-    slaveStatus = manifest_version.SlaveStatus(status,
-                                               datetime.datetime.now(),
-                                               builders_array,
-                                               previous_completed)
-
-    self.assertEqual(slaveStatus.GetCompleted(), expected_completed)
-    self.assertEqual(slaveStatus.previous_completed, expected_completed)
-
-  def testGetCompletedWithBuildbucket(self):
-    """Tests GetCompleted with Buildbucket"""
-    buildbucket_id_dict = {
-        'scheduled': 'id_1',
-        'started': 'id_2',
-        'completed_success': 'id_3',
-        'completed_failure': 'id_4',
-        'completed_canceled': 'id_5'
-    }
-    status = {
-        'scheduled': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_SCHEDULED,
-            'result': None
-        },
-        'started': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_STARTED,
-            'result': None
-        },
-        'completed_success': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_SUCCESS
-        },
-        'completed_failure': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_FAILURE
-        },
-        'completed_canceled': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_CANCELED
-        }
-    }
-    builders_array = ['scheduled', 'started', 'completed_success',
-                      'completed_failure', 'completed_canceled']
-    previous_completed = set(['completed_success'])
-    expected_completed = set(['completed_success', 'completed_failure',
-                              'completed_canceled'])
-    slaveStatus = manifest_version.SlaveStatus(status,
-                                               datetime.datetime.now(),
-                                               builders_array,
-                                               previous_completed,
-                                               buildbucket_id_dict)
-
-    self.assertEqual(slaveStatus.GetCompleted(), expected_completed)
-    self.assertEqual(slaveStatus.previous_completed, expected_completed)
-
-  def testCompleted(self):
-    """Tests Completed returns proper bool."""
-    statusNotCompleted = {'build1': constants.BUILDER_STATUS_FAILED,
-                          'build2': constants.BUILDER_STATUS_INFLIGHT}
-    statusCompleted = {'build1': constants.BUILDER_STATUS_FAILED,
-                       'build2': constants.BUILDER_STATUS_PASSED}
-    builders_array = ['build1', 'build2']
-    slaveStatusNotCompleted = manifest_version.SlaveStatus(
-        statusNotCompleted, datetime.datetime.now(), builders_array, set())
-    slaveStatusCompleted = manifest_version.SlaveStatus(
-        statusCompleted, datetime.datetime.now(), builders_array, set())
-
-    self.assertFalse(slaveStatusNotCompleted.Completed())
-    self.assertTrue(slaveStatusCompleted.Completed())
-
-  def testCompletedWithBuildbucket(self):
-    """Tests Completed returns proper bool with Buildbucket."""
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2'
-    }
-    statusNotCompleted = {
-        'build1': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_STARTED,
-            'result': None
-        },
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_SUCCESS
-        }
-    }
-    statusCompleted = {
-        'build1': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_SUCCESS
-        },
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_FAILURE
-        }
-    }
-    builders_array = ['build1', 'build2', 'not_scheduled_build']
-    slaveStatusNotCompleted = manifest_version.SlaveStatus(
-        statusNotCompleted, datetime.datetime.now(), builders_array, set(),
-        buildbucket_id_dict)
-    slaveStatusCompleted = manifest_version.SlaveStatus(
-        statusCompleted, datetime.datetime.now(), builders_array, set(),
-        buildbucket_id_dict)
-
-    self.assertFalse(slaveStatusNotCompleted.Completed())
-    self.assertTrue(slaveStatusCompleted.Completed())
-
-  def testShouldFailForBuilderStartTimeoutTrue(self):
-    """Tests that ShouldFailForBuilderStartTimeout says fail when it should."""
-    status = {'build1': constants.BUILDER_STATUS_FAILED}
-    start_time = datetime.datetime.now()
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, start_time,
-                                               builders_array, set())
-    check_time = start_time + datetime.timedelta(
-        minutes=slaveStatus.BUILDER_START_TIMEOUT + 1)
-
-    self.assertTrue(slaveStatus.ShouldFailForBuilderStartTimeout(check_time))
-
-  def testShouldFailForBuilderStartTimeoutTrueWithBuildbucket(self):
-    """Tests that ShouldFailForBuilderStartTimeout says fail when it should."""
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2',
-    }
-    status = {
-        'build1': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_SCHEDULED,
-            'result': None
-        },
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_SUCCESS
-        }
-    }
-
-    start_time = datetime.datetime.now()
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, start_time,
-                                               builders_array, set(),
-                                               buildbucket_id_dict)
-    check_time = start_time + datetime.timedelta(
-        minutes=slaveStatus.BUILDER_START_TIMEOUT + 1)
-
-    self.assertTrue(slaveStatus.ShouldFailForBuilderStartTimeout(check_time))
-
-  def testShouldFailForBuilderStartTimeoutFalseTooEarly(self):
-    """Tests that ShouldFailForBuilderStartTimeout doesn't fail.
-
-    Make sure that we don't fail if there are missing builders but we're
-    checking before the timeout and the other builders have completed.
+    Args:
+      builders: List of builders to get status for.
+      status_runs: List of dictionaries of expected build and status.
+      buildbucket_info_dicts: A list of dict mapping build names to
+                        buildbucket_ids.
     """
-    status = {'build1': constants.BUILDER_STATUS_FAILED}
-    start_time = datetime.datetime.now()
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, start_time,
-                                               builders_array, set())
+    self.PatchObject(build_status.SlaveStatus,
+                     '_GetSlaveStatusesFromCIDB',
+                     side_effect=status_runs)
+    self.PatchObject(build_status.SlaveStatus,
+                     '_GetSlaveStatusesFromBuildbucket',
+                     side_effect=buildbucket_info_dicts)
 
-    self.assertFalse(slaveStatus.ShouldFailForBuilderStartTimeout(start_time))
+    final_status_dict = status_runs[-1]
+    build_statuses = [
+        build_status.BuilderStatus(final_status_dict.get(x).status, None)
+        for x in builders
+    ]
+    self.PatchObject(manifest_version.BuildSpecsManager,
+                     'GetBuildStatus',
+                     side_effect=build_statuses)
 
-  def testShouldFailForBuilderStartTimeoutFalseTooEarlyWithBuildbucket(self):
-    """Tests that ShouldFailForBuilderStartTimeout doesn't fail.
+    return self.manager.GetBuildersStatus(
+        'builderid', mock.Mock(), builders)
 
-    With Buildbucket, make sure that we don't fail if there are missing
-    builders but we're checking before the timeout and the other builders
-    have completed.
-    """
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2',
-    }
-    status = {
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_SUCCESS
-        }
-    }
+  def testGetBuildersStatusBothFinishedWithBuildbucket(self):
+    """Tests GetBuilderStatus where both Buildbucket builds have finished."""
+    self.manager = self._CreateCanaryMasterManager()
 
-    start_time = datetime.datetime.now()
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, start_time,
-                                               builders_array, set(),
-                                               buildbucket_id_dict)
+    status_runs = [{
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_INFLIGHT),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_INFLIGHT)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_FAILED),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_PASSED)
+    }]
 
-    self.assertFalse(slaveStatus.ShouldFailForBuilderStartTimeout(start_time))
+    buildbucket_info_dicts = [{
+        'build1': build_status_unittest.BuildbucketInfos.GetStartedBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetStartedBuild()
+    }, {
+        'build1': build_status_unittest.BuildbucketInfos.GetFailureBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetSuccessBuild()
+    }]
 
-  def testShouldFailForBuilderStartTimeoutFalseNotCompleted(self):
-    """Tests that ShouldFailForBuilderStartTimeout doesn't fail.
+    statuses = self._GetBuildersStatusWithBuildbucket(
+        ['build1', 'build2'], status_runs, buildbucket_info_dicts)
 
-    Make sure that we don't fail if there are missing builders and we're
-    checking after the timeout but the other builders haven't completed.
-    """
-    status = {'build1': constants.BUILDER_STATUS_INFLIGHT}
-    start_time = datetime.datetime.now()
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, start_time,
-                                               builders_array, set())
-    check_time = start_time + datetime.timedelta(
-        minutes=slaveStatus.BUILDER_START_TIMEOUT + 1)
+    self.assertTrue(statuses['build1'].Failed())
+    self.assertTrue(statuses['build2'].Passed())
 
-    self.assertFalse(slaveStatus.ShouldFailForBuilderStartTimeout(check_time))
+  def testGetBuildersStatusLoopWithBuildbucket(self):
+    """Tests GetBuilderStatus where both Buildbucket builds have finished."""
+    self.manager = self._CreateCanaryMasterManager()
+    retry_patch = self.PatchObject(build_status.SlaveStatus,
+                                   '_RetryBuilds')
 
-  def testShouldFailForStartTimeoutFalseNotCompletedWithBuildbucket(self):
-    """Tests that ShouldWait doesn't fail with Buildbucket.
+    status_runs = [{
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_INFLIGHT),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_INFLIGHT)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_INFLIGHT),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_MISSING)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_FAILED),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_INFLIGHT)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_FAILED),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_PASSED)
+    }]
 
-    With Buildbucket, make sure that we don't fail if there are missing builders
-    and we're checking after the timeout but the other builders haven't
-    completed.
-    """
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2',
-    }
-    status = {
-        'build1': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_STARTED,
-            'result': None
-        },
-    }
-    start_time = datetime.datetime.now()
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, start_time,
-                                               builders_array, set(),
-                                               buildbucket_id_dict)
-    check_time = start_time + datetime.timedelta(
-        minutes=slaveStatus.BUILDER_START_TIMEOUT + 1)
+    buildbucket_info_dict = [{
+        'build1': build_status_unittest.BuildbucketInfos.GetStartedBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetMissingBuild()
+    }, {
+        'build1': build_status_unittest.BuildbucketInfos.GetStartedBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetMissingBuild()
+    }, {
+        'build1': build_status_unittest.BuildbucketInfos.GetFailureBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetStartedBuild()
+    }, {
+        'build1': build_status_unittest.BuildbucketInfos.GetFailureBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetSuccessBuild()
+    }]
 
-    self.assertFalse(slaveStatus.ShouldFailForBuilderStartTimeout(check_time))
+    statuses = self._GetBuildersStatusWithBuildbucket(
+        ['build1', 'build2'], status_runs, buildbucket_info_dict)
+    self.assertTrue(statuses['build1'].Failed())
+    self.assertTrue(statuses['build2'].Passed())
+    self.assertEqual(retry_patch.call_count, 0)
 
-  def testShouldWaitAllBuildersCompleted(self):
-    """Tests that ShouldWait says no waiting because all builders finished."""
-    status = {'build1': constants.BUILDER_STATUS_FAILED,
-              'build2': constants.BUILDER_STATUS_PASSED}
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, datetime.datetime.now(),
-                                               builders_array, set())
+  def testGetBuildersStatusLoopWithBuildbucketRetry(self):
+    """Tests GetBuilderStatus loop with buildbucket retry."""
+    self.manager = self._CreateCanaryMasterManager()
+    retry_patch = self.PatchObject(build_status.SlaveStatus,
+                                   '_RetryBuilds')
 
-    self.assertFalse(slaveStatus.ShouldWait())
+    status_runs = [{
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_INFLIGHT)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_INFLIGHT)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_FAILED),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_INFLIGHT)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_FAILED),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_PASSED)
+    }]
 
-  def testShouldWaitAllBuildersCompletedWithBuildbucket(self):
-    """ShouldWait says no because all builders finished with Buildbucket."""
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2',
-    }
-    status = {
-        'build1': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_FAILURE
-        },
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_SUCCESS
-        }
-    }
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, datetime.datetime.now(),
-                                               builders_array, set(),
-                                               buildbucket_id_dict)
+    buildbucket_info_dict = [{
+        'build1': build_status_unittest.BuildbucketInfos.GetStartedBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetStartedBuild()
+    }, {
+        'build1': build_status_unittest.BuildbucketInfos.GetStartedBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetFailureBuild()
+    }, {
+        'build1': build_status_unittest.BuildbucketInfos.GetFailureBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetStartedBuild()
+    }, {
+        'build1': build_status_unittest.BuildbucketInfos.GetFailureBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetSuccessBuild()
+    }]
 
-    self.assertFalse(slaveStatus.ShouldWait())
+    statuses = self._GetBuildersStatusWithBuildbucket(
+        ['build1', 'build2'], status_runs, buildbucket_info_dict)
+    self.assertTrue(statuses['build1'].Failed())
+    self.assertTrue(statuses['build2'].Passed())
+    self.assertTrue(retry_patch.call_count, 1)
 
-  def testShouldWaitMissingBuilder(self):
-    """Tests that ShouldWait says no waiting because a builder is missing."""
-    status = {'build1': constants.BUILDER_STATUS_FAILED}
-    builders_array = ['build1', 'build2']
-    start_time = datetime.datetime.now() - datetime.timedelta(hours=1)
-    slaveStatus = manifest_version.SlaveStatus(status, start_time,
-                                               builders_array, set())
+  def testGetBuildersStatusLoopWithBuildbucketRetry_2(self):
+    """Tests GetBuilderStatus loop with buildbucket retry."""
+    self.manager = self._CreateCanaryMasterManager()
+    retry_patch = self.PatchObject(build_status.SlaveStatus,
+                                   '_RetryBuilds')
 
-    self.assertFalse(slaveStatus.ShouldWait())
+    status_runs = [{
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_INFLIGHT)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_INFLIGHT)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_FAILED)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_FAILED)
+    }, {
+        'build1': build_status.CIDBStatusInfo(
+            1, constants.BUILDER_STATUS_FAILED),
+        'build2': build_status.CIDBStatusInfo(
+            2, constants.BUILDER_STATUS_FAILED)
+    }]
 
-  def testShouldWaitScheduledBuilderWithBuildbucket(self):
-    """ShouldWait says no because a builder is in scheduled with Buildbucket."""
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2',
-    }
-    status = {
-        'build1': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_SCHEDULED,
-            'result': None
-        },
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_FAILURE
-        }
-    }
-    builders_array = ['build1', 'build2']
-    start_time = datetime.datetime.now() - datetime.timedelta(hours=1)
-    slaveStatus = manifest_version.SlaveStatus(status, start_time,
-                                               builders_array, set(),
-                                               buildbucket_id_dict)
+    buildbucket_info_dict = [{
+        'build1': build_status_unittest.BuildbucketInfos.GetStartedBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetFailureBuild()
+    }, {
+        'build1': build_status_unittest.BuildbucketInfos.GetFailureBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetFailureBuild(
+            retry=1)
+    }, {
+        'build1': build_status_unittest.BuildbucketInfos.GetFailureBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetFailureBuild(
+            retry=2)
+    }, {
+        'build1': build_status_unittest.BuildbucketInfos.GetFailureBuild(),
+        'build2': build_status_unittest.BuildbucketInfos.GetFailureBuild(
+            retry=2)
+    }]
 
-    self.assertFalse(slaveStatus.ShouldWait())
+    statuses = self._GetBuildersStatusWithBuildbucket(
+        ['build1', 'build2'], status_runs, buildbucket_info_dict)
+    self.assertTrue(statuses['build1'].Failed())
+    self.assertTrue(statuses['build2'].Failed())
 
-  def testShouldWaitNoScheduledBuilderWithBuildbucket(self):
-    """ShouldWait says no because all scheduled builds are completed."""
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2',
-    }
-    status = {
-        'build1': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_SUCCESS
-        },
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_FAILURE
-        }
-    }
-    builders_array = ['build1', 'build2', 'missing_builder']
-    start_time = datetime.datetime.now() - datetime.timedelta(hours=1)
-    slaveStatus = manifest_version.SlaveStatus(status, start_time,
-                                               builders_array, set(),
-                                               buildbucket_id_dict)
-
-    self.assertFalse(slaveStatus.ShouldWait())
-
-  def testShouldWaitMissingBuilderWithBuildbucket(self):
-    """ShouldWait says yes waiting because one build status is missing."""
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2',
-    }
-    status = {
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_FAILURE
-        }
-    }
-    builders_array = ['build1', 'build2']
-    start_time = datetime.datetime.now() - datetime.timedelta(hours=1)
-    slaveStatus = manifest_version.SlaveStatus(status, start_time,
-                                               builders_array, set(),
-                                               buildbucket_id_dict)
-
-    self.assertTrue(slaveStatus.ShouldWait())
-
-
-  def testShouldWaitBuildersStillBuilding(self):
-    """Tests that ShouldWait says to wait because builders still building."""
-    status = {'build1': constants.BUILDER_STATUS_INFLIGHT,
-              'build2': constants.BUILDER_STATUS_FAILED}
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, datetime.datetime.now(),
-                                               builders_array, set())
-
-    self.assertTrue(slaveStatus.ShouldWait())
-
-  def testShouldWaitBuildersStillBuildingWithBuildbucket(self):
-    """ShouldWait says yes because builders still in started status."""
-    buildbucket_id_dict = {
-        'build1': 'id_1',
-        'build2': 'id_2',
-    }
-    status = {
-        'build1': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_STARTED,
-            'result': None
-        },
-        'build2': {
-            'status': constants.BUILDBUCKET_BUILDER_STATUS_COMPLETED,
-            'result': constants.BUILDBUCKET_BUILDER_RESULT_SUCCESS
-        }
-    }
-    builders_array = ['build1', 'build2']
-    slaveStatus = manifest_version.SlaveStatus(status, datetime.datetime.now(),
-                                               builders_array, set(),
-                                               buildbucket_id_dict)
-
-    self.assertTrue(slaveStatus.ShouldWait())
+    # build2 cannot be retried for more than retry_limit times.
+    self.assertTrue(retry_patch.call_count,
+                    constants.BUILDBUCKET_BUILD_RETRY_LIMIT)

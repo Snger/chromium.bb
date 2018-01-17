@@ -37,7 +37,7 @@ class IsolatedHandler(webapp2.RequestHandler):
     self.response.write(isolated_hash)
 
   def post(self):
-    """Add new isolated information
+    """Add new isolated information.
 
     Args:
       builder_name: The name of the builder that produced the isolated.
@@ -52,17 +52,22 @@ class IsolatedHandler(webapp2.RequestHandler):
       return
 
     # Get parameters.
+    for parameter in ('builder_name', 'git_hash', 'isolated_map'):
+      if parameter not in self.request.POST:
+        self.response.set_status(400)
+        self.response.write('Missing parameter: %s' % parameter)
+        return
+
+      if not self.request.get(parameter):
+        self.response.set_status(400)
+        self.response.write('Empty parameter: %s' % parameter)
+        return
+
     builder_name = self.request.get('builder_name')
     git_hash = self.request.get('git_hash')
     isolated_map = self.request.get('isolated_map')
 
     # Validate parameters.
-    for parameter in builder_name, git_hash, isolated_map:
-      if not parameter:
-        self.response.set_status(400)
-        self.response.write('Missing parameter: %s' % parameter)
-        return
-
     try:
       isolated_map = json.loads(isolated_map)
     except ValueError:

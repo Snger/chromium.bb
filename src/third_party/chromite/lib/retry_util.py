@@ -52,9 +52,12 @@ def GenericRetry(handler, max_retry, functor, *args, **kwargs):
                                       retries. If True, the first exception
                                       that was encountered. If False, the
                                       final one. Default: True.
-    mon_name: Optional string presenting the metrics name to count. This is
-              counted on every call.
-    mon_fields: Optional fields dict associated with the metrics name mon_name.
+    mon_name: Optional metrics name (string) to count. If provided, increment
+              count on this name for every call.
+    mon_retry_name: Optional retry_name (string) to count. If provided,
+                    increment count on this name for every retry call.
+    mon_fields: Optional fields dict associated with mon_name and
+                mon_retry_name.
 
   Returns:
     Whatever functor(*args, **kwargs) returns.
@@ -69,7 +72,6 @@ def GenericRetry(handler, max_retry, functor, *args, **kwargs):
     random_delay = random.uniform(.5 * delay_sec, 1.5 * delay_sec)
     logging.debug('Retrying in %f seconds...', random_delay)
     time.sleep(random_delay)
-
 
   log_all_retries = kwargs.pop('log_all_retries', False)
   sleep = kwargs.pop('sleep', 0)
@@ -90,6 +92,7 @@ def GenericRetry(handler, max_retry, functor, *args, **kwargs):
   exception_to_raise = kwargs.pop('exception_to_raise', None)
 
   mon_name = kwargs.pop('mon_name', None)
+  mon_retry_name = kwargs.pop('mon_retry_name', None)
   mon_fields = kwargs.pop('mon_fields', None)
 
   attempt = 0
@@ -100,7 +103,8 @@ def GenericRetry(handler, max_retry, functor, *args, **kwargs):
       delay()
 
     if attempt and log_all_retries:
-      logging.debug('Will retry %s (attempt %d)', functor.__name__, attempt + 1)
+      fname = functor.__name__ if hasattr(functor, '__name__') else "<nameless>"
+      logging.debug('retrying %s (attempt %d)', fname, attempt + 1)
 
     if attempt and sleep:
       if backoff_factor > 1:
@@ -112,6 +116,9 @@ def GenericRetry(handler, max_retry, functor, *args, **kwargs):
       if mon_name is not None:
         metrics.Counter(mon_name).increment(fields=mon_fields)
 
+      if attempt > 0 and mon_retry_name is not None:
+        metrics.Counter(mon_retry_name).increment(fields=mon_fields)
+
       ret = functor(*args, **kwargs)
       success = True
       break
@@ -119,8 +126,7 @@ def GenericRetry(handler, max_retry, functor, *args, **kwargs):
       # Note we're not snagging BaseException, so MemoryError/KeyboardInterrupt
       # and friends don't enter this except block.
       if not handler(e):
-        logging.debug('Encountered unexpected exception %s(%s), not retrying.',
-                      e.__class__, e)
+        logging.debug('ending retries with error: %s(%s)', e.__class__, e)
         if exception_to_raise:
           raise exception_to_raise(
               '%s, %s: %s' % (str(e), exc_info[0], exc_info[1]))

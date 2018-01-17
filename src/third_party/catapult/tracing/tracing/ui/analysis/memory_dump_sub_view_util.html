@@ -215,11 +215,12 @@ tr.exportTo('tr.ui.analysis', function() {
           return;
         var fieldCells = row[config.cellKey];
         if (fieldCells !== undefined) {
-          tr.b.iterItems(fieldCells, function(fieldName, fieldCell) {
-            if (fieldCell === undefined || fieldCell.fields === undefined)
-              return;
+          for (var [fieldName, fieldCell] of Object.entries(fieldCells)) {
+            if (fieldCell === undefined || fieldCell.fields === undefined) {
+              continue;
+            }
             cellNames.add(fieldName);
-          });
+          }
         }
         var subRows = row.subRows;
         if (subRows !== undefined)
@@ -884,23 +885,23 @@ tr.exportTo('tr.ui.analysis', function() {
 
     getFormattingContext: function(unit) {
       if (unit.baseUnit === tr.b.Unit.byName.sizeInBytes)
-        return { unitPrefix: tr.b.UnitScale.Binary.KIBI };
+        return { unitPrefix: tr.b.UnitPrefixScale.BINARY.KIBI };
       return undefined;
     }
   };
 
   return {
-    TitleColumn: TitleColumn,
-    MemoryColumn: MemoryColumn,
-    StringMemoryColumn: StringMemoryColumn,
-    NumericMemoryColumn: NumericMemoryColumn,
-    MemoryCell: MemoryCell,
-    expandTableRowsRecursively: expandTableRowsRecursively,
-    aggregateTableRowCellsRecursively: aggregateTableRowCellsRecursively,
-    aggregateTableRowCells: aggregateTableRowCells,
-    createCells: createCells,
-    createWarningInfo: createWarningInfo,
-    DetailsNumericMemoryColumn: DetailsNumericMemoryColumn
+    TitleColumn,
+    MemoryColumn,
+    StringMemoryColumn,
+    NumericMemoryColumn,
+    MemoryCell,
+    expandTableRowsRecursively,
+    aggregateTableRowCellsRecursively,
+    aggregateTableRowCells,
+    createCells,
+    createWarningInfo,
+    DetailsNumericMemoryColumn,
   };
 });
 </script>

@@ -50,6 +50,29 @@ _GerritChangeTuple = collections.namedtuple('_GerritChangeTuple',
                                             ['gerrit_number', 'internal'])
 
 
+_EXTERNAL_GERRIT_HOSTS = (
+    constants.EXTERNAL_GERRIT_HOST,
+    # Allow us to recognize old commits from previous code review host.
+    'gerrit.chromium.org',
+)
+
+
+_INTERNAL_GERRIT_HOSTS = (
+    constants.INTERNAL_GERRIT_HOST,
+    # Allow us to recognize old commits from previous code review host.
+    'gerrit-int.chromium.org',
+)
+
+
+class UnknownGerritHostError(ValueError):
+
+  """Raised when attempting to construct GerritChangeTuple with unknown host."""
+  def __init__(self, gerrit_host):
+    super(UnknownGerritHostError, self).__init__(
+        'Gerrit host %s is not a known host.')
+    self.gerrit_host = gerrit_host
+
+
 class GerritChangeTuple(_GerritChangeTuple):
   """A tuple for a given Gerrit change."""
 
@@ -57,6 +80,17 @@ class GerritChangeTuple(_GerritChangeTuple):
     prefix = (site_config.params.INTERNAL_CHANGE_PREFIX
               if self.internal else site_config.params.EXTERNAL_CHANGE_PREFIX)
     return 'CL:%s%s' % (prefix, self.gerrit_number)
+
+  @classmethod
+  def FromHostAndNumber(cls, gerrit_host, gerrit_number):
+    if gerrit_host in _EXTERNAL_GERRIT_HOSTS:
+      internal = False
+    elif gerrit_host in _INTERNAL_GERRIT_HOSTS:
+      internal = True
+    else:
+      raise UnknownGerritHostError(gerrit_host)
+
+    return cls(int(gerrit_number), internal)
 
 
 _GerritPatchTuple = collections.namedtuple('_GerritPatchTuple',

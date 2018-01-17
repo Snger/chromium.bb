@@ -91,18 +91,10 @@ class ChromeBrowserBackend(browser_backend.BrowserBackend):
         self.browser_options.browser_user_agent_type))
 
     extensions = [extension.local_path
-                  for extension in self._extensions_to_load
-                  if not extension.is_component]
+                  for extension in self._extensions_to_load]
     extension_str = ','.join(extensions)
     if len(extensions) > 0:
       args.append('--load-extension=%s' % extension_str)
-
-    component_extensions = [extension.local_path
-                            for extension in self._extensions_to_load
-                            if extension.is_component]
-    component_extension_str = ','.join(component_extensions)
-    if len(component_extensions) > 0:
-      args.append('--load-component-extension=%s' % component_extension_str)
 
     if self.browser_options.disable_component_extensions_with_background_pages:
       args.append('--disable-component-extensions-with-background-pages')
@@ -182,6 +174,7 @@ class ChromeBrowserBackend(browser_backend.BrowserBackend):
     # Extension pages are loaded from an about:blank page,
     # so we need to check that the document URL is the extension
     # page in addition to the ready state.
+    # TODO(catapult:#3028): Fix interpolation of JavaScript values.
     extension_ready_js = """
         document.URL.lastIndexOf('chrome-extension://%s/', 0) == 0 &&
         (document.readyState == 'complete' ||

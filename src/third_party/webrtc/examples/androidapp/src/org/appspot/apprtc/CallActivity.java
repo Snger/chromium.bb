@@ -33,8 +33,12 @@ import java.io.IOException;
 import java.lang.RuntimeException;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Set;
+import org.appspot.apprtc.AppRTCAudioManager.AudioDevice;
+import org.appspot.apprtc.AppRTCAudioManager.AudioManagerEvents;
 import org.appspot.apprtc.AppRTCClient.RoomConnectionParameters;
 import org.appspot.apprtc.AppRTCClient.SignalingParameters;
+import org.appspot.apprtc.PeerConnectionClient.DataChannelParameters;
 import org.appspot.apprtc.PeerConnectionClient.PeerConnectionParameters;
 import org.webrtc.Camera1Enumerator;
 import org.webrtc.Camera2Enumerator;
@@ -74,6 +78,7 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
   public static final String EXTRA_VIDEOCODEC = "org.appspot.apprtc.VIDEOCODEC";
   public static final String EXTRA_HWCODEC_ENABLED = "org.appspot.apprtc.HWCODEC";
   public static final String EXTRA_CAPTURETOTEXTURE_ENABLED = "org.appspot.apprtc.CAPTURETOTEXTURE";
+  public static final String EXTRA_FLEXFEC_ENABLED = "org.appspot.apprtc.FLEXFEC";
   public static final String EXTRA_AUDIO_BITRATE = "org.appspot.apprtc.AUDIO_BITRATE";
   public static final String EXTRA_AUDIOCODEC = "org.appspot.apprtc.AUDIOCODEC";
   public static final String EXTRA_NOAUDIOPROCESSING_ENABLED =
@@ -97,6 +102,14 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
       "org.appspot.apprtc.SAVE_REMOTE_VIDEO_TO_FILE_HEIGHT";
   public static final String EXTRA_USE_VALUES_FROM_INTENT =
       "org.appspot.apprtc.USE_VALUES_FROM_INTENT";
+  public static final String EXTRA_DATA_CHANNEL_ENABLED = "org.appspot.apprtc.DATA_CHANNEL_ENABLED";
+  public static final String EXTRA_ORDERED = "org.appspot.apprtc.ORDERED";
+  public static final String EXTRA_MAX_RETRANSMITS_MS = "org.appspot.apprtc.MAX_RETRANSMITS_MS";
+  public static final String EXTRA_MAX_RETRANSMITS = "org.appspot.apprtc.MAX_RETRANSMITS";
+  public static final String EXTRA_PROTOCOL = "org.appspot.apprtc.PROTOCOL";
+  public static final String EXTRA_NEGOTIATED = "org.appspot.apprtc.NEGOTIATED";
+  public static final String EXTRA_ID = "org.appspot.apprtc.ID";
+
   private static final String TAG = "CallRTCClient";
   private static final int CAPTURE_PERMISSION_REQUEST_CODE = 1;
 
@@ -216,6 +229,8 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
     remoteRenderScreen.init(rootEglBase.getEglBaseContext(), null);
 
     localRender.setZOrderMediaOverlay(true);
+    localRender.setEnableHardwareScaler(true /* enabled */);
+    remoteRenderScreen.setEnableHardwareScaler(true /* enabled */);
     updateVideoView();
 
     // Check for mandatory permissions.
@@ -264,12 +279,19 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
       videoWidth = displayMetrics.widthPixels;
       videoHeight = displayMetrics.heightPixels;
     }
-
+    DataChannelParameters dataChannelParameters = null;
+    if (intent.getBooleanExtra(EXTRA_DATA_CHANNEL_ENABLED, false)) {
+      dataChannelParameters = new DataChannelParameters(intent.getBooleanExtra(EXTRA_ORDERED, true),
+          intent.getIntExtra(EXTRA_MAX_RETRANSMITS_MS, -1),
+          intent.getIntExtra(EXTRA_MAX_RETRANSMITS, -1), intent.getStringExtra(EXTRA_PROTOCOL),
+          intent.getBooleanExtra(EXTRA_NEGOTIATED, false), intent.getIntExtra(EXTRA_ID, -1));
+    }
     peerConnectionParameters =
         new PeerConnectionParameters(intent.getBooleanExtra(EXTRA_VIDEO_CALL, true), loopback,
             tracing, videoWidth, videoHeight, intent.getIntExtra(EXTRA_VIDEO_FPS, 0),
             intent.getIntExtra(EXTRA_VIDEO_BITRATE, 0), intent.getStringExtra(EXTRA_VIDEOCODEC),
             intent.getBooleanExtra(EXTRA_HWCODEC_ENABLED, true),
+            intent.getBooleanExtra(EXTRA_FLEXFEC_ENABLED, false),
             intent.getIntExtra(EXTRA_AUDIO_BITRATE, 0), intent.getStringExtra(EXTRA_AUDIOCODEC),
             intent.getBooleanExtra(EXTRA_NOAUDIOPROCESSING_ENABLED, false),
             intent.getBooleanExtra(EXTRA_AECDUMP_ENABLED, false),
@@ -277,7 +299,7 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
             intent.getBooleanExtra(EXTRA_DISABLE_BUILT_IN_AEC, false),
             intent.getBooleanExtra(EXTRA_DISABLE_BUILT_IN_AGC, false),
             intent.getBooleanExtra(EXTRA_DISABLE_BUILT_IN_NS, false),
-            intent.getBooleanExtra(EXTRA_ENABLE_LEVEL_CONTROL, false));
+            intent.getBooleanExtra(EXTRA_ENABLE_LEVEL_CONTROL, false), dataChannelParameters);
     commandLineRun = intent.getBooleanExtra(EXTRA_CMDLINE, false);
     runTimeMs = intent.getIntExtra(EXTRA_RUNTIME, 0);
 
@@ -324,7 +346,7 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
       peerConnectionClient.setPeerConnectionFactoryOptions(options);
     }
     peerConnectionClient.createPeerConnectionFactory(
-        CallActivity.this, peerConnectionParameters, CallActivity.this);
+        getApplicationContext(), peerConnectionParameters, CallActivity.this);
 
     if (screencaptureEnabled) {
       MediaProjectionManager mediaProjectionManager =
@@ -412,6 +434,7 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
 
   @Override
   protected void onDestroy() {
+    Thread.setDefaultUncaughtExceptionHandler(null);
     disconnect();
     if (logToast != null) {
       logToast.cancel();
@@ -508,18 +531,19 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
 
     // Create and audio manager that will take care of audio routing,
     // audio modes, audio device enumeration etc.
-    audioManager = AppRTCAudioManager.create(this, new Runnable() {
-      // This method will be called each time the audio state (number and
-      // type of devices) has been changed.
-      @Override
-      public void run() {
-        onAudioManagerChangedState();
-      }
-    });
+    audioManager = AppRTCAudioManager.create(getApplicationContext());
     // Store existing audio settings and change audio mode to
     // MODE_IN_COMMUNICATION for best possible VoIP performance.
-    Log.d(TAG, "Initializing the audio manager...");
-    audioManager.init();
+    Log.d(TAG, "Starting the audio manager...");
+    audioManager.start(new AudioManagerEvents() {
+      // This method will be called each time the number of available audio
+      // devices has changed.
+      @Override
+      public void onAudioDeviceChanged(
+          AudioDevice audioDevice, Set<AudioDevice> availableAudioDevices) {
+        onAudioManagerDevicesChanged(audioDevice, availableAudioDevices);
+      }
+    });
   }
 
   // Should be called from UI thread
@@ -536,9 +560,13 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
     peerConnectionClient.enableStatsEvents(true, STAT_CALLBACK_PERIOD);
   }
 
-  private void onAudioManagerChangedState() {
-    // TODO(henrika): disable video if AppRTCAudioManager.AudioDevice.EARPIECE
-    // is active.
+  // This method is called when the audio manager reports audio device change,
+  // e.g. from wired headset to speakerphone.
+  private void onAudioManagerDevicesChanged(
+      final AudioDevice device, final Set<AudioDevice> availableDevices) {
+    Log.d(TAG, "onAudioManagerDevicesChanged: " + availableDevices + ", "
+            + "selected: " + device);
+    // TODO(henrika): add callback handler.
   }
 
   // Disconnect from remote resources, dispose of local resources, and exit.
@@ -565,7 +593,7 @@ public class CallActivity extends Activity implements AppRTCClient.SignalingEven
       remoteRenderScreen = null;
     }
     if (audioManager != null) {
-      audioManager.close();
+      audioManager.stop();
       audioManager = null;
     }
     if (iceConnected && !isError) {

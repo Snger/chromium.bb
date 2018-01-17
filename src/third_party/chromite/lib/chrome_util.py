@@ -64,6 +64,10 @@ class Conditions(object):
     return val == value
 
   @classmethod
+  def _GnAnySetTo(cls, flags_values, gn_args, _staging_flags):
+    return any(gn_args.get(flag) == value for flag, value in flags_values)
+
+  @classmethod
   def _StagingFlagSet(cls, flag, _gn_args, staging_flags):
     return flag in staging_flags
 
@@ -75,6 +79,10 @@ class Conditions(object):
   def GnSetTo(cls, flag, value):
     """Returns condition that tests a gn flag is set to a value."""
     return functools.partial(cls._GnSetTo, flag, value)
+
+  @classmethod
+  def GnAnySetTo(cls, flags_values):
+    return functools.partial(cls._GnAnySetTo, flags_values)
 
   @classmethod
   def StagingFlagSet(cls, flag):
@@ -196,6 +204,8 @@ class Copier(object):
     else:
       for p in paths:
         rel_src = os.path.relpath(p, src_base)
+        if path.IsBlacklisted(rel_src):
+          continue
         if path.dest is None:
           rel_dest = rel_src
         elif path.dest.endswith('/'):
@@ -252,8 +262,7 @@ class Path(object):
                 mode, the Copier class treats all artifacts as optional.
       strip: If |exe| is set, whether to strip the executable.
       blacklist: A list of path patterns to ignore during the copy. This gets
-                 added to a default blacklist pattern. Only used if Path
-                 represents a directory.
+                 added to a default blacklist pattern.
     """
     self.src = src
     self.exe = exe
@@ -292,6 +301,7 @@ class Path(object):
     return True
 
 _ENABLE_NACL = 'enable_nacl'
+_ENABLE_WIDEVINE = 'enable_widevine'
 _IS_CHROME_BRANDED = 'is_chrome_branded'
 _IS_COMPONENT_BUILD = 'is_component_build'
 
@@ -353,39 +363,36 @@ _COPY_PATHS_CHROME = (
     # play well with the binutils stripping tools, so skip stripping.
     Path('libwidevinecdmadapter.so',
          exe=True,
-         optional=True,
-         strip=False,
-         cond=C.GnSetTo(_IS_CHROME_BRANDED, True)),
+         strip=True,
+         cond=C.GnAnySetTo(((_IS_CHROME_BRANDED, True),
+                            (_ENABLE_WIDEVINE, True)))),
     Path('libwidevinecdm.so',
          exe=True,
-         optional=True,
          strip=False,
-         cond=C.GnSetTo(_IS_CHROME_BRANDED, True)),
+         cond=C.GnAnySetTo(((_IS_CHROME_BRANDED, True),
+                            (_ENABLE_WIDEVINE, True)))),
     Path('*.so',
+         blacklist=(r'libwidevine.*\.so$',),
          exe=True,
          cond=C.GnSetTo(_IS_COMPONENT_BUILD, True)),
     Path('locales/'),
+    Path('Packages/chrome_content_browser/manifest.json', optional=True),
+    Path('Packages/chrome_content_gpu/manifest.json', optional=True),
+    Path('Packages/chrome_content_plugin/manifest.json', optional=True),
+    Path('Packages/chrome_content_renderer/manifest.json', optional=True),
+    Path('Packages/chrome_content_utility/manifest.json', optional=True),
+    Path('Packages/chrome_mash/manifest.json', optional=True),
+    Path('Packages/chrome_mash_content_browser/manifest.json', optional=True),
+    Path('Packages/content_browser/manifest.json', optional=True),
     Path('resources/'),
     Path('resources.pak'),
     Path('xdg-settings'),
     Path('*.png'),
 ) + _COPY_PATHS_COMMON
 
-_COPY_PATHS_ENVOY = (
-    Path('envoy_shell', exe=True),
-    Path('envoy_shell.pak'),
-) + _COPY_PATHS_COMMON
-
-_COPY_PATHS_MASH = (
-    Path('Packages/', blacklist=(r'.*\.library$',)),
-    Path('*_manifest.json'),
-) + _COPY_PATHS_CHROME
-
 _COPY_PATHS_MAP = {
     'app_shell': _COPY_PATHS_APP_SHELL,
     'chrome': _COPY_PATHS_CHROME,
-    'envoy': _COPY_PATHS_ENVOY,
-    'mash': _COPY_PATHS_MASH,
 }
 
 
@@ -400,8 +407,8 @@ def GetCopyPaths(deployment_type='chrome'):
   """Returns the list of copy paths used as a filter for staging files.
 
   Args:
-    deployment_type: String describing the deployment type. Either "app_shell",
-                     "chrome", "envoy" or "mash".
+    deployment_type: String describing the deployment type. Either "app_shell"
+                     or "chrome".
 
   Returns:
     The list of paths to use as a filter for staging files.

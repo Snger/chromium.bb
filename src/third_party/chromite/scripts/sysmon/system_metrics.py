@@ -10,17 +10,16 @@
 
 from __future__ import print_function
 
-import collections
 import errno
 import os
-import platform
-import sys
 import time
 
 import psutil
 
 from chromite.lib import cros_logging as logging
 from infra_libs import ts_mon
+
+logger = logging.getLogger(__name__)
 
 
 _cpu_count_metric = ts_mon.GaugeMetric(
@@ -108,6 +107,9 @@ _proc_count_metric = ts_mon.GaugeMetric(
 _autoserv_proc_count_metric = ts_mon.GaugeMetric(
     'dev/proc/autoserv_count',
     description='Number of autoserv processes currently running.')
+_sysmon_proc_count_metric = ts_mon.GaugeMetric(
+    'dev/proc/sysmon_count',
+    description='Number of sysmon processes currently running.')
 _load_average_metric = ts_mon.FloatMetric(
     'dev/proc/load_average',
     description='Number of processes currently '
@@ -239,85 +241,42 @@ def get_net_info():
         # This normally shouldn't happen, but might if the network
         # driver module is reloaded, so log an error and continue
         # instead of raising an exception.
-        logging.warning(str(ex))
-
-
-def get_os_info():
-  os_info = _get_os_info()
-  _os_name_metric.set(os_info.name)
-  _os_version_metric.set(os_info.version)
-  _os_arch_metric.set(platform.machine())
-  _python_arch_metric.set(_get_python_arch())
-
-
-OSInfo = collections.namedtuple('OSInfo', 'name,version')
-
-
-def _get_os_info():
-  """Get OS name and version.
-
-  Returns:
-    OSInfo instance
-  """
-  os_name = platform.system().lower()
-  os_version = ''
-  if 'windows' in os_name:
-    os_name = 'windows'
-    # release will be something like '7', 'vista', or 'xp'
-    os_version = platform.release()
-  elif 'linux' in os_name:
-    # will return something like ('Ubuntu', '14.04', 'trusty')
-    os_name, os_version, _ = platform.dist()
-  else:
-    # On mac platform.system() reports 'darwin'.
-    os_version = _get_mac_version()
-    if os_version:
-      # We found a valid mac.
-      os_name = 'mac'
-    else:
-      # not a mac, unable to find platform information, reset
-      os_name = ''
-      os_version = ''
-
-  os_name = os_name.lower()
-  os_version = os_version.lower()
-  return OSInfo(name=os_name, version=os_version)
-
-def _get_mac_version():
-  """Get Mac system version.
-
-  Returns:
-    Version string, which is empty if not a valid Mac system.
-  """
-  # This tuple is only populated on mac systems.
-  mac_ver = platform.mac_ver()
-  # Will be '10.11.5' or similar on a valid mac or will be '' on a non-mac.
-  os_version = mac_ver[0]
-  return os_version
-
-
-def _get_python_arch():
-  if sys.maxsize > 2**32:
-    return '64'
-  else:
-    return '32'
+        logger.warning(str(ex))
 
 
 def get_proc_info():
   autoserv_count = 0
+  sysmon_count = 0
   total = 0
   for proc in psutil.process_iter():
-    if _is_autoserv_proc(proc):
+    if _is_parent_autoserv(proc):
       autoserv_count += 1
+    elif _is_sysmon(proc):
+      sysmon_count += 1
     total += 1
+  logger.debug('autoserv_count: %s', autoserv_count)
+  logger.debug('sysmon_count: %s', sysmon_count)
   _autoserv_proc_count_metric.set(autoserv_count)
+  _sysmon_proc_count_metric.set(sysmon_count)
   _proc_count_metric.set(total)
 
 
-def _is_autoserv_proc(proc):
-  return (
-      proc.name == 'python'
-      and '/usr/local/autotest/server/autoserv' in proc.cmdline)
+def _is_parent_autoserv(proc):
+  """Return whether proc is a parent (not forked) autoserv process."""
+  return _is_autoserv(proc) and not _is_autoserv(proc.parent())
+
+
+def _is_autoserv(proc):
+  """Return whether proc is an autoserv process."""
+  # This relies on the autoserv script being run directly.  The script should
+  # be named autoserv exactly and start with a shebang that is /usr/bin/python,
+  # NOT /bin/env
+  return proc.name() == 'autoserv'
+
+
+def _is_sysmon(proc):
+  """Return whether proc is a sysmon process."""
+  return proc.cmdline()[:3] == ['python', '-m', 'chromite.scripts.sysmon']
 
 
 def get_load_avg():

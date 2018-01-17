@@ -319,7 +319,15 @@ def UpdateChroot(buildroot, usepkg, toolchain_boards=None, extra_env=None):
   if toolchain_boards:
     cmd.extend(['--toolchain_boards', ','.join(toolchain_boards)])
 
-  RunBuildScript(buildroot, cmd, extra_env=extra_env, enter_chroot=True)
+  # workaround http://crbug.com/225509
+  # Building with FEATURES=separatedebug will create a dedicated tarball with
+  # the debug files, and the debug files won't be in the glibc.tbz2, which is
+  # where the build scripts expect them.
+  extra_env_local = extra_env.copy()
+  extra_env_local.setdefault('FEATURES', '')
+  extra_env_local['FEATURES'] += ' -separatedebug splitdebug'
+
+  RunBuildScript(buildroot, cmd, extra_env=extra_env_local, enter_chroot=True)
 
 
 def SetupBoard(buildroot, board, usepkg, chrome_binhost_only=False,
@@ -429,6 +437,20 @@ def RunBranchUtilTest(buildroot, version):
     RunBuildScript(buildroot, cmd, chromite_cmd=True)
 
 
+def RunCrosSigningTests(buildroot):
+  """Run the signer unittests.
+
+  These tests don't have a matching ebuild, and don't need to be run during
+  most builds, so we have a special helper to run them.
+
+  Args:
+    buildroot: The buildroot of the current build.
+  """
+  test_runner = path_util.ToChrootPath(os.path.join(
+      buildroot, 'cros-signing', 'signer', 'run_tests.py'))
+  cros_build_lib.RunCommand([test_runner], enter_chroot=True)
+
+
 def UpdateBinhostJson(buildroot):
   """Test prebuilts for all boards, making sure everybody gets Chrome prebuilts.
 
@@ -442,7 +464,7 @@ def UpdateBinhostJson(buildroot):
 def Build(buildroot, board, build_autotest, usepkg, chrome_binhost_only,
           packages=(), skip_chroot_upgrade=True, noworkon=False,
           extra_env=None, chrome_root=None, noretry=False,
-          chroot_args=None):
+          chroot_args=None, event_file=None):
   """Wrapper around build_packages.
 
   Args:
@@ -461,6 +483,7 @@ def Build(buildroot, board, build_autotest, usepkg, chrome_binhost_only,
     chrome_root: The directory where chrome is stored.
     noretry: Do not retry package failures.
     chroot_args: The args to the chroot.
+    event_file: File name that events will be logged to.
   """
   cmd = ['./build_packages', '--board=%s' % board,
          '--accept_licenses=@CHROMEOS', '--withdebugsymbols']
@@ -488,6 +511,10 @@ def Build(buildroot, board, build_autotest, usepkg, chrome_binhost_only,
 
   if chrome_root:
     chroot_args.append('--chrome_root=%s' % chrome_root)
+
+  if event_file:
+    cmd.append('--withevents')
+    cmd.append('--eventfile=%s' % event_file)
 
   cmd.extend(packages)
   RunBuildScript(buildroot, cmd, extra_env=extra_env, chroot_args=chroot_args,

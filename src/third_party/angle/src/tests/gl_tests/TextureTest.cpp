@@ -29,7 +29,7 @@ GLColor SliceFormatColor(GLenum format, GLColor full)
         case GL_RGBA:
             return full;
         default:
-            UNREACHABLE();
+            EXPECT_TRUE(false);
             return GLColor::white;
     }
 }
@@ -2751,6 +2751,13 @@ TEST_P(Texture2DTestES3, TextureRGB9E5ImplicitAlpha1)
 // ES 3.0.4 table 3.24
 TEST_P(Texture2DTestES3, TextureCOMPRESSEDRGB8ETC2ImplicitAlpha1)
 {
+    if (IsOSX() && IsIntel() && IsOpenGL())
+    {
+        // Seems to fail on OSX 10.12 Intel.
+        std::cout << "Test skipped on OSX Intel." << std::endl;
+        return;
+    }
+
     glActiveTexture(GL_TEXTURE0);
     glBindTexture(GL_TEXTURE_2D, mTexture2D);
     glCompressedTexImage2D(GL_TEXTURE_2D, 0, GL_COMPRESSED_RGB8_ETC2, 1, 1, 0, 8, nullptr);
@@ -2765,10 +2772,11 @@ TEST_P(Texture2DTestES3, TextureCOMPRESSEDRGB8ETC2ImplicitAlpha1)
 // ES 3.0.4 table 3.24
 TEST_P(Texture2DTestES3, TextureCOMPRESSEDSRGB8ETC2ImplicitAlpha1)
 {
-    if (IsIntel() && IsLinux())
+    if (IsIntel() && IsOpenGL() && (IsLinux() || IsOSX()))
     {
         // TODO(cwallez): Fix on Linux Intel drivers (http://anglebug.com/1346)
-        std::cout << "Test disabled on Linux Intel OpenGL." << std::endl;
+        // Also seems to fail on OSX 10.12 Intel.
+        std::cout << "Test disabled on Linux and OSX Intel OpenGL." << std::endl;
         return;
     }
 
@@ -3530,10 +3538,12 @@ T UNorm(double value)
 // Test rendering a depth texture with mipmaps.
 TEST_P(Texture2DTestES3, DepthTexturesWithMipmaps)
 {
-    //TODO(cwallez) this is failing on Intel Win7 OpenGL
-    if (IsIntel() && IsWindows() && IsOpenGL())
+    // TODO(cwallez) this is failing on Intel Win7 OpenGL.
+    // TODO(zmo) this is faling on Win Intel HD 530 Debug.
+    // http://anglebugs.com/1706
+    if (IsIntel() && IsWindows())
     {
-        std::cout << "Test skipped on Intel OpenGL." << std::endl;
+        std::cout << "Test skipped on Win Intel." << std::endl;
         return;
     }
 

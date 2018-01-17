@@ -22,6 +22,7 @@ class HistogramImporter {
     this.loadingDiv_ = document.getElementById('loading');
     this.histograms_ = undefined;
     this.jsonDivs_ = [];
+    this.jsonDivIndex_ = 0;
     this.view_ = undefined;
 
     this.update_('Parsing HTML...');
@@ -59,7 +60,7 @@ class HistogramImporter {
   }
 
   get isDoneLoadingHistograms_() {
-    return this.histograms_.length === this.jsonDivs_.length;
+    return this.jsonDivIndex_ === this.jsonDivs_.length;
   }
 
   loadSomeHistograms_() {
@@ -70,11 +71,10 @@ class HistogramImporter {
     // Also don't call new Date() more often than necessary.
     var start = new Date();
     do {
-      var startIndex = this.histograms_.length;
-      var stopIndex = Math.min(startIndex + 100, this.jsonDivs_.length);
-      for (var i = startIndex; i < stopIndex; ++i) {
-        var dict = JSON.parse(this.jsonDivs_[i].innerHTML);
-        this.histograms_.addHistogram(tr.v.Histogram.fromDict(dict));
+      var stopIndex = Math.min(this.jsonDivIndex_ + 100, this.jsonDivs_.length);
+      for (; this.jsonDivIndex_ < stopIndex; ++this.jsonDivIndex_) {
+        var dict = JSON.parse(this.jsonDivs_[this.jsonDivIndex_].innerHTML);
+        this.histograms_.importDicts([dict]);
       }
     } while (new Date() - start < 50);
 
@@ -96,6 +96,7 @@ class HistogramImporter {
 
   displayHistograms() {
     this.view_.histograms = this.histograms_;
+    this.view_.helpHref = 'https://github.com/catapult-project/catapult/blob/master/docs/metrics-results-ui.md';
 
     this.loadingDiv_.style.display = 'none';
     this.view_.style.display = 'block';
@@ -105,7 +106,6 @@ class HistogramImporter {
 
   removeJsonDivs_() {
     document.body.removeChild(this.jsonDivs_[0].parentNode);
-    delete this.jsonDivs_;
   }
 }
 
@@ -113,6 +113,9 @@ var importer = new HistogramImporter();
 
 document.addEventListener('DOMContentLoaded', () => {
   importer.importHistograms();
+
+  // Free the objects and DOM referenced by the importer.
+  importer = undefined;
 });
 
 })();

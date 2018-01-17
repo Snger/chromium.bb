@@ -99,7 +99,7 @@ class CpuTracingAgentTest(unittest.TestCase):
     self._agent.CollectAgentTraceData(builder)
     self.assertFalse(self._agent._snapshot_ongoing)
     builder = builder.AsData()
-    self.assertTrue(builder.HasTraceFor(trace_data.CPU_TRACE_DATA))
+    self.assertTrue(builder.HasTracesFor(trace_data.CPU_TRACE_DATA))
 
   @decorators.Enabled('linux', 'mac', 'win')
   def testCollectAgentTraceDataFormat(self):
@@ -109,7 +109,7 @@ class CpuTracingAgentTest(unittest.TestCase):
     self._agent.StopAgentTracing()
     self._agent.CollectAgentTraceData(builder)
     builder = builder.AsData()
-    data = json.loads(builder.GetTraceFor(trace_data.CPU_TRACE_DATA))
+    data = json.loads(builder.GetTracesFor(trace_data.CPU_TRACE_DATA)[0])
     self.assertTrue(data)
     self.assertEquals(set(data[0].keys()), set(TRACE_EVENT_KEYS))
     self.assertEquals(set(data[0]['args']['snapshot'].keys()),
@@ -119,15 +119,20 @@ class CpuTracingAgentTest(unittest.TestCase):
                       set(SNAPSHOT_KEYS))
 
   @decorators.Enabled('linux', 'mac', 'win')
-  def testMinimumCpuThreshold(self):
+  def testContainsRealProcesses(self):
     builder = trace_data.TraceDataBuilder()
     self._agent.StartAgentTracing(self._config, 0)
     time.sleep(2)
     self._agent.StopAgentTracing()
     self._agent.CollectAgentTraceData(builder)
     builder = builder.AsData()
-    data = json.loads(builder.GetTraceFor(trace_data.CPU_TRACE_DATA))
+    data = json.loads(builder.GetTracesFor(trace_data.CPU_TRACE_DATA)[0])
     self.assertTrue(data)
     for snapshot in data:
-      # We know that at least Python is running in every snapshot.
-      self.assertTrue(len(snapshot['args']['snapshot']['processes']) > 0)
+      found_unittest_process = False
+      processes = snapshot['args']['snapshot']['processes']
+      for process in processes:
+        if 'run_tests' in process['name']:
+          found_unittest_process = True
+
+      self.assertTrue(found_unittest_process)

@@ -365,6 +365,15 @@ func (hs *serverHandshakeState) doTLS13Handshake() error {
 		versOverride:    config.Bugs.SendServerHelloVersion,
 		customExtension: config.Bugs.CustomUnencryptedExtension,
 		unencryptedALPN: config.Bugs.SendUnencryptedALPN,
+		shortHeader:     hs.clientHello.shortHeaderSupported && config.Bugs.EnableShortHeader,
+	}
+
+	if config.Bugs.AlwaysNegotiateShortHeader {
+		hs.hello.shortHeader = true
+	}
+
+	if hs.hello.shortHeader {
+		c.setShortHeader()
 	}
 
 	hs.hello.random = make([]byte, 32)
@@ -501,14 +510,11 @@ Curves:
 	}
 
 	// Resolve PSK and compute the early secret.
-	var psk []byte
 	if hs.sessionState != nil {
-		psk = hs.sessionState.masterSecret
+		hs.finishedHash.addEntropy(hs.sessionState.masterSecret)
 	} else {
-		psk = hs.finishedHash.zeroSecret()
+		hs.finishedHash.addEntropy(hs.finishedHash.zeroSecret())
 	}
-
-	earlySecret := hs.finishedHash.extractKey(hs.finishedHash.zeroSecret(), psk)
 
 	hs.hello.hasKeyShare = true
 	if hs.sessionState != nil && config.Bugs.NegotiatePSKResumption {
@@ -647,7 +653,6 @@ ResendHelloRetryRequest:
 	}
 
 	// Resolve ECDHE and compute the handshake secret.
-	var ecdheSecret []byte
 	if hs.hello.hasKeyShare {
 		// Once a curve has been selected and a key share identified,
 		// the server needs to generate a public value and send it in
@@ -672,13 +677,12 @@ ResendHelloRetryRequest:
 			peerKey = selectedKeyShare.keyExchange
 		}
 
-		var publicKey []byte
-		var err error
-		publicKey, ecdheSecret, err = curve.accept(config.rand(), peerKey)
+		publicKey, ecdheSecret, err := curve.accept(config.rand(), peerKey)
 		if err != nil {
 			c.sendAlert(alertHandshakeFailure)
 			return err
 		}
+		hs.finishedHash.addEntropy(ecdheSecret)
 		hs.hello.hasKeyShare = true
 
 		curveID := selectedCurve
@@ -702,7 +706,7 @@ ResendHelloRetryRequest:
 			}
 		}
 	} else {
-		ecdheSecret = hs.finishedHash.zeroSecret()
+		hs.finishedHash.addEntropy(hs.finishedHash.zeroSecret())
 	}
 
 	// Send unencrypted ServerHello.
@@ -718,13 +722,10 @@ ResendHelloRetryRequest:
 	}
 	c.flushHandshake()
 
-	// Compute the handshake secret.
-	handshakeSecret := hs.finishedHash.extractKey(earlySecret, ecdheSecret)
-
 	// Switch to handshake traffic keys.
-	serverHandshakeTrafficSecret := hs.finishedHash.deriveSecret(handshakeSecret, serverHandshakeTrafficLabel)
+	serverHandshakeTrafficSecret := hs.finishedHash.deriveSecret(serverHandshakeTrafficLabel)
 	c.out.useTrafficSecret(c.vers, hs.suite, serverHandshakeTrafficSecret, serverWrite)
-	clientHandshakeTrafficSecret := hs.finishedHash.deriveSecret(handshakeSecret, clientHandshakeTrafficLabel)
+	clientHandshakeTrafficSecret := hs.finishedHash.deriveSecret(clientHandshakeTrafficLabel)
 	c.in.useTrafficSecret(c.vers, hs.suite, clientHandshakeTrafficSecret, clientWrite)
 
 	// Send EncryptedExtensions.
@@ -842,10 +843,10 @@ ResendHelloRetryRequest:
 
 	// The various secrets do not incorporate the client's final leg, so
 	// derive them now before updating the handshake context.
-	masterSecret := hs.finishedHash.extractKey(handshakeSecret, hs.finishedHash.zeroSecret())
-	clientTrafficSecret := hs.finishedHash.deriveSecret(masterSecret, clientApplicationTrafficLabel)
-	serverTrafficSecret := hs.finishedHash.deriveSecret(masterSecret, serverApplicationTrafficLabel)
-	c.exporterSecret = hs.finishedHash.deriveSecret(masterSecret, exporterLabel)
+	hs.finishedHash.addEntropy(hs.finishedHash.zeroSecret())
+	clientTrafficSecret := hs.finishedHash.deriveSecret(clientApplicationTrafficLabel)
+	serverTrafficSecret := hs.finishedHash.deriveSecret(serverApplicationTrafficLabel)
+	c.exporterSecret = hs.finishedHash.deriveSecret(exporterLabel)
 
 	// Switch to application data keys on write. In particular, any alerts
 	// from the client certificate are sent over these keys.
@@ -956,7 +957,7 @@ ResendHelloRetryRequest:
 	c.in.useTrafficSecret(c.vers, hs.suite, clientTrafficSecret, clientWrite)
 
 	c.cipherSuite = hs.suite
-	c.resumptionSecret = hs.finishedHash.deriveSecret(masterSecret, resumptionLabel)
+	c.resumptionSecret = hs.finishedHash.deriveSecret(resumptionLabel)
 
 	// TODO(davidben): Allow configuring the number of tickets sent for
 	// testing.
@@ -980,6 +981,7 @@ func (hs *serverHandshakeState) processClientHello() (isResume bool, err error) 
 		vers:              versionToWire(c.vers, c.isDTLS),
 		versOverride:      config.Bugs.SendServerHelloVersion,
 		compressionMethod: compressionNone,
+		shortHeader:       config.Bugs.AlwaysNegotiateShortHeader,
 	}
 
 	hs.hello.random = make([]byte, 32)
@@ -1188,6 +1190,10 @@ func (hs *serverHandshakeState) processClientExtensions(serverExtensions *server
 
 	if c.config.Bugs.AdvertiseTicketExtension {
 		serverExtensions.ticketSupported = true
+	}
+
+	if c.config.Bugs.SendSupportedPointFormats != nil {
+		serverExtensions.supportedPoints = c.config.Bugs.SendSupportedPointFormats
 	}
 
 	if !hs.clientHello.hasGREASEExtension && config.Bugs.ExpectGREASE {
@@ -1446,7 +1452,13 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 			for _, cert := range certMsg.certificates {
 				certificates = append(certificates, cert.data)
 			}
-		} else if c.vers != VersionSSL30 {
+		} else if c.vers == VersionSSL30 {
+			// In SSL 3.0, no certificate is signaled by a warning
+			// alert which we translate to ssl3NoCertificateMsg.
+			if _, ok := msg.(*ssl3NoCertificateMsg); !ok {
+				return errors.New("tls: client provided neither a certificate nor no_certificate warning alert")
+			}
+		} else {
 			// In TLS, the Certificate message is required. In SSL
 			// 3.0, the peer skips it when sending no certificates.
 			c.sendAlert(alertUnexpectedMessage)
@@ -1467,11 +1479,9 @@ func (hs *serverHandshakeState) doFullHandshake() error {
 			return err
 		}
 
-		if ok {
-			msg, err = c.readHandshake()
-			if err != nil {
-				return err
-			}
+		msg, err = c.readHandshake()
+		if err != nil {
+			return err
 		}
 	}
 

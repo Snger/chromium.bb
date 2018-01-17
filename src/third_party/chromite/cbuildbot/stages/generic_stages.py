@@ -12,6 +12,7 @@ import json
 import os
 import re
 import sys
+import tempfile
 import time
 import traceback
 
@@ -22,18 +23,21 @@ try:
 except ImportError:
   mox = None
 
+from chromite.cbuildbot import buildbucket_lib
 from chromite.cbuildbot import commands
-from chromite.lib import failures_lib
-from chromite.lib import results_lib
-from chromite.lib import constants
+from chromite.cbuildbot import topology
 from chromite.cbuildbot import repository
+from chromite.lib import config_lib
+from chromite.lib import constants
 from chromite.lib import cros_build_lib
 from chromite.lib import cros_logging as logging
+from chromite.lib import failures_lib
 from chromite.lib import gs
 from chromite.lib import metrics
 from chromite.lib import osutils
 from chromite.lib import parallel
 from chromite.lib import portage_util
+from chromite.lib import results_lib
 from chromite.lib import retry_util
 from chromite.lib import timeout_util
 
@@ -116,7 +120,8 @@ class BuilderStage(object):
     self._portage_extra_env = {}
     useflags = self._run.config.useflags[:]
 
-    self._portage_extra_env['IGNORE_PREFLIGHT_BINHOST'] = '1'
+    if self._run.options.clobber:
+      self._portage_extra_env['IGNORE_PREFLIGHT_BINHOST'] = '1'
 
     if self._run.options.chrome_root:
       self._portage_extra_env['CHROME_ORIGIN'] = 'LOCAL_SOURCE'
@@ -278,6 +283,48 @@ class BuilderStage(object):
       kwargs.setdefault('preserve_paths', self._run.options.preserve_paths)
 
     return repository.RepoRepository(manifest_url, self._build_root, **kwargs)
+
+  def GetBuildbucketClient(self):
+    """Build a buildbucket_client instance for Buildbucket related operations.
+
+    Returns:
+      An instance of buildbucket_lib.BuildbucketClient if the build is using
+      Buildbucket as the scheduler; else, None.
+    """
+    buildbucket_client = None
+
+    if config_lib.UseBuildbucketScheduler(self._run.config):
+      if buildbucket_lib.GetServiceAccount(constants.CHROMEOS_SERVICE_ACCOUNT):
+        buildbucket_client = buildbucket_lib.BuildbucketClient(
+            service_account=constants.CHROMEOS_SERVICE_ACCOUNT)
+
+      if buildbucket_client is None and self._run.InProduction():
+        # If the build using Buildbucket is running on buildbot and
+        # is in production mode, buildbucket_client cannot be None.
+        raise buildbucket_lib.NoBuildbucketClientException(
+            'Buildbucket_client is None. '
+            'Please check if the buildbot has a valid service account file. '
+            'Please find the service account json file at %s.' %
+            constants.CHROMEOS_SERVICE_ACCOUNT)
+
+    return buildbucket_client
+
+  def GetScheduledSlaveBuildbucketIds(self):
+    """Get buildbucket_ids list of the scheduled slave builds.
+
+    Returns:
+      If slaves were scheduled by Buildbucket, return a list of
+      buildbucket_ids (strings) of the slave builds. The list doesn't
+      contain the old builds which were retried in Buildbucket.
+      If slaves were scheduled by git commits, return None.
+    """
+    buildbucket_ids = None
+    if (config_lib.UseBuildbucketScheduler(self._run.config) and
+        config_lib.IsMasterBuild(self._run.config)):
+      buildbucket_ids = buildbucket_lib.GetBuildbucketIds(
+          self._run.attrs.metadata)
+
+    return buildbucket_ids
 
   def _Print(self, msg):
     """Prints a msg to stderr."""
@@ -955,7 +1002,28 @@ class ArchivingStageMixin(object):
         self._HandleExceptionAsWarning(sys.exc_info())
 
   @failures_lib.SetFailureType(failures_lib.InfrastructureFailure)
-  def UploadMetadata(self, upload_queue=None, filename=None):
+  def RunExportMetadata(self, filename):
+    """Export JSON file of the builder run's metadata to Cloud Datastore.
+
+    Args:
+      filename: Name of file to export.
+    """
+    creds_file = topology.topology.get(topology.DATASTORE_WRITER_CREDS_KEY)
+    if creds_file is None:
+      logging.warn('No known path to datastore credentials file.')
+      return
+
+    export_cmd = os.path.join(self._build_root, 'chromite', 'bin',
+                              'export_to_gcloud')
+    try:
+      cros_build_lib.RunCommand([export_cmd, creds_file, filename])
+    except cros_build_lib.RunCommandError as e:
+      logging.warn('Unable to export to datastore: %s', e)
+
+
+  @failures_lib.SetFailureType(failures_lib.InfrastructureFailure)
+  def UploadMetadata(self, upload_queue=None, filename=constants.METADATA_JSON,
+                     export=False):
     """Create and upload JSON file of the builder run's metadata, and to cidb.
 
     This uses the existing metadata stored in the builder run. The default
@@ -971,9 +1039,8 @@ class ArchivingStageMixin(object):
         this queue.  If None then upload it directly now.
       filename: Name of file to dump metadata to.
                 Defaults to constants.METADATA_JSON
+      export: If true, constants.METADATA_TAGS will be exported to gcloud.
     """
-    filename = filename or constants.METADATA_JSON
-
     metadata_json = os.path.join(self.archive_path, filename)
 
     # Stages may run in parallel, so we have to do atomic updates on this.
@@ -993,5 +1060,14 @@ class ArchivingStageMixin(object):
       logging.info('Writing updated metadata to database for build_id %s.',
                    build_id)
       db.UpdateMetadata(build_id, self._run.attrs.metadata)
+      if export:
+        d = self._run.attrs.metadata.GetDict()
+        if constants.METADATA_TAGS in d:
+          with tempfile.NamedTemporaryFile() as f:
+            logging.info('Export tags to gcloud via %s.', f.name)
+            logging.debug('Exporting: %s' % d[constants.METADATA_TAGS])
+            osutils.WriteFile(f.name, json.dumps(d[constants.METADATA_TAGS]),
+                              atomic=True, makedirs=True)
+            self.RunExportMetadata(f.name)
     else:
       logging.info('Skipping database update, no database or build_id.')

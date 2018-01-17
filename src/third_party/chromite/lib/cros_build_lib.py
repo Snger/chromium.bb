@@ -6,7 +6,6 @@
 
 from __future__ import print_function
 
-import __main__
 import collections
 import contextlib
 from datetime import datetime
@@ -616,7 +615,9 @@ def RunCommand(cmd, print_cmd=True, error_message=None, redirect_stdout=False,
         logging.log(debug_level, '(stderr):\n%s', cmd_result.error)
 
     if not error_code_ok and proc.returncode:
-      msg = 'cwd=%s' % cwd
+      msg = 'cmd=%s' % cmd
+      if cwd:
+        msg += ', cwd=%s' % cwd
       if extra_env:
         msg += ', extra env=%s' % extra_env
       if error_message:
@@ -2022,7 +2023,7 @@ def MachineDetails():
     A string with content that helps identify this system/process/etc...
   """
   return '\n'.join((
-      'PROG=%s' % __main__.__file__,
+      'PROG=%s' % inspect.stack()[-1][1],
       'USER=%s' % getpass.getuser(),
       'HOSTNAME=%s' % GetHostName(fully_qualified=True),
       'PID=%s' % os.getpid(),

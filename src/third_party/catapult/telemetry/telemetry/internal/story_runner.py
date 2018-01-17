@@ -5,6 +5,7 @@
 import logging
 import optparse
 import os
+import subprocess
 import sys
 import time
 
@@ -59,6 +60,7 @@ def AddCommandLineArgs(parser):
                     action='store_true', default=False,
                     help='Ignore @Disabled and @Enabled restrictions.')
 
+
 def ProcessCommandLineArgs(parser, args):
   story_module.StoryFilter.ProcessCommandLineArgs(parser, args)
   results_options.ProcessCommandLineArgs(parser, args)
@@ -75,6 +77,11 @@ def _RunStoryAndProcessErrorIfNeeded(story, results, state, test):
     state.DumpStateUponFailure(story, results)
     results.AddValue(failure.FailureValue(story, sys.exc_info(), description))
   try:
+    # TODO(mikecase): Remove this logging once Android perf bots are swarmed.
+    # crbug.com/678282
+    if state.platform.GetOSName() == 'android':
+      state.platform._platform_backend.Log(
+          'START %s' % (story.name if story.name else str(story)))
     if isinstance(test, story_test.StoryTest):
       test.WillRunStory(state.platform)
     state.WillRunStory(story)
@@ -110,6 +117,11 @@ def _RunStoryAndProcessErrorIfNeeded(story, results, state, test):
         test.DidRunStory(state.platform)
       else:
         test.DidRunPage(state.platform)
+      # TODO(mikecase): Remove this logging once Android perf bots are swarmed.
+      # crbug.com/678282
+      if state.platform.GetOSName() == 'android':
+        state.platform._platform_backend.Log(
+            'END %s' % (story.name if story.name else str(story)))
     except Exception:
       if not has_existing_exception:
         state.DumpStateUponFailure(story, results)
@@ -182,6 +194,9 @@ def Run(test, story_set, finder_options, results, max_failures=None,
   We "white list" certain exceptions for which the story runner
   can continue running the remaining stories.
   """
+  for s in story_set:
+    ValidateStory(s)
+
   # Filter page set based on options.
   stories = filter(story_module.StoryFilter.IsSelected, story_set)
 
@@ -225,6 +240,13 @@ def Run(test, story_set, finder_options, results, max_failures=None,
             results.WillRunPage(
                 story, storyset_repeat_counter, story_repeat_counter)
             try:
+              # Log ps on n7s to determine if adb changed processes.
+              # crbug.com/667470
+              if 'Nexus 7' in state.platform.GetDeviceTypeName():
+                ps_output = subprocess.check_output(['ps', '-ef'])
+                logging.info('Ongoing processes:\n%s', ps_output)
+
+              state.platform.WaitForTemperature(35)
               _WaitForThermalThrottlingIfNeeded(state.platform)
               _RunStoryAndProcessErrorIfNeeded(story, results, state, test)
             except exceptions.Error:
@@ -273,6 +295,13 @@ def Run(test, story_set, finder_options, results, max_failures=None,
               msg='Exception from TearDownState:')
 
 
+def ValidateStory(story):
+  if len(story.display_name) > 180:
+    raise ValueError(
+        'User story has display name exceeding 180 characters: %s' %
+        story.display_name)
+
+
 def RunBenchmark(benchmark, finder_options):
   """Run this test with the given options.
 
@@ -318,6 +347,7 @@ def RunBenchmark(benchmark, finder_options):
     pt._enabled_strings = benchmark._enabled_strings
 
   stories = benchmark.CreateStorySet(finder_options)
+
   if isinstance(pt, legacy_page_test.LegacyPageTest):
     if any(not isinstance(p, page.Page) for p in stories.stories):
       raise Exception(
@@ -332,7 +362,6 @@ def RunBenchmark(benchmark, finder_options):
   if (possible_browser.platform.GetOSName() == 'chromeos' and
       not benchmark.IsShouldTearDownStateAfterEachStoryRunOverriden()):
     should_tear_down_state_after_each_story_run = False
-
 
   with results_options.CreateResults(
       benchmark_metadata, finder_options,

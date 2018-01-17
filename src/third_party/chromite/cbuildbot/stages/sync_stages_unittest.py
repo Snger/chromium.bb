@@ -17,32 +17,32 @@ import tempfile
 
 from chromite.cbuildbot import buildbucket_lib
 from chromite.cbuildbot import chromeos_config
-from chromite.lib import config_lib
-from chromite.lib import constants
-from chromite.lib import failures_lib
 from chromite.cbuildbot import lkgm_manager
 from chromite.cbuildbot import manifest_version
 from chromite.cbuildbot import manifest_version_unittest
-from chromite.lib import metadata_lib
+from chromite.cbuildbot import patch_series
 from chromite.cbuildbot import repository
 from chromite.cbuildbot import remote_try
 from chromite.cbuildbot import tree_status
 from chromite.cbuildbot import triage_lib
 from chromite.cbuildbot import trybot_patch_pool
 from chromite.cbuildbot import validation_pool
-from chromite.cbuildbot.stages import generic_stages
 from chromite.cbuildbot.stages import generic_stages_unittest
 from chromite.cbuildbot.stages import sync_stages
 from chromite.lib import auth
 from chromite.lib import cidb
 from chromite.lib import clactions
+from chromite.lib import cl_messages
+from chromite.lib import constants
 from chromite.lib import cros_build_lib
 from chromite.lib import cros_build_lib_unittest
 from chromite.lib import fake_cidb
+from chromite.lib import failures_lib
 from chromite.lib import gerrit
 from chromite.lib import git
 from chromite.lib import git_unittest
 from chromite.lib import gob_util
+from chromite.lib import metadata_lib
 from chromite.lib import osutils
 from chromite.lib import patch as cros_patch
 from chromite.lib import timeout_util
@@ -358,11 +358,16 @@ class MockPatch(mock.MagicMock):
 class SyncStageTest(generic_stages_unittest.AbstractStageTestCase):
   """Tests the SyncStage."""
 
+  BOT_ID = 'master-paladin'
+
   def setUp(self):
     self.PatchObject(buildbucket_lib, 'GetServiceAccount',
                      return_value='server_account')
     self.PatchObject(auth.AuthorizedHttp, '__init__',
                      return_value=None)
+    self.PatchObject(buildbucket_lib.BuildbucketClient,
+                     '_GetHost',
+                     return_value=buildbucket_lib.BUILDBUCKET_TEST_HOST)
     # Create and set up a fake cidb instance.
     self.fake_db = fake_cidb.FakeCIDBConnection()
     cidb.CIDBConnectionFactory.SetupMockCidb(self.fake_db)
@@ -409,91 +414,6 @@ class SyncStageTest(generic_stages_unittest.AbstractStageTestCase):
     result = self._run.attrs.metadata.GetValue('changes')
     self.assertEqual(expected, result)
 
-  def testScheduleImportantSlaveBuildsFailure(self):
-    """Test ScheduleSlaveBuilds with important slave failures."""
-    stage = self.ConstructStage()
-    self.PatchObject(sync_stages.SyncStage, 'PostSlaveBuildToBuildbucket',
-                     side_effect=buildbucket_lib.BuildbucketResponseException)
-
-    slave_config_map_1 = {
-        'slave_external': config_lib.BuildConfig(
-            important=True, active_waterfall=constants.WATERFALL_EXTERNAL)}
-    self.PatchObject(generic_stages.BuilderStage, '_GetSlaveConfigMap',
-                     return_value=slave_config_map_1)
-    self.assertRaises(
-        buildbucket_lib.BuildbucketResponseException,
-        stage.ScheduleSlaveBuildsViaBuildbucket,
-        important_only=False, dryrun=True)
-
-    slave_config_map_2 = {
-        'slave_internal': config_lib.BuildConfig(
-            important=True, active_waterfall=constants.WATERFALL_INTERNAL)}
-    self.PatchObject(generic_stages.BuilderStage, '_GetSlaveConfigMap',
-                     return_value=slave_config_map_2)
-    self.assertRaises(
-        buildbucket_lib.BuildbucketResponseException,
-        stage.ScheduleSlaveBuildsViaBuildbucket,
-        important_only=False, dryrun=True)
-
-  def testScheduleUnimportantSlaveBuildsFailure(self):
-    """Test ScheduleSlaveBuilds with unimportant slave failures."""
-    stage = self.ConstructStage()
-    self.PatchObject(sync_stages.SyncStage, 'PostSlaveBuildToBuildbucket',
-                     side_effect=buildbucket_lib.BuildbucketResponseException)
-
-    slave_config_map = {
-        'slave_external': config_lib.BuildConfig(
-            important=False, active_waterfall=constants.WATERFALL_EXTERNAL),
-        'slave_internal': config_lib.BuildConfig(
-            important=False, active_waterfall=constants.WATERFALL_INTERNAL),}
-    self.PatchObject(generic_stages.BuilderStage, '_GetSlaveConfigMap',
-                     return_value=slave_config_map)
-    stage.ScheduleSlaveBuildsViaBuildbucket(important_only=False, dryrun=True)
-
-    scheduled_slaves = self._run.attrs.metadata.GetValue('scheduled_slaves')
-    self.assertEqual(len(scheduled_slaves), 0)
-    unscheduled_slaves = self._run.attrs.metadata.GetValue('unscheduled_slaves')
-    self.assertEqual(len(unscheduled_slaves), 2)
-
-  def testScheduleSlaveBuildsFailure(self):
-    """Test ScheduleSlaveBuilds with mixed slave failures."""
-    stage = self.ConstructStage()
-    self.PatchObject(sync_stages.SyncStage, 'PostSlaveBuildToBuildbucket',
-                     side_effect=buildbucket_lib.BuildbucketResponseException)
-
-    slave_config_map = {
-        'slave_external': config_lib.BuildConfig(
-            important=False, active_waterfall=constants.WATERFALL_EXTERNAL),
-        'slave_internal': config_lib.BuildConfig(
-            important=True, active_waterfall=constants.WATERFALL_INTERNAL)}
-    self.PatchObject(generic_stages.BuilderStage, '_GetSlaveConfigMap',
-                     return_value=slave_config_map)
-    self.assertRaises(
-        buildbucket_lib.BuildbucketResponseException,
-        stage.ScheduleSlaveBuildsViaBuildbucket,
-        important_only=False, dryrun=True)
-
-  def testScheduleSlaveBuildsSuccess(self):
-    """Test ScheduleSlaveBuilds with success."""
-    stage = self.ConstructStage()
-
-    self.PatchObject(sync_stages.SyncStage, 'PostSlaveBuildToBuildbucket',
-                     return_value=('buildbucket_id', None))
-
-    slave_config_map = {
-        'slave_external': config_lib.BuildConfig(
-            important=False, active_waterfall=constants.WATERFALL_EXTERNAL),
-        'slave_internal': config_lib.BuildConfig(
-            important=True, active_waterfall=constants.WATERFALL_INTERNAL)}
-    self.PatchObject(generic_stages.BuilderStage, '_GetSlaveConfigMap',
-                     return_value=slave_config_map)
-
-    stage.ScheduleSlaveBuildsViaBuildbucket(important_only=False, dryrun=True)
-
-    scheduled_slaves = self._run.attrs.metadata.GetValue('scheduled_slaves')
-    self.assertEqual(len(scheduled_slaves), 2)
-    unscheduled_slaves = self._run.attrs.metadata.GetValue('unscheduled_slaves')
-    self.assertEqual(len(unscheduled_slaves), 0)
 
 class BaseCQTestCase(generic_stages_unittest.StageTestCase):
   """Helper class for testing the CommitQueueSync stage"""
@@ -516,7 +436,7 @@ class BaseCQTestCase(generic_stages_unittest.StageTestCase):
 
     # Block the CQ from contacting GoB.
     self.PatchObject(gerrit.GerritHelper, 'RemoveReady')
-    self.PatchObject(validation_pool.PaladinMessage, 'Send')
+    self.PatchObject(cl_messages.PaladinMessage, 'Send')
     self.PatchObject(validation_pool.ValidationPool, 'SubmitChanges',
                      return_value=({}, {}))
 
@@ -533,6 +453,9 @@ class BaseCQTestCase(generic_stages_unittest.StageTestCase):
     self.PatchObject(buildbucket_lib.BuildbucketClient,
                      'SendBuildbucketRequest',
                      return_value=None)
+    self.PatchObject(buildbucket_lib.BuildbucketClient,
+                     '_GetHost',
+                     return_value=buildbucket_lib.BUILDBUCKET_TEST_HOST)
 
     # Create a fake repo / manifest on disk that is used by subclasses.
     for subdir in ('repo', 'manifests'):
@@ -985,7 +908,7 @@ pre-cq-configs: link-pre-cq
 
     # Change should throw a DependencyError when trying to create a transaction
     e = cros_patch.DependencyError(change, cros_patch.PatchException(change))
-    self.PatchObject(validation_pool.PatchSeries, 'CreateTransaction',
+    self.PatchObject(patch_series.PatchSeries, 'CreateTransaction',
                      side_effect=e)
     self.PerformSync(pre_cq_status=None, changes=[change], patch_objects=False)
     # Change should be marked as pre-cq passed, rather than being submitted.
@@ -1385,21 +1308,21 @@ pre-cq-configs: link-pre-cq
         datetime.datetime.now() - datetime.timedelta(hours=1), '100')
     self.sync_stage._CancelPreCQIfNeeded(db, old_build_action)
     mock_cancel.assert_called_once_with(
-        '100', False, dryrun=self.sync_stage._run.options.debug)
+        '100', dryrun=self.sync_stage._run.options.debug)
 
     mock_cancel.reset_mock()
     self.PatchObject(buildbucket_lib.BuildbucketClient, 'GetBuildRequest',
                      return_value=scheduled_content)
     self.sync_stage._CancelPreCQIfNeeded(db, old_build_action)
     mock_cancel.assert_called_twice_with(
-        '100', False, dryrun=self.sync_stage._run.options.debug)
+        '100', dryrun=self.sync_stage._run.options.debug)
 
     mock_cancel.reset_mock()
     self.PatchObject(buildbucket_lib.BuildbucketClient, 'GetBuildRequest',
                      return_value=completed_content)
     self.sync_stage._CancelPreCQIfNeeded(db, old_build_action)
     mock_cancel.assert_called_twice_with(
-        '100', False, dryrun=self.sync_stage._run.options.debug)
+        '100', dryrun=self.sync_stage._run.options.debug)
 
   def test_ProcessOldPatchPreCQRuns(self):
     """Test _ProcessOldPatchPreCQRuns."""
@@ -1425,7 +1348,7 @@ pre-cq-configs: link-pre-cq
     mock_cancel = self.PatchObject(sync_stages.PreCQLauncherStage,
                                    '_CancelPreCQIfNeeded')
     self.sync_stage._ProcessOldPatchPreCQRuns(db, change, action_history)
-    mock_cancel.assert_called_once_with(db, c2, testjob=False)
+    mock_cancel.assert_called_once_with(db, c2)
 
 class MasterSlaveLKGMSyncTest(generic_stages_unittest.StageTestCase):
   """Unit tests for MasterSlaveLKGMSyncStage"""
@@ -1459,6 +1382,9 @@ class MasterSlaveLKGMSyncTest(generic_stages_unittest.StageTestCase):
                      return_value=True)
     self.PatchObject(auth.AuthorizedHttp, '__init__',
                      return_value=None)
+    self.PatchObject(buildbucket_lib.BuildbucketClient,
+                     '_GetHost',
+                     return_value=buildbucket_lib.BUILDBUCKET_TEST_HOST)
 
     self._Prepare()
 

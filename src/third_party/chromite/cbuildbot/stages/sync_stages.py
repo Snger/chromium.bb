@@ -11,7 +11,6 @@ import ConfigParser
 import contextlib
 import datetime
 import itertools
-import json
 import os
 import re
 import shutil
@@ -22,11 +21,9 @@ from xml.dom import minidom
 
 from chromite.cbuildbot import buildbucket_lib
 from chromite.cbuildbot import chroot_lib
-from chromite.lib import config_lib
-from chromite.lib import constants
-from chromite.lib import failures_lib
 from chromite.cbuildbot import lkgm_manager
 from chromite.cbuildbot import manifest_version
+from chromite.cbuildbot import patch_series
 from chromite.cbuildbot import repository
 from chromite.cbuildbot import tree_status
 from chromite.cbuildbot import triage_lib
@@ -35,9 +32,12 @@ from chromite.cbuildbot import validation_pool
 from chromite.cbuildbot.stages import generic_stages
 from chromite.cbuildbot.stages import build_stages
 from chromite.lib import clactions
+from chromite.lib import config_lib
+from chromite.lib import constants
 from chromite.lib import commandline
 from chromite.lib import cros_build_lib
 from chromite.lib import cros_logging as logging
+from chromite.lib import failures_lib
 from chromite.lib import git
 from chromite.lib import graphite
 from chromite.lib import metrics
@@ -141,7 +141,7 @@ class PatchChangesStage(generic_stages.BuilderStage):
                        "\n".join(map(str, failures)))
 
   def PerformStage(self):
-    class NoisyPatchSeries(validation_pool.PatchSeries):
+    class NoisyPatchSeries(patch_series.PatchSeries):
       """Custom PatchSeries that adds links to buildbot logs for remote trys."""
 
       def ApplyChange(self, change):
@@ -150,19 +150,19 @@ class PatchChangesStage(generic_stages.BuilderStage):
         elif isinstance(change, cros_patch.UploadedLocalPatch):
           logging.PrintBuildbotStepText(str(change))
 
-        return validation_pool.PatchSeries.ApplyChange(self, change)
+        return patch_series.PatchSeries.ApplyChange(self, change)
 
     # If we're an external builder, ignore internal patches.
-    helper_pool = validation_pool.HelperPool.SimpleCreate(
+    helper_pool = patch_series.HelperPool.SimpleCreate(
         cros_internal=self._run.config.internal, cros=True)
 
     # Limit our resolution to non-manifest patches.
-    patch_series = NoisyPatchSeries(
+    patches = NoisyPatchSeries(
         self._build_root,
         helper_pool=helper_pool,
         deps_filter_fn=lambda p: not trybot_patch_pool.ManifestFilter(p))
 
-    self._ApplyPatchSeries(patch_series, self.patch_pool)
+    self._ApplyPatchSeries(patches, self.patch_pool)
 
 
 class BootstrapStage(PatchChangesStage):
@@ -199,9 +199,9 @@ class BootstrapStage(PatchChangesStage):
     repository.CloneGitRepo(checkout_dir,
                             self._run.config.manifest_repo_url)
 
-    patch_series = validation_pool.PatchSeries.WorkOnSingleRepo(
+    patches = patch_series.PatchSeries.WorkOnSingleRepo(
         checkout_dir, tracking_branch=self._run.manifest_branch)
-    self._ApplyPatchSeries(patch_series, patch_pool)
+    self._ApplyPatchSeries(patches, patch_pool)
 
     # Verify that the patched manifest loads properly. Propagate any errors as
     # exceptions.
@@ -294,9 +294,9 @@ class BootstrapStage(PatchChangesStage):
 
     chromite_pool = branch_pool.Filter(project=constants.CHROMITE_PROJECT)
     if chromite_pool:
-      patch_series = validation_pool.PatchSeries.WorkOnSingleRepo(
+      patches = patch_series.PatchSeries.WorkOnSingleRepo(
           chromite_dir, filter_branch)
-      self._ApplyPatchSeries(patch_series, chromite_pool)
+      self._ApplyPatchSeries(patches, chromite_pool)
 
     # Checkout the new version of site config (no patching logic, yet).
     if self.config_repo:
@@ -309,9 +309,9 @@ class BootstrapStage(PatchChangesStage):
 
       site_config_pool = branch_pool.FilterGitRemoteUrl(self.config_repo)
       if site_config_pool:
-        site_patch_series = validation_pool.PatchSeries.WorkOnSingleRepo(
+        site_patches = patch_series.PatchSeries.WorkOnSingleRepo(
             site_config_dir, filter_branch)
-        self._ApplyPatchSeries(site_patch_series, site_config_pool)
+        self._ApplyPatchSeries(site_patches, site_config_pool)
 
     # Re-exec into new instance of cbuildbot, with proper command line args.
     cbuildbot_path = constants.PATH_TO_CBUILDBOT
@@ -365,23 +365,7 @@ class SyncStage(generic_stages.BuilderStage):
     # TODO(mtennant): Why keep a duplicate copy of this config value
     # at self.internal when it can always be retrieved from config?
     self.internal = self._run.config.internal
-
-    self.buildbucket_client = None
-    if buildbucket_lib.GetServiceAccount(constants.CHROMEOS_SERVICE_ACCOUNT):
-      self.buildbucket_client = buildbucket_lib.BuildbucketClient(
-          service_account=constants.CHROMEOS_SERVICE_ACCOUNT)
-
-    if (self._run.config.name == constants.CQ_MASTER and
-        self._run.InProduction() and
-        self.buildbucket_client is None):
-      # If it's CQ-master build, running on a buildbot and in production
-      # mode, buildbucket_client cannot be None in order to schedule
-      # slave builds.
-      raise buildbucket_lib.NoBuildbucketClientException(
-          'Buildbucket_client is None. '
-          'Please check if the buildbot has a valid service account file. '
-          'Please find the service account json file at %s.' %
-          constants.CHROMEOS_SERVICE_ACCOUNT)
+    self.buildbucket_client = self.GetBuildbucketClient()
 
   def _GetManifestVersionsRepoUrl(self, internal=None, test=False):
     if internal is None:
@@ -476,111 +460,23 @@ class SyncStage(generic_stages.BuilderStage):
                                          x[cros_patch.ATTR_PATCH_NUMBER],
                                          x[cros_patch.ATTR_REMOTE]))
     self._run.attrs.metadata.UpdateWithDict({'changes': changes_list})
-
-  def _GetBuildbucketBucket(self, build_name, build_config):
-    """Get the corresponding Buildbucket bucket.
-
-    Args:
-      build_name: name of the build to put to Buildbucket.
-      build_config: config of the build to put to Buildbucket.
-
-    Raises:
-      NoBuildbucketBucketFoundException when no Buildbucket bucket found.
-    """
-    bucket = buildbucket_lib.WATERFALL_BUCKET_MAP.get(
-        build_config.active_waterfall)
-
-    if bucket is None:
-      raise buildbucket_lib.NoBuildbucketBucketFoundException(
-          'No Buildbucket bucket found for builder %s waterfall: %s' %
-          (build_name, build_config.active_waterfall))
-
-    return bucket
-
-  def PostSlaveBuildToBuildbucket(self, build_name, build_config,
-                                  master_build_id, buildset_tag, dryrun):
-    """Send a Put slave build request to Buildbucket.
-
-    Args:
-      build_name: Salve build name to put to Buildbucket.
-      build_config: Slave build config to put to Buildbucket.
-      master_build_id: Master build id of the slave build.
-      buildset_tag: The buildset tag for strong consistent tag queries.
-                    More context: crbug.com/661689
-      dryrun: Whether a dryrun.
-    """
-    body = json.dumps({
-        'bucket': self._GetBuildbucketBucket(build_name, build_config),
-        'parameters_json': json.dumps({
-            'builder_name': build_name,
-            'properties': {
-                'cbb_config': build_name,
-                'cbb_branch': self._run.manifest_branch,
-                'cbb_master_build_id': master_build_id,
-            }
-        }),
-        'tags':['buildset:%s' % buildset_tag,
-                'build_type:%s' % build_config.build_type,
-                'master:False',
-                'cbb_config:%s' % build_name,
-                'cbb_master_build_id:%s' % master_build_id]
-    })
-
-    content = self.buildbucket_client.PutBuildRequest(
-        body, self._run.options.test_tryjob, dryrun)
-
-    buildbucket_id = buildbucket_lib.GetBuildId(content)
-    created_ts = buildbucket_lib.GetBuildCreated_ts(content)
-
-    logging.info('Build_name %s buildbucket_id %s created_timestamp %s',
-                 build_name, buildbucket_id, created_ts)
-
-    return (buildbucket_id, created_ts)
-
-  def ScheduleSlaveBuildsViaBuildbucket(self, important_only, dryrun):
-    """Schedule slave builds by sending PUT requests to Buildbucket.
-
-    Args:
-      important_only: Whether only schedule important slave builds.
-      dryrun: Whether a dryrun.
-    """
-    if self.buildbucket_client is None:
-      logging.info('No buildbucket_client. Skip scheduling slaves.')
-      return
-
-    build_id, _ = self._run.GetCIDBHandle()
-    if build_id is None:
-      logging.info('No build id. Skip scheduling slaves.')
-      return
-
-    buildset_tag = 'cbuildbot/%s/%s/%s' % (
-        self._run.manifest_branch, self._run.config.name, build_id)
-
-    scheduled_slave_builds = []
-    unscheduled_slave_builds = []
-
-    # Get all active slave build configs.
-    slave_config_map = self._GetSlaveConfigMap(important_only)
-    for slave_name, slave_config in slave_config_map.iteritems():
-      try:
-        buildbucket_id, created_ts = self.PostSlaveBuildToBuildbucket(
-            slave_name, slave_config, build_id, buildset_tag, dryrun)
-
-        scheduled_slave_builds.append((slave_name, buildbucket_id, created_ts))
-      except buildbucket_lib.BuildbucketResponseException as e:
-        # Use 16-digit ts to be consistent with the created_ts from Buildbucket
-        current_ts = int(round(time.time() * 1000000))
-        unscheduled_slave_builds.append((slave_name, None, current_ts))
-        if important_only or slave_config.important:
-          raise
-        else:
-          logging.warning('Failed to schedule %s current timestamp %s: %s'
-                          % (slave_name, current_ts, e))
-
-    self._run.attrs.metadata.ExtendKeyListWithList(
-        'scheduled_slaves', scheduled_slave_builds)
-    self._run.attrs.metadata.ExtendKeyListWithList(
-        'unscheduled_slaves', unscheduled_slave_builds)
+    change_ids = []
+    change_gerrit_ids = []
+    change_gerrit_numbers = []
+    for c in changes_list:
+      change_ids.append(c[cros_patch.ATTR_CHANGE_ID])
+      gerrit_number = c[cros_patch.ATTR_GERRIT_NUMBER]
+      gerrit_id = '/'.join([c[cros_patch.ATTR_REMOTE], gerrit_number,
+                            c[cros_patch.ATTR_PATCH_NUMBER]])
+      change_gerrit_ids.append(gerrit_id)
+      change_gerrit_numbers.append(gerrit_number)
+    tags = {
+        'change_ids': change_ids,
+        'change_gerrit_ids': change_gerrit_ids,
+        'change_gerrit_numbers': change_gerrit_numbers,
+    }
+    self._run.attrs.metadata.UpdateKeyDictWithDict(constants.METADATA_TAGS,
+                                                   tags)
 
   @failures_lib.SetFailureType(failures_lib.InfrastructureFailure)
   def PerformStage(self):
@@ -705,8 +601,8 @@ class ManifestVersionedSyncStage(SyncStage):
         force=self._force,
         branch=self._run.manifest_branch,
         dry_run=dry_run,
-        master=self._run.config.master,
-        testjob=self._run.options.test_tryjob,
+        config=self._run.config,
+        metadata=self._run.attrs.metadata,
         buildbucket_client=self.buildbucket_client))
 
   def _SetAndroidVersionIfApplicable(self, manifest):
@@ -729,7 +625,8 @@ class ManifestVersionedSyncStage(SyncStage):
       # later. This is easier than parsing the manifest again after
       # the re-execution.
       self._run.attrs.metadata.UpdateKeyDictWithDict(
-          'version', {'android': android_version})
+          'version', {'android': android_version,
+                      'android-branch':  constants.ANDROID_BUILD_BRANCH})
 
   def _SetChromeVersionIfApplicable(self, manifest):
     """If 'chrome' is in |manifest|, write the version to the BuilderRun object.
@@ -890,9 +787,11 @@ class ManifestVersionedSyncStage(SyncStage):
     # Set the status inflight at the end of the ManifestVersionedSync
     # stage. This guarantees that all syncing has completed.
     if self.manifest_manager:
+      fail_if_exists = not config_lib.ScheduledByBuildbucket(self._run.config)
       self.manifest_manager.SetInFlight(
           self.manifest_manager.current_version,
-          dashboard_url=self.ConstructDashboardURL())
+          dashboard_url=self.ConstructDashboardURL(),
+          fail_if_exists=fail_if_exists)
 
 
 class MasterSlaveLKGMSyncStage(ManifestVersionedSyncStage):
@@ -935,8 +834,8 @@ class MasterSlaveLKGMSyncStage(ManifestVersionedSyncStage):
         force=self._force,
         branch=self._run.manifest_branch,
         dry_run=self._run.options.debug,
-        master=self._run.config.master,
-        testjob=self._run.options.test_tryjob,
+        config=self._run.config,
+        metadata=self._run.attrs.metadata,
         buildbucket_client=self.buildbucket_client)
 
   def Initialize(self):
@@ -1234,15 +1133,6 @@ class CommitQueueSyncStage(MasterSlaveLKGMSyncStage):
       ManifestVersionedSyncStage.PerformStage(self)
 
     self.WriteChangesToMetadata(self.pool.applied)
-
-    # If this builder is a cq-master but not force_version build,
-    # schedule all slave builders via Buildbucket. If it's a debug mode run,
-    # PutSlaveBuildToBuildbucket would be a dryrun.
-    if (self._run.config.name == constants.CQ_MASTER and
-        not self._run.options.force_version and
-        self._run.options.buildbot):
-      self.ScheduleSlaveBuildsViaBuildbucket(important_only=False,
-                                             dryrun=self._run.options.debug)
 
 
 class PreCQSyncStage(SyncStage):
@@ -1657,24 +1547,26 @@ class PreCQLauncherStage(SyncStage):
         pool.RemoveReady(change, reason=config)
         pool.UpdateCLPreCQStatus(change, constants.CL_STATUS_FAILED)
 
-  def _CancelPreCQIfNeeded(self, db, old_build_action, testjob=False):
+  def _CancelPreCQIfNeeded(self, db, old_build_action):
     """Cancel the pre-cq if it's still running.
 
     Args:
       db: CIDB connection instance.
       old_build_action: Old patch build action.
-      testjob: Whether to use the test instance of the buildbucket server.
     """
     buildbucket_id = old_build_action.buildbucket_id
     get_content = self.buildbucket_client.GetBuildRequest(
-        buildbucket_id, testjob, dryrun=self._run.options.debug)
+        buildbucket_id, dryrun=self._run.options.debug)
 
     status = buildbucket_lib.GetBuildStatus(get_content)
     if status in [constants.BUILDBUCKET_BUILDER_STATUS_SCHEDULED,
                   constants.BUILDBUCKET_BUILDER_STATUS_STARTED]:
       logging.info('Cancelling old build %s %s', buildbucket_id, status)
+
+      metrics.Counter(constants.MON_BB_CANCEL_PRE_CQ_BUILD_COUNT).increment()
+
       cancel_content = self.buildbucket_client.CancelBuildRequest(
-          buildbucket_id, testjob, dryrun=self._run.options.debug)
+          buildbucket_id, dryrun=self._run.options.debug)
       cancel_status = buildbucket_lib.GetBuildStatus(cancel_content)
       if cancel_status:
         logging.info('Cancelled buildbucket_id: %s status: %s \ncontent: %s',
@@ -1704,8 +1596,7 @@ class PreCQLauncherStage(SyncStage):
         change, action_history, min_timestamp)
     for old_build_action in old_pre_cq_build_actions:
       try:
-        self._CancelPreCQIfNeeded(
-            db, old_build_action, testjob=self._run.options.test_tryjob)
+        self._CancelPreCQIfNeeded(db, old_build_action)
       except Exception as e:
         # Log errors; do not raise exceptions.
         logging.error('_CancelPreCQIfNeeded failed. '
@@ -1732,9 +1623,9 @@ class PreCQLauncherStage(SyncStage):
 
     if change in can_submit:
       logging.info('Attempting to determine if %s can be submitted.', change)
-      patch_series = validation_pool.PatchSeries(self._build_root)
+      patches = patch_series.PatchSeries(self._build_root)
       try:
-        plan = patch_series.CreateTransaction(change, limit_to=can_submit)
+        plan = patches.CreateTransaction(change, limit_to=can_submit)
         return plan, set()
       except cros_patch.DependencyError:
         pass
@@ -1821,9 +1712,8 @@ class PreCQLauncherStage(SyncStage):
         build_dicts = db.GetBuildStatuses(build_ids)
         lines = []
         for b in build_dicts:
-          waterfall_url = constants.WATERFALL_TO_DASHBOARD[b['waterfall']]
           url = tree_status.ConstructDashboardURL(
-              waterfall_url, b['builder_name'], b['build_number'])
+              b['waterfall'], b['builder_name'], b['build_number'])
           lines.append('(%s) : %s' % (b['build_config'], url))
 
         # Send notifications.

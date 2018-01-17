@@ -790,6 +790,15 @@ class AndroidPlatformBackend(
     # devices.
     return battor_wrapper.IsBattOrConnected('linux')
 
+  def Log(self, message):
+    """Prints line to logcat."""
+    TELEMETRY_LOGCAT_TAG = 'Telemetry'
+    self._device.RunShellCommand(
+        ['log', '-p', 'i', '-t', TELEMETRY_LOGCAT_TAG, message])
+
+  def WaitForTemperature(self, temp):
+    # Temperature is in tenths of a degree C, so we convert to that scale.
+    self._battery.LetBatteryCoolToTemperature(temp * 10)
 
 def _FixPossibleAdbInstability():
   """Host side workaround for crbug.com/268450 (adb instability).

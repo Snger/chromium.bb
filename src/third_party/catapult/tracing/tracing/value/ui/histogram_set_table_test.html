@@ -192,20 +192,20 @@ tr.b.unittest.testSuite(function() {
     for (var i = 0; i < 100; ++i)
       histA.addSample(Math.random() * 1e3);
     histA.shortName = 'short name';
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'iteration A',
       benchmarkStartMs: now,
-    }).addToValue(histA);
+    }).addToHistogram(histA);
     histograms.addHistogram(histA);
 
     var histB = new tr.v.Histogram('short name',
         tr.b.Unit.byName.timeDurationInMs_smallerIsBetter, TEST_BOUNDARIES);
     for (var i = 0; i < 100; ++i)
       histB.addSample(Math.random() * 1e3);
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'iteration B',
       benchmarkStartMs: now,
-    }).addToValue(histB);
+    }).addToHistogram(histB);
     histograms.addHistogram(histB);
 
     table.histograms = histograms;
@@ -214,7 +214,7 @@ tr.b.unittest.testSuite(function() {
     assert.strictEqual('none', getComputedStyle(
         tr.b.findDeepElementMatchingPredicate(
             table, e => e.textContent === 'zero Histograms')).display);
-    assert.strictEqual('block', getComputedStyle(
+    assert.strictEqual('flex', getComputedStyle(
         tr.b.findDeepElementMatchingPredicate(
             table, e => e.id === 'container')).display);
     assert.isDefined(tr.b.findDeepElementMatchingPredicate(
@@ -232,28 +232,28 @@ tr.b.unittest.testSuite(function() {
         tr.b.Unit.byName.timeDurationInMs_smallerIsBetter, TEST_BOUNDARIES);
     for (var i = 0; i < 100; ++i)
       histA.addSample(Math.random() * 1e3);
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'iteration A',
       benchmarkStartMs: now,
-    }).addToValue(histA);
+    }).addToHistogram(histA);
     histograms.addHistogram(histA);
 
     var histB = new tr.v.Histogram('histogram B',
         tr.b.Unit.byName.timeDurationInMs_smallerIsBetter, TEST_BOUNDARIES);
     for (var i = 0; i < 100; ++i)
       histB.addSample(Math.random() * 1e3);
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'iteration B',
       benchmarkStartMs: now,
-    }).addToValue(histB);
+    }).addToHistogram(histB);
     histograms.addHistogram(histB);
 
     var histC = new tr.v.Histogram('histogram A',
         tr.b.Unit.byName.timeDurationInMs_smallerIsBetter, TEST_BOUNDARIES);
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'iteration B',
       benchmarkStartMs: now,
-    }).addToValue(histC);
+    }).addToHistogram(histC);
     histograms.addHistogram(histC);
 
     table.histograms = histograms;
@@ -292,11 +292,11 @@ tr.b.unittest.testSuite(function() {
         tr.b.Unit.byName.timeDurationInMs_smallerIsBetter, TEST_BOUNDARIES);
     for (var i = 0; i < 100; ++i)
       histA.addSample(Math.random() * 1e3);
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'Value',
       benchmarkStartMs: now,
       storyDisplayName: 'story A'
-    }).addToValue(histA);
+    }).addToHistogram(histA);
     histograms.addHistogram(histA);
 
     var histB = new tr.v.Histogram('histogram B',
@@ -304,11 +304,11 @@ tr.b.unittest.testSuite(function() {
         tr.v.HistogramBinBoundaries.createExponential(1e-3, 1e3, 20));
     for (var i = 0; i < 100; ++i)
       histB.addSample(Math.random() * Math.random() * 1e3);
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'Value',
       benchmarkStartMs: now,
       storyDisplayName: 'story A'
-    }).addToValue(histB);
+    }).addToHistogram(histB);
     histograms.addHistogram(histB);
 
     var histC = new tr.v.Histogram('histogram C',
@@ -316,11 +316,11 @@ tr.b.unittest.testSuite(function() {
         tr.v.HistogramBinBoundaries.createExponential(1e-3, 1e3, 30));
     for (var i = 0; i < 100; ++i)
       histC.addSample(Math.random() * Math.random() * 1e3);
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'Value',
       benchmarkStartMs: now,
       storyDisplayName: 'story B'
-    }).addToValue(histC);
+    }).addToHistogram(histC);
     histograms.addHistogram(histC);
 
     table.histograms = histograms;
@@ -341,40 +341,40 @@ tr.b.unittest.testSuite(function() {
     for (var i = 0; i < 100; ++i)
       hist0a.addSample(Math.random() * 1e3);
     histograms.addHistogram(hist0a);
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'iteration A',
       benchmarkStartMs: new Date().getTime(),
-    }).addToValue(hist0a);
+    }).addToHistogram(hist0a);
 
     var hist1a = new tr.v.Histogram('bar',
         tr.b.Unit.byName.timeDurationInMs_smallerIsBetter, TEST_BOUNDARIES);
     for (var i = 0; i < 100; ++i)
       hist1a.addSample(Math.random() * 1e3);
     histograms.addHistogram(hist1a);
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'iteration A',
       benchmarkStartMs: new Date().getTime(),
-    }).addToValue(hist1a);
+    }).addToHistogram(hist1a);
 
     var hist0b = new tr.v.Histogram('foo',
         tr.b.Unit.byName.timeDurationInMs_smallerIsBetter, TEST_BOUNDARIES);
     for (var i = 0; i < 100; ++i)
       hist0b.addSample(Math.random() * 1e3);
     histograms.addHistogram(hist0b);
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'iteration B',
       benchmarkStartMs: new Date().getTime(),
-    }).addToValue(hist0b);
+    }).addToHistogram(hist0b);
 
     var hist1b = new tr.v.Histogram('bar',
         tr.b.Unit.byName.timeDurationInMs_smallerIsBetter, TEST_BOUNDARIES);
     for (var i = 0; i < 100; ++i)
       hist1b.addSample(Math.random() * 1e3);
     histograms.addHistogram(hist1b);
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       label: 'iteration B',
       benchmarkStartMs: new Date().getTime(),
-    }).addToValue(hist1b);
+    }).addToHistogram(hist1b);
 
     table.histograms = histograms;
     this.addHTMLOutput(table);
@@ -425,16 +425,16 @@ tr.b.unittest.testSuite(function() {
 
     histograms.addHistogram(hist);
 
-    new tr.v.d.IterationInfo({
+    new tr.v.d.TelemetryInfo({
       benchmarkName: 'benchmarkName',
       benchmarkStartMs: 1439708400000,
-    }).addToValue(hist);
+    }).addToHistogram(hist);
 
     var table = document.createElement('tr-v-ui-histogram-set-table');
     table.histograms = histograms;
     this.addHTMLOutput(table);
 
-    // When IterationInfo.label is undefined, displayLabel defaults to
+    // When TelemetryInfo.label is undefined, displayLabel defaults to
     // benchmarkName + '\n' + benchmarkStartString, which
     // histogram-set-table.buildColumn_ should render as a div containing 2
     // divs.
@@ -450,7 +450,8 @@ tr.b.unittest.testSuite(function() {
   test('merge', function() {
     var table = document.createElement('tr-v-ui-histogram-set-table');
     var histograms = new tr.v.HistogramSet();
-    // Add 64 Histograms, all named 'foo', with different IterationInfos.
+    // Add 2^8=256 Histograms, all with the same name, with different
+    // TelemetryInfos.
     var benchmarkNames = ['bm A', 'bm B'];
     var storyGroupingKeys0 = ['A', 'B'];
     var storyGroupingKeys1 = ['C', 'D'];
@@ -479,7 +480,7 @@ tr.b.unittest.testSuite(function() {
 
                     histograms.addHistogram(hist);
 
-                    new tr.v.d.IterationInfo({
+                    new tr.v.d.TelemetryInfo({
                       storyGroupingKeys: {
                         storyGroupingKey0: storyGroupingKey0,
                         storyGroupingKey1: storyGroupingKey1
@@ -490,7 +491,7 @@ tr.b.unittest.testSuite(function() {
                       storysetRepeatCounter: storysetCounter,
                       storyRepeatCounter: storyCounter,
                       label: label,
-                    }).addToValue(hist);
+                    }).addToHistogram(hist);
                   }
                 }
               }

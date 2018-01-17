@@ -14,7 +14,7 @@
         "binhost_bucket": null,
         "binhost_key": null,
         "binhost_test": false,
-        "board_replace": true,
+        "board_replace": false,
         "boards": null,
         "branch": false,
         "branch_util_test": false,
@@ -605,7 +605,6 @@
             "chrome_sdk": true,
             "description": "Full release build with next minor GCC toolchain revision",
             "doc": "http://www.chromium.org/chromium-os/build/builder-overview#TOC-Continuous",
-            "gcc_githash": "svn-mirror/google/gcc-4_9",
             "hw_tests": [
                 "{\n    \"async\": false,\n    \"blocking\": false,\n    \"critical\": false,\n    \"file_bugs\": false,\n    \"max_retries\": 10,\n    \"minimum_duts\": 0,\n    \"num\": 6,\n    \"offload_failures_only\": false,\n    \"pool\": \"suites\",\n    \"priority\": \"DEFAULT\",\n    \"retry\": true,\n    \"suite\": \"bvt-inline\",\n    \"suite_min_duts\": 0,\n    \"timeout\": 10800,\n    \"warn_only\": false\n}",
                 "{\n    \"async\": false,\n    \"blocking\": false,\n    \"critical\": false,\n    \"file_bugs\": false,\n    \"max_retries\": 10,\n    \"minimum_duts\": 0,\n    \"num\": 6,\n    \"offload_failures_only\": false,\n    \"pool\": \"suites\",\n    \"priority\": \"DEFAULT\",\n    \"retry\": true,\n    \"suite\": \"bvt-cq\",\n    \"suite_min_duts\": 0,\n    \"timeout\": 10800,\n    \"warn_only\": false\n}",
@@ -636,9 +635,12 @@
             "overlays": "both",
             "useflags": [
                 "-cros-debug",
-                "-test_platform_SyncCrash",
-                "-test_security_OpenFDs",
-                "chrome_internal"
+                "-tests_network_VPNConnect.l2tpipsec_psk",
+                "-tests_network_VPNConnect.l2tpipsec_xauth",
+                "-tests_platform_SyncCrash",
+                "-tests_security_OpenFDs",
+                "chrome_internal",
+                "next_gcc"
             ],
             "usepkg_build_packages": false,
             "vm_tests": []
@@ -686,16 +688,21 @@
                 "recovery"
             ],
             "internal": true,
+            "latest_toolchain": true,
             "manifest": "official.xml",
             "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
             "manifest_version": true,
             "overlays": "both",
             "profile": "llvm",
             "useflags": [
+                "-cros-debug",
+                "-tests_network_VPNConnect.l2tpipsec_psk",
+                "-tests_network_VPNConnect.l2tpipsec_xauth",
+                "-tests_platform_SyncCrash",
+                "-tests_security_OpenFDs",
+                "chrome_internal",
                 "clang",
-                "llvm-next",
-                "-test_security_OpenFDs",
-                "-test_platform_SyncCrash"
+                "llvm-next"
             ],
             "usepkg_build_packages": false,
             "vm_tests": []
@@ -736,8 +743,10 @@
             "profile": "llvm",
             "useflags": [
                 "-cros-debug",
-                "-test_platform_SyncCrash",
-                "-test_security_OpenFDs",
+                "-tests_network_VPNConnect.l2tpipsec_psk",
+                "-tests_network_VPNConnect.l2tpipsec_xauth",
+                "-tests_platform_SyncCrash",
+                "-tests_security_OpenFDs",
                 "chrome_internal"
             ],
             "usepkg_build_packages": false,
@@ -1114,8 +1123,10 @@
             "overlays": "both",
             "useflags": [
                 "-cros-debug",
-                "-test_platform_SyncCrash",
-                "-test_security_OpenFDs",
+                "-tests_network_VPNConnect.l2tpipsec_psk",
+                "-tests_network_VPNConnect.l2tpipsec_xauth",
+                "-tests_platform_SyncCrash",
+                "-tests_security_OpenFDs",
                 "chrome_internal"
             ],
             "usepkg_build_packages": false,
@@ -1223,6 +1234,239 @@
         "important": false,
         "profile": "asan",
         "vm_tests_override": null
+    },
+    "amd64-generic-cheets-chrome-pfq": {
+        "_template": "chrome_pfq",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "important": false,
+        "manifest": "official.xml",
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ]
+    },
+    "amd64-generic-cheets-chromium-pfq": {
+        "_template": "chromium_pfq",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "important": false,
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ]
+    },
+    "amd64-generic-cheets-compile-only-pre-cq": {
+        "_template": "compile_only_pre_cq",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ]
+    },
+    "amd64-generic-cheets-full": {
+        "_template": "full",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "prebuilts": "public",
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ]
+    },
+    "amd64-generic-cheets-no-vmtest-pre-cq": {
+        "_template": "no_vmtest_pre_cq",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ]
+    },
+    "amd64-generic-cheets-paladin": {
+        "_template": "paladin",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "description": "Commit Queue (internal)",
+        "important": false,
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "prebuilts": "private",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests_override": null
+    },
+    "amd64-generic-cheets-payloads": {
+        "_template": "payloads",
+        "boards": [
+            "amd64-generic-cheets"
+        ]
+    },
+    "amd64-generic-cheets-pre-cq": {
+        "_template": "pre_cq",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "amd64-generic-cheets-release": {
+        "_template": "release",
+        "active_waterfall": "chromeos",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ],
+        "vm_tests_override": null
+    },
+    "amd64-generic-cheets-release-afdo": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "child_configs": [
+            {
+                "_template": "release_afdo_generate",
+                "boards": [
+                    "amd64-generic-cheets"
+                ],
+                "grouped": true,
+                "name": "amd64-generic-cheets-release-afdo-generate",
+                "vm_tests": [
+                    "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+                ],
+                "vm_tests_override": null
+            },
+            {
+                "_template": "release_afdo_use",
+                "boards": [
+                    "amd64-generic-cheets"
+                ],
+                "grouped": true,
+                "name": "amd64-generic-cheets-release-afdo-use",
+                "vm_tests": [
+                    "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+                ],
+                "vm_tests_override": null
+            }
+        ],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ],
+        "vm_tests_override": null
+    },
+    "amd64-generic-cheets-release-afdo-generate": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ],
+        "vm_tests_override": null
+    },
+    "amd64-generic-cheets-release-afdo-use": {
+        "_template": "release_afdo_use",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ],
+        "vm_tests_override": null
+    },
+    "amd64-generic-cheets-tot-chrome-pfq-informational": {
+        "_template": "chrome_pfq_informational",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "manifest": "official.xml",
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ]
+    },
+    "amd64-generic-cheets-tot-chrome-pfq-informational-gn": {
+        "_template": "chrome_pfq_informational_gn",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "manifest": "official.xml",
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ]
+    },
+    "amd64-generic-cheets-tot-chromium-pfq-informational": {
+        "_template": "chromium_pfq_informational",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ]
+    },
+    "amd64-generic-cheets-tot-chromium-pfq-informational-gn": {
+        "_template": "chromium_pfq_informational_gn",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "useflags": [
+            "-chrome_internal",
+            "gn"
+        ],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ]
+    },
+    "amd64-generic-cheets-unittest-stress": {
+        "_template": "unittest_stress",
+        "boards": [
+            "amd64-generic-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ]
     },
     "amd64-generic-chromium-pfq": {
         "_template": "chromium_pfq",
@@ -2344,14 +2588,9 @@
     },
     "auron-release": {
         "_template": "release",
-        "active_waterfall": "chromeos",
         "boards": [
             "auron"
-        ],
-        "buildslave_type": "gce_beefy",
-        "chrome_sdk_build_chrome": false,
-        "important": true,
-        "vm_tests": []
+        ]
     },
     "auron-release-afdo": {
         "_template": "release_afdo_generate",
@@ -3677,6 +3916,215 @@
         "overlays": "both",
         "vm_tests": []
     },
+    "bob-chrome-pfq": {
+        "_template": "chrome_pfq",
+        "boards": [
+            "bob"
+        ],
+        "important": false,
+        "manifest": "official.xml",
+        "vm_tests": []
+    },
+    "bob-chromium-pfq": {
+        "_template": "chromium_pfq",
+        "boards": [
+            "bob"
+        ],
+        "important": false,
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "bob-compile-only-pre-cq": {
+        "_template": "compile_only_pre_cq",
+        "boards": [
+            "bob"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "bob-firmware": {
+        "_template": "firmware",
+        "boards": [
+            "bob"
+        ],
+        "manifest": "official.xml"
+    },
+    "bob-full": {
+        "_template": "full",
+        "boards": [
+            "bob"
+        ],
+        "prebuilts": "public",
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "bob-no-vmtest-pre-cq": {
+        "_template": "no_vmtest_pre_cq",
+        "boards": [
+            "bob"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "bob-paladin": {
+        "_template": "paladin",
+        "boards": [
+            "bob"
+        ],
+        "description": "Commit Queue (internal)",
+        "important": false,
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "prebuilts": "private",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "bob-payloads": {
+        "_template": "payloads",
+        "boards": [
+            "bob"
+        ]
+    },
+    "bob-pre-cq": {
+        "_template": "pre_cq",
+        "boards": [
+            "bob"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "bob-release": {
+        "_template": "release",
+        "active_waterfall": "chromeos",
+        "boards": [
+            "bob"
+        ],
+        "buildslave_type": "gce_beefy",
+        "chrome_sdk_build_chrome": false,
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "bob-release-afdo": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "bob"
+        ],
+        "child_configs": [
+            {
+                "_template": "release_afdo_generate",
+                "boards": [
+                    "bob"
+                ],
+                "grouped": true,
+                "name": "bob-release-afdo-generate",
+                "vm_tests": [],
+                "vm_tests_override": null
+            },
+            {
+                "_template": "release_afdo_use",
+                "boards": [
+                    "bob"
+                ],
+                "grouped": true,
+                "name": "bob-release-afdo-use",
+                "vm_tests": [],
+                "vm_tests_override": null
+            }
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "bob-release-afdo-generate": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "bob"
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "bob-release-afdo-use": {
+        "_template": "release_afdo_use",
+        "boards": [
+            "bob"
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "bob-tot-chrome-pfq-informational": {
+        "_template": "chrome_pfq_informational",
+        "boards": [
+            "bob"
+        ],
+        "manifest": "official.xml",
+        "vm_tests": []
+    },
+    "bob-tot-chrome-pfq-informational-gn": {
+        "_template": "chrome_pfq_informational_gn",
+        "boards": [
+            "bob"
+        ],
+        "manifest": "official.xml",
+        "vm_tests": []
+    },
+    "bob-tot-chromium-pfq-informational": {
+        "_template": "chromium_pfq_informational",
+        "boards": [
+            "bob"
+        ],
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "bob-tot-chromium-pfq-informational-gn": {
+        "_template": "chromium_pfq_informational_gn",
+        "boards": [
+            "bob"
+        ],
+        "useflags": [
+            "-chrome_internal",
+            "gn"
+        ],
+        "vm_tests": []
+    },
+    "bob-unittest-stress": {
+        "_template": "unittest_stress",
+        "boards": [
+            "bob"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
     "branch-util": {
         "active_waterfall": "chromiumos.tryserver",
         "boards": [],
@@ -4417,6 +4865,7 @@
         ],
         "buildslave_type": "gce_beefy",
         "chrome_sdk_build_chrome": false,
+        "important": true,
         "vm_tests": []
     },
     "caroline-release-afdo": {
@@ -5308,11 +5757,23 @@
     },
     "chell-chrome-pfq": {
         "_template": "chrome_pfq",
+        "active_waterfall": "chromeos",
+        "afdo_generate": true,
         "boards": [
             "chell"
         ],
+        "hw_tests": [
+            "{\n    \"async\": false,\n    \"blocking\": false,\n    \"critical\": false,\n    \"file_bugs\": true,\n    \"max_retries\": 10,\n    \"minimum_duts\": 0,\n    \"num\": 1,\n    \"offload_failures_only\": false,\n    \"pool\": \"bvt\",\n    \"priority\": \"PFQ\",\n    \"retry\": true,\n    \"suite\": \"AFDO_record\",\n    \"suite_min_duts\": 0,\n    \"timeout\": 6000,\n    \"warn_only\": true\n}"
+        ],
         "important": false,
+        "latest_toolchain": true,
         "manifest": "official.xml",
+        "useflags": [
+            "-transparent_hugepage",
+            "chrome_internal",
+            "clang",
+            "llvm-next"
+        ],
         "vm_tests": []
     },
     "chell-chromium-pfq": {
@@ -5367,13 +5828,6 @@
         "_template": "llvm_next_toolchain",
         "boards": [
             "chell"
-        ],
-        "useflags": [
-            "-test_platform_SyncCrash",
-            "-test_security_OpenFDs",
-            "chrome_internal",
-            "clang",
-            "llvm-next"
         ]
     },
     "chell-llvm-toolchain": {
@@ -5397,6 +5851,7 @@
     },
     "chell-paladin": {
         "_template": "paladin",
+        "active_waterfall": "chromeos",
         "boards": [
             "chell"
         ],
@@ -5439,8 +5894,6 @@
         "boards": [
             "chell"
         ],
-        "buildslave_type": "gce_beefy",
-        "chrome_sdk_build_chrome": false,
         "vm_tests": [],
         "vm_tests_override": null
     },
@@ -5546,8 +5999,7 @@
         "boards": [
             "x86-generic",
             "arm-generic",
-            "amd64-generic",
-            "veyron_jaq"
+            "amd64-generic"
         ],
         "build_type": "chroot",
         "builder_class_name": "sdk_builders.ChrootSdkBuilder",
@@ -5949,10 +6401,10 @@
         "boards": [
             "cyan"
         ],
-        "buildslave_type": "gce_beefy",
-        "chrome_sdk_build_chrome": false,
         "important": true,
-        "vm_tests": [],
+        "vm_tests": [
+            "{\n    \"test_type\": \"smoke_suite\",\n    \"timeout\": 3600\n}"
+        ],
         "vm_tests_override": null
     },
     "cyan-release-afdo": {
@@ -6153,13 +6605,6 @@
         "_template": "llvm_next_toolchain",
         "boards": [
             "daisy"
-        ],
-        "useflags": [
-            "-test_platform_SyncCrash",
-            "-test_security_OpenFDs",
-            "chrome_internal",
-            "clang",
-            "llvm-next"
         ]
     },
     "daisy-llvm-toolchain": {
@@ -7394,6 +7839,195 @@
             "chrome_internal"
         ]
     },
+    "eve-chrome-pfq": {
+        "_template": "chrome_pfq",
+        "boards": [
+            "eve"
+        ],
+        "important": false,
+        "manifest": "official.xml"
+    },
+    "eve-chromium-pfq": {
+        "_template": "chromium_pfq",
+        "boards": [
+            "eve"
+        ],
+        "important": false,
+        "useflags": [
+            "-chrome_internal"
+        ]
+    },
+    "eve-compile-only-pre-cq": {
+        "_template": "compile_only_pre_cq",
+        "boards": [
+            "eve"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "eve-firmware": {
+        "_template": "firmware",
+        "boards": [
+            "eve"
+        ],
+        "manifest": "official.xml"
+    },
+    "eve-full": {
+        "_template": "full",
+        "boards": [
+            "eve"
+        ],
+        "prebuilts": "public",
+        "useflags": [
+            "-chrome_internal"
+        ]
+    },
+    "eve-no-vmtest-pre-cq": {
+        "_template": "no_vmtest_pre_cq",
+        "boards": [
+            "eve"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "eve-paladin": {
+        "_template": "paladin",
+        "boards": [
+            "eve"
+        ],
+        "description": "Commit Queue (internal)",
+        "important": false,
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "prebuilts": "private",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "eve-payloads": {
+        "_template": "payloads",
+        "boards": [
+            "eve"
+        ]
+    },
+    "eve-pre-cq": {
+        "_template": "pre_cq",
+        "boards": [
+            "eve"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "eve-release": {
+        "_template": "release",
+        "active_waterfall": "chromeos",
+        "boards": [
+            "eve"
+        ],
+        "buildslave_type": "gce_beefy",
+        "chrome_sdk_build_chrome": false,
+        "vm_tests": []
+    },
+    "eve-release-afdo": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "eve"
+        ],
+        "child_configs": [
+            {
+                "_template": "release_afdo_generate",
+                "boards": [
+                    "eve"
+                ],
+                "grouped": true,
+                "name": "eve-release-afdo-generate"
+            },
+            {
+                "_template": "release_afdo_use",
+                "boards": [
+                    "eve"
+                ],
+                "grouped": true,
+                "name": "eve-release-afdo-use"
+            }
+        ]
+    },
+    "eve-release-afdo-generate": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "eve"
+        ]
+    },
+    "eve-release-afdo-use": {
+        "_template": "release_afdo_use",
+        "boards": [
+            "eve"
+        ]
+    },
+    "eve-tot-chrome-pfq-informational": {
+        "_template": "chrome_pfq_informational",
+        "boards": [
+            "eve"
+        ],
+        "manifest": "official.xml"
+    },
+    "eve-tot-chrome-pfq-informational-gn": {
+        "_template": "chrome_pfq_informational_gn",
+        "boards": [
+            "eve"
+        ],
+        "manifest": "official.xml"
+    },
+    "eve-tot-chromium-pfq-informational": {
+        "_template": "chromium_pfq_informational",
+        "boards": [
+            "eve"
+        ],
+        "useflags": [
+            "-chrome_internal"
+        ]
+    },
+    "eve-tot-chromium-pfq-informational-gn": {
+        "_template": "chromium_pfq_informational_gn",
+        "boards": [
+            "eve"
+        ],
+        "useflags": [
+            "-chrome_internal",
+            "gn"
+        ]
+    },
+    "eve-unittest-stress": {
+        "_template": "unittest_stress",
+        "boards": [
+            "eve"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
     "expresso-chrome-pfq": {
         "_template": "chrome_pfq",
         "boards": [
@@ -7683,6 +8317,7 @@
     "falco-full-compile-paladin": {
         "_template": "paladin",
         "active_waterfall": "chromeos",
+        "board_replace": true,
         "boards": [
             "falco"
         ],
@@ -8108,6 +8743,9 @@
         ],
         "chrome_sdk": false,
         "description": "Commit Queue (internal)",
+        "hw_tests": [
+            "{\n    \"async\": false,\n    \"blocking\": false,\n    \"critical\": false,\n    \"file_bugs\": false,\n    \"max_retries\": 10,\n    \"minimum_duts\": 0,\n    \"num\": 6,\n    \"offload_failures_only\": false,\n    \"pool\": \"cq\",\n    \"priority\": \"Build\",\n    \"retry\": true,\n    \"suite\": \"jetstream_cq\",\n    \"suite_min_duts\": 0,\n    \"timeout\": 10800,\n    \"warn_only\": false\n}"
+        ],
         "important": false,
         "internal": true,
         "manifest": "official.xml",
@@ -8150,7 +8788,6 @@
             "gale"
         ],
         "chrome_sdk": false,
-        "dev_installer_prebuilts": false,
         "important": true,
         "sync_chrome": false,
         "vm_tests": [],
@@ -8740,7 +9377,6 @@
     },
     "glados-release": {
         "_template": "release",
-        "active_waterfall": "chromeos",
         "boards": [
             "glados"
         ],
@@ -10119,7 +10755,8 @@
         "useflags": [
             "chrome_internal"
         ],
-        "vm_tests": []
+        "vm_tests": [],
+        "vm_tests_override": null
     },
     "guado_moblab-payloads": {
         "_template": "payloads",
@@ -10164,7 +10801,8 @@
         "paygen_skip_delta_payloads": true,
         "paygen_skip_testing": true,
         "signer_tests": false,
-        "vm_tests": []
+        "vm_tests": [],
+        "vm_tests_override": null
     },
     "guado_moblab-release-afdo": {
         "_template": "release_afdo_generate",
@@ -10180,7 +10818,8 @@
                 "grouped": true,
                 "image_test": false,
                 "name": "guado_moblab-release-afdo-generate",
-                "vm_tests": []
+                "vm_tests": [],
+                "vm_tests_override": null
             },
             {
                 "_template": "release_afdo_use",
@@ -10190,11 +10829,13 @@
                 "grouped": true,
                 "image_test": false,
                 "name": "guado_moblab-release-afdo-use",
-                "vm_tests": []
+                "vm_tests": [],
+                "vm_tests_override": null
             }
         ],
         "image_test": false,
-        "vm_tests": []
+        "vm_tests": [],
+        "vm_tests_override": null
     },
     "guado_moblab-release-afdo-generate": {
         "_template": "release_afdo_generate",
@@ -10202,7 +10843,8 @@
             "guado_moblab"
         ],
         "image_test": false,
-        "vm_tests": []
+        "vm_tests": [],
+        "vm_tests_override": null
     },
     "guado_moblab-release-afdo-use": {
         "_template": "release_afdo_use",
@@ -10210,7 +10852,8 @@
             "guado_moblab"
         ],
         "image_test": false,
-        "vm_tests": []
+        "vm_tests": [],
+        "vm_tests_override": null
     },
     "guado_moblab-tot-chrome-pfq-informational": {
         "_template": "chrome_pfq_informational",
@@ -11258,6 +11901,7 @@
         ],
         "buildslave_type": "gce_beefy",
         "chrome_sdk_build_chrome": false,
+        "important": true,
         "vm_tests": [],
         "vm_tests_override": null
     },
@@ -11343,208 +11987,6 @@
             "gn"
         ],
         "vm_tests": []
-    },
-    "kevin-tpm2-chrome-pfq": {
-        "_template": "chrome_pfq",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "important": false,
-        "manifest": "official.xml",
-        "vm_tests": []
-    },
-    "kevin-tpm2-chromium-pfq": {
-        "_template": "chromium_pfq",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "important": false,
-        "useflags": [
-            "-chrome_internal"
-        ],
-        "vm_tests": []
-    },
-    "kevin-tpm2-compile-only-pre-cq": {
-        "_template": "compile_only_pre_cq",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "internal": true,
-        "manifest": "official.xml",
-        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
-        "overlays": "both",
-        "useflags": [
-            "chrome_internal"
-        ]
-    },
-    "kevin-tpm2-full": {
-        "_template": "full",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "prebuilts": "public",
-        "useflags": [
-            "-chrome_internal"
-        ],
-        "vm_tests": []
-    },
-    "kevin-tpm2-no-vmtest-pre-cq": {
-        "_template": "no_vmtest_pre_cq",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "internal": true,
-        "manifest": "official.xml",
-        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
-        "overlays": "both",
-        "useflags": [
-            "chrome_internal"
-        ]
-    },
-    "kevin-tpm2-paladin": {
-        "_template": "paladin",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "description": "Commit Queue (internal)",
-        "important": false,
-        "internal": true,
-        "manifest": "official.xml",
-        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
-        "overlays": "both",
-        "prebuilts": "private",
-        "useflags": [
-            "chrome_internal"
-        ],
-        "vm_tests": [],
-        "vm_tests_override": null
-    },
-    "kevin-tpm2-payloads": {
-        "_template": "payloads",
-        "boards": [
-            "kevin-tpm2"
-        ]
-    },
-    "kevin-tpm2-pre-cq": {
-        "_template": "pre_cq",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "internal": true,
-        "manifest": "official.xml",
-        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
-        "overlays": "both",
-        "useflags": [
-            "chrome_internal"
-        ],
-        "vm_tests": []
-    },
-    "kevin-tpm2-release": {
-        "_template": "release",
-        "active_waterfall": "chromeos",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "buildslave_type": "gce_beefy",
-        "chrome_sdk_build_chrome": false,
-        "vm_tests": [],
-        "vm_tests_override": null
-    },
-    "kevin-tpm2-release-afdo": {
-        "_template": "release_afdo_generate",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "child_configs": [
-            {
-                "_template": "release_afdo_generate",
-                "boards": [
-                    "kevin-tpm2"
-                ],
-                "grouped": true,
-                "name": "kevin-tpm2-release-afdo-generate",
-                "vm_tests": [],
-                "vm_tests_override": null
-            },
-            {
-                "_template": "release_afdo_use",
-                "boards": [
-                    "kevin-tpm2"
-                ],
-                "grouped": true,
-                "name": "kevin-tpm2-release-afdo-use",
-                "vm_tests": [],
-                "vm_tests_override": null
-            }
-        ],
-        "vm_tests": [],
-        "vm_tests_override": null
-    },
-    "kevin-tpm2-release-afdo-generate": {
-        "_template": "release_afdo_generate",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "vm_tests": [],
-        "vm_tests_override": null
-    },
-    "kevin-tpm2-release-afdo-use": {
-        "_template": "release_afdo_use",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "vm_tests": [],
-        "vm_tests_override": null
-    },
-    "kevin-tpm2-tot-chrome-pfq-informational": {
-        "_template": "chrome_pfq_informational",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "manifest": "official.xml",
-        "vm_tests": []
-    },
-    "kevin-tpm2-tot-chrome-pfq-informational-gn": {
-        "_template": "chrome_pfq_informational_gn",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "manifest": "official.xml",
-        "vm_tests": []
-    },
-    "kevin-tpm2-tot-chromium-pfq-informational": {
-        "_template": "chromium_pfq_informational",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "useflags": [
-            "-chrome_internal"
-        ],
-        "vm_tests": []
-    },
-    "kevin-tpm2-tot-chromium-pfq-informational-gn": {
-        "_template": "chromium_pfq_informational_gn",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "useflags": [
-            "-chrome_internal",
-            "gn"
-        ],
-        "vm_tests": []
-    },
-    "kevin-tpm2-unittest-stress": {
-        "_template": "unittest_stress",
-        "boards": [
-            "kevin-tpm2"
-        ],
-        "internal": true,
-        "manifest": "official.xml",
-        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
-        "overlays": "both",
-        "useflags": [
-            "chrome_internal"
-        ]
     },
     "kevin-unittest-stress": {
         "_template": "unittest_stress",
@@ -11641,11 +12083,14 @@
     },
     "kip-paladin": {
         "_template": "paladin",
+        "active_waterfall": "chromeos",
         "boards": [
             "kip"
         ],
         "description": "Commit Queue (internal)",
-        "important": false,
+        "hw_tests": [
+            "{\n    \"async\": false,\n    \"blocking\": false,\n    \"critical\": false,\n    \"file_bugs\": false,\n    \"max_retries\": 10,\n    \"minimum_duts\": 4,\n    \"num\": 6,\n    \"offload_failures_only\": true,\n    \"pool\": \"cq\",\n    \"priority\": \"CQ\",\n    \"retry\": true,\n    \"suite\": \"bvt-cq\",\n    \"suite_min_duts\": 0,\n    \"timeout\": 5400,\n    \"warn_only\": false\n}"
+        ],
         "internal": true,
         "manifest": "official.xml",
         "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
@@ -11884,11 +12329,9 @@
     },
     "kunimitsu-release": {
         "_template": "release",
-        "active_waterfall": "chromeos",
         "boards": [
             "kunimitsu"
         ],
-        "important": true,
         "vm_tests": [],
         "vm_tests_override": null
     },
@@ -12073,6 +12516,10 @@
         "factory": false,
         "factory_install_netboot": false,
         "factory_toolkit": false,
+        "health_alert_recipients": [
+            "gci-alerts+buildbots@google.com"
+        ],
+        "health_threshold": 1,
         "internal": true,
         "manifest": "official.xml",
         "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
@@ -12174,6 +12621,10 @@
         "factory": false,
         "factory_install_netboot": false,
         "factory_toolkit": false,
+        "health_alert_recipients": [
+            "gci-alerts+buildbots@google.com"
+        ],
+        "health_threshold": 1,
         "hw_tests": [],
         "hwqual": false,
         "image_test": false,
@@ -12354,6 +12805,10 @@
         "factory": false,
         "factory_install_netboot": false,
         "factory_toolkit": false,
+        "health_alert_recipients": [
+            "gci-alerts+buildbots@google.com"
+        ],
+        "health_threshold": 1,
         "internal": true,
         "manifest": "official.xml",
         "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
@@ -12456,6 +12911,10 @@
         "factory": false,
         "factory_install_netboot": false,
         "factory_toolkit": false,
+        "health_alert_recipients": [
+            "gci-alerts+buildbots@google.com"
+        ],
+        "health_threshold": 1,
         "hw_tests": [],
         "hwqual": false,
         "image_test": false,
@@ -12656,8 +13115,6 @@
         "boards": [
             "lars"
         ],
-        "buildslave_type": "gce_beefy",
-        "chrome_sdk_build_chrome": false,
         "important": true,
         "vm_tests": [],
         "vm_tests_override": null
@@ -13045,13 +13502,6 @@
         "_template": "llvm_next_toolchain",
         "boards": [
             "link"
-        ],
-        "useflags": [
-            "-test_platform_SyncCrash",
-            "-test_security_OpenFDs",
-            "chrome_internal",
-            "clang",
-            "llvm-next"
         ]
     },
     "link-llvm-toolchain": {
@@ -13456,13 +13906,6 @@
         "_template": "llvm_next_toolchain",
         "boards": [
             "lulu"
-        ],
-        "useflags": [
-            "-test_platform_SyncCrash",
-            "-test_security_OpenFDs",
-            "chrome_internal",
-            "clang",
-            "llvm-next"
         ]
     },
     "lulu-llvm-toolchain": {
@@ -13936,7 +14379,6 @@
         "buildslave_type": "gce_wimpy",
         "chrome_sdk": false,
         "health_alert_recipients": [
-            "chromeos-infra-eng@grotations.appspotmail.com",
             "tree"
         ],
         "master": true,
@@ -14771,6 +15213,7 @@
     "nyan-full-compile-paladin": {
         "_template": "paladin",
         "active_waterfall": "chromeos",
+        "board_replace": true,
         "boards": [
             "nyan"
         ],
@@ -14807,11 +15250,11 @@
     },
     "nyan-paladin": {
         "_template": "paladin",
-        "active_waterfall": "chromeos",
         "boards": [
             "nyan"
         ],
         "description": "Commit Queue (internal)",
+        "important": false,
         "internal": true,
         "manifest": "official.xml",
         "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
@@ -14845,13 +15288,9 @@
     },
     "nyan-release": {
         "_template": "release",
-        "active_waterfall": "chromeos",
         "boards": [
             "nyan"
         ],
-        "buildslave_type": "gce_beefy",
-        "chrome_sdk_build_chrome": false,
-        "important": true,
         "vm_tests": [],
         "vm_tests_override": null
     },
@@ -15005,13 +15444,6 @@
         "_template": "llvm_next_toolchain",
         "boards": [
             "nyan_big"
-        ],
-        "useflags": [
-            "-test_platform_SyncCrash",
-            "-test_security_OpenFDs",
-            "chrome_internal",
-            "clang",
-            "llvm-next"
         ]
     },
     "nyan_big-llvm-toolchain": {
@@ -15035,11 +15467,14 @@
     },
     "nyan_big-paladin": {
         "_template": "paladin",
+        "active_waterfall": "chromeos",
         "boards": [
             "nyan_big"
         ],
         "description": "Commit Queue (internal)",
-        "important": false,
+        "hw_tests": [
+            "{\n    \"async\": false,\n    \"blocking\": false,\n    \"critical\": false,\n    \"file_bugs\": false,\n    \"max_retries\": 10,\n    \"minimum_duts\": 4,\n    \"num\": 6,\n    \"offload_failures_only\": true,\n    \"pool\": \"cq\",\n    \"priority\": \"CQ\",\n    \"retry\": true,\n    \"suite\": \"bvt-inline\",\n    \"suite_min_duts\": 0,\n    \"timeout\": 5400,\n    \"warn_only\": false\n}"
+        ],
         "internal": true,
         "manifest": "official.xml",
         "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
@@ -15439,11 +15874,14 @@
     },
     "nyan_kitty-paladin": {
         "_template": "paladin",
+        "active_waterfall": "chromeos",
         "boards": [
             "nyan_kitty"
         ],
         "description": "Commit Queue (internal)",
-        "important": false,
+        "hw_tests": [
+            "{\n    \"async\": false,\n    \"blocking\": false,\n    \"critical\": false,\n    \"file_bugs\": false,\n    \"max_retries\": 10,\n    \"minimum_duts\": 4,\n    \"num\": 6,\n    \"offload_failures_only\": true,\n    \"pool\": \"cq\",\n    \"priority\": \"CQ\",\n    \"retry\": true,\n    \"suite\": \"bvt-cq\",\n    \"suite_min_duts\": 0,\n    \"timeout\": 5400,\n    \"warn_only\": false\n}"
+        ],
         "internal": true,
         "manifest": "official.xml",
         "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
@@ -17042,13 +17480,6 @@
         "_template": "llvm_next_toolchain",
         "boards": [
             "peach_pit"
-        ],
-        "useflags": [
-            "-test_platform_SyncCrash",
-            "-test_security_OpenFDs",
-            "chrome_internal",
-            "clang",
-            "llvm-next"
         ]
     },
     "peach_pit-llvm-toolchain": {
@@ -17279,13 +17710,6 @@
         "_template": "llvm_next_toolchain",
         "boards": [
             "peppy"
-        ],
-        "useflags": [
-            "-test_platform_SyncCrash",
-            "-test_security_OpenFDs",
-            "chrome_internal",
-            "clang",
-            "llvm-next"
         ]
     },
     "peppy-llvm-toolchain": {
@@ -17427,6 +17851,207 @@
         "_template": "unittest_stress",
         "boards": [
             "peppy"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "poppy-chrome-pfq": {
+        "_template": "chrome_pfq",
+        "boards": [
+            "poppy"
+        ],
+        "important": false,
+        "manifest": "official.xml",
+        "vm_tests": []
+    },
+    "poppy-chromium-pfq": {
+        "_template": "chromium_pfq",
+        "boards": [
+            "poppy"
+        ],
+        "important": false,
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "poppy-compile-only-pre-cq": {
+        "_template": "compile_only_pre_cq",
+        "boards": [
+            "poppy"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "poppy-full": {
+        "_template": "full",
+        "boards": [
+            "poppy"
+        ],
+        "prebuilts": "public",
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "poppy-no-vmtest-pre-cq": {
+        "_template": "no_vmtest_pre_cq",
+        "boards": [
+            "poppy"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "poppy-paladin": {
+        "_template": "paladin",
+        "active_waterfall": "chromeos",
+        "boards": [
+            "poppy"
+        ],
+        "description": "Commit Queue (internal)",
+        "important": false,
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "prebuilts": "private",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "poppy-payloads": {
+        "_template": "payloads",
+        "boards": [
+            "poppy"
+        ]
+    },
+    "poppy-pre-cq": {
+        "_template": "pre_cq",
+        "boards": [
+            "poppy"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "poppy-release": {
+        "_template": "release",
+        "active_waterfall": "chromeos",
+        "boards": [
+            "poppy"
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "poppy-release-afdo": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "poppy"
+        ],
+        "child_configs": [
+            {
+                "_template": "release_afdo_generate",
+                "boards": [
+                    "poppy"
+                ],
+                "grouped": true,
+                "name": "poppy-release-afdo-generate",
+                "vm_tests": [],
+                "vm_tests_override": null
+            },
+            {
+                "_template": "release_afdo_use",
+                "boards": [
+                    "poppy"
+                ],
+                "grouped": true,
+                "name": "poppy-release-afdo-use",
+                "vm_tests": [],
+                "vm_tests_override": null
+            }
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "poppy-release-afdo-generate": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "poppy"
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "poppy-release-afdo-use": {
+        "_template": "release_afdo_use",
+        "boards": [
+            "poppy"
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "poppy-tot-chrome-pfq-informational": {
+        "_template": "chrome_pfq_informational",
+        "boards": [
+            "poppy"
+        ],
+        "manifest": "official.xml",
+        "vm_tests": []
+    },
+    "poppy-tot-chrome-pfq-informational-gn": {
+        "_template": "chrome_pfq_informational_gn",
+        "boards": [
+            "poppy"
+        ],
+        "manifest": "official.xml",
+        "vm_tests": []
+    },
+    "poppy-tot-chromium-pfq-informational": {
+        "_template": "chromium_pfq_informational",
+        "boards": [
+            "poppy"
+        ],
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "poppy-tot-chromium-pfq-informational-gn": {
+        "_template": "chromium_pfq_informational_gn",
+        "boards": [
+            "poppy"
+        ],
+        "useflags": [
+            "-chrome_internal",
+            "gn"
+        ],
+        "vm_tests": []
+    },
+    "poppy-unittest-stress": {
+        "_template": "unittest_stress",
+        "boards": [
+            "poppy"
         ],
         "internal": true,
         "manifest": "official.xml",
@@ -17962,11 +18587,11 @@
     },
     "rambi-paladin": {
         "_template": "paladin",
-        "active_waterfall": "chromeos",
         "boards": [
             "rambi"
         ],
         "description": "Commit Queue (internal)",
+        "important": false,
         "internal": true,
         "manifest": "official.xml",
         "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
@@ -18000,14 +18625,9 @@
     },
     "rambi-release": {
         "_template": "release",
-        "active_waterfall": "chromeos",
         "boards": [
             "rambi"
-        ],
-        "buildslave_type": "gce_beefy",
-        "chrome_sdk_build_chrome": false,
-        "important": true,
-        "vm_tests": []
+        ]
     },
     "rambi-release-afdo": {
         "_template": "release_afdo_generate",
@@ -18155,7 +18775,6 @@
             "reef"
         ],
         "description": "Commit Queue (internal)",
-        "important": false,
         "internal": true,
         "manifest": "official.xml",
         "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
@@ -18919,6 +19538,188 @@
         ],
         "vm_tests": []
     },
+    "samus-cheets-chrome-pfq": {
+        "_template": "chrome_pfq",
+        "boards": [
+            "samus-cheets"
+        ],
+        "important": false,
+        "manifest": "official.xml"
+    },
+    "samus-cheets-chromium-pfq": {
+        "_template": "chromium_pfq",
+        "boards": [
+            "samus-cheets"
+        ],
+        "important": false,
+        "useflags": [
+            "-chrome_internal"
+        ]
+    },
+    "samus-cheets-compile-only-pre-cq": {
+        "_template": "compile_only_pre_cq",
+        "boards": [
+            "samus-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "samus-cheets-full": {
+        "_template": "full",
+        "boards": [
+            "samus-cheets"
+        ],
+        "prebuilts": "public",
+        "useflags": [
+            "-chrome_internal"
+        ]
+    },
+    "samus-cheets-no-vmtest-pre-cq": {
+        "_template": "no_vmtest_pre_cq",
+        "boards": [
+            "samus-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "samus-cheets-paladin": {
+        "_template": "paladin",
+        "boards": [
+            "samus-cheets"
+        ],
+        "description": "Commit Queue (internal)",
+        "important": false,
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "prebuilts": "private",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "samus-cheets-payloads": {
+        "_template": "payloads",
+        "boards": [
+            "samus-cheets"
+        ]
+    },
+    "samus-cheets-pre-cq": {
+        "_template": "pre_cq",
+        "boards": [
+            "samus-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "samus-cheets-release": {
+        "_template": "release",
+        "active_waterfall": "chromeos",
+        "boards": [
+            "samus-cheets"
+        ],
+        "buildslave_type": "gce_beefy",
+        "chrome_sdk_build_chrome": false,
+        "vm_tests": []
+    },
+    "samus-cheets-release-afdo": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "samus-cheets"
+        ],
+        "child_configs": [
+            {
+                "_template": "release_afdo_generate",
+                "boards": [
+                    "samus-cheets"
+                ],
+                "grouped": true,
+                "name": "samus-cheets-release-afdo-generate"
+            },
+            {
+                "_template": "release_afdo_use",
+                "boards": [
+                    "samus-cheets"
+                ],
+                "grouped": true,
+                "name": "samus-cheets-release-afdo-use"
+            }
+        ]
+    },
+    "samus-cheets-release-afdo-generate": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "samus-cheets"
+        ]
+    },
+    "samus-cheets-release-afdo-use": {
+        "_template": "release_afdo_use",
+        "boards": [
+            "samus-cheets"
+        ]
+    },
+    "samus-cheets-tot-chrome-pfq-informational": {
+        "_template": "chrome_pfq_informational",
+        "boards": [
+            "samus-cheets"
+        ],
+        "manifest": "official.xml"
+    },
+    "samus-cheets-tot-chrome-pfq-informational-gn": {
+        "_template": "chrome_pfq_informational_gn",
+        "boards": [
+            "samus-cheets"
+        ],
+        "manifest": "official.xml"
+    },
+    "samus-cheets-tot-chromium-pfq-informational": {
+        "_template": "chromium_pfq_informational",
+        "boards": [
+            "samus-cheets"
+        ],
+        "useflags": [
+            "-chrome_internal"
+        ]
+    },
+    "samus-cheets-tot-chromium-pfq-informational-gn": {
+        "_template": "chromium_pfq_informational_gn",
+        "boards": [
+            "samus-cheets"
+        ],
+        "useflags": [
+            "-chrome_internal",
+            "gn"
+        ]
+    },
+    "samus-cheets-unittest-stress": {
+        "_template": "unittest_stress",
+        "boards": [
+            "samus-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
     "samus-chrome-pfq": {
         "_template": "chrome_pfq",
         "boards": [
@@ -19056,6 +19857,10 @@
         ],
         "master": true,
         "push_overlays": "both",
+        "useflags": [
+            "-transparent_hugepage",
+            "chrome_internal"
+        ],
         "vm_tests": []
     },
     "samus-release": {
@@ -19225,13 +20030,6 @@
         "_template": "llvm_next_toolchain",
         "boards": [
             "sentry"
-        ],
-        "useflags": [
-            "-test_platform_SyncCrash",
-            "-test_security_OpenFDs",
-            "chrome_internal",
-            "clang",
-            "llvm-next"
         ]
     },
     "sentry-llvm-toolchain": {
@@ -19608,6 +20406,17 @@
         "useflags": [
             "chrome_internal"
         ]
+    },
+    "signer-pre-cq": {
+        "_template": "pre_cq",
+        "boards": [],
+        "builder_class_name": "test_builders.SignerTestsBuilder",
+        "description": "Run the signer unittests.",
+        "hw_tests_override": [],
+        "internal": true,
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "vm_tests": []
     },
     "slippy-chrome-pfq": {
         "_template": "chrome_pfq",
@@ -20572,13 +21381,6 @@
         "_template": "llvm_next_toolchain",
         "boards": [
             "squawks"
-        ],
-        "useflags": [
-            "-test_platform_SyncCrash",
-            "-test_security_OpenFDs",
-            "chrome_internal",
-            "clang",
-            "llvm-next"
         ]
     },
     "squawks-llvm-toolchain": {
@@ -21224,11 +22026,9 @@
     },
     "strago-release": {
         "_template": "release",
-        "active_waterfall": "chromeos",
         "boards": [
             "strago"
         ],
-        "important": true,
         "vm_tests": [],
         "vm_tests_override": null
     },
@@ -22014,13 +22814,6 @@
         "_template": "llvm_next_toolchain",
         "boards": [
             "terra"
-        ],
-        "useflags": [
-            "-test_platform_SyncCrash",
-            "-test_security_OpenFDs",
-            "chrome_internal",
-            "clang",
-            "llvm-next"
         ]
     },
     "terra-llvm-toolchain": {
@@ -24050,6 +24843,208 @@
         ],
         "vm_tests": []
     },
+    "veyron_minnie-cheets-chrome-pfq": {
+        "_template": "chrome_pfq",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "important": false,
+        "manifest": "official.xml",
+        "vm_tests": []
+    },
+    "veyron_minnie-cheets-chromium-pfq": {
+        "_template": "chromium_pfq",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "important": false,
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "veyron_minnie-cheets-compile-only-pre-cq": {
+        "_template": "compile_only_pre_cq",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "veyron_minnie-cheets-full": {
+        "_template": "full",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "prebuilts": "public",
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "veyron_minnie-cheets-no-vmtest-pre-cq": {
+        "_template": "no_vmtest_pre_cq",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
+    "veyron_minnie-cheets-paladin": {
+        "_template": "paladin",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "description": "Commit Queue (internal)",
+        "important": false,
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "prebuilts": "private",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "veyron_minnie-cheets-payloads": {
+        "_template": "payloads",
+        "boards": [
+            "veyron_minnie-cheets"
+        ]
+    },
+    "veyron_minnie-cheets-pre-cq": {
+        "_template": "pre_cq",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "veyron_minnie-cheets-release": {
+        "_template": "release",
+        "active_waterfall": "chromeos",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "buildslave_type": "gce_beefy",
+        "chrome_sdk_build_chrome": false,
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "veyron_minnie-cheets-release-afdo": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "child_configs": [
+            {
+                "_template": "release_afdo_generate",
+                "boards": [
+                    "veyron_minnie-cheets"
+                ],
+                "grouped": true,
+                "name": "veyron_minnie-cheets-release-afdo-generate",
+                "vm_tests": [],
+                "vm_tests_override": null
+            },
+            {
+                "_template": "release_afdo_use",
+                "boards": [
+                    "veyron_minnie-cheets"
+                ],
+                "grouped": true,
+                "name": "veyron_minnie-cheets-release-afdo-use",
+                "vm_tests": [],
+                "vm_tests_override": null
+            }
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "veyron_minnie-cheets-release-afdo-generate": {
+        "_template": "release_afdo_generate",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "veyron_minnie-cheets-release-afdo-use": {
+        "_template": "release_afdo_use",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "vm_tests": [],
+        "vm_tests_override": null
+    },
+    "veyron_minnie-cheets-tot-chrome-pfq-informational": {
+        "_template": "chrome_pfq_informational",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "manifest": "official.xml",
+        "vm_tests": []
+    },
+    "veyron_minnie-cheets-tot-chrome-pfq-informational-gn": {
+        "_template": "chrome_pfq_informational_gn",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "manifest": "official.xml",
+        "vm_tests": []
+    },
+    "veyron_minnie-cheets-tot-chromium-pfq-informational": {
+        "_template": "chromium_pfq_informational",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "useflags": [
+            "-chrome_internal"
+        ],
+        "vm_tests": []
+    },
+    "veyron_minnie-cheets-tot-chromium-pfq-informational-gn": {
+        "_template": "chromium_pfq_informational_gn",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "useflags": [
+            "-chrome_internal",
+            "gn"
+        ],
+        "vm_tests": []
+    },
+    "veyron_minnie-cheets-unittest-stress": {
+        "_template": "unittest_stress",
+        "boards": [
+            "veyron_minnie-cheets"
+        ],
+        "internal": true,
+        "manifest": "official.xml",
+        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
+        "overlays": "both",
+        "useflags": [
+            "chrome_internal"
+        ]
+    },
     "veyron_minnie-chrome-pfq": {
         "_template": "chrome_pfq",
         "active_waterfall": "chromeos",
@@ -24158,8 +25153,6 @@
         "boards": [
             "veyron_minnie"
         ],
-        "buildslave_type": "gce_beefy",
-        "chrome_sdk_build_chrome": false,
         "important": true,
         "vm_tests": [],
         "vm_tests_override": null
@@ -24357,11 +25350,9 @@
     },
     "veyron_pinky-release": {
         "_template": "release",
-        "active_waterfall": "chromeos",
         "boards": [
             "veyron_pinky"
         ],
-        "important": true,
         "vm_tests": [],
         "vm_tests_override": null
     },
@@ -24655,208 +25646,6 @@
         "_template": "unittest_stress",
         "boards": [
             "veyron_rialto"
-        ],
-        "internal": true,
-        "manifest": "official.xml",
-        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
-        "overlays": "both",
-        "useflags": [
-            "chrome_internal"
-        ]
-    },
-    "veyron_shark-chrome-pfq": {
-        "_template": "chrome_pfq",
-        "boards": [
-            "veyron_shark"
-        ],
-        "important": false,
-        "manifest": "official.xml",
-        "vm_tests": []
-    },
-    "veyron_shark-chromium-pfq": {
-        "_template": "chromium_pfq",
-        "boards": [
-            "veyron_shark"
-        ],
-        "important": false,
-        "useflags": [
-            "-chrome_internal"
-        ],
-        "vm_tests": []
-    },
-    "veyron_shark-compile-only-pre-cq": {
-        "_template": "compile_only_pre_cq",
-        "boards": [
-            "veyron_shark"
-        ],
-        "internal": true,
-        "manifest": "official.xml",
-        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
-        "overlays": "both",
-        "useflags": [
-            "chrome_internal"
-        ]
-    },
-    "veyron_shark-full": {
-        "_template": "full",
-        "boards": [
-            "veyron_shark"
-        ],
-        "prebuilts": "public",
-        "useflags": [
-            "-chrome_internal"
-        ],
-        "vm_tests": []
-    },
-    "veyron_shark-no-vmtest-pre-cq": {
-        "_template": "no_vmtest_pre_cq",
-        "boards": [
-            "veyron_shark"
-        ],
-        "internal": true,
-        "manifest": "official.xml",
-        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
-        "overlays": "both",
-        "useflags": [
-            "chrome_internal"
-        ]
-    },
-    "veyron_shark-paladin": {
-        "_template": "paladin",
-        "boards": [
-            "veyron_shark"
-        ],
-        "description": "Commit Queue (internal)",
-        "important": false,
-        "internal": true,
-        "manifest": "official.xml",
-        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
-        "overlays": "both",
-        "prebuilts": "private",
-        "useflags": [
-            "chrome_internal"
-        ],
-        "vm_tests": [],
-        "vm_tests_override": null
-    },
-    "veyron_shark-payloads": {
-        "_template": "payloads",
-        "boards": [
-            "veyron_shark"
-        ]
-    },
-    "veyron_shark-pre-cq": {
-        "_template": "pre_cq",
-        "boards": [
-            "veyron_shark"
-        ],
-        "internal": true,
-        "manifest": "official.xml",
-        "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
-        "overlays": "both",
-        "useflags": [
-            "chrome_internal"
-        ],
-        "vm_tests": []
-    },
-    "veyron_shark-release": {
-        "_template": "release",
-        "active_waterfall": "chromeos",
-        "boards": [
-            "veyron_shark"
-        ],
-        "buildslave_type": "gce_beefy",
-        "chrome_sdk_build_chrome": false,
-        "vm_tests": [],
-        "vm_tests_override": null
-    },
-    "veyron_shark-release-afdo": {
-        "_template": "release_afdo_generate",
-        "boards": [
-            "veyron_shark"
-        ],
-        "child_configs": [
-            {
-                "_template": "release_afdo_generate",
-                "boards": [
-                    "veyron_shark"
-                ],
-                "grouped": true,
-                "name": "veyron_shark-release-afdo-generate",
-                "vm_tests": [],
-                "vm_tests_override": null
-            },
-            {
-                "_template": "release_afdo_use",
-                "boards": [
-                    "veyron_shark"
-                ],
-                "grouped": true,
-                "name": "veyron_shark-release-afdo-use",
-                "vm_tests": [],
-                "vm_tests_override": null
-            }
-        ],
-        "vm_tests": [],
-        "vm_tests_override": null
-    },
-    "veyron_shark-release-afdo-generate": {
-        "_template": "release_afdo_generate",
-        "boards": [
-            "veyron_shark"
-        ],
-        "vm_tests": [],
-        "vm_tests_override": null
-    },
-    "veyron_shark-release-afdo-use": {
-        "_template": "release_afdo_use",
-        "boards": [
-            "veyron_shark"
-        ],
-        "vm_tests": [],
-        "vm_tests_override": null
-    },
-    "veyron_shark-tot-chrome-pfq-informational": {
-        "_template": "chrome_pfq_informational",
-        "boards": [
-            "veyron_shark"
-        ],
-        "manifest": "official.xml",
-        "vm_tests": []
-    },
-    "veyron_shark-tot-chrome-pfq-informational-gn": {
-        "_template": "chrome_pfq_informational_gn",
-        "boards": [
-            "veyron_shark"
-        ],
-        "manifest": "official.xml",
-        "vm_tests": []
-    },
-    "veyron_shark-tot-chromium-pfq-informational": {
-        "_template": "chromium_pfq_informational",
-        "boards": [
-            "veyron_shark"
-        ],
-        "useflags": [
-            "-chrome_internal"
-        ],
-        "vm_tests": []
-    },
-    "veyron_shark-tot-chromium-pfq-informational-gn": {
-        "_template": "chromium_pfq_informational_gn",
-        "boards": [
-            "veyron_shark"
-        ],
-        "useflags": [
-            "-chrome_internal",
-            "gn"
-        ],
-        "vm_tests": []
-    },
-    "veyron_shark-unittest-stress": {
-        "_template": "unittest_stress",
-        "boards": [
-            "veyron_shark"
         ],
         "internal": true,
         "manifest": "official.xml",
@@ -25555,11 +26344,14 @@
     },
     "winky-paladin": {
         "_template": "paladin",
+        "active_waterfall": "chromeos",
         "boards": [
             "winky"
         ],
         "description": "Commit Queue (internal)",
-        "important": false,
+        "hw_tests": [
+            "{\n    \"async\": false,\n    \"blocking\": false,\n    \"critical\": false,\n    \"file_bugs\": false,\n    \"max_retries\": 10,\n    \"minimum_duts\": 4,\n    \"num\": 6,\n    \"offload_failures_only\": true,\n    \"pool\": \"cq\",\n    \"priority\": \"CQ\",\n    \"retry\": true,\n    \"suite\": \"bvt-inline\",\n    \"suite_min_duts\": 0,\n    \"timeout\": 5400,\n    \"warn_only\": false\n}"
+        ],
         "internal": true,
         "manifest": "official.xml",
         "manifest_repo_url": "https://chrome-internal-review.googlesource.com/chromeos/manifest-internal",
@@ -26899,11 +27691,9 @@
     },
     "x86-mario-release": {
         "_template": "release",
-        "active_waterfall": "chromeos",
         "boards": [
             "x86-mario"
-        ],
-        "important": true
+        ]
     },
     "x86-mario-release-afdo": {
         "_template": "release_afdo_generate",

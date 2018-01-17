@@ -86,6 +86,8 @@ _NON_TELEMETRY_TEST_COMMANDS = {
         '--build_type Release',
     ],
 }
+_DISABLE_STORY_FILTER = set(_NON_TELEMETRY_TEST_COMMANDS)
+_DISABLE_STORY_FILTER.add('octane')  # Has a single story.
 
 
 class StartBisectHandler(request_handler.RequestHandler):
@@ -132,10 +134,7 @@ class StartBisectHandler(request_handler.RequestHandler):
     master_name = self.request.get('master', 'ChromiumPerf')
     internal_only = self.request.get('internal_only') == 'true'
     bisect_bot = self.request.get('bisect_bot')
-    bypass_no_repro_check = self.request.get('bypass_no_repro_check') == 'true'
     use_staging_bot = self.request.get('use_staging_bot') == 'true'
-    if use_staging_bot:
-      bisect_bot = _GuessStagingBot(master_name, bisect_bot) or bisect_bot
 
     bisect_config = GetBisectConfig(
         bisect_bot=bisect_bot,
@@ -148,9 +147,8 @@ class StartBisectHandler(request_handler.RequestHandler):
         max_time_minutes=self.request.get('max_time_minutes', 20),
         bug_id=bug_id,
         story_filter=self.request.get('story_filter'),
-        use_archive=self.request.get('use_archive'),
         bisect_mode=self.request.get('bisect_mode', 'mean'),
-        bypass_no_repro_check=bypass_no_repro_check)
+        use_staging_bot=use_staging_bot)
 
     if 'error' in bisect_config:
       return bisect_config
@@ -228,7 +226,6 @@ def _PrefillInfo(test_path):
   info = {'suite': suite.test_name}
   info['master'] = suite.master_name
   info['internal_only'] = suite.internal_only
-  info['use_archive'] = _CanDownloadBuilds(suite.master_name)
 
   info['all_bots'] = _GetAvailableBisectBots(suite.master_name)
   info['bisect_bot'] = GuessBisectBot(suite.master_name, suite.bot_name)
@@ -263,8 +260,8 @@ def _PrefillInfo(test_path):
 
 def GetBisectConfig(
     bisect_bot, master_name, suite, metric, good_revision, bad_revision,
-    repeat_count, max_time_minutes, bug_id, story_filter=None, use_archive=None,
-    bisect_mode='mean', bypass_no_repro_check=False):
+    repeat_count, max_time_minutes, bug_id, story_filter=None,
+    bisect_mode='mean', use_staging_bot=False):
   """Fills in a JSON response with the filled-in config file.
 
   Args:
@@ -278,10 +275,9 @@ def GetBisectConfig(
     repeat_count: Number of times to repeat the test.
     max_time_minutes: Max time to run the test.
     bug_id: The Chromium issue tracker bug ID.
-    use_archive: Specifies whether to use build archives or not to bisect.
-        If this is not empty or None, then we want to use archived builds.
     bisect_mode: What aspect of the test run to bisect on; possible options are
         "mean", "std_dev", and "return_code".
+    use_staging_bot: Specifies if we should redirect to a staging bot.
 
   Returns:
     A dictionary with the result; if successful, this will contain "config",
@@ -311,28 +307,30 @@ def GetBisectConfig(
       'repeat_count': str(repeat_count),
       'max_time_minutes': str(max_time_minutes),
       'bug_id': str(bug_id),
-      'builder_type': _BuilderType(master_name, use_archive),
+      'builder_type': _BuilderType(master_name),
       'target_arch': GuessTargetArch(bisect_bot),
       'bisect_mode': bisect_mode,
   }
+
+  # If 'use_staging_bot' was checked, we try to redirect to a staging bot.
+  # Do this here since we need to guess parts of the command line using the
+  # bot's name.
+  if use_staging_bot:
+    bisect_bot = _GuessStagingBot(master_name, bisect_bot) or bisect_bot
+
   config_dict['recipe_tester_name'] = bisect_bot
-  if bypass_no_repro_check:
-    config_dict['required_initial_confidence'] = '0'
   return config_dict
 
 
-def _BuilderType(master_name, use_archive):
+def _BuilderType(master_name):
   """Returns the builder_type string to use in the bisect config.
 
   Args:
     master_name: The test master name.
-    use_archive: Whether or not to use archived builds.
 
   Returns:
     A string which indicates where the builds should be obtained from.
   """
-  if not use_archive:
-    return ''
   builder_types = namespaced_stored_object.Get(_BUILDER_TYPES_KEY)
   if not builder_types or master_name not in builder_types:
     return 'perf'
@@ -392,27 +390,34 @@ def _GetAvailableBisectBots(master_name):
   return []
 
 
-def _CanDownloadBuilds(master_name):
-  """Checks whether bisecting using archives is supported."""
-  return master_name.startswith('ChromiumPerf')
-
-
 def GuessBisectBot(master_name, bot_name):
   """Returns a bisect bot name based on |bot_name| (perf_id) string."""
-  fallback = 'linux_perf_bisect'
+  platform_bot_pairs = []
   bisect_bot_map = namespaced_stored_object.Get(can_bisect.BISECT_BOT_MAP_KEY)
-  if not bisect_bot_map:
+  if bisect_bot_map:
+    for master, pairs in bisect_bot_map.iteritems():
+      if master_name.startswith(master):
+        platform_bot_pairs = pairs
+        break
+
+  fallback = 'linux_perf_bisect'
+  if not platform_bot_pairs:
+    # No bots available.
+    logging.error('No bisect bots defined for %s.', master_name)
     return fallback
+
   bot_name = bot_name.lower()
-  for master, platform_bot_pairs in bisect_bot_map.iteritems():
-    # Treat ChromiumPerfFyi (etc.) the same as ChromiumPerf.
-    if master_name.startswith(master):
-      for platform, bisect_bot in platform_bot_pairs:
-        if platform.lower() in bot_name:
-          return bisect_bot
+  for platform, bisect_bot in platform_bot_pairs:
+    if platform.lower() in bot_name:
+      return bisect_bot
+
+  for _, bisect_bot in platform_bot_pairs:
+    if bisect_bot == fallback:
+      return fallback
+
   # Nothing was found; log a warning and return a fall-back name.
   logging.warning('No bisect bot for %s/%s.', master_name, bot_name)
-  return fallback
+  return platform_bot_pairs[0][1]
 
 
 def GuessCommand(
@@ -442,7 +447,7 @@ def _GuessCommandNonTelemetry(suite, bisect_bot):
   if _GuessBrowserName(bisect_bot) == 'release_x64':
     command[0] = command[0].replace('/Release/', '/Release_x64/')
 
-  if bisect_bot.startswith('win'):
+  if bisect_bot.startswith('win') or bisect_bot.startswith('staging_win'):
     command[0] = command[0].replace('/', '\\')
     command[0] += '.exe'
   return ' '.join(command)
@@ -508,7 +513,10 @@ def GuessStoryFilter(test_path):
   """
   test_path_parts = test_path.split('/')
   suite_name, story_name = test_path_parts[2], test_path_parts[-1]
-  if suite_name in _NON_TELEMETRY_TEST_COMMANDS:
+  if any([
+      suite_name in _DISABLE_STORY_FILTER,
+      suite_name.startswith('media.') and '.html?' not in story_name,
+      suite_name.startswith('webrtc.')]):
     return ''
   test_key = utils.TestKey(test_path)
   subtest_keys = list_tests.GetTestDescendants(test_key)

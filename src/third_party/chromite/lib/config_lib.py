@@ -108,6 +108,40 @@ def IsMasterAndroidPFQ(config):
   """Returns True if this build is master Android PFQ type."""
   return config.build_type == constants.ANDROID_PFQ_TYPE and config.master
 
+def IsMasterBuild(config):
+  """Returns True if this build is master."""
+  return config.master
+
+def UseBuildbucketScheduler(config):
+  """Returns True if this build uses Buildbucket to schedule builds."""
+  return config.name in (constants.CQ_MASTER,
+                         constants.CANARY_MASTER,
+                         constants.PFQ_MASTER,
+                         constants.PRE_CQ_LAUNCHER_NAME)
+
+def RetryAlreadyStartedSlaves(config):
+  """Returns True if wants to retry slaves which already start but fail.
+
+  For a slave scheduled by Buildbucket, if the slave started cbuildbot
+  and reported status to CIDB but failed to finish, its master may
+  still want to retry the slave.
+  """
+  return config.name == constants.CQ_MASTER
+
+def GetCriticalStageForRetry(config):
+  """Returns the name of the critical stage for retry decisions.
+
+  For a slave scheduled by Buildbucket, its master may want to retry it
+  if it didn't pass the critical stage.
+  """
+  if config.name == constants.CQ_MASTER:
+    return 'CommitQueueSync'
+
+def ScheduledByBuildbucket(config):
+  """Returns True if this build is scheduled by Buildbucket."""
+  return (config.build_type == constants.PALADIN_TYPE and
+          config.name != constants.CQ_MASTER)
+
 def OverrideConfigForTrybot(build_config, options):
   """Apply trybot-specific configuration settings.
 
@@ -518,7 +552,7 @@ def DefaultSettings():
       gcc_githash=None,
 
       # Wipe and replace the board inside the chroot.
-      board_replace=True,
+      board_replace=False,
 
       # Wipe and replace chroot, but not source.
       chroot_replace=True,
@@ -1244,7 +1278,7 @@ class SiteConfig(dict):
     child_configs = [x.deepcopy().apply(grouped=True) for x in args]
     return self.Add(name, args[0], child_configs=child_configs, **kwargs)
 
-  def AddForBoards(self, suffix, boards, per_board,
+  def AddForBoards(self, suffix, boards, per_board=None,
                    template=None, *args, **kwargs):
     """Create configs for all boards in |boards|.
 
@@ -1260,7 +1294,7 @@ class SiteConfig(dict):
       config_name = '%s-%s' % (board, suffix)
 
       # Insert the per_board value as the last mixin, if it exists.
-      mixins = args
+      mixins = args + (dict(boards=[board]),)
       if per_board and board in per_board:
         mixins = mixins + (per_board[board],)
 

@@ -125,38 +125,56 @@ The types of Diagnostics are
    some sort of category - either a category of event, CPU sample, memory
    consumer, whathaveyou. Visually, they are a stacked bar chart with a single
    bar, which is spiritually a pie chart, but less misleading.
- * [RelatedValueSet](/tracing/tracing/value/diagnostics/related_value_set.html):
+ * [RelatedHistogramSet](/tracing/tracing/value/diagnostics/related_histogram_set.html):
    These are Sets of references to other Histograms. Visually, they are a set
    of HTML links which, when clicked, select the contained Histograms. The text
    content of the HTML link is the name of the referenced Histogram.
- * [RelatedValueMap](/tracing/tracing/value/diagnostics/related_value_map.html):
+ * [RelatedHistogramMap](/tracing/tracing/value/diagnostics/related_histogram_map.html):
    These are Maps from strings to references to other Histograms. Visually, they
-   are a set of HTML links similar to RelatedValueSet, but the text content of
+   are a set of HTML links similar to RelatedHistogramSet, but the text content of
    the link is the Map's string key instead of the Histogram's name. One example
    application is when a Histogram was produced not directly by a metric, but
    rather by merging together other Histograms, then it will have a
-   RelatedValueMap named 'merged from' that refers to the Histograms that were
+   RelatedHistogramMap named 'merged from' that refers to the Histograms that were
    merged by their grouping key, e.g. the telemetry story name.
  * [RelatedHistogramBreakdown](/tracing/tracing/value/diagnostics/related_histogram_breakdown.html):
-   Structurally, this is a RelatedValueMap, but conceptually and visually, this
+   Structurally, this is a RelatedHistogramMap, but conceptually and visually, this
    is a Breakdown. Whereas Breakdown's stacked bar chart derives its data from
    the numbers contained explicitly in the Breakdown, a
    RelatedHistogramBreakdown's stacked
    bar chart derives its data from the referenced Histograms' sums.
- * [IterationInfo](/tracing/tracing/value/diagnostics/iteration_info.html):
+ * [TelemetryInfo](/tracing/tracing/value/diagnostics/telemetry_info.html):
    This is automatically attached to every Histogram produced by telemetry.
    Structurally, it's a class with explicit named fields.
    Conceptually, it contains information about the origins of the trace that was
    consumed by the metric that produced the Histogram, such as the benchmark
-   name, story name, benchmark start timestamp, OS version, Chrome version, etc.
-   Visually, IterationInfos are displayed as a table.
+   name, story name, benchmark start timestamp, etc.
+   Visually, TelemetryInfos are displayed as a table.
+ * [DeviceInfo](/tracing/tracing/value/diagnostics/device_info.html):
+   This is automatically attached to every Histogram produced by buildbots.
+   Structurally, it's a class with explicit named fields. Conceptually, it
+   contains information about the machine that produced the trace that was
+   consumed by the metric that produced the Histogram, such as the OS version,
+   Chrome version, etc. Visually, DeviceInfos are displayed as a table.
+ * [RevisionInfo](/tracing/tracing/value/diagnostics/revision_info.html):
+   This is automatically attached to every Histogram produced by telemetry.
+   Structurally, it's a class with explicit named fields. Conceptually, it
+   contains ranges of revisions of the software used to produce the trace that
+   was consumed by the metric that produced the Histogram, such as the Chromium
+   revision, v8 revision, and catapult revision. Visually, RevisionInfos are
+   displayed as a table.
+ * [BuildbotInfo](/tracing/tracing/value/diagnostics/buildbot_info.html):
+   This is automatically attached to every Histogram produced by Chrome's
+   performance testing buildbots. Structurally, it's a class with explicit named
+   fields. Conceptually, it contains information about the buildbot process that
+   ran telemetry. Visually, it is displayed as a table.
  * [Scalar](/tracing/tracing/value/diagnostics/scalar.html):
    Metrics must not use this, since it is incapable of being merged. It is
    mentioned here for completeness. It wraps a ScalarNumeric, which is just a
    unitted number. This is only to allow Histograms in other parts of the trace
    viewer to display number sample diagnostics more intelligently than Generic
    can. If a metric wants to display number sample diagnostics intelligently,
-   then it should use RelatedValueSet or RelatedValueMap; if it does not want to
+   then it should use RelatedHistogramSet or RelatedHistogramMap; if it does not want to
    monitor changes in those numbers, then the TBM2 maintainers can add a
    HistogramDiagnostic that supports merging.
 
@@ -173,19 +191,36 @@ Currently, telemetry discards Histograms and Diagnostics, and only passes their
 statistics scalars to the dashboard. Histograms and their Diagnostics will be
 passed directly to the dashboard early 2017.
 
+Metrics can control which statistics are uploaded to the dashboard by passing a
+dictionary to customizeSummaryOptions() to enable or disable statistics. The
+default options are as follows:
 
-## How histogram-set-table Uses Merging and IterationInfo
+ * `avg` (average/mean): true
+ * `geometricMean`: false
+ * `std` (standard deviation): true
+ * `count` (number of samples): true
+ * `sum`: true
+ * `min`: true
+ * `max`: true
+ * `nans` (number of non-numeric samples): false
+ * `percentile`: []
+   * Unlike the other options which are booleans, percentile is an array of
+     numbers between 0 and 1. In order to upload the median, for example, a
+     metric would call `histogram.customizeSummaryOptions({percentile: [0.5]})`.
 
-The histogram-set-table element uses the fields of IterationInfo, along with the
+
+## How histogram-set-table Uses Merging and TelemetryInfo
+
+The histogram-set-table element uses the fields of TelemetryInfo, along with the
 merging capabilities of Histograms, to allow dynamic, hierarchical
 organization of histograms:
 
-* IterationInfo has mostly string/number (story name, story/set repeat count,
+* TelemetryInfo has mostly string/number (story name, story/set repeat count,
   etc.) fields and one dict field that specifies the names of any story grouping
   keys together with their histogram.
 * After loading histograms, histogram-set-table computes categories to be
   displayed by the groupby picker at the top of the UI:
-  * Categories are fields of IterationInfo that have more than one value across
+  * Categories are fields of TelemetryInfo that have more than one value across
     all histograms in the HistogramSet.
   * Instead of having one category for all story grouping keys, each grouping
     individual grouping key may be listed as a category. For example, in Page
@@ -195,5 +230,5 @@ organization of histograms:
   histograms from the bottom up. Expanding the rows of histogram-set-table, any
   leaf nodes are histograms that were loaded, and their ancestors are computed by
   merging.
-* histogram-set-table uses the "label" property of IterationInfo to define the
+* histogram-set-table uses the "label" property of TelemetryInfo to define the
   columns of the table.

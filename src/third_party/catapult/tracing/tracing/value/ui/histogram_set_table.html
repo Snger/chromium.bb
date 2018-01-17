@@ -7,6 +7,7 @@ found in the LICENSE file.
 
 <link rel="import" href="/tracing/ui/base/grouping_table_groupby_picker.html">
 <link rel="import" href="/tracing/ui/base/table.html">
+<link rel="import" href="/tracing/value/csv_builder.html">
 <link rel="import" href="/tracing/value/histogram_set.html">
 <link rel="import" href="/tracing/value/ui/histogram_set_table_row.html">
 
@@ -26,11 +27,12 @@ found in the LICENSE file.
       margin-top: 5px;
       display: flex;
       min-height: 0px;
-      overflow-y: auto;
+      overflow: auto;
     }
 
-    #histogram {
+    #help {
       display: none;
+      margin-left: 20px;
     }
 
     #zero {
@@ -81,6 +83,10 @@ found in the LICENSE file.
     #reference_column_container * {
       margin-right: 20px;
     }
+
+    #download_csv {
+      margin-right: 20px;
+    }
     </style>
 
     <div id="zero">zero Histograms</div>
@@ -101,8 +107,12 @@ found in the LICENSE file.
 
         <span id="reference_column_container"></span>
 
+        <button id="download_csv" on-click="downloadCSV_">&#11015; CSV</button>
+
         <input type="checkbox" id="show_all" on-change="onShowAllChange_" title="When unchecked, less important histograms are hidden.">
         <label for="show_all" title="When unchecked, less important histograms are hidden.">Show all</label>
+
+        <a id="help">Help</a>
       </div>
 
       <tr-ui-b-grouping-table-groupby-picker id="picker">
@@ -118,17 +128,6 @@ found in the LICENSE file.
 <script>
 'use strict';
 tr.exportTo('tr.v.ui', function() {
-  /**
-   * Returns a closure that gets a story grouping key label from a Histogram.
-   *
-   * @param {string} storyGroupingKey
-   * @return {!function(tr.v.Histogram):string}
-   */
-  function makeStoryGroupingKeyLabelGetter(storyGroupingKey) {
-    return v => tr.v.d.IterationInfo.getStoryGroupingKeyLabel(
-        v, storyGroupingKey);
-  }
-
   var getDisplayLabel = tr.v.HistogramSet.GROUPINGS.DISPLAY_LABEL.callback;
 
   var DEFAULT_POSSIBLE_GROUPS = [];
@@ -185,7 +184,7 @@ tr.exportTo('tr.v.ui', function() {
       this.addEventListener('name-cell-overflow',
           this.onNameCellOverflow_.bind(this));
       this.addEventListener('requestSelectionChange',
-          this.onRelatedValueSelected_.bind(this));
+          this.onRelatedHistogramSelected_.bind(this));
       this.$.show_all.checked = tr.b.Settings.get(SHOW_ALL_SETTINGS_KEY, false);
       this.$.picker.settingsKey = 'tr-v-ui-histogram-set-table-groupby-picker';
       this.$.picker.possibleGroups = DEFAULT_POSSIBLE_GROUPS.slice();
@@ -294,7 +293,7 @@ tr.exportTo('tr.v.ui', function() {
       this.updateContents_();
     },
 
-    onRelatedValueSelected_: function(event) {
+    onRelatedHistogramSelected_: function(event) {
       var value = event.selection;
       if (!(value instanceof tr.v.Histogram))
         return;
@@ -340,10 +339,15 @@ tr.exportTo('tr.v.ui', function() {
           found = true;
           this.$.show_all.checked = true;
           this.onShowAllChange_();
-          this.onRelatedValueSelected_(event);
+          this.onRelatedHistogramSelected_(event);
           break;
         }
       }
+    },
+
+    set helpHref(href) {
+      this.$.help.href = href;
+      this.$.help.style.display = 'inline';
     },
 
     get histograms() {
@@ -424,7 +428,8 @@ tr.exportTo('tr.v.ui', function() {
       for (var storyGroupingKey of this.storyGroupingKeys) {
         groups.push(new tr.v.HistogramGrouping(
           'storyGroupingKey_' + storyGroupingKey,
-          makeStoryGroupingKeyLabelGetter(storyGroupingKey),
+          tr.v.d.TelemetryInfo.makeStoryGroupingKeyLabelGetter(
+            storyGroupingKey),
           storyGroupingKey));
       }
 
@@ -460,8 +465,10 @@ tr.exportTo('tr.v.ui', function() {
       this.updatingContents_ = true;
 
       this.$.zero.style.display = 'none';
-      this.$.container.style.display = 'block';
+      this.$.container.style.display = 'flex';
       this.$.table.style.display = '';
+
+      this.$.container.style.maxHeight = (window.innerHeight - 16) + 'px';
 
       this.updateReferenceColumnSelector_();
       this.updateGroups_();
@@ -500,13 +507,15 @@ tr.exportTo('tr.v.ui', function() {
     get storyGroupingKeys() {
       var keys = new Set();
       for (var value of this.histograms) {
-        var iteration = tr.v.d.IterationInfo.getFromValue(value);
-        if (!(iteration instanceof tr.v.d.IterationInfo) ||
-            !iteration.storyGroupingKeys)
+        var telemetry = tr.v.d.TelemetryInfo.getFromValue(value);
+        if (!(telemetry instanceof tr.v.d.TelemetryInfo) ||
+            !telemetry.storyGroupingKeys) {
           continue;
+        }
 
-        for (var key in iteration.storyGroupingKeys)
+        for (var key in telemetry.storyGroupingKeys) {
           keys.add(key);
+        }
       }
       return [...keys.values()].sort();
     },
@@ -571,7 +580,7 @@ tr.exportTo('tr.v.ui', function() {
         var displayLabel = getDisplayLabel(value);
         startTimesForDisplayLabels[displayLabel] = Math.min(
             startTimesForDisplayLabels[displayLabel] || 0,
-            tr.v.d.IterationInfo.getField(
+            tr.v.d.TelemetryInfo.getField(
                 value, 'benchmarkStart', new Date(0)).getTime());
       }
       return startTimesForDisplayLabels;
@@ -601,9 +610,7 @@ tr.exportTo('tr.v.ui', function() {
 
       return {
         title: title,
-        value: row => {
-          return row.buildCell(displayLabel, this.referenceDisplayLabel);
-        },
+        value: row => row.buildCell(displayLabel, this.referenceDisplayLabel),
         cmp: (rowA, rowB) =>
           rowA.compareCells(rowB, displayLabel, this.referenceDisplayLabel),
       };
@@ -657,6 +664,29 @@ tr.exportTo('tr.v.ui', function() {
       }
     },
 
+    get leafHistograms() {
+      var histograms = new tr.v.HistogramSet();
+      for (var row of this.rows_) {
+        row.getLeafHistograms(histograms);
+      }
+      return histograms;
+    },
+
+    downloadCSV_: function() {
+      var anchor = document.createElement('a');
+
+      var path = window.location.pathname.split('/');
+      var basename = path[path.length - 1].split('.')[0] || 'histograms';
+      anchor.download = basename + '.csv';
+
+      var csv = new tr.v.CSVBuilder(this.leafHistograms);
+      csv.build();
+      var blob = new window.Blob([csv.toString()], {type: 'text/csv'});
+      anchor.href = window.URL.createObjectURL(blob);
+
+      anchor.click();
+    },
+
     buildColumns_: function() {
       this.columns_ = [
         {
@@ -673,7 +703,7 @@ tr.exportTo('tr.v.ui', function() {
   });
 
   return {
-    UNMERGEABLE: UNMERGEABLE,
+    UNMERGEABLE,
   };
 });
 </script>

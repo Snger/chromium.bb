@@ -927,6 +927,7 @@ class GitRepoPatch(PatchQuery):
       git.RunGit(git_repo, ['fetch', '-f', self.project_url, self.ref],
                  print_cmd=True,
                  mon_name=constants.MON_GIT_FETCH_COUNT,
+                 mon_retry_name=constants.MON_GIT_FETCH_RETRY_COUNT,
                  mon_fields=fields)
 
     return self.UpdateMetadataFromRepo(git_repo, sha1=sha1 or self.sha1)
@@ -1272,8 +1273,7 @@ class GitRepoPatch(PatchQuery):
       ChangeMatchesMultipleCheckouts if there are multiple checkouts that
       match this change.
     """
-    checkouts = manifest.FindCheckouts(self.project, self.tracking_branch,
-                                       only_patchable=True)
+    checkouts = manifest.FindCheckouts(self.project, self.tracking_branch)
     if len(checkouts) != 1:
       if len(checkouts) > 1:
         raise ChangeMatchesMultipleCheckouts(self)
@@ -1712,9 +1712,15 @@ class GerritPatch(GerritFetchOnlyPatch):
             })
 
         date = current_revision_info['commit']['committer']['date']
+        for proto in ('http', 'https', 'repo', 'sso'):
+          if proto in current_revision_info['fetch']:
+            ref = current_revision_info['fetch'][proto]['ref']
+            break
+        else:
+          raise ValueError('Missing ref info')
         patch_dict['currentPatchSet'] = {
             'approvals': approvals,
-            'ref': current_revision_info['fetch']['http']['ref'],
+            'ref': ref,
             'revision': current_revision,
             'number': str(current_revision_info['_number']),
             'date': _convert_tm(date),
@@ -1996,7 +2002,7 @@ def PrepareLocalPatches(manifest, patches):
   for patch in patches:
     project, branch = patch.split(':')
     project_patch_info = []
-    for checkout in manifest.FindCheckouts(project, only_patchable=True):
+    for checkout in manifest.FindCheckouts(project):
       tracking_branch = checkout['tracking_branch']
       project_dir = checkout.GetPath(absolute=True)
       remote = checkout['remote']

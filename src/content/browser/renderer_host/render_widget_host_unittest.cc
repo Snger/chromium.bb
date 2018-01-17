@@ -19,8 +19,10 @@
 #include "build/build_config.h"
 #include "content/browser/gpu/compositor_util.h"
 #include "content/browser/renderer_host/input/input_router_impl.h"
+#include "content/browser/renderer_host/render_view_host_delegate_view.h"
 #include "content/browser/renderer_host/render_widget_host_delegate.h"
 #include "content/browser/renderer_host/render_widget_host_view_base.h"
+#include "content/common/edit_command.h"
 #include "content/common/input/synthetic_web_input_event_builders.h"
 #include "content/common/input_messages.h"
 #include "content/common/resize_params.h"
@@ -32,6 +34,7 @@
 #include "content/test/test_render_view_host.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/display/screen.h"
+#include "ui/events/base_event_utils.h"
 #include "ui/events/blink/web_input_event_traits.h"
 #include "ui/events/keycodes/keyboard_codes.h"
 #include "ui/gfx/canvas.h"
@@ -76,7 +79,7 @@ std::string GetInputMessageTypes(MockRenderProcessHost* process) {
     const WebInputEvent* event = std::get<0>(params);
     if (i != 0)
       result += " ";
-    result += WebInputEvent::GetName(event->type);
+    result += WebInputEvent::GetName(event->type());
   }
   process->sink().ClearMessages();
   return result;
@@ -182,7 +185,7 @@ class MockRenderWidgetHost : public RenderWidgetHostImpl {
   void OnTouchEventAck(const TouchEventWithLatencyInfo& event,
                        InputEventAckState ack_result) override {
     // Sniff touch acks.
-    acked_touch_event_type_ = event.event.type;
+    acked_touch_event_type_ = event.event.type();
     RenderWidgetHostImpl::OnTouchEventAck(event, ack_result);
   }
 
@@ -259,7 +262,7 @@ class TestView : public TestRenderWidgetHostView {
   const WebTouchEvent& acked_event() const { return acked_event_; }
   int acked_event_count() const { return acked_event_count_; }
   void ClearAckedEvent() {
-    acked_event_.type = blink::WebInputEvent::Undefined;
+    acked_event_.setType(blink::WebInputEvent::Undefined);
     acked_event_count_ = 0;
   }
 
@@ -296,7 +299,7 @@ class TestView : public TestRenderWidgetHostView {
   }
   void GestureEventAck(const WebGestureEvent& event,
                        InputEventAckState ack_result) override {
-    gesture_event_type_ = event.type;
+    gesture_event_type_ = event.type();
     ack_result_ = ack_result;
   }
   gfx::Size GetPhysicalBackingSize() const override {
@@ -311,8 +314,8 @@ class TestView : public TestRenderWidgetHostView {
     // into WebInputEvent::MouseMove.)
     WebMouseEvent event =
         SyntheticWebMouseEventBuilder::Build(WebInputEvent::MouseMove);
-    event.timeStampSeconds =
-        (base::TimeTicks::Now() - base::TimeTicks()).InSecondsF();
+    event.setTimeStampSeconds(
+        ui::EventTimeStampToSeconds(ui::EventTimeForNow()));
     rwh_->input_router()->SendMouseEvent(
         MouseEventWithLatencyInfo(event, ui::LatencyInfo()));
   }
@@ -333,6 +336,30 @@ class TestView : public TestRenderWidgetHostView {
   DISALLOW_COPY_AND_ASSIGN(TestView);
 };
 
+// MockRenderViewHostDelegateView ------------------------------------------
+class MockRenderViewHostDelegateView : public RenderViewHostDelegateView {
+ public:
+  MockRenderViewHostDelegateView() = default;
+  ~MockRenderViewHostDelegateView() override = default;
+
+  int start_dragging_count() const { return start_dragging_count_; }
+
+  // RenderViewHostDelegateView:
+  void StartDragging(const DropData& drop_data,
+                     blink::WebDragOperationsMask allowed_ops,
+                     const gfx::ImageSkia& image,
+                     const gfx::Vector2d& image_offset,
+                     const DragEventSourceInfo& event_info,
+                     RenderWidgetHostImpl* source_rwh) override {
+    ++start_dragging_count_;
+  }
+
+ private:
+  int start_dragging_count_ = 0;
+
+  DISALLOW_COPY_AND_ASSIGN(MockRenderViewHostDelegateView);
+};
+
 // MockRenderWidgetHostDelegate --------------------------------------------
 
 class MockRenderWidgetHostDelegate : public RenderWidgetHostDelegate {
@@ -346,7 +373,8 @@ class MockRenderWidgetHostDelegate : public RenderWidgetHostDelegate {
         unhandled_keyboard_event_type_(WebInputEvent::Undefined),
         handle_wheel_event_(false),
         handle_wheel_event_called_(false),
-        unresponsive_timer_fired_(false) {}
+        unresponsive_timer_fired_(false),
+        render_view_host_delegate_view_(new MockRenderViewHostDelegateView()) {}
   ~MockRenderWidgetHostDelegate() override {}
 
   // Tests that make sure we ignore keyboard event acknowledgments to events we
@@ -383,6 +411,10 @@ class MockRenderWidgetHostDelegate : public RenderWidgetHostDelegate {
 
   bool unresponsive_timer_fired() const { return unresponsive_timer_fired_; }
 
+  MockRenderViewHostDelegateView* mock_delegate_view() {
+    return render_view_host_delegate_view_.get();
+  }
+
   void SetScreenInfo(const ScreenInfo& screen_info) {
     screen_info_ = screen_info;
   }
@@ -392,17 +424,21 @@ class MockRenderWidgetHostDelegate : public RenderWidgetHostDelegate {
     *screen_info = screen_info_;
   }
 
+  RenderViewHostDelegateView* GetDelegateView() override {
+    return mock_delegate_view();
+  }
+
  protected:
   bool PreHandleKeyboardEvent(const NativeWebKeyboardEvent& event,
                               bool* is_keyboard_shortcut) override {
-    prehandle_keyboard_event_type_ = event.type;
+    prehandle_keyboard_event_type_ = event.type();
     prehandle_keyboard_event_called_ = true;
     *is_keyboard_shortcut = prehandle_keyboard_event_is_shortcut_;
     return prehandle_keyboard_event_;
   }
 
   void HandleKeyboardEvent(const NativeWebKeyboardEvent& event) override {
-    unhandled_keyboard_event_type_ = event.type;
+    unhandled_keyboard_event_type_ = event.type();
     unhandled_keyboard_event_called_ = true;
   }
 
@@ -436,6 +472,9 @@ class MockRenderWidgetHostDelegate : public RenderWidgetHostDelegate {
   bool unresponsive_timer_fired_;
 
   ScreenInfo screen_info_;
+
+  std::unique_ptr<MockRenderViewHostDelegateView>
+      render_view_host_delegate_view_;
 };
 
 // RenderWidgetHostTest --------------------------------------------------------
@@ -448,7 +487,7 @@ class RenderWidgetHostTest : public testing::Test {
         handle_mouse_event_(false),
         simulated_event_time_delta_seconds_(0) {
     last_simulated_event_time_seconds_ =
-        (base::TimeTicks::Now() - base::TimeTicks()).InSecondsF();
+        ui::EventTimeStampToSeconds(ui::EventTimeForNow());
   }
   ~RenderWidgetHostTest() override {}
 
@@ -545,11 +584,17 @@ class RenderWidgetHostTest : public testing::Test {
   }
 
   void SimulateKeyboardEvent(WebInputEvent::Type type, int modifiers) {
-    WebKeyboardEvent event = SyntheticWebKeyboardEventBuilder::Build(type);
-    event.modifiers = modifiers;
-    NativeWebKeyboardEvent native_event;
-    memcpy(&native_event, &event, sizeof(event));
+    NativeWebKeyboardEvent native_event(type, modifiers,
+                                        GetNextSimulatedEventTimeSeconds());
     host_->ForwardKeyboardEvent(native_event);
+  }
+
+  void SimulateKeyboardEventWithCommands(WebInputEvent::Type type) {
+    NativeWebKeyboardEvent native_event(type, 0,
+                                        GetNextSimulatedEventTimeSeconds());
+    EditCommands commands;
+    commands.emplace_back("name", "value");
+    host_->ForwardKeyboardEventWithCommands(native_event, &commands);
   }
 
   void SimulateMouseEvent(WebInputEvent::Type type) {
@@ -589,7 +634,7 @@ class RenderWidgetHostTest : public testing::Test {
         SyntheticWebMouseEventBuilder::Build(type, x, y, modifiers);
     if (pressed)
       event.button = WebMouseEvent::Button::Left;
-    event.timeStampSeconds = GetNextSimulatedEventTimeSeconds();
+    event.setTimeStampSeconds(GetNextSimulatedEventTimeSeconds());
     host_->ForwardMouseEvent(event);
   }
 
@@ -940,6 +985,26 @@ TEST_F(RenderWidgetHostTest, IgnoreKeyEventsHandledByRenderer) {
   EXPECT_FALSE(delegate_->unhandled_keyboard_event_called());
 }
 
+TEST_F(RenderWidgetHostTest, SendEditCommandsBeforeKeyEvent) {
+  // Clear any messages unrelated to this test.
+  process_->sink().ClearMessages();
+  EXPECT_EQ(0U, process_->sink().message_count());
+
+  // Simulate a keyboard event.
+  SimulateKeyboardEventWithCommands(WebInputEvent::RawKeyDown);
+
+  // Make sure we sent commands and key event to the renderer.
+  EXPECT_EQ(2U, process_->sink().message_count());
+  EXPECT_EQ(InputMsg_SetEditCommandsForNextKeyEvent::ID,
+            process_->sink().GetMessageAt(0)->type());
+  EXPECT_EQ(InputMsg_HandleInputEvent::ID,
+            process_->sink().GetMessageAt(1)->type());
+  process_->sink().ClearMessages();
+
+  // Send the simulated response from the renderer back.
+  SendInputEventACK(WebInputEvent::RawKeyDown, INPUT_EVENT_ACK_STATE_CONSUMED);
+}
+
 TEST_F(RenderWidgetHostTest, PreHandleRawKeyDownEvent) {
   // Simulate the situation that the browser handled the key down event during
   // pre-handle phrase.
@@ -947,13 +1012,13 @@ TEST_F(RenderWidgetHostTest, PreHandleRawKeyDownEvent) {
   process_->sink().ClearMessages();
 
   // Simulate a keyboard event.
-  SimulateKeyboardEvent(WebInputEvent::RawKeyDown);
+  SimulateKeyboardEventWithCommands(WebInputEvent::RawKeyDown);
 
   EXPECT_TRUE(delegate_->prehandle_keyboard_event_called());
   EXPECT_EQ(WebInputEvent::RawKeyDown,
             delegate_->prehandle_keyboard_event_type());
 
-  // Make sure the RawKeyDown event is not sent to the renderer.
+  // Make sure the commands and key event are not sent to the renderer.
   EXPECT_EQ(0U, process_->sink().message_count());
 
   // The browser won't pre-handle a Char event.
@@ -1577,7 +1642,7 @@ void CheckLatencyInfoComponentInMessage(RenderWidgetHostProcess* process,
   const WebInputEvent* event = std::get<0>(params);
   ui::LatencyInfo latency_info = std::get<1>(params);
 
-  EXPECT_TRUE(event->type == expected_type);
+  EXPECT_TRUE(event->type() == expected_type);
   EXPECT_TRUE(latency_info.FindLatency(
       ui::INPUT_EVENT_LATENCY_BEGIN_RWH_COMPONENT, component_id, NULL));
 
@@ -1676,6 +1741,30 @@ TEST_F(RenderWidgetHostTest, ResizeParams) {
   host_->GetResizeParams(&resize_params);
   EXPECT_EQ(bounds.size(), resize_params.new_size);
   EXPECT_EQ(physical_backing_size, resize_params.physical_backing_size);
+}
+
+// Make sure no dragging occurs after renderer exited. See crbug.com/704832.
+TEST_F(RenderWidgetHostTest, RendererExitedNoDrag) {
+  host_->SetView(new TestView(host_.get()));
+
+  EXPECT_EQ(delegate_->mock_delegate_view()->start_dragging_count(), 0);
+
+  GURL http_url = GURL("http://www.domain.com/index.html");
+  DropData drop_data;
+  drop_data.url = http_url;
+  drop_data.html_base_url = http_url;
+  blink::WebDragOperationsMask drag_operation = blink::WebDragOperationEvery;
+  DragEventSourceInfo event_info;
+  host_->OnStartDragging(drop_data, drag_operation, SkBitmap(), gfx::Vector2d(),
+                         event_info);
+  EXPECT_EQ(delegate_->mock_delegate_view()->start_dragging_count(), 1);
+
+  // Simulate that renderer exited due navigation to the next page.
+  host_->RendererExited(base::TERMINATION_STATUS_NORMAL_TERMINATION, 0);
+  EXPECT_FALSE(host_->GetView());
+  host_->OnStartDragging(drop_data, drag_operation, SkBitmap(), gfx::Vector2d(),
+                         event_info);
+  EXPECT_EQ(delegate_->mock_delegate_view()->start_dragging_count(), 1);
 }
 
 class RenderWidgetHostInitialSizeTest : public RenderWidgetHostTest {

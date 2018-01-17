@@ -47,6 +47,14 @@ function geoMeanFromHistogram(h) {
   return Math.exp(sumOfLogs / count);
 }
 
+function guessFullTIRMetricName(metricName) {
+  var parts = metricName.split('/');
+  if (parts.length === 2) {
+    return metricName + '/summary';
+  }
+  return undefined;
+}
+
 function splitMetric(metricName) {
   var parts = metricName.split('/');
   var interactionName;
@@ -73,14 +81,30 @@ function valuesFromCharts(listOfCharts, metricName) {
       if (traceName) {
         if (charts.charts[chartName][traceName].type ===
             'list_of_scalar_values')
-          allValues.push(...charts.charts[chartName][traceName].values);
+          allValues.push(tr.b.Statistics.mean(
+              charts.charts[chartName][traceName].values));
         if (charts.charts[chartName][traceName].type === 'histogram')
           allValues.push(
               geoMeanFromHistogram(charts.charts[chartName][traceName]));
+        if (charts.charts[chartName][traceName].type === 'scalar')
+          allValues.push(charts.charts[chartName][traceName].value);
       }
     }
   }
   return allValues;
+}
+
+function valuesFromChartsWithFallback(listOfCharts, metricName) {
+  var allValues = valuesFromCharts(listOfCharts, metricName);
+  if (allValues.length > 0)
+    return allValues;
+
+  // If this had a tir_label, the "summary" part may have been stripped by
+  // the dashboard during upload. We can re-add it here.
+  var fullMetricName = guessFullTIRMetricName(metricName);
+  if (!fullMetricName)
+    return [];
+  return valuesFromCharts(listOfCharts, fullMetricName);
 }
 
 function rawValuesByMetricName(valueSet, metricName) {
@@ -107,7 +131,7 @@ function rawValuesByMetricName(valueSet, metricName) {
   var filtered = [];
   for (var value of values) {
     if (value.name !== valueName) continue;
-    var ii = tr.v.d.IterationInfo.getFromValue(value);
+    var ii = tr.v.d.TelemetryInfo.getFromValue(value);
     if (interactionRecord) {
       var irParts = [];
       var keys = Object.keys(ii.storyGroupingKeys);
@@ -233,9 +257,9 @@ var SampleComparison = {
     var dictsA = parseFiles(aPaths);
     var dictsB = parseFiles(bPaths);
     for (var d of dictsA)
-      valueSetA.addValuesFromDicts(d);
+      valueSetA.importDicts(d);
     for (var d of dictsB)
-      valueSetB.addValuesFromDicts(d);
+      valueSetB.importDicts(d);
 
     var sampleA = rawValuesByMetricName(valueSetA, metric);
     var sampleB = rawValuesByMetricName(valueSetB, metric);
@@ -247,8 +271,8 @@ var SampleComparison = {
     var bPaths = chartPathListB.split(',');
     var chartsA = parseFiles(aPaths);
     var chartsB = parseFiles(bPaths);
-    var sampleA = valuesFromCharts(chartsA, metric);
-    var sampleB = valuesFromCharts(chartsB, metric);
+    var sampleA = valuesFromChartsWithFallback(chartsA, metric);
+    var sampleB = valuesFromChartsWithFallback(chartsB, metric);
     return buildComparisonResultOutput(sampleA, sampleB);
   }
 

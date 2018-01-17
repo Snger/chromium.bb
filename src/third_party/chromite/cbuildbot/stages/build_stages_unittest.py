@@ -13,14 +13,16 @@ from chromite.cbuildbot import buildbucket_lib
 from chromite.cbuildbot import cbuildbot_unittest
 from chromite.cbuildbot import chromeos_config
 from chromite.cbuildbot import commands
-from chromite.lib import config_lib
-from chromite.lib import constants
 from chromite.cbuildbot.stages import build_stages
 from chromite.cbuildbot.stages import generic_stages_unittest
 from chromite.lib import auth
+from chromite.lib import cidb
+from chromite.lib import config_lib
+from chromite.lib import constants
 from chromite.lib import cros_build_lib
 from chromite.lib import cros_build_lib_unittest
 from chromite.lib import cros_test_lib
+from chromite.lib import fake_cidb
 from chromite.lib import parallel
 from chromite.lib import parallel_unittest
 from chromite.lib import partial_mock
@@ -72,6 +74,18 @@ class InitSDKTest(generic_stages_unittest.RunCommandAbstractStageTestCase):
     self._PrepareFull(extra_cmd_args=['--nosdk'])
     self._Run(dir_exists=False)
     self.assertCommandContains([self.cros_sdk, '--bootstrap'])
+
+  def testBinBuildWithExistingChroot(self):
+    """Tests whether the --nosdk option works."""
+    self._PrepareFull(extra_cmd_args=['--nosdk'])
+    # Do not force chroot replacement in build config.
+    self._run._config.chroot_replace = False
+    self._run._config.separate_debug_symbols = False
+    self._run.config.useflags = ['foo']
+    self._Run(dir_exists=True)
+    self.assertCommandContains([self.cros_sdk], expected=False)
+    self.assertCommandContains(['./run_chroot_version_hooks'],
+                               enter_chroot=True, extra_env={'USE': 'foo'})
 
 
 class SetupBoardTest(generic_stages_unittest.RunCommandAbstractStageTestCase):
@@ -322,6 +336,27 @@ class CleanUpStageTest(generic_stages_unittest.StageTestCase):
                      return_value=True)
     self.PatchObject(auth.AuthorizedHttp, '__init__',
                      return_value=None)
+    self.PatchObject(buildbucket_lib.BuildbucketClient,
+                     '_GetHost',
+                     return_value=buildbucket_lib.BUILDBUCKET_TEST_HOST)
+
+    self.fake_db = fake_cidb.FakeCIDBConnection()
+    cidb.CIDBConnectionFactory.SetupMockCidb(self.fake_db)
+
+    self.fake_db.InsertBuild(
+        'test_builder', constants.WATERFALL_TRYBOT, 666, 'test_config',
+        'test_hostname',
+        status=constants.BUILDER_STATUS_INFLIGHT,
+        timeout_seconds=23456,
+        buildbucket_id='100')
+
+    self.fake_db.InsertBuild(
+        'test_builder', constants.WATERFALL_TRYBOT, 666, 'test_config',
+        'test_hostname',
+        status=constants.BUILDER_STATUS_INFLIGHT,
+        timeout_seconds=23456,
+        buildbucket_id='200')
+
     self._Prepare()
 
   def ConstructStage(self):
@@ -329,18 +364,18 @@ class CleanUpStageTest(generic_stages_unittest.StageTestCase):
 
   def testCancelObsoleteSlaveBuilds(self):
     """Test CancelObsoleteSlaveBuilds."""
-    buildbucket_id_1 = 'test_buildbucket_id_1'
-    buildbucket_id_2 = 'test_buildbucket_id_2'
+    buildbucket_id_1 = '100'
+    buildbucket_id_2 = '200'
 
     searched_builds = [{
-        'status': 'COMPLETED',
+        'status': 'STARTED',
         'id': buildbucket_id_1,
         'tags':[
             'bot_id:build265-m2',
             'build_type:tryjob',
             'master:False']
     }, {
-        'status': 'COMPLETED',
+        'status': 'STARTED',
         'id': buildbucket_id_2,
         'tags':[
             'bot_id:build265-m2',
@@ -376,6 +411,11 @@ class CleanUpStageTest(generic_stages_unittest.StageTestCase):
     stage.CancelObsoleteSlaveBuilds()
 
     self.assertEqual(cancel_mock.call_count, 1)
+
+    self.assertEqual(self.fake_db.GetBuildStatus(0)['status'],
+                     constants.BUILDER_STATUS_ABORTED)
+    self.assertEqual(self.fake_db.GetBuildStatus(1)['status'],
+                     constants.BUILDER_STATUS_INFLIGHT)
 
   def testNoObsoleteSlaveBuilds(self):
     """Test no obsolete slave builds."""

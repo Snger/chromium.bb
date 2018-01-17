@@ -24,6 +24,30 @@ tr.exportTo('tr.v', function() {
 
   var MERGED_FROM_DIAGNOSTIC_KEY = 'merged from';
 
+  /**
+   * Converts the given percent to a string in the format specified above.
+   * @param {number} percent The percent must be between 0.0 and 1.0.
+   * @return {string}
+   */
+  function percentToString(percent) {
+    if (percent < 0 || percent > 1)
+      throw new Error('Percent must be between 0.0 and 1.0');
+    switch (percent) {
+      case 0:
+        return '000';
+      case 1:
+        return '100';
+    }
+    var str = percent.toString();
+    if (str[1] !== '.')
+      throw new Error('Unexpected percent');
+    // Pad short strings with zeros.
+    str = str + '0'.repeat(Math.max(4 - str.length, 0));
+    if (str.length > 4)
+      str = str.slice(0, 4) + '_' + str.slice(4);
+    return '0' + str.slice(2);
+  }
+
   class HistogramBin {
     /**
      * @param {!tr.b.Range} range
@@ -127,7 +151,6 @@ tr.exportTo('tr.v', function() {
       this.allBins = [];
       this.description = '';
       this.diagnostics = new tr.v.d.DiagnosticMap();
-      this.maxCount_ = 0;
       this.name_ = name;
       this.nanDiagnosticMaps = [];
       this.numNans = 0;
@@ -202,9 +225,6 @@ tr.exportTo('tr.v', function() {
           });
         }
       }
-      for (var bin of hist.allBins) {
-        hist.maxCount_ = Math.max(hist.maxCount_, bin.count);
-      }
       if (dict.running) {
         hist.running_ = tr.b.RunningStatistics.fromDict(dict.running);
       }
@@ -228,29 +248,6 @@ tr.exportTo('tr.v', function() {
       return hist;
     }
 
-    /**
-     * Build a Histogram from a set of samples in order to effectively merge a
-     * set of ScalarNumerics.
-     * The range of the resulting histogram is determined by the smallest and
-     * largest sample value, which is unpredictable.
-     * https://github.com/catapult-project/catapult/issues/2685
-     *
-     * @param {!tr.b.Unit} unit
-     * @param {!Array.<number>} samples
-     * @return {!Histogram}
-     */
-    static buildFromSamples(unit, samples) {
-      var boundaries = HistogramBinBoundaries.createFromSamples(samples);
-      var result = new Histogram(unit, boundaries);
-      result.maxNumSampleValues = 1000;
-
-      // TODO(eakuefner): Propagate diagnosticMaps?
-      for (var sample of samples)
-        result.addSample(sample);
-
-      return result;
-    }
-
     get numValues() {
       return this.running_ ? this.running_.count : 0;
     }
@@ -269,10 +266,6 @@ tr.exportTo('tr.v', function() {
 
     get sum() {
       return this.running_ ? this.running_.sum : 0;
-    }
-
-    get maxCount() {
-      return this.maxCount_;
     }
 
     /**
@@ -332,23 +325,22 @@ tr.exportTo('tr.v', function() {
       var valuesToSkip = Math.floor((this.numValues - 1) * percent);
       for (var bin of this.allBins) {
         valuesToSkip -= bin.count;
-        if (valuesToSkip < 0) {
-          if (bin.range.min === -Number.MAX_VALUE) {
-            return bin.range.max;
-          } else if (bin.range.max === Number.MAX_VALUE) {
-            return bin.range.min;
-          } else {
-            return bin.range.center;
-          }
+        if (valuesToSkip >= 0) continue;
+        if (bin.range.min === -Number.MAX_VALUE) {
+          return bin.range.max;
+        } else if (bin.range.max === Number.MAX_VALUE) {
+          return bin.range.min;
+        } else {
+          return bin.range.center;
         }
       }
-      throw new Error('Unreachable');
+      return this.allBins[this.allBins.length - 1].range.min;
     }
 
     getBinForValue(value) {
       // Don't use subtraction to avoid arithmetic overflow.
       var binIndex = tr.b.findHighIndexInSortedArray(
-          this.allBins, b => value < b.range.max ? -1 : 1);
+          this.allBins, b => ((value < b.range.max) ? -1 : 1));
       return this.allBins[binIndex] || this.allBins[this.allBins.length - 1];
     }
 
@@ -377,8 +369,6 @@ tr.exportTo('tr.v', function() {
         bin.addSample(value);
         if (opt_diagnostics)
           bin.addDiagnosticMap(opt_diagnostics);
-        if (bin.count > this.maxCount_)
-          this.maxCount_ = bin.count;
       }
 
       tr.b.Statistics.uniformlySampleStream(this.sampleValues_,
@@ -462,7 +452,7 @@ tr.exportTo('tr.v', function() {
 
       var mergedFrom = this.diagnostics.get(MERGED_FROM_DIAGNOSTIC_KEY);
       if (!mergedFrom) {
-        mergedFrom = new tr.v.d.RelatedValueSet();
+        mergedFrom = new tr.v.d.RelatedHistogramSet();
         this.diagnostics.set(MERGED_FROM_DIAGNOSTIC_KEY, mergedFrom);
       }
       mergedFrom.add(other);
@@ -502,28 +492,6 @@ tr.exportTo('tr.v', function() {
             return 'mean';
         }
         return stat;
-      }
-      /**
-       * Converts the given percent to a string in the format specified above.
-       * @param {number} percent The percent must be between 0.0 and 1.0.
-       */
-      function percentToString(percent) {
-        if (percent < 0 || percent > 1)
-          throw new Error('Percent must be between 0.0 and 1.0');
-        switch (percent) {
-          case 0:
-            return '000';
-          case 1:
-            return '100';
-        }
-        var str = percent.toString();
-        if (str[1] !== '.')
-          throw new Error('Unexpected percent');
-        // Pad short strings with zeros.
-        str = str + '0'.repeat(Math.max(4 - str.length, 0));
-        if (str.length > 4)
-          str = str.slice(0, 4) + '_' + str.slice(4);
-        return '0' + str.slice(2);
       }
 
       var results = new Map();
@@ -760,27 +728,6 @@ tr.exportTo('tr.v', function() {
       var builder = new HistogramBinBoundaries(binBoundaries[0]);
       for (var boundary of binBoundaries.slice(1))
         builder.addBinBoundary(boundary);
-      return builder;
-    }
-
-    static createFromSamples(samples) {
-      var range = new tr.b.Range();
-      // Prevent non-numeric samples from introducing NaNs into the range.
-      for (var sample of samples)
-        if (!isNaN(Math.max(sample)))
-          range.addValue(sample);
-
-      // HistogramBinBoundaries.addLinearBins() requires this.
-      if (range.isEmpty)
-        range.addValue(1);
-      if (range.min === range.max)
-        range.addValue(range.min - 1);
-
-      // This optimizes the resolution when samples are uniformly distributed
-      // (which is almost never the case).
-      var numBins = Math.ceil(Math.sqrt(samples.length));
-      var builder = new HistogramBinBoundaries(range.min);
-      builder.addLinearBins(range.max, numBins);
       return builder;
     }
 
@@ -1089,10 +1036,15 @@ tr.exportTo('tr.v', function() {
       tr.b.Unit.byName.count.unitName,
       HistogramBinBoundaries.createExponential(1, 1e3, 20));
 
+  DEFAULT_BOUNDARIES_FOR_UNIT.set(
+      tr.b.Unit.byName.sigma.unitName,
+      HistogramBinBoundaries.createLinear(-5, 5, 50));
+
   return {
-    Histogram: Histogram,
-    HistogramBinBoundaries: HistogramBinBoundaries,
-    MERGED_FROM_DIAGNOSTIC_KEY: MERGED_FROM_DIAGNOSTIC_KEY
+    Histogram,
+    HistogramBinBoundaries,
+    MERGED_FROM_DIAGNOSTIC_KEY,
+    percentToString,
   };
 });
 </script>

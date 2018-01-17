@@ -16,6 +16,7 @@ import logging
 import multiprocessing
 import os
 import posixpath
+import pprint
 import re
 import shutil
 import stat
@@ -72,12 +73,14 @@ _RESTART_ADBD_SCRIPT = """
 
 # Not all permissions can be set.
 _PERMISSIONS_BLACKLIST = [
+    'android.permission.ACCESS_LOCATION_EXTRA_COMMANDS',
     'android.permission.ACCESS_MOCK_LOCATION',
     'android.permission.ACCESS_NETWORK_STATE',
     'android.permission.ACCESS_WIFI_STATE',
     'android.permission.AUTHENTICATE_ACCOUNTS',
     'android.permission.BLUETOOTH',
     'android.permission.BLUETOOTH_ADMIN',
+    'android.permission.DISABLE_KEYGUARD',
     'android.permission.DOWNLOAD_WITHOUT_NOTIFICATION',
     'android.permission.INTERNET',
     'android.permission.MANAGE_ACCOUNTS',
@@ -497,15 +500,11 @@ class DeviceUtils(object):
     apks = []
     for line in output:
       if not line.startswith('package:'):
-        # KitKat on x86 may show following warnings that is safe to ignore.
-        if (line.startswith('WARNING: linker: libdvm.so has text relocations.')
-            and version_codes.KITKAT <= self.build_version_sdk
-            and self.build_version_sdk <= version_codes.KITKAT_WATCH
-            and self.product_cpu_abi == 'x86'):
-          continue
-        raise device_errors.CommandFailedError(
-            'pm path returned: %r' % '\n'.join(output), str(self))
+        continue
       apks.append(line[len('package:'):])
+    if not apks and output:
+      raise device_errors.CommandFailedError(
+          'pm path returned: %r' % '\n'.join(output), str(self))
     self._cache['package_apk_paths'][package] = list(apks)
     return apks
 
@@ -702,6 +701,12 @@ class DeviceUtils(object):
         self, base_apk.path, split_apks, allow_cached_props=allow_cached_props)
       if len(all_apks) == 1:
         logger.warning('split-select did not select any from %s', split_apks)
+
+    missing_apks = [apk for apk in all_apks if not os.path.exists(apk)]
+    if missing_apks:
+      raise device_errors.CommandFailedError(
+          'Attempted to install non-existent apks: %s'
+              % pprint.pformat(missing_apks))
 
     package_name = base_apk.GetPackageName()
     device_apk_paths = self._GetApplicationPathsInternal(package_name)
@@ -1499,6 +1504,33 @@ class DeviceUtils(object):
       return True
     except device_errors.CommandFailedError:
       return False
+
+  @decorators.WithTimeoutAndRetriesFromInstance()
+  def RemovePath(self, device_path, force=False, recursive=False,
+                 as_root=False, timeout=None, retries=None):
+    """Removes the given path(s) from the device.
+
+    Args:
+      device_path: A string containing the absolute path to the file on the
+                   device, or an iterable of paths to check.
+      force: Whether to remove the path(s) with force (-f).
+      recursive: Whether to remove any directories in the path(s) recursively.
+      as_root: Whether root permissions should be use to remove the given
+               path(s).
+      timeout: timeout in seconds
+      retries: number of retries
+    """
+    args = ['rm']
+    if force:
+      args.append('-f')
+    if recursive:
+      args.append('-r')
+    if isinstance(device_path, basestring):
+      args.append(device_path)
+    else:
+      args.extend(device_path)
+    self.RunShellCommand(args, as_root=as_root, check_return=True)
+
 
   @decorators.WithTimeoutAndRetriesFromInstance()
   def PullFile(self, device_path, host_path, timeout=None, retries=None):
