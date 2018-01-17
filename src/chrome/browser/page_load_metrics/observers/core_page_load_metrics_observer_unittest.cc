@@ -10,6 +10,8 @@
 #include "chrome/test/base/testing_browser_process.h"
 #include "components/rappor/public/rappor_utils.h"
 #include "components/rappor/test_rappor_service.h"
+#include "content/public/common/browser_side_navigation_policy.h"
+#include "content/public/test/test_utils.h"
 #include "third_party/WebKit/public/platform/WebMouseEvent.h"
 
 namespace {
@@ -42,7 +44,8 @@ TEST_F(CorePageLoadMetricsObserverTest, NoMetrics) {
   histogram_tester().ExpectTotalCount(internal::kHistogramFirstTextPaint, 0);
 }
 
-TEST_F(CorePageLoadMetricsObserverTest, SamePageNoTriggerUntilTrueNavCommit) {
+TEST_F(CorePageLoadMetricsObserverTest,
+       SameDocumentNoTriggerUntilTrueNavCommit) {
   base::TimeDelta first_layout = base::TimeDelta::FromMilliseconds(1);
 
   page_load_metrics::PageLoadTiming timing;
@@ -104,6 +107,9 @@ TEST_F(CorePageLoadMetricsObserverTest, SingleMetricAfterCommit) {
       internal::kHistogramParseBlockedOnScriptExecution,
       parse_script_exec_duration.InMilliseconds(), 1);
   histogram_tester().ExpectTotalCount(internal::kHistogramFirstTextPaint, 0);
+
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramPageTimingForegroundDuration, 1);
 }
 
 TEST_F(CorePageLoadMetricsObserverTest, MultipleMetricsAfterCommits) {
@@ -260,6 +266,9 @@ TEST_F(CorePageLoadMetricsObserverTest, OnlyBackgroundLaterEvents) {
 
   histogram_tester().ExpectTotalCount(internal::kHistogramLoad, 0);
   histogram_tester().ExpectTotalCount(internal::kHistogramFirstTextPaint, 0);
+
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramPageTimingForegroundDuration, 1);
 }
 
 TEST_F(CorePageLoadMetricsObserverTest, DontBackgroundQuickerLoad) {
@@ -296,6 +305,11 @@ TEST_F(CorePageLoadMetricsObserverTest, DontBackgroundQuickerLoad) {
 }
 
 TEST_F(CorePageLoadMetricsObserverTest, FailedProvisionalLoad) {
+  if (content::IsBrowserSideNavigationEnabled() &&
+      content::AreAllSitesIsolatedForTesting()) {
+    // http://crbug.com/674734 Fix this test with PlzNavigate and Site Isolation
+    return;
+  }
   GURL url(kDefaultTestUrl);
   content::RenderFrameHostTester* rfh_tester =
       content::RenderFrameHostTester::For(main_rfh());
@@ -309,6 +323,11 @@ TEST_F(CorePageLoadMetricsObserverTest, FailedProvisionalLoad) {
   histogram_tester().ExpectTotalCount(internal::kHistogramFirstTextPaint, 0);
   histogram_tester().ExpectTotalCount(internal::kHistogramFailedProvisionalLoad,
                                       1);
+
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramPageTimingForegroundDuration, 0);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramPageTimingForegroundDurationNoCommit, 1);
 }
 
 TEST_F(CorePageLoadMetricsObserverTest, FailedBackgroundProvisionalLoad) {
@@ -390,7 +409,30 @@ TEST_F(CorePageLoadMetricsObserverTest, Reload) {
   GURL url(kDefaultTestUrl);
   NavigateWithPageTransitionAndCommit(url, ui::PAGE_TRANSITION_RELOAD);
   SimulateTimingUpdate(timing);
-  NavigateAndCommit(url);
+
+  page_load_metrics::ExtraRequestInfo resources[] = {
+      // Cached request.
+      {true /*was_cached*/, 1024 * 20 /* raw_body_bytes */,
+       0 /* original_network_content_length */,
+       nullptr /* data_reduction_proxy_data */},
+      // Uncached non-proxied request.
+      {false /*was_cached*/, 1024 * 40 /* raw_body_bytes */,
+       1024 * 40 /* original_network_content_length */,
+       nullptr /* data_reduction_proxy_data */},
+  };
+
+  int64_t network_bytes = 0;
+  int64_t cache_bytes = 0;
+  for (const auto& request : resources) {
+    SimulateLoadedResource(request);
+    if (!request.was_cached) {
+      network_bytes += request.raw_body_bytes;
+    } else {
+      cache_bytes += request.raw_body_bytes;
+    }
+  }
+
+  NavigateToUntrackedUrl();
 
   histogram_tester().ExpectTotalCount(
       internal::kHistogramLoadTypeFirstContentfulPaintReload, 1);
@@ -410,6 +452,30 @@ TEST_F(CorePageLoadMetricsObserverTest, Reload) {
       internal::kHistogramLoadTypeParseStartForwardBack, 0);
   histogram_tester().ExpectTotalCount(
       internal::kHistogramLoadTypeParseStartNewNavigation, 0);
+
+  histogram_tester().ExpectUniqueSample(
+      internal::kHistogramLoadTypeNetworkBytesReload,
+      static_cast<int>((network_bytes) / 1024), 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeNetworkBytesForwardBack, 0);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeNetworkBytesNewNavigation, 0);
+
+  histogram_tester().ExpectUniqueSample(
+      internal::kHistogramLoadTypeCacheBytesReload,
+      static_cast<int>((cache_bytes) / 1024), 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeCacheBytesForwardBack, 0);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeCacheBytesNewNavigation, 0);
+
+  histogram_tester().ExpectUniqueSample(
+      internal::kHistogramLoadTypeTotalBytesReload,
+      static_cast<int>((network_bytes + cache_bytes) / 1024), 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeTotalBytesForwardBack, 0);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeTotalBytesNewNavigation, 0);
 }
 
 TEST_F(CorePageLoadMetricsObserverTest, ForwardBack) {
@@ -428,7 +494,30 @@ TEST_F(CorePageLoadMetricsObserverTest, ForwardBack) {
       url, ui::PageTransitionFromInt(ui::PAGE_TRANSITION_RELOAD |
                                      ui::PAGE_TRANSITION_FORWARD_BACK));
   SimulateTimingUpdate(timing);
-  NavigateAndCommit(url);
+
+  page_load_metrics::ExtraRequestInfo resources[] = {
+      // Cached request.
+      {true /*was_cached*/, 1024 * 20 /* raw_body_bytes */,
+       0 /* original_network_content_length */,
+       nullptr /* data_reduction_proxy_data */},
+      // Uncached non-proxied request.
+      {false /*was_cached*/, 1024 * 40 /* raw_body_bytes */,
+       1024 * 40 /* original_network_content_length */,
+       nullptr /* data_reduction_proxy_data */},
+  };
+
+  int64_t network_bytes = 0;
+  int64_t cache_bytes = 0;
+  for (const auto& request : resources) {
+    SimulateLoadedResource(request);
+    if (!request.was_cached) {
+      network_bytes += request.raw_body_bytes;
+    } else {
+      cache_bytes += request.raw_body_bytes;
+    }
+  }
+
+  NavigateToUntrackedUrl();
 
   histogram_tester().ExpectTotalCount(
       internal::kHistogramLoadTypeFirstContentfulPaintReload, 0);
@@ -448,6 +537,30 @@ TEST_F(CorePageLoadMetricsObserverTest, ForwardBack) {
       timing.parse_start.value().InMilliseconds(), 1);
   histogram_tester().ExpectTotalCount(
       internal::kHistogramLoadTypeParseStartNewNavigation, 0);
+
+  histogram_tester().ExpectUniqueSample(
+      internal::kHistogramLoadTypeNetworkBytesForwardBack,
+      static_cast<int>((network_bytes) / 1024), 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeNetworkBytesNewNavigation, 0);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeNetworkBytesReload, 0);
+
+  histogram_tester().ExpectUniqueSample(
+      internal::kHistogramLoadTypeCacheBytesForwardBack,
+      static_cast<int>((cache_bytes) / 1024), 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeCacheBytesNewNavigation, 0);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeCacheBytesReload, 0);
+
+  histogram_tester().ExpectUniqueSample(
+      internal::kHistogramLoadTypeTotalBytesForwardBack,
+      static_cast<int>((network_bytes + cache_bytes) / 1024), 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeTotalBytesNewNavigation, 0);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeTotalBytesReload, 0);
 }
 
 TEST_F(CorePageLoadMetricsObserverTest, NewNavigation) {
@@ -460,7 +573,30 @@ TEST_F(CorePageLoadMetricsObserverTest, NewNavigation) {
   GURL url(kDefaultTestUrl);
   NavigateWithPageTransitionAndCommit(url, ui::PAGE_TRANSITION_LINK);
   SimulateTimingUpdate(timing);
-  NavigateAndCommit(url);
+
+  page_load_metrics::ExtraRequestInfo resources[] = {
+      // Cached request.
+      {true /*was_cached*/, 1024 * 20 /* raw_body_bytes */,
+       0 /* original_network_content_length */,
+       nullptr /* data_reduction_proxy_data */},
+      // Uncached non-proxied request.
+      {false /*was_cached*/, 1024 * 40 /* raw_body_bytes */,
+       1024 * 40 /* original_network_content_length */,
+       nullptr /* data_reduction_proxy_data */},
+  };
+
+  int64_t network_bytes = 0;
+  int64_t cache_bytes = 0;
+  for (const auto& request : resources) {
+    SimulateLoadedResource(request);
+    if (!request.was_cached) {
+      network_bytes += request.raw_body_bytes;
+    } else {
+      cache_bytes += request.raw_body_bytes;
+    }
+  }
+
+  NavigateToUntrackedUrl();
 
   histogram_tester().ExpectTotalCount(
       internal::kHistogramLoadTypeFirstContentfulPaintReload, 0);
@@ -480,14 +616,44 @@ TEST_F(CorePageLoadMetricsObserverTest, NewNavigation) {
   histogram_tester().ExpectBucketCount(
       internal::kHistogramLoadTypeParseStartNewNavigation,
       timing.parse_start.value().InMilliseconds(), 1);
+
+  histogram_tester().ExpectUniqueSample(
+      internal::kHistogramLoadTypeNetworkBytesNewNavigation,
+      static_cast<int>((network_bytes) / 1024), 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeNetworkBytesForwardBack, 0);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeNetworkBytesReload, 0);
+
+  histogram_tester().ExpectUniqueSample(
+      internal::kHistogramLoadTypeCacheBytesNewNavigation,
+      static_cast<int>((cache_bytes) / 1024), 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeCacheBytesForwardBack, 0);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeCacheBytesReload, 0);
+
+  histogram_tester().ExpectUniqueSample(
+      internal::kHistogramLoadTypeTotalBytesNewNavigation,
+      static_cast<int>((network_bytes + cache_bytes) / 1024), 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeTotalBytesForwardBack, 0);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramLoadTypeTotalBytesReload, 0);
 }
 
-TEST_F(CorePageLoadMetricsObserverTest, BytesCounted) {
+TEST_F(CorePageLoadMetricsObserverTest, BytesAndResourcesCounted) {
   NavigateAndCommit(GURL(kDefaultTestUrl));
   NavigateAndCommit(GURL(kDefaultTestUrl2));
   histogram_tester().ExpectTotalCount(internal::kHistogramTotalBytes, 1);
   histogram_tester().ExpectTotalCount(internal::kHistogramNetworkBytes, 1);
   histogram_tester().ExpectTotalCount(internal::kHistogramCacheBytes, 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramTotalCompletedResources, 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramNetworkCompletedResources, 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramCacheCompletedResources, 1);
 }
 
 TEST_F(CorePageLoadMetricsObserverTest, FirstMeaningfulPaint) {
@@ -520,9 +686,9 @@ TEST_F(CorePageLoadMetricsObserverTest, FirstMeaningfulPaintAfterInteraction) {
   NavigateAndCommit(GURL(kDefaultTestUrl));
   SimulateTimingUpdate(timing);
 
-  blink::WebMouseEvent mouse_event(blink::WebInputEvent::MouseDown,
-                                   blink::WebInputEvent::NoModifiers,
-                                   blink::WebInputEvent::TimeStampForTesting);
+  blink::WebMouseEvent mouse_event(blink::WebInputEvent::kMouseDown,
+                                   blink::WebInputEvent::kNoModifiers,
+                                   blink::WebInputEvent::kTimeStampForTesting);
   SimulateInputEvent(mouse_event);
 
   timing.first_meaningful_paint = base::TimeDelta::FromMilliseconds(1000);

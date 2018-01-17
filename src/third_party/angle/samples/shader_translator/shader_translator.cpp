@@ -209,6 +209,7 @@ int main(int argc, char *argv[])
                           resources.OVR_multiview = 1;
                           compileOptions |= SH_TRANSLATE_VIEWID_OVR_TO_UNIFORM;
                           break;
+                      case 'y': resources.EXT_YUV_target = 1; break;
                       default: failCode = EFailUsage;
                     }
                     // clang-format on
@@ -226,6 +227,8 @@ int main(int argc, char *argv[])
             if (spec != SH_GLES2_SPEC && spec != SH_WEBGL_SPEC)
             {
                 resources.MaxDrawBuffers = 8;
+                resources.MaxVertexTextureImageUnits = 16;
+                resources.MaxTextureImageUnits       = 16;
             }
             ShHandle compiler = 0;
             switch (FindShaderType(argv[0]))
@@ -344,7 +347,8 @@ void usage()
         "       -x=f     : enable EXT_shader_framebuffer_fetch\n"
         "       -x=n     : enable NV_shader_framebuffer_fetch\n"
         "       -x=a     : enable ARM_shader_framebuffer_fetch\n"
-        "       -x=m     : enable OVR_multiview\n");
+        "       -x=m     : enable OVR_multiview\n"
+        "       -x=y     : enable YUV_target\n");
     // clang-format on
 }
 
@@ -524,6 +528,9 @@ void PrintVariable(const std::string &prefix, size_t index, const sh::ShaderVari
           break;
 
       case GL_SAMPLER_EXTERNAL_OES: typeName = "GL_SAMPLER_EXTERNAL_OES"; break;
+      case GL_SAMPLER_EXTERNAL_2D_Y2Y_EXT:
+          typeName = "GL_SAMPLER_EXTERNAL_2D_Y2Y_EXT";
+          break;
       default: typeName = "UNKNOWN"; break;
     }
 

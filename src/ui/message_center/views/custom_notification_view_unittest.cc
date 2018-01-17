@@ -9,8 +9,13 @@
 #include "base/memory/ref_counted.h"
 #include "base/strings/utf_string_conversions.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/base/ime/dummy_text_input_client.h"
+#include "ui/base/ime/input_method.h"
+#include "ui/base/ime/text_input_client.h"
+#include "ui/compositor/scoped_animation_duration_scale_mode.h"
 #include "ui/events/event.h"
 #include "ui/events/event_utils.h"
+#include "ui/events/test/event_generator.h"
 #include "ui/message_center/notification.h"
 #include "ui/message_center/notification_delegate.h"
 #include "ui/message_center/views/custom_notification_view.h"
@@ -26,21 +31,6 @@ namespace {
 
 const SkColor kBackgroundColor = SK_ColorGREEN;
 
-std::unique_ptr<ui::GestureEvent> GenerateGestureEvent(ui::EventType type) {
-  ui::GestureEventDetails detail(type);
-  std::unique_ptr<ui::GestureEvent> event(
-      new ui::GestureEvent(0, 0, 0, base::TimeTicks(), detail));
-  return event;
-}
-
-std::unique_ptr<ui::GestureEvent> GenerateGestureHorizontalScrollUpdateEvent(
-    int dx) {
-  ui::GestureEventDetails detail(ui::ET_GESTURE_SCROLL_UPDATE, dx, 0);
-  std::unique_ptr<ui::GestureEvent> event(
-      new ui::GestureEvent(0, 0, 0, base::TimeTicks(), detail));
-  return event;
-}
-
 class TestCustomView : public views::View {
  public:
   TestCustomView() {
@@ -54,8 +44,10 @@ class TestCustomView : public views::View {
     keyboard_event_count_ = 0;
   }
 
+  void set_preferred_size(gfx::Size size) { preferred_size_ = size; }
+
   // views::View
-  gfx::Size GetPreferredSize() const override { return gfx::Size(100, 100); }
+  gfx::Size GetPreferredSize() const override { return preferred_size_; }
   bool OnMousePressed(const ui::MouseEvent& event) override {
     ++mouse_event_count_;
     return true;
@@ -68,7 +60,7 @@ class TestCustomView : public views::View {
   }
   bool OnKeyPressed(const ui::KeyEvent& event) override {
     ++keyboard_event_count_;
-    return true;
+    return false;
   }
 
   int mouse_event_count() const { return mouse_event_count_; }
@@ -77,6 +69,7 @@ class TestCustomView : public views::View {
  private:
   int mouse_event_count_ = 0;
   int keyboard_event_count_ = 0;
+  gfx::Size preferred_size_ = gfx::Size(100, 100);
 
   DISALLOW_COPY_AND_ASSIGN(TestCustomView);
 };
@@ -86,6 +79,8 @@ class TestContentViewDelegate : public CustomNotificationContentViewDelegate {
   bool IsCloseButtonFocused() const override { return false; }
   void RequestFocusOnCloseButton() override {}
   bool IsPinned() const override { return false; }
+  void UpdateControlButtonsVisibility() override {}
+  void OnSlideChanged() override {}
 };
 
 class TestNotificationDelegate : public NotificationDelegate {
@@ -143,6 +138,11 @@ class TestMessageCenterController : public MessageCenterController {
     NOTREACHED();
   }
 
+  void UpdateNotificationSize(const std::string& notification_id) override {
+    // For this test, this method should not be invoked.
+    NOTREACHED();
+  }
+
   bool IsRemoved(const std::string& notification_id) const {
     return (removed_ids_.find(notification_id) != removed_ids_.end());
   }
@@ -151,6 +151,20 @@ class TestMessageCenterController : public MessageCenterController {
   std::set<std::string> removed_ids_;
 
   DISALLOW_COPY_AND_ASSIGN(TestMessageCenterController);
+};
+
+class TestTextInputClient : public ui::DummyTextInputClient {
+ public:
+  TestTextInputClient() : ui::DummyTextInputClient(ui::TEXT_INPUT_TYPE_TEXT) {}
+
+  ui::TextInputType GetTextInputType() const override { return type_; }
+
+  void set_text_input_type(ui::TextInputType type) { type_ = type; }
+
+ private:
+  ui::TextInputType type_ = ui::TEXT_INPUT_TYPE_NONE;
+
+  DISALLOW_COPY_AND_ASSIGN(TestTextInputClient);
 };
 
 }  // namespace
@@ -183,6 +197,7 @@ class CustomNotificationViewTest : public views::ViewsTestBase {
     widget->Init(init_params);
     widget->SetContentsView(notification_view_.get());
     widget->SetSize(notification_view_->GetPreferredSize());
+    widget->Show();
   }
 
   void TearDown() override {
@@ -206,6 +221,13 @@ class CustomNotificationViewTest : public views::ViewsTestBase {
     widget()->OnMouseEvent(&released_event);
   }
 
+  void PerformKeyEvents(ui::KeyboardCode code) {
+    ui::KeyEvent event1 = ui::KeyEvent(ui::ET_KEY_PRESSED, code, ui::EF_NONE);
+    widget()->OnKeyEvent(&event1);
+    ui::KeyEvent event2 = ui::KeyEvent(ui::ET_KEY_RELEASED, code, ui::EF_NONE);
+    widget()->OnKeyEvent(&event2);
+  }
+
   void KeyPress(ui::KeyboardCode key_code) {
     ui::KeyEvent event(ui::ET_KEY_PRESSED, key_code, ui::EF_NONE);
     widget()->OnKeyEvent(&event);
@@ -215,8 +237,31 @@ class CustomNotificationViewTest : public views::ViewsTestBase {
     notification_view()->UpdateWithNotification(*notification());
   }
 
-  float GetNotificationScrollAmount() const {
-    return notification_view_->GetTransform().To2dTranslation().x();
+  float GetNotificationSlideAmount() const {
+    return notification_view_->GetSlideOutLayer()
+        ->transform()
+        .To2dTranslation()
+        .x();
+  }
+
+  void DispatchGesture(const ui::GestureEventDetails& details) {
+    ui::test::EventGenerator generator(
+        notification_view()->GetWidget()->GetNativeWindow());
+    ui::GestureEvent event(0, 0, 0, ui::EventTimeForNow(), details);
+    generator.Dispatch(&event);
+  }
+
+  void BeginScroll() {
+    DispatchGesture(ui::GestureEventDetails(ui::ET_GESTURE_SCROLL_BEGIN));
+  }
+
+  void EndScroll() {
+    DispatchGesture(ui::GestureEventDetails(ui::ET_GESTURE_SCROLL_END));
+  }
+
+  void ScrollBy(int dx) {
+    DispatchGesture(
+        ui::GestureEventDetails(ui::ET_GESTURE_SCROLL_UPDATE, dx, 0));
   }
 
   TestMessageCenterController* controller() { return &controller_; }
@@ -263,27 +308,49 @@ TEST_F(CustomNotificationViewTest, Events) {
 }
 
 TEST_F(CustomNotificationViewTest, SlideOut) {
+  ui::ScopedAnimationDurationScaleMode zero_duration_scope(
+      ui::ScopedAnimationDurationScaleMode::ZERO_DURATION);
+
   UpdateNotificationViews();
   std::string notification_id = notification()->id();
 
-  auto event_begin = GenerateGestureEvent(ui::ET_GESTURE_SCROLL_BEGIN);
-  auto event_scroll10 = GenerateGestureHorizontalScrollUpdateEvent(-10);
-  auto event_scroll500 = GenerateGestureHorizontalScrollUpdateEvent(-500);
-  auto event_end = GenerateGestureEvent(ui::ET_GESTURE_SCROLL_END);
+  BeginScroll();
+  ScrollBy(-10);
+  EXPECT_FALSE(controller()->IsRemoved(notification_id));
+  EXPECT_EQ(-10.f, GetNotificationSlideAmount());
+  EndScroll();
+  EXPECT_FALSE(controller()->IsRemoved(notification_id));
+  EXPECT_EQ(0.f, GetNotificationSlideAmount());
 
-  notification_view()->OnGestureEvent(event_begin.get());
-  notification_view()->OnGestureEvent(event_scroll10.get());
+  BeginScroll();
+  ScrollBy(-200);
   EXPECT_FALSE(controller()->IsRemoved(notification_id));
-  EXPECT_EQ(-10.f, GetNotificationScrollAmount());
-  notification_view()->OnGestureEvent(event_end.get());
-  EXPECT_FALSE(controller()->IsRemoved(notification_id));
-  EXPECT_EQ(0.f, GetNotificationScrollAmount());
+  EXPECT_EQ(-200.f, GetNotificationSlideAmount());
+  EndScroll();
+  EXPECT_TRUE(controller()->IsRemoved(notification_id));
+}
 
-  notification_view()->OnGestureEvent(event_begin.get());
-  notification_view()->OnGestureEvent(event_scroll500.get());
+TEST_F(CustomNotificationViewTest, SlideOutNested) {
+  ui::ScopedAnimationDurationScaleMode zero_duration_scope(
+      ui::ScopedAnimationDurationScaleMode::ZERO_DURATION);
+
+  UpdateNotificationViews();
+  notification_view()->SetIsNested();
+  std::string notification_id = notification()->id();
+
+  BeginScroll();
+  ScrollBy(-10);
   EXPECT_FALSE(controller()->IsRemoved(notification_id));
-  EXPECT_EQ(-500.f, GetNotificationScrollAmount());
-  notification_view()->OnGestureEvent(event_end.get());
+  EXPECT_EQ(-10.f, GetNotificationSlideAmount());
+  EndScroll();
+  EXPECT_FALSE(controller()->IsRemoved(notification_id));
+  EXPECT_EQ(0.f, GetNotificationSlideAmount());
+
+  BeginScroll();
+  ScrollBy(-200);
+  EXPECT_FALSE(controller()->IsRemoved(notification_id));
+  EXPECT_EQ(-200.f, GetNotificationSlideAmount());
+  EndScroll();
   EXPECT_TRUE(controller()->IsRemoved(notification_id));
 }
 
@@ -291,22 +358,76 @@ TEST_F(CustomNotificationViewTest, SlideOut) {
 #if defined(OS_CHROMEOS)
 
 TEST_F(CustomNotificationViewTest, SlideOutPinned) {
+  ui::ScopedAnimationDurationScaleMode zero_duration_scope(
+      ui::ScopedAnimationDurationScaleMode::ZERO_DURATION);
+
   notification()->set_pinned(true);
   UpdateNotificationViews();
   std::string notification_id = notification()->id();
 
-  auto event_begin = GenerateGestureEvent(ui::ET_GESTURE_SCROLL_BEGIN);
-  auto event_scroll500 = GenerateGestureHorizontalScrollUpdateEvent(-500);
-  auto event_end = GenerateGestureEvent(ui::ET_GESTURE_SCROLL_END);
-
-  notification_view()->OnGestureEvent(event_begin.get());
-  notification_view()->OnGestureEvent(event_scroll500.get());
+  BeginScroll();
+  ScrollBy(-200);
   EXPECT_FALSE(controller()->IsRemoved(notification_id));
-  EXPECT_LT(-500.f, GetNotificationScrollAmount());
-  notification_view()->OnGestureEvent(event_end.get());
+  EXPECT_LT(-200.f, GetNotificationSlideAmount());
+  EndScroll();
   EXPECT_FALSE(controller()->IsRemoved(notification_id));
 }
 
-#endif // defined(OS_CHROMEOS)
+#endif  // defined(OS_CHROMEOS)
+
+TEST_F(CustomNotificationViewTest, PressBackspaceKey) {
+  std::string notification_id = notification()->id();
+  custom_view()->RequestFocus();
+
+  ui::InputMethod* input_method = custom_view()->GetInputMethod();
+  ASSERT_TRUE(input_method);
+  TestTextInputClient text_input_client;
+  input_method->SetFocusedTextInputClient(&text_input_client);
+  ASSERT_EQ(&text_input_client, input_method->GetTextInputClient());
+
+  EXPECT_FALSE(controller()->IsRemoved(notification_id));
+  PerformKeyEvents(ui::VKEY_BACK);
+  EXPECT_TRUE(controller()->IsRemoved(notification_id));
+
+  input_method->SetFocusedTextInputClient(nullptr);
+}
+
+TEST_F(CustomNotificationViewTest, PressBackspaceKeyOnEditBox) {
+  std::string notification_id = notification()->id();
+  custom_view()->RequestFocus();
+
+  ui::InputMethod* input_method = custom_view()->GetInputMethod();
+  ASSERT_TRUE(input_method);
+  TestTextInputClient text_input_client;
+  input_method->SetFocusedTextInputClient(&text_input_client);
+  ASSERT_EQ(&text_input_client, input_method->GetTextInputClient());
+
+  text_input_client.set_text_input_type(ui::TEXT_INPUT_TYPE_TEXT);
+
+  EXPECT_FALSE(controller()->IsRemoved(notification_id));
+  PerformKeyEvents(ui::VKEY_BACK);
+  EXPECT_FALSE(controller()->IsRemoved(notification_id));
+
+  input_method->SetFocusedTextInputClient(nullptr);
+}
+
+TEST_F(CustomNotificationViewTest, ChangeContentHeight) {
+  // Default size.
+  gfx::Size size = notification_view()->GetPreferredSize();
+  size.Enlarge(0, -notification_view()->GetInsets().height());
+  EXPECT_EQ("360x100", size.ToString());
+
+  // Allow small notifications.
+  custom_view()->set_preferred_size(gfx::Size(10, 10));
+  size = notification_view()->GetPreferredSize();
+  size.Enlarge(0, -notification_view()->GetInsets().height());
+  EXPECT_EQ("360x10", size.ToString());
+
+  // The long notification.
+  custom_view()->set_preferred_size(gfx::Size(1000, 1000));
+  size = notification_view()->GetPreferredSize();
+  size.Enlarge(0, -notification_view()->GetInsets().height());
+  EXPECT_EQ("360x1000", size.ToString());
+}
 
 }  // namespace message_center

@@ -83,13 +83,16 @@ class HEADLESS_EXPORT HeadlessBrowserContext::Builder {
   // fetching for different network schemes.
   Builder& SetProtocolHandlers(ProtocolHandlerMap protocol_handlers);
 
-  // Specify JS mojo module bindings to be installed, one per mojom file.
-  // Note a single mojom file could potentially define many interfaces.
+  // DEPRECATED. Specify JS mojo module bindings to be installed, one per mojom
+  // file. Note a single mojom file could potentially define many interfaces.
   // |mojom_name| the name including path of the .mojom file.
   // |js_bindings| compiletime generated javascript bindings. Typically loaded
   // from gen/path/name.mojom.js.
+  // TODO(alexclarke): Remove this.
   Builder& AddJsMojoBindings(const std::string& mojom_name,
                              const std::string& js_bindings);
+
+  Builder& AddTabSocketMojoBindings();
 
   // By default if you add mojo bindings, http and https are disabled because
   // its almost certinly unsafe for arbitary sites on the internet to have
@@ -103,24 +106,19 @@ class HEADLESS_EXPORT HeadlessBrowserContext::Builder {
   Builder& EnableUnsafeNetworkAccessWithMojoBindings(
       bool enable_http_and_https_if_mojo_used);
 
-  // Set a callback that is invoked to override WebPreferences for RenderViews
-  // created within this HeadlessBrowserContext. Called whenever the
-  // WebPreferences of a RenderView change. Executed on the browser main thread.
-  //
-  // WARNING: We cannot provide any guarantees about the stability of the
-  // exposed WebPreferences API, so use with care.
-  Builder& SetOverrideWebPreferencesCallback(
-      base::Callback<void(WebPreferences*)> callback);
-
   // By default |HeadlessBrowserContext| inherits the following options from
   // the browser instance. The methods below can be used to override these
   // settings. See HeadlessBrowser::Options for their meaning.
+  Builder& SetProductNameAndVersion(
+      const std::string& product_name_and_version);
   Builder& SetUserAgent(const std::string& user_agent);
   Builder& SetProxyServer(const net::HostPortPair& proxy_server);
   Builder& SetHostResolverRules(const std::string& host_resolver_rules);
   Builder& SetWindowSize(const gfx::Size& window_size);
   Builder& SetUserDataDir(const base::FilePath& user_data_dir);
   Builder& SetIncognitoMode(bool incognito_mode);
+  Builder& SetOverrideWebPreferencesCallback(
+      base::Callback<void(WebPreferences*)> callback);
 
   HeadlessBrowserContext* Build();
 

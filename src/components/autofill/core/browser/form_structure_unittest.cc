@@ -149,7 +149,7 @@ TEST_F(FormStructureTest, AutofillCount) {
 
   // Only text and select fields that are heuristically matched are counted.
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_EQ(3U, form_structure->autofill_count());
 
   // Add a field with should_autocomplete=false. This should not be considered a
@@ -161,7 +161,7 @@ TEST_F(FormStructureTest, AutofillCount) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_EQ(4U, form_structure->autofill_count());
 }
 
@@ -196,7 +196,7 @@ TEST_F(FormStructureTest, IsAutofillable) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_FALSE(form_structure->IsAutofillable());
 
   // We now have three text fields, but only two auto-fillable fields.
@@ -211,7 +211,7 @@ TEST_F(FormStructureTest, IsAutofillable) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_FALSE(form_structure->IsAutofillable());
 
   // We now have three auto-fillable fields.
@@ -221,19 +221,19 @@ TEST_F(FormStructureTest, IsAutofillable) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
 
   // The target cannot include http(s)://*/search...
   form.action = GURL("http://google.com/search?q=hello");
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_FALSE(form_structure->IsAutofillable());
 
   // But search can be in the URL.
   form.action = GURL("http://search.com/?q=hello");
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
 }
 
@@ -334,6 +334,19 @@ TEST_F(FormStructureTest, ShouldBeParsed) {
   form.fields.push_back(field);
   form_structure.reset(new FormStructure(form));
   EXPECT_TRUE(form_structure->ShouldBeParsed());
+
+  // There are 2 fields, one of which is password, and this is an upload of
+  // a sign-in form submission, should be parsed.
+  form.fields.clear();
+  field.name = ASCIIToUTF16("username");
+  field.form_control_type = "text";
+  form.fields.push_back(field);
+  field.name = ASCIIToUTF16("pw");
+  field.form_control_type = "password";
+  form.fields.push_back(field);
+  form_structure.reset(new FormStructure(form));
+  form_structure->set_is_signin_upload(true);
+  EXPECT_TRUE(form_structure->ShouldBeParsed());
 }
 
 // Tests that ShouldBeParsed returns true for a form containing less than three
@@ -405,7 +418,7 @@ TEST_F(FormStructureTest, HeuristicsContactInfo) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
 
   // Expect the correct number of fields.
@@ -456,20 +469,29 @@ TEST_F(FormStructureTest, HeuristicsAutocompleteAttribute) {
   field.autocomplete_attribute = "email";
   form.fields.push_back(field);
 
+  field.label = base::string16();
+  field.name = ASCIIToUTF16("field4");
+  field.autocomplete_attribute = "upi-vpa";
+  form.fields.push_back(field);
+
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
+  EXPECT_TRUE(form_structure->has_author_specified_types());
+  EXPECT_TRUE(form_structure->has_author_specified_upi_vpa_hint());
 
   // Expect the correct number of fields.
-  ASSERT_EQ(3U, form_structure->field_count());
+  ASSERT_EQ(4U, form_structure->field_count());
   ASSERT_EQ(3U, form_structure->autofill_count());
 
   EXPECT_EQ(HTML_TYPE_GIVEN_NAME, form_structure->field(0)->html_type());
   EXPECT_EQ(HTML_TYPE_FAMILY_NAME, form_structure->field(1)->html_type());
   EXPECT_EQ(HTML_TYPE_EMAIL, form_structure->field(2)->html_type());
+  EXPECT_EQ(HTML_TYPE_UNRECOGNIZED, form_structure->field(3)->html_type());
   EXPECT_EQ(UNKNOWN_TYPE, form_structure->field(0)->heuristic_type());
   EXPECT_EQ(UNKNOWN_TYPE, form_structure->field(1)->heuristic_type());
   EXPECT_EQ(UNKNOWN_TYPE, form_structure->field(2)->heuristic_type());
+  EXPECT_EQ(UNKNOWN_TYPE, form_structure->field(3)->heuristic_type());
 }
 
 // Verify that the heuristics are not run for non checkout formless forms.
@@ -496,7 +518,7 @@ TEST_F(FormStructureTest, Heuristics_FormlessNonCheckoutForm) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
 
   // Expect the correct number of fields.
@@ -512,7 +534,7 @@ TEST_F(FormStructureTest, Heuristics_FormlessNonCheckoutForm) {
   form.is_form_tag = false;
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
 
   // Expect the correct number of fields.
@@ -553,7 +575,7 @@ TEST_F(FormStructureTest, StripCommonNamePrefix) {
   form.fields.push_back(field);
 
   std::unique_ptr<FormStructure> form_structure(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
 
   // Expect the correct number of fields.
@@ -593,7 +615,7 @@ TEST_F(FormStructureTest, StripCommonNamePrefix_SmallPrefix) {
   form.fields.push_back(field);
 
   std::unique_ptr<FormStructure> form_structure(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
 
   // Expect the correct number of fields.
@@ -629,7 +651,7 @@ TEST_F(FormStructureTest, IsCompleteCreditCardForm_Minimal) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   EXPECT_TRUE(form_structure->IsCompleteCreditCardForm());
 }
@@ -667,7 +689,7 @@ TEST_F(FormStructureTest, IsCompleteCreditCardForm_Full) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   EXPECT_TRUE(form_structure->IsCompleteCreditCardForm());
 }
@@ -685,7 +707,7 @@ TEST_F(FormStructureTest, IsCompleteCreditCardForm_OnlyCCNumber) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   EXPECT_FALSE(form_structure->IsCompleteCreditCardForm());
 }
@@ -726,7 +748,7 @@ TEST_F(FormStructureTest, IsCompleteCreditCardForm_AddressForm) {
   field.name = base::string16();
   form.fields.push_back(field);
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   EXPECT_FALSE(form_structure->IsCompleteCreditCardForm());
 }
@@ -756,7 +778,7 @@ TEST_F(FormStructureTest, HeuristicsAutocompleteAttributePhoneTypes) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
 
   // Expect the correct number of fields.
@@ -796,7 +818,7 @@ TEST_F(FormStructureTest,
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   EXPECT_TRUE(form_structure->ShouldBeCrowdsourced());
 
@@ -834,7 +856,7 @@ TEST_F(FormStructureTest,
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   EXPECT_TRUE(form_structure->ShouldBeCrowdsourced());
 
@@ -877,7 +899,7 @@ TEST_F(FormStructureTest,
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   EXPECT_TRUE(form_structure->ShouldBeCrowdsourced());
 
@@ -909,7 +931,7 @@ TEST_F(FormStructureTest,
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_FALSE(form_structure->IsAutofillable());
   EXPECT_FALSE(form_structure->ShouldBeCrowdsourced());
 
@@ -944,7 +966,7 @@ TEST_F(FormStructureTest,
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_FALSE(form_structure->IsAutofillable());
   EXPECT_FALSE(form_structure->ShouldBeCrowdsourced());
 
@@ -987,7 +1009,7 @@ TEST_F(FormStructureTest, PasswordFormShouldBeCrowdsourced) {
   form.fields.push_back(field);
 
   FormStructure form_structure(form);
-  form_structure.DetermineHeuristicTypes();
+  form_structure.DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure.ShouldBeCrowdsourced());
 }
 
@@ -1038,7 +1060,7 @@ TEST_F(FormStructureTest, HeuristicsAutocompleteAttributeWithSections) {
   form.fields.push_back(field);
 
   FormStructure form_structure(form);
-  form_structure.DetermineHeuristicTypes();
+  form_structure.DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure.IsAutofillable());
 
   // Expect the correct number of fields.
@@ -1083,7 +1105,7 @@ TEST_F(FormStructureTest,
   form.fields.push_back(field);
 
   FormStructure form_structure(form);
-  form_structure.DetermineHeuristicTypes();
+  form_structure.DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   // Expect the correct number of fields.
   ASSERT_EQ(6U, form_structure.field_count());
@@ -1112,7 +1134,7 @@ TEST_F(FormStructureTest, HeuristicsAutocompleteAttributeWithSectionsRepeated) {
   form.fields.push_back(field);
 
   FormStructure form_structure(form);
-  form_structure.DetermineHeuristicTypes();
+  form_structure.DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   // Expect the correct number of fields.
   ASSERT_EQ(2U, form_structure.field_count());
@@ -1149,7 +1171,7 @@ TEST_F(FormStructureTest, HeuristicsDontOverrideAutocompleteAttributeSections) {
   form.fields.push_back(field);
 
   FormStructure form_structure(form);
-  form_structure.DetermineHeuristicTypes();
+  form_structure.DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   // Expect the correct number of fields.
   ASSERT_EQ(4U, form_structure.field_count());
@@ -1213,7 +1235,7 @@ TEST_F(FormStructureTest, HeuristicsSample8) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   ASSERT_EQ(10U, form_structure->field_count());
   ASSERT_EQ(9U, form_structure->autofill_count());
@@ -1279,7 +1301,7 @@ TEST_F(FormStructureTest, HeuristicsSample6) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   ASSERT_EQ(7U, form_structure->field_count());
   ASSERT_EQ(6U, form_structure->autofill_count());
@@ -1344,7 +1366,7 @@ TEST_F(FormStructureTest, HeuristicsLabelsOnly) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   ASSERT_EQ(8U, form_structure->field_count());
   ASSERT_EQ(7U, form_structure->autofill_count());
@@ -1401,7 +1423,7 @@ TEST_F(FormStructureTest, HeuristicsCreditCardInfo) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   ASSERT_EQ(6U, form_structure->field_count());
   ASSERT_EQ(5U, form_structure->autofill_count());
@@ -1461,7 +1483,7 @@ TEST_F(FormStructureTest, HeuristicsCreditCardInfoWithUnknownCardField) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   ASSERT_EQ(7U, form_structure->field_count());
   ASSERT_EQ(5U, form_structure->autofill_count());
@@ -1508,7 +1530,7 @@ TEST_F(FormStructureTest, ThreeAddressLines) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   ASSERT_EQ(4U, form_structure->field_count());
   ASSERT_EQ(4U, form_structure->autofill_count());
@@ -1548,7 +1570,7 @@ TEST_F(FormStructureTest, SurplusAddressLinesIgnored) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   ASSERT_EQ(4U, form_structure->field_count());
   ASSERT_EQ(3U, form_structure->autofill_count());
 
@@ -1591,7 +1613,7 @@ TEST_F(FormStructureTest, ThreeAddressLinesExpedia) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   ASSERT_EQ(4U, form_structure->field_count());
   EXPECT_EQ(4U, form_structure->autofill_count());
@@ -1629,7 +1651,7 @@ TEST_F(FormStructureTest, TwoAddressLinesEbay) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   ASSERT_EQ(3U, form_structure->field_count());
   ASSERT_EQ(3U, form_structure->autofill_count());
@@ -1662,7 +1684,7 @@ TEST_F(FormStructureTest, HeuristicsStateWithProvince) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   ASSERT_EQ(3U, form_structure->field_count());
   ASSERT_EQ(3U, form_structure->autofill_count());
@@ -1728,7 +1750,7 @@ TEST_F(FormStructureTest, HeuristicsWithBilling) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   ASSERT_EQ(11U, form_structure->field_count());
   ASSERT_EQ(11U, form_structure->autofill_count());
@@ -1777,7 +1799,7 @@ TEST_F(FormStructureTest, ThreePartPhoneNumber) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
   ASSERT_EQ(4U, form_structure->field_count());
   ASSERT_EQ(4U, form_structure->autofill_count());
@@ -1822,7 +1844,7 @@ TEST_F(FormStructureTest, HeuristicsInfernoCC) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
 
   // Expect the correct number of fields.
@@ -1876,7 +1898,7 @@ TEST_F(FormStructureTest, HeuristicsInferCCNames_NamesNotFirst) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
 
   // Expect the correct number of fields.
@@ -1934,7 +1956,7 @@ TEST_F(FormStructureTest, HeuristicsInferCCNames_NamesFirst) {
   form.fields.push_back(field);
 
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
   EXPECT_TRUE(form_structure->IsAutofillable());
 
   // Expect the correct number of fields.
@@ -2117,7 +2139,7 @@ TEST_F(FormStructureTest, EncodeUploadRequest) {
   std::vector<ServerFieldTypeSet> possible_field_types;
   FormData form;
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   FormFieldData field;
   field.form_control_type = "text";
@@ -2191,15 +2213,15 @@ TEST_F(FormStructureTest, EncodeUploadRequest) {
   upload.set_action_signature(15724779818122431245U);
 
   test::FillUploadField(upload.add_field(), 3763331450U, "firstname", "text",
-                        nullptr, 3U, nullptr);
+                        nullptr, 3U);
   test::FillUploadField(upload.add_field(), 3494530716U, "lastname", "text",
-                        nullptr, 5U, nullptr);
+                        nullptr, 5U);
   test::FillUploadField(upload.add_field(), 1029417091U, "email", "email",
-                        nullptr, 9U, nullptr);
+                        nullptr, 9U);
   test::FillUploadField(upload.add_field(), 466116101U, "phone", "number",
-                        nullptr, 14U, nullptr);
+                        nullptr, 14U);
   test::FillUploadField(upload.add_field(), 2799270304U, "country",
-                        "select-one", nullptr, 36U, nullptr);
+                        "select-one", nullptr, 36U);
 
   std::string expected_upload_string;
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
@@ -2247,7 +2269,7 @@ TEST_F(FormStructureTest, EncodeUploadRequest) {
   // Create an additonal 8 fields (total of 13).
   for (int i = 0; i < 8; ++i) {
     test::FillUploadField(upload.add_field(), 509334676U, "address", "text",
-                          nullptr, 30U, nullptr);
+                          nullptr, 30U);
   }
   // Put the appropriate autofill type on the different address fields.
   upload.mutable_field(6)->set_autofill_type(31U);
@@ -2293,7 +2315,7 @@ TEST_F(FormStructureTest,
   std::vector<ServerFieldTypeSet> possible_field_types;
   FormData form;
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   FormFieldData field;
   field.label = ASCIIToUTF16("First Name");
@@ -2375,14 +2397,14 @@ TEST_F(FormStructureTest,
 
   AutofillUploadContents::Field* upload_firstname_field = upload.add_field();
   test::FillUploadField(upload_firstname_field, 4224610201U, "firstname", "",
-                        "given-name", 3U, nullptr);
+                        "given-name", 3U);
   upload_firstname_field->set_form_classifier_outcome(
       AutofillUploadContents::Field::NON_GENERATION_ELEMENT);
   upload_firstname_field->set_properties_mask(FieldPropertiesFlags::HAD_FOCUS);
 
   AutofillUploadContents::Field* upload_lastname_field = upload.add_field();
   test::FillUploadField(upload_lastname_field, 2786066110U, "lastname", "",
-                        "family-name", 5U, nullptr);
+                        "family-name", 5U);
   upload_lastname_field->set_form_classifier_outcome(
       AutofillUploadContents::Field::NON_GENERATION_ELEMENT);
   upload_lastname_field->set_properties_mask(FieldPropertiesFlags::HAD_FOCUS |
@@ -2390,7 +2412,7 @@ TEST_F(FormStructureTest,
 
   AutofillUploadContents::Field* upload_email_field = upload.add_field();
   test::FillUploadField(upload_email_field, 1029417091U, "email", "email",
-                        "email", 9U, nullptr);
+                        "email", 9U);
   upload_email_field->set_form_classifier_outcome(
       AutofillUploadContents::Field::NON_GENERATION_ELEMENT);
   upload_email_field->set_properties_mask(FieldPropertiesFlags::HAD_FOCUS |
@@ -2398,7 +2420,7 @@ TEST_F(FormStructureTest,
 
   AutofillUploadContents::Field* upload_username_field = upload.add_field();
   test::FillUploadField(upload_username_field, 239111655U, "username", "text",
-                        "email", 86U, nullptr);
+                        "email", 86U);
   upload_username_field->set_form_classifier_outcome(
       AutofillUploadContents::Field::NON_GENERATION_ELEMENT);
   upload_username_field->set_properties_mask(FieldPropertiesFlags::HAD_FOCUS |
@@ -2406,7 +2428,7 @@ TEST_F(FormStructureTest,
 
   AutofillUploadContents::Field* upload_password_field = upload.add_field();
   test::FillUploadField(upload_password_field, 2051817934U, "password",
-                        "password", "email", 76U, nullptr);
+                        "password", "email", 76U);
   upload_password_field->set_form_classifier_outcome(
       AutofillUploadContents::Field::GENERATION_ELEMENT);
   upload_password_field->set_generation_type(
@@ -2432,7 +2454,7 @@ TEST_F(FormStructureTest, EncodeUploadRequest_WithAutocomplete) {
   std::vector<ServerFieldTypeSet> possible_field_types;
   FormData form;
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   FormFieldData field;
   field.form_control_type = "text";
@@ -2480,11 +2502,11 @@ TEST_F(FormStructureTest, EncodeUploadRequest_WithAutocomplete) {
   upload.set_action_signature(15724779818122431245U);
 
   test::FillUploadField(upload.add_field(), 3763331450U, "firstname", "text",
-                        "given-name", 3U, nullptr);
+                        "given-name", 3U);
   test::FillUploadField(upload.add_field(), 3494530716U, "lastname", "text",
-                        "family-name", 5U, nullptr);
+                        "family-name", 5U);
   test::FillUploadField(upload.add_field(), 1029417091U, "email", "email",
-                        "email", 9U, nullptr);
+                        "email", 9U);
 
   std::string expected_upload_string;
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
@@ -2503,7 +2525,7 @@ TEST_F(FormStructureTest, EncodeUploadRequest_ObservedSubmissionFalse) {
   std::vector<ServerFieldTypeSet> possible_field_types;
   FormData form;
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   FormFieldData field;
   field.form_control_type = "text";
@@ -2548,11 +2570,11 @@ TEST_F(FormStructureTest, EncodeUploadRequest_ObservedSubmissionFalse) {
   upload.set_action_signature(15724779818122431245U);
 
   test::FillUploadField(upload.add_field(), 3763331450U, "firstname", "text",
-                        nullptr, 3U, nullptr);
+                        nullptr, 3U);
   test::FillUploadField(upload.add_field(), 3494530716U, "lastname", "text",
-                        nullptr, 5U, nullptr);
+                        nullptr, 5U);
   test::FillUploadField(upload.add_field(), 1029417091U, "email", "email",
-                        nullptr, 9U, nullptr);
+                        nullptr, 9U);
 
   std::string expected_upload_string;
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
@@ -2572,7 +2594,7 @@ TEST_F(FormStructureTest, EncodeUploadRequest_WithLabels) {
   std::vector<ServerFieldTypeSet> possible_field_types;
   FormData form;
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   FormFieldData field;
   field.form_control_type = "text";
@@ -2613,11 +2635,11 @@ TEST_F(FormStructureTest, EncodeUploadRequest_WithLabels) {
   upload.set_action_signature(15724779818122431245U);
 
   test::FillUploadField(upload.add_field(), 1318412689U, nullptr, "text",
-                        nullptr, 3U, nullptr);
+                        nullptr, 3U);
   test::FillUploadField(upload.add_field(), 1318412689U, nullptr, "text",
-                        nullptr, 5U, nullptr);
+                        nullptr, 5U);
   test::FillUploadField(upload.add_field(), 1318412689U, nullptr, "text",
-                        nullptr, 9U, nullptr);
+                        nullptr, 9U);
 
   std::string expected_upload_string;
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
@@ -2631,7 +2653,7 @@ TEST_F(FormStructureTest, EncodeUploadRequest_WithLabels) {
   EXPECT_EQ(expected_upload_string, encoded_upload_string);
 }
 
-TEST_F(FormStructureTest, EncodeUploadRequest_WithCssClasses) {
+TEST_F(FormStructureTest, EncodeUploadRequest_WithCssClassesAndIds) {
   std::vector<ServerFieldTypeSet> possible_field_types;
   FormData form;
 
@@ -2643,11 +2665,13 @@ TEST_F(FormStructureTest, EncodeUploadRequest_WithCssClasses) {
   possible_field_types.back().insert(NAME_FIRST);
 
   field.css_classes = ASCIIToUTF16("last_name_field");
+  field.id = ASCIIToUTF16("lastname_id");
   form.fields.push_back(field);
   possible_field_types.push_back(ServerFieldTypeSet());
   possible_field_types.back().insert(NAME_LAST);
 
   field.css_classes = ASCIIToUTF16("email_field required_field");
+  field.id = ASCIIToUTF16("email_id");
   form.fields.push_back(field);
   possible_field_types.push_back(ServerFieldTypeSet());
   possible_field_types.back().insert(EMAIL_ADDRESS);
@@ -2672,12 +2696,20 @@ TEST_F(FormStructureTest, EncodeUploadRequest_WithCssClasses) {
   upload.set_data_present("1440");
   upload.set_action_signature(15724779818122431245U);
 
-  test::FillUploadField(upload.add_field(), 1318412689U, nullptr, "text",
-                        nullptr, 3U, nullptr);
-  test::FillUploadField(upload.add_field(), 1318412689U, nullptr, "text",
-                        nullptr, 5U, "last_name_field");
-  test::FillUploadField(upload.add_field(), 1318412689U, nullptr, "text",
-                        nullptr, 9U, "email_field required_field");
+  AutofillUploadContents::Field* firstname_field = upload.add_field();
+  test::FillUploadField(firstname_field, 1318412689U, nullptr, "text", nullptr,
+                        3U);
+
+  AutofillUploadContents::Field* lastname_field = upload.add_field();
+  test::FillUploadField(lastname_field, 1318412689U, nullptr, "text", nullptr,
+                        5U);
+  lastname_field->set_id("lastname_id");
+  lastname_field->set_css_classes("last_name_field");
+
+  AutofillUploadContents::Field* email_field = upload.add_field();
+  test::FillUploadField(email_field, 1318412689U, nullptr, "text", nullptr, 9U);
+  email_field->set_id("email_id");
+  email_field->set_css_classes("email_field required_field");
 
   std::string expected_upload_string;
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
@@ -2699,7 +2731,7 @@ TEST_F(FormStructureTest, EncodeUploadRequest_WithFormName) {
   // Setting the form name which we expect to see in the upload.
   form.name = ASCIIToUTF16("myform");
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   FormFieldData field;
   field.form_control_type = "text";
@@ -2738,11 +2770,11 @@ TEST_F(FormStructureTest, EncodeUploadRequest_WithFormName) {
   upload.set_form_name("myform");
 
   test::FillUploadField(upload.add_field(), 1318412689U, nullptr, "text",
-                        nullptr, 3U, nullptr);
+                        nullptr, 3U);
   test::FillUploadField(upload.add_field(), 1318412689U, nullptr, "text",
-                        nullptr, 5U, nullptr);
+                        nullptr, 5U);
   test::FillUploadField(upload.add_field(), 1318412689U, nullptr, "text",
-                        nullptr, 9U, nullptr);
+                        nullptr, 9U);
 
   std::string expected_upload_string;
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
@@ -2761,7 +2793,7 @@ TEST_F(FormStructureTest, EncodeUploadRequestPartialMetadata) {
   std::vector<ServerFieldTypeSet> possible_field_types;
   FormData form;
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   FormFieldData field;
   field.form_control_type = "text";
@@ -2808,11 +2840,11 @@ TEST_F(FormStructureTest, EncodeUploadRequestPartialMetadata) {
   upload.set_action_signature(15724779818122431245U);
 
   test::FillUploadField(upload.add_field(), 1318412689U, nullptr, "text",
-                        nullptr, 3U, nullptr);
+                        nullptr, 3U);
   test::FillUploadField(upload.add_field(), 3494530716U, "lastname", "text",
-                        "family-name", 5U, nullptr);
+                        "family-name", 5U);
   test::FillUploadField(upload.add_field(), 1545468175U, "lastname", "email",
-                        "email", 9U, nullptr);
+                        "email", 9U);
 
   std::string expected_upload_string;
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
@@ -2834,13 +2866,14 @@ TEST_F(FormStructureTest, EncodeUploadRequest_DisabledMetadataTrial) {
   std::vector<ServerFieldTypeSet> possible_field_types;
   FormData form;
   form_structure.reset(new FormStructure(form));
-  form_structure->DetermineHeuristicTypes();
+  form_structure->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   FormFieldData field;
   field.form_control_type = "text";
 
   field.label = ASCIIToUTF16("First Name");
   field.name = ASCIIToUTF16("firstname");
+  field.id = ASCIIToUTF16("first_name");
   field.autocomplete_attribute = "given-name";
   field.css_classes = ASCIIToUTF16("class1 class2");
   form.fields.push_back(field);
@@ -2849,6 +2882,7 @@ TEST_F(FormStructureTest, EncodeUploadRequest_DisabledMetadataTrial) {
 
   field.label = ASCIIToUTF16("Last Name");
   field.name = ASCIIToUTF16("lastname");
+  field.id = ASCIIToUTF16("last_name");
   field.autocomplete_attribute = "family-name";
   field.css_classes = ASCIIToUTF16("class1 class2");
   form.fields.push_back(field);
@@ -2857,6 +2891,7 @@ TEST_F(FormStructureTest, EncodeUploadRequest_DisabledMetadataTrial) {
 
   field.label = ASCIIToUTF16("Email");
   field.name = ASCIIToUTF16("email");
+  field.id = ASCIIToUTF16("e-mail");
   field.form_control_type = "email";
   field.autocomplete_attribute = "email";
   field.css_classes = ASCIIToUTF16("class1 class2");
@@ -2884,11 +2919,11 @@ TEST_F(FormStructureTest, EncodeUploadRequest_DisabledMetadataTrial) {
   upload.set_data_present("1440");
 
   test::FillUploadField(upload.add_field(), 3763331450U, nullptr, nullptr,
-                        nullptr, 3U, nullptr);
+                        nullptr, 3U);
   test::FillUploadField(upload.add_field(), 3494530716U, nullptr, nullptr,
-                        nullptr, 5U, nullptr);
+                        nullptr, 5U);
   test::FillUploadField(upload.add_field(), 1029417091U, nullptr, nullptr,
-                        nullptr, 9U, nullptr);
+                        nullptr, 9U);
 
   std::string expected_upload_string;
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
@@ -2944,11 +2979,11 @@ TEST_F(FormStructureTest, CheckDataPresence) {
   upload.set_action_signature(15724779818122431245U);
 
   test::FillUploadField(upload.add_field(), 1089846351U, "first", "text",
-                        nullptr, 1U, nullptr);
+                        nullptr, 1U);
   test::FillUploadField(upload.add_field(), 2404144663U, "last", "text",
-                        nullptr, 1U, nullptr);
+                        nullptr, 1U);
   test::FillUploadField(upload.add_field(), 420638584U, "email", "text",
-                        nullptr, 1U, nullptr);
+                        nullptr, 1U);
 
   std::string expected_upload_string;
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
@@ -3212,13 +3247,13 @@ TEST_F(FormStructureTest, CheckMultipleTypes) {
   upload.set_action_signature(15724779818122431245U);
 
   test::FillUploadField(upload.add_field(), 420638584U, "email", "text",
-                        nullptr, 9U, nullptr);
+                        nullptr, 9U);
   test::FillUploadField(upload.add_field(), 1089846351U, "first", "text",
-                        nullptr, 3U, nullptr);
+                        nullptr, 3U);
   test::FillUploadField(upload.add_field(), 2404144663U, "last", "text",
-                        nullptr, 5U, nullptr);
+                        nullptr, 5U);
   test::FillUploadField(upload.add_field(), 509334676U, "address", "text",
-                        nullptr, 30U, nullptr);
+                        nullptr, 30U);
 
   std::string expected_upload_string;
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
@@ -3240,10 +3275,10 @@ TEST_F(FormStructureTest, CheckMultipleTypes) {
   upload.mutable_field(2)->set_autofill_type(3);
   // Replace the fourth field by the old third field.
   test::FillUploadField(upload.mutable_field(3), 2404144663U, "last", "text",
-                        nullptr, 5U, nullptr);
+                        nullptr, 5U);
   // Re-add the old fourth field.
   test::FillUploadField(upload.add_field(), 509334676U, "address", "text",
-                        nullptr, 30U, nullptr);
+                        nullptr, 30U);
 
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
 
@@ -3261,7 +3296,7 @@ TEST_F(FormStructureTest, CheckMultipleTypes) {
 
   // Adjust the expected upload proto.
   test::FillUploadField(upload.add_field(), 509334676U, "address", "text",
-                        nullptr, 31U, nullptr);
+                        nullptr, 31U);
   ASSERT_TRUE(upload.SerializeToString(&expected_upload_string));
 
   AutofillUploadContents encoded_upload3;
@@ -3759,7 +3794,7 @@ TEST_F(FormStructureTest, ParseQueryResponseAuthorDefinedTypes) {
   FormStructure form_structure(form);
   std::vector<FormStructure*> forms;
   forms.push_back(&form_structure);
-  forms.front()->DetermineHeuristicTypes();
+  forms.front()->DetermineHeuristicTypes(nullptr /* ukm_service */);
 
   AutofillQueryResponseContents response;
   response.add_field()->set_autofill_type(EMAIL_ADDRESS);

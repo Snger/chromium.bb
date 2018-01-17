@@ -2,13 +2,13 @@
   "layers": [
     {
       "name": "LayoutView #document",
-      "bounds": [2008, 2092],
+      "bounds": [2008, 2096],
       "contentsOpaque": true,
       "drawsContent": true,
       "paintInvalidations": [
         {
           "object": "LayoutView #document",
-          "rect": [0, 0, 2008, 2092],
+          "rect": [0, 0, 2008, 2096],
           "reason": "style change"
         },
         {
@@ -18,32 +18,12 @@
         },
         {
           "object": "LayoutBlockFlow BODY",
-          "rect": [8, 16, 784, 2068],
+          "rect": [8, 16, 784, 2072],
           "reason": "style change"
         },
         {
-          "object": "LayoutBlockFlow P",
-          "rect": [8, 50, 784, 18],
-          "reason": "forced by layout"
-        },
-        {
-          "object": "LayoutBlockFlow P",
-          "rect": [8, 16, 784, 18],
-          "reason": "forced by layout"
-        },
-        {
           "object": "LayoutText #text",
-          "rect": [127, 50, 390, 17],
-          "reason": "forced by layout"
-        },
-        {
-          "object": "LayoutText #text",
-          "rect": [8, 16, 348, 17],
-          "reason": "forced by layout"
-        },
-        {
-          "object": "LayoutText #text",
-          "rect": [8, 50, 120, 17],
+          "rect": [118, 52, 370, 19],
           "reason": "forced by layout"
         },
         {
@@ -55,11 +35,6 @@
           "object": "LayoutView #document",
           "rect": [785, 585, 15, 15],
           "reason": "scroll"
-        },
-        {
-          "object": "LayoutText #text",
-          "rect": [516, 50, 5, 17],
-          "reason": "forced by layout"
         }
       ]
     }

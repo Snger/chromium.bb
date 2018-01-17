@@ -6,7 +6,8 @@
 
 #include "base/auto_reset.h"
 #include "base/macros.h"
-#include "base/task_runner_util.h"
+#include "base/metrics/user_metrics.h"
+#include "base/task_scheduler/post_task.h"
 #include "base/threading/sequenced_worker_pool.h"
 #include "chrome/browser/autocomplete/autocomplete_classifier_factory.h"
 #include "chrome/browser/browser_process.h"
@@ -38,7 +39,6 @@
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/plugin_service.h"
-#include "content/public/browser/user_metrics.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/webplugininfo.h"
 #include "ipc/ipc_message.h"
@@ -353,10 +353,10 @@ void BrowserTabStripController::PerformDrop(bool drop_before,
   params.tabstrip_index = index;
 
   if (drop_before) {
-    content::RecordAction(UserMetricsAction("Tab_DropURLBetweenTabs"));
+    base::RecordAction(UserMetricsAction("Tab_DropURLBetweenTabs"));
     params.disposition = WindowOpenDisposition::NEW_FOREGROUND_TAB;
   } else {
-    content::RecordAction(UserMetricsAction("Tab_DropURLOnTab"));
+    base::RecordAction(UserMetricsAction("Tab_DropURLOnTab"));
     params.disposition = WindowOpenDisposition::CURRENT_TAB;
     params.source_contents = model_->GetWebContentsAt(index);
   }
@@ -418,13 +418,12 @@ void BrowserTabStripController::OnStoppedDraggingTabs() {
 }
 
 void BrowserTabStripController::CheckFileSupported(const GURL& url) {
-  base::PostTaskAndReplyWithResult(
-      content::BrowserThread::GetBlockingPool(),
-      FROM_HERE,
+  base::PostTaskWithTraitsAndReplyWithResult(
+      FROM_HERE, base::TaskTraits().MayBlock().WithPriority(
+                     base::TaskPriority::USER_VISIBLE),
       base::Bind(&FindURLMimeType, url),
       base::Bind(&BrowserTabStripController::OnFindURLMimeTypeCompleted,
-                 weak_ptr_factory_.GetWeakPtr(),
-                 url));
+                 weak_ptr_factory_.GetWeakPtr(), url));
 }
 
 SkColor BrowserTabStripController::GetToolbarTopSeparatorColor() const {

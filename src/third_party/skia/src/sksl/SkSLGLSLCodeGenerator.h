@@ -12,7 +12,6 @@
 #include <tuple>
 #include <unordered_map>
 
-#include "SkStream.h"
 #include "SkSLCodeGenerator.h"
 #include "ir/SkSLBinaryExpression.h"
 #include "ir/SkSLBoolLiteral.h"
@@ -34,6 +33,7 @@
 #include "ir/SkSLProgramElement.h"
 #include "ir/SkSLReturnStatement.h"
 #include "ir/SkSLStatement.h"
+#include "ir/SkSLSwitchStatement.h"
 #include "ir/SkSLSwizzle.h"
 #include "ir/SkSLTernaryExpression.h"
 #include "ir/SkSLVarDeclarations.h"
@@ -72,7 +72,7 @@ public:
     };
 
     GLSLCodeGenerator(const Context* context, const Program* program, ErrorReporter* errors,
-                      SkWStream* out)
+                      OutputStream* out)
     : INHERITED(program, errors, out)
     , fContext(*context) {}
 
@@ -85,9 +85,9 @@ private:
 
     void writeLine(const char* s);
 
-    void write(const SkString& s);
+    void write(const String& s);
 
-    void writeLine(const SkString& s);
+    void writeLine(const String& s);
 
     void writeType(const Type& type);
 
@@ -96,7 +96,7 @@ private:
     void writeInterfaceBlock(const InterfaceBlock& intf);
 
     void writeFunctionStart(const FunctionDeclaration& f);
-    
+
     void writeFunctionDeclaration(const FunctionDeclaration& f);
 
     void writeFunction(const FunctionDefinition& f);
@@ -155,11 +155,13 @@ private:
 
     void writeDoStatement(const DoStatement& d);
 
+    void writeSwitchStatement(const SwitchStatement& s);
+
     void writeReturnStatement(const ReturnStatement& r);
 
     const Context& fContext;
-    SkDynamicMemoryWStream fHeader;
-    SkString fFunctionHeader;
+    StringStream fHeader;
+    String fFunctionHeader;
     Program::Kind fProgramKind;
     int fVarCount = 0;
     int fIndentation = 0;

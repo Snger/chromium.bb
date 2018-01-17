@@ -7,9 +7,6 @@
 #ifndef NET_QUIC_TEST_TOOLS_QUIC_TEST_UTILS_H_
 #define NET_QUIC_TEST_TOOLS_QUIC_TEST_UTILS_H_
 
-#include <stddef.h>
-#include <stdint.h>
-
 #include <cstdint>
 #include <memory>
 #include <string>
@@ -17,8 +14,6 @@
 #include <vector>
 
 #include "base/macros.h"
-#include "base/strings/string_piece.h"
-#include "net/base/ip_address.h"
 #include "net/quic/core/congestion_control/loss_detection_interface.h"
 #include "net/quic/core/congestion_control/send_algorithm_interface.h"
 #include "net/quic/core/quic_client_push_promise_index.h"
@@ -26,21 +21,16 @@
 #include "net/quic/core/quic_connection_close_delegate_interface.h"
 #include "net/quic/core/quic_framer.h"
 #include "net/quic/core/quic_iovector.h"
-#include "net/quic/core/quic_packets.h"
 #include "net/quic/core/quic_sent_packet_manager.h"
 #include "net/quic/core/quic_server_session_base.h"
-#include "net/quic/core/quic_session.h"
 #include "net/quic/core/quic_simple_buffer_allocator.h"
+#include "net/quic/platform/api/quic_string_piece.h"
 #include "net/quic/test_tools/mock_clock.h"
 #include "net/quic/test_tools/mock_random.h"
-#include "net/spdy/spdy_framer.h"
 #include "net/test/gtest_util.h"
-#include "net/tools/quic/quic_dispatcher.h"
 #include "net/tools/quic/quic_per_connection_packet_writer.h"
-#include "net/tools/quic/test_tools/mock_quic_server_session_visitor.h"
+#include "net/tools/quic/test_tools/mock_quic_session_visitor.h"
 #include "testing/gmock/include/gmock/gmock.h"
-
-using base::StringPiece;
 
 // EXPECT_QUIC_BUG is like EXPECT_DFATAL, except it ensures that no DFATAL
 // logging is skipped due to exponential backoff.
@@ -73,15 +63,6 @@ QuicVersion QuicVersionMax();
 // Lower limit on versions we support.
 QuicVersion QuicVersionMin();
 
-// Returns an address for 127.0.0.1.
-IPAddress Loopback4();
-
-// Returns an address for ::1.
-IPAddress Loopback6();
-
-// Returns an address for 0.0.0.0.
-IPAddress Any4();
-
 // Create an encrypted packet for testing.
 // If versions == nullptr, uses &AllSupportedVersions().
 // Note that the packet is encrypted with NullEncrypter, so to decrypt the
@@ -89,9 +70,7 @@ IPAddress Any4();
 QuicEncryptedPacket* ConstructEncryptedPacket(
     QuicConnectionId connection_id,
     bool version_flag,
-    bool multipath_flag,
     bool reset_flag,
-    QuicPathId path_id,
     QuicPacketNumber packet_number,
     const std::string& data,
     QuicConnectionIdLength connection_id_length,
@@ -106,9 +85,7 @@ QuicEncryptedPacket* ConstructEncryptedPacket(
 QuicEncryptedPacket* ConstructEncryptedPacket(
     QuicConnectionId connection_id,
     bool version_flag,
-    bool multipath_flag,
     bool reset_flag,
-    QuicPathId path_id,
     QuicPacketNumber packet_number,
     const std::string& data,
     QuicConnectionIdLength connection_id_length,
@@ -119,9 +96,7 @@ QuicEncryptedPacket* ConstructEncryptedPacket(
 QuicEncryptedPacket* ConstructEncryptedPacket(
     QuicConnectionId connection_id,
     bool version_flag,
-    bool multipath_flag,
     bool reset_flag,
-    QuicPathId path_id,
     QuicPacketNumber packet_number,
     const std::string& data,
     QuicConnectionIdLength connection_id_length,
@@ -132,9 +107,7 @@ QuicEncryptedPacket* ConstructEncryptedPacket(
 // |versions| == nullptr.
 QuicEncryptedPacket* ConstructEncryptedPacket(QuicConnectionId connection_id,
                                               bool version_flag,
-                                              bool multipath_flag,
                                               bool reset_flag,
-                                              QuicPathId path_id,
                                               QuicPacketNumber packet_number,
                                               const std::string& data);
 
@@ -152,9 +125,7 @@ QuicReceivedPacket* ConstructReceivedPacket(
 QuicEncryptedPacket* ConstructMisFramedEncryptedPacket(
     QuicConnectionId connection_id,
     bool version_flag,
-    bool multipath_flag,
     bool reset_flag,
-    QuicPathId path_id,
     QuicPacketNumber packet_number,
     const std::string& data,
     QuicConnectionIdLength connection_id_length,
@@ -173,7 +144,6 @@ void CompareCharArraysWithHexError(const std::string& description,
 // of bytes of stream data that will fit in such a packet.
 size_t GetPacketLengthForOneStream(QuicVersion version,
                                    bool include_version,
-                                   bool include_path_id,
                                    bool include_diversification_nonce,
                                    QuicConnectionIdLength connection_id_length,
                                    QuicPacketNumberLength packet_number_length,
@@ -218,7 +188,7 @@ class QuicFlagSaver {
 };
 
 // Compute SHA-1 hash of the supplied std::string.
-std::string Sha1Hash(base::StringPiece data);
+std::string Sha1Hash(QuicStringPiece data);
 
 // Simple random number generator used to compute random numbers suitable
 // for pseudo-randomly dropping packets in tests.  It works by computing
@@ -273,7 +243,6 @@ class MockFramerVisitor : public QuicFramerVisitorInterface {
   MOCK_METHOD1(OnGoAwayFrame, bool(const QuicGoAwayFrame& frame));
   MOCK_METHOD1(OnWindowUpdateFrame, bool(const QuicWindowUpdateFrame& frame));
   MOCK_METHOD1(OnBlockedFrame, bool(const QuicBlockedFrame& frame));
-  MOCK_METHOD1(OnPathCloseFrame, bool(const QuicPathCloseFrame& frame));
   MOCK_METHOD0(OnPacketComplete, void());
 
  private:
@@ -305,7 +274,6 @@ class NoOpFramerVisitor : public QuicFramerVisitorInterface {
   bool OnGoAwayFrame(const QuicGoAwayFrame& frame) override;
   bool OnWindowUpdateFrame(const QuicWindowUpdateFrame& frame) override;
   bool OnBlockedFrame(const QuicBlockedFrame& frame) override;
-  bool OnPathCloseFrame(const QuicPathCloseFrame& frame) override;
   void OnPacketComplete() override {}
 
  private:
@@ -529,7 +497,7 @@ class MockQuicSession : public QuicSession {
                     QuicStreamOffset bytes_written));
 
   MOCK_METHOD2(OnStreamHeaders,
-               void(QuicStreamId stream_id, base::StringPiece headers_data));
+               void(QuicStreamId stream_id, QuicStringPiece headers_data));
   MOCK_METHOD2(OnStreamHeadersPriority,
                void(QuicStreamId stream_id, SpdyPriority priority));
   MOCK_METHOD3(OnStreamHeadersComplete,
@@ -590,7 +558,7 @@ class MockQuicSpdySession : public QuicSpdySession {
                     QuicStreamOffset bytes_written));
 
   MOCK_METHOD2(OnStreamHeaders,
-               void(QuicStreamId stream_id, StringPiece headers_data));
+               void(QuicStreamId stream_id, QuicStringPiece headers_data));
   MOCK_METHOD2(OnStreamHeadersPriority,
                void(QuicStreamId stream_id, SpdyPriority priority));
   MOCK_METHOD3(OnStreamHeadersComplete,
@@ -602,7 +570,7 @@ class MockQuicSpdySession : public QuicSpdySession {
                     const QuicHeaderList& header_list));
   MOCK_METHOD0(IsCryptoHandshakeConfirmed, bool());
   MOCK_METHOD2(OnPromiseHeaders,
-               void(QuicStreamId stream_id, StringPiece headers_data));
+               void(QuicStreamId stream_id, QuicStringPiece headers_data));
   MOCK_METHOD3(OnPromiseHeadersComplete,
                void(QuicStreamId stream_id,
                     QuicStreamId promised_stream_id,
@@ -672,8 +640,11 @@ class TestQuicSpdyServerSession : public QuicServerSessionBase {
   DISALLOW_COPY_AND_ASSIGN(TestQuicSpdyServerSession);
 };
 
+// A test implementation of QuicClientPushPromiseIndex::Delegate.
 class TestPushPromiseDelegate : public QuicClientPushPromiseIndex::Delegate {
  public:
+  // |match| sets the validation result for checking whether designated header
+  // fields match for promise request and client request.
   explicit TestPushPromiseDelegate(bool match);
 
   bool CheckVary(const SpdyHeaderBlock& client_request,
@@ -851,9 +822,8 @@ class MockQuicConnectionDebugVisitor : public QuicConnectionDebugVisitor {
 
   MOCK_METHOD1(OnFrameAddedToPacket, void(const QuicFrame&));
 
-  MOCK_METHOD5(OnPacketSent,
+  MOCK_METHOD4(OnPacketSent,
                void(const SerializedPacket&,
-                    QuicPathId,
                     QuicPacketNumber,
                     TransmissionType,
                     QuicTime));
@@ -1003,7 +973,7 @@ QuicHeaderList AsHeaderList(const T& container) {
 
 // Utility function that returns an QuicIOVector object wrapped around |str|.
 // // |str|'s data is stored in |iov|.
-inline QuicIOVector MakeIOVector(base::StringPiece str, struct iovec* iov) {
+inline QuicIOVector MakeIOVector(QuicStringPiece str, struct iovec* iov) {
   iov->iov_base = const_cast<char*>(str.data());
   iov->iov_len = static_cast<size_t>(str.size());
   QuicIOVector quic_iov(iov, 1, str.size());

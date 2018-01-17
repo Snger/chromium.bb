@@ -722,7 +722,7 @@ class SiteConfigTest(cros_test_lib.TestCase):
     )
 
 
-class SiteConfigFindTest(cros_test_lib.TestCase):
+class SiteConfigFindTests(cros_test_lib.TestCase):
   """Tests related to Find helpers on SiteConfig."""
 
   def testGetBoardsMockConfig(self):
@@ -740,6 +740,40 @@ class SiteConfigFindTest(cros_test_lib.TestCase):
     self.assertEqual(
         site_config.GetBoards(),
         set(['x86-generic', 'foo_board', 'bar_board', 'car_board']))
+
+  def testGetSlaveConfigMapForMasterAll(self):
+    """Test GetSlaveConfigMapForMaster, GetSlavesForMaster all slaves."""
+
+    site_config = MockSiteConfig()
+    master = site_config.Add('master', master=True, manifest_version=True,
+                             slave_configs=['slave_a', 'slave_b'])
+    slave_a = site_config.Add('slave_a', important=True)
+    slave_b = site_config.Add('slave_b', important=False)
+    site_config.Add('other')
+
+    results_map = site_config.GetSlaveConfigMapForMaster(master,
+                                                         important_only=False)
+    results_slaves = site_config.GetSlavesForMaster(master,
+                                                    important_only=False)
+
+    self.assertEqual(results_map, {'slave_a': slave_a, 'slave_b': slave_b})
+    self.assertItemsEqual(results_slaves, [slave_a, slave_b])
+
+  def testGetSlaveConfigMapForMasterImportant(self):
+    """Test GetSlaveConfigMapForMaster, GetSlavesForMaster important only."""
+
+    site_config = MockSiteConfig()
+    master = site_config.Add('master', master=True, manifest_version=True,
+                             slave_configs=['slave_a', 'slave_b'])
+    slave_a = site_config.Add('slave_a', important=True)
+    site_config.Add('slave_b', important=False)
+    site_config.Add('other')
+
+    results_map = site_config.GetSlaveConfigMapForMaster(master)
+    results_slaves = site_config.GetSlavesForMaster(master)
+
+    self.assertEqual(results_map, {'slave_a': slave_a})
+    self.assertItemsEqual(results_slaves, [slave_a])
 
 
 class OverrideForTrybotTest(cros_test_lib.TestCase):
@@ -875,24 +909,40 @@ class ConfigLibHelperTests(cros_test_lib.TestCase):
   def testUseBuildbucketScheduler(self):
     """Test UseBuildbucketScheduler."""
     cq_master_config = config_lib.BuildConfig(
-        name=constants.CQ_MASTER)
+        name=constants.CQ_MASTER,
+        active_waterfall=constants.WATERFALL_INTERNAL)
     self.assertTrue(config_lib.UseBuildbucketScheduler(
         cq_master_config))
 
     pre_cq_config = config_lib.BuildConfig(
-        name=constants.PRE_CQ_LAUNCHER_NAME)
+        name=constants.PRE_CQ_LAUNCHER_NAME,
+        active_waterfall=constants.WATERFALL_INTERNAL)
     self.assertTrue(config_lib.UseBuildbucketScheduler(
         pre_cq_config))
 
     pfq_master_config = config_lib.BuildConfig(
-        name=constants.PFQ_MASTER)
+        name=constants.PFQ_MASTER,
+        active_waterfall=constants.WATERFALL_INTERNAL)
     self.assertTrue(config_lib.UseBuildbucketScheduler(
         pfq_master_config))
 
+    toolchain_master = config_lib.BuildConfig(
+        name=constants.TOOLCHAIN_MASTTER,
+        active_waterfall=constants.WATERFALL_INTERNAL)
+    self.assertTrue(config_lib.UseBuildbucketScheduler(
+        toolchain_master))
+
     pre_cq_config = config_lib.BuildConfig(
-        name=constants.BINHOST_PRE_CQ)
+        name=constants.BINHOST_PRE_CQ,
+        active_waterfall=constants.WATERFALL_TRYBOT)
     self.assertFalse(config_lib.UseBuildbucketScheduler(
         pre_cq_config))
+
+    release_branch_config = config_lib.BuildConfig(
+        name=constants.CANARY_MASTER,
+        active_waterfall=constants.WATERFALL_RELEASE)
+    self.assertFalse(config_lib.UseBuildbucketScheduler(
+        release_branch_config))
 
   def testScheduledByBuildbucket(self):
     """Test ScheduledByBuildbucket."""
@@ -914,3 +964,12 @@ class ConfigLibHelperTests(cros_test_lib.TestCase):
 
     self.assertFalse(config_lib.ScheduledByBuildbucket(
         pfq_master_config))
+
+class GEBuildConfigTests(cros_test_lib.TestCase):
+  """Test GE build config related methods."""
+
+  def testGetArchBoardDict(self):
+    """Test GetArchBoardDict."""
+    ge_build_config = config_lib.LoadGEBuildConfigFromFile()
+    arch_board_dict = config_lib.GetArchBoardDict(ge_build_config)
+    self.assertIsNotNone(arch_board_dict)

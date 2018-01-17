@@ -31,7 +31,7 @@
 #include "bindings/core/v8/ScriptWrappable.h"
 #include "modules/indexeddb/IDBOpenDBRequest.h"
 #include "platform/heap/Handle.h"
-#include "wtf/text/WTFString.h"
+#include "platform/wtf/text/WTFString.h"
 
 namespace blink {
 
@@ -43,7 +43,7 @@ class IDBFactory final : public GarbageCollected<IDBFactory>,
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  static IDBFactory* create() { return new IDBFactory(); }
+  static IDBFactory* Create() { return new IDBFactory(); }
   DEFINE_INLINE_VIRTUAL_TRACE() {}
 
   IDBRequest* getDatabaseNames(ScriptState*, ExceptionState&);
@@ -57,6 +57,12 @@ class IDBFactory final : public GarbageCollected<IDBFactory>,
                                    const String& name,
                                    ExceptionState&);
 
+  // This is currently not exposed to the web applications and is only used by
+  // the DevTools.
+  IDBOpenDBRequest* CloseConnectionsAndDeleteDatabase(ScriptState*,
+                                                      const String& name,
+                                                      ExceptionState&);
+
   short cmp(ScriptState*,
             const ScriptValue& first,
             const ScriptValue& second,
@@ -65,10 +71,15 @@ class IDBFactory final : public GarbageCollected<IDBFactory>,
  private:
   IDBFactory();
 
-  IDBOpenDBRequest* openInternal(ScriptState*,
+  IDBOpenDBRequest* OpenInternal(ScriptState*,
                                  const String& name,
                                  int64_t version,
                                  ExceptionState&);
+
+  IDBOpenDBRequest* DeleteDatabaseInternal(ScriptState*,
+                                           const String& name,
+                                           ExceptionState&,
+                                           bool);
 };
 
 }  // namespace blink

@@ -9,6 +9,7 @@ import("//ios/build/chrome_build.gni")
 import("//ios/public/provider/chrome/browser/build_config.gni")
 
 source_set("app") {
+  configs += [ "//build/config/compiler:enable_arc" ]
   sources = [
     "deferred_initialization_runner.h",
     "deferred_initialization_runner.mm",
@@ -105,9 +106,6 @@ compile_plist("entitlements") {
   if (ios_chrome_entitlements_additions != []) {
     plist_templates += ios_chrome_entitlements_additions
   }
-  if (!ios_automatically_manage_certs) {
-    plist_templates += [ "resources/AssociatedDomains.entitlements" ]
-  }
   substitutions = [ "IOS_BUNDLE_ID_PREFIX=$ios_app_bundle_id_prefix" ]
   output_name = "$target_gen_dir/$chromium_short_name.entitlements"
 }
@@ -151,7 +149,6 @@ source_set("app_internal") {
     "//components/metrics",
     "//components/prefs",
     "//components/proxy_config",
-    "//components/reading_list/core",
     "//components/signin/core/browser",
     "//components/suggestions",
     "//components/sync",

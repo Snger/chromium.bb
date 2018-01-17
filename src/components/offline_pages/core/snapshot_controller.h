@@ -30,6 +30,21 @@ class SnapshotController {
     SNAPSHOT_PENDING,  // Snapshot is in progress, don't start another.
     STOPPED,           // Terminal state, no snapshots until reset.
   };
+  // The expected quality of a page based on its current loading progress.
+  enum class PageQuality {
+    // Not loaded enough to reach a minimum level of quality. Snapshots taken at
+    // this point are expected to be useless.
+    POOR = 0,
+    // A minimal level of quality has been attained but the page is still
+    // loading so its quality is continuously increasing. One or more snapshots
+    // could be taken at this stage as later ones are expected to have higher
+    // quality.
+    FAIR_AND_IMPROVING,
+    // The page is loaded enough and has attained its peak expected quality.
+    // Snapshots taken at this point are not expected to increase in quality
+    // after the first one.
+    HIGH,
+  };
 
   // Client of the SnapshotController.
   class Client {
@@ -45,14 +60,23 @@ class SnapshotController {
     virtual ~Client() {}
   };
 
-  SnapshotController(
+  // Creates a SnapshotController with document available delay = 7s,
+  // document on load delay = 1s and triggers snapshot on document available.
+  static std::unique_ptr<SnapshotController> CreateForForegroundOfflining(
       const scoped_refptr<base::SingleThreadTaskRunner>& task_runner,
       SnapshotController::Client* client);
+  // Creates a SnapshotController with document on load delay = 2s
+  // and ignores document available signal.
+  static std::unique_ptr<SnapshotController> CreateForBackgroundOfflining(
+      const scoped_refptr<base::SingleThreadTaskRunner>& task_runner,
+      SnapshotController::Client* client);
+
   SnapshotController(
       const scoped_refptr<base::SingleThreadTaskRunner>& task_runner,
       SnapshotController::Client* client,
-      size_t delay_after_document_available_ms,
-      size_t delay_after_document_on_load_completed_ms);
+      int64_t delay_after_document_available_ms,
+      int64_t delay_after_document_on_load_completed_ms,
+      bool document_available_triggers_snapshot);
   virtual ~SnapshotController();
 
   // Resets the 'session', returning controller to initial state.
@@ -73,19 +97,26 @@ class SnapshotController {
   // Invoked from WebContentObserver::DocumentOnLoadCompletedInMainFrame
   void DocumentOnLoadCompletedInMainFrame();
 
-  size_t GetDelayAfterDocumentAvailableForTest();
-  size_t GetDelayAfterDocumentOnLoadCompletedForTest();
+  int64_t GetDelayAfterDocumentAvailableForTest();
+  int64_t GetDelayAfterDocumentOnLoadCompletedForTest();
+
+  PageQuality current_page_quality() const { return current_page_quality_; }
 
  private:
-  void MaybeStartSnapshot();
+  void MaybeStartSnapshot(PageQuality updated_page_quality);
   void MaybeStartSnapshotThenStop();
 
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
   // Client owns this class.
   SnapshotController::Client* client_;
   SnapshotController::State state_;
-  size_t delay_after_document_available_ms_;
-  size_t delay_after_document_on_load_completed_ms_;
+  int64_t delay_after_document_available_ms_;
+  int64_t delay_after_document_on_load_completed_ms_;
+  bool document_available_triggers_snapshot_;
+
+  // The expected quality of a snapshot taken at the moment this value is
+  // queried.
+  PageQuality current_page_quality_ = PageQuality::POOR;
 
   base::WeakPtrFactory<SnapshotController> weak_ptr_factory_;
 

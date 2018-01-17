@@ -29,10 +29,11 @@
 #define PluginView_h
 
 #include "core/CoreExport.h"
-#include "platform/Widget.h"
+#include "platform/FrameViewBase.h"
 #include "platform/scroll/ScrollTypes.h"
+#include "public/platform/WebFocusType.h"
+#include "v8/include/v8.h"
 #include "wtf/text/WTFString.h"
-#include <v8.h>
 
 namespace blink {
 class WebLayer;
@@ -42,34 +43,35 @@ namespace blink {
 
 class ResourceResponse;
 
-class CORE_EXPORT PluginView : public Widget {
+class CORE_EXPORT PluginView : public FrameViewBase {
  public:
-  bool isPluginView() const final { return true; }
+  bool IsPluginView() const final { return true; }
+  virtual void SetFocused(bool, WebFocusType) {}
 
-  virtual WebLayer* platformLayer() const { return 0; }
-  virtual v8::Local<v8::Object> scriptableObject(v8::Isolate*) {
+  virtual WebLayer* PlatformLayer() const { return 0; }
+  virtual v8::Local<v8::Object> ScriptableObject(v8::Isolate*) {
     return v8::Local<v8::Object>();
   }
-  virtual bool wantsWheelEvents() { return false; }
-  virtual bool supportsKeyboardFocus() const { return false; }
-  virtual bool supportsInputMethod() const { return false; }
-  virtual bool canProcessDrag() const { return false; }
+  virtual bool WantsWheelEvents() { return false; }
+  virtual bool SupportsKeyboardFocus() const { return false; }
+  virtual bool SupportsInputMethod() const { return false; }
+  virtual bool CanProcessDrag() const { return false; }
 
-  virtual void didReceiveResponse(const ResourceResponse&) {}
-  virtual void didReceiveData(const char*, int) {}
+  virtual void DidReceiveResponse(const ResourceResponse&) {}
+  virtual void DidReceiveData(const char*, int) {}
 
-  virtual void updateAllLifecyclePhases() {}
-  virtual void invalidatePaintIfNeeded() {}
+  virtual void UpdateAllLifecyclePhases() {}
+  virtual void InvalidatePaintIfNeeded() {}
 
  protected:
-  PluginView() : Widget() {}
+  PluginView() : FrameViewBase() {}
 };
 
 DEFINE_TYPE_CASTS(PluginView,
-                  Widget,
-                  widget,
-                  widget->isPluginView(),
-                  widget.isPluginView());
+                  FrameViewBase,
+                  frameViewBase,
+                  frameViewBase->IsPluginView(),
+                  frameViewBase.IsPluginView());
 
 }  // namespace blink
 

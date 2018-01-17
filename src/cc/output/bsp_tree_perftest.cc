@@ -14,7 +14,7 @@
 #include "base/strings/string_piece.h"
 #include "base/threading/thread.h"
 #include "base/time/time.h"
-#include "cc/debug/lap_timer.h"
+#include "cc/base/lap_timer.h"
 #include "cc/layers/layer.h"
 #include "cc/output/bsp_tree.h"
 #include "cc/quads/draw_polygon.h"
@@ -44,11 +44,11 @@ class BspTreePerfTest : public LayerTreeTest {
 
   void SetupTree() override {
     gfx::Size viewport = gfx::Size(720, 1038);
-    layer_tree()->SetViewportSize(viewport);
+    layer_tree_host()->SetViewportSize(viewport);
     scoped_refptr<Layer> root =
         ParseTreeFromJson(json_, &content_layer_client_);
     ASSERT_TRUE(root.get());
-    layer_tree()->SetRootLayer(root);
+    layer_tree_host()->SetRootLayer(root);
     content_layer_client_.set_bounds(viewport);
   }
 
@@ -120,8 +120,7 @@ class BspTreePerfTest : public LayerTreeTest {
         active_tree->OverscrollElasticityLayer(), max_texture_size,
         can_render_to_separate_surface,
         host_impl->settings().layer_transforms_should_scale_layer_contents,
-        false,  // do not verify_clip_tree_calculation for perf tests
-        false,  // do not verify_visible_rect_calculation for perf tests
+        false,  // don't use layer lists for perf tests
         &update_list, active_tree->property_trees());
     LayerTreeHostCommon::CalculateDrawProperties(&inputs);
   }

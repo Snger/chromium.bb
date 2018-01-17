@@ -28,7 +28,9 @@
 #include "chrome/browser/chromeos/login/auth/chrome_login_performer.h"
 #include "chrome/browser/chromeos/login/easy_unlock/bootstrap_user_context_initializer.h"
 #include "chrome/browser/chromeos/login/easy_unlock/bootstrap_user_flow.h"
+#include "chrome/browser/chromeos/login/enterprise_user_session_metrics.h"
 #include "chrome/browser/chromeos/login/helper.h"
+#include "chrome/browser/chromeos/login/screens/encryption_migration_screen.h"
 #include "chrome/browser/chromeos/login/session/user_session_manager.h"
 #include "chrome/browser/chromeos/login/signin/oauth2_token_initializer.h"
 #include "chrome/browser/chromeos/login/signin_specifics.h"
@@ -56,6 +58,7 @@
 #include "chromeos/dbus/power_manager_client.h"
 #include "chromeos/dbus/session_manager_client.h"
 #include "chromeos/settings/cros_settings_names.h"
+#include "components/arc/arc_util.h"
 #include "components/google/core/browser/google_util.h"
 #include "components/policy/core/common/cloud/cloud_policy_core.h"
 #include "components/policy/core/common/cloud/cloud_policy_store.h"
@@ -76,7 +79,6 @@
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/notification_types.h"
 #include "content/public/browser/storage_partition.h"
-#include "content/public/browser/user_metrics.h"
 #include "google_apis/gaia/gaia_auth_util.h"
 #include "google_apis/gaia/google_service_auth_error.h"
 #include "net/http/http_auth_cache.h"
@@ -174,6 +176,31 @@ bool CanShowDebuggingFeatures() {
 void RecordPasswordChangeFlow(LoginPasswordChangeFlow flow) {
   UMA_HISTOGRAM_ENUMERATION("Login.PasswordChangeFlow", flow,
                             LOGIN_PASSWORD_CHANGE_FLOW_COUNT);
+}
+
+bool ShouldForceDircrypto(const AccountId& account_id) {
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          chromeos::switches::kDisableEncryptionMigration)) {
+    return false;
+  }
+  // If the device is not officially supported to run ARC, we don't need to
+  // force Ext4 dircrypto.
+  if (!arc::IsArcAvailable())
+    return false;
+
+  // In some login flows (e.g. when siging in supervised user), ARC can not
+  // start. For such cases, we don't need to force Ext4 dircrypto.
+  chromeos::UserFlow* user_flow =
+      chromeos::ChromeUserManager::Get()->GetUserFlow(account_id);
+  if (!user_flow || !user_flow->CanStartArc())
+    return false;
+
+  // When a user is signing in as a secondary user, we don't need to force Ext4
+  // dircrypto since the user can not run ARC.
+  if (UserAddingScreen::Get()->IsRunning())
+    return false;
+
+  return true;
 }
 
 }  // namespace
@@ -446,16 +473,37 @@ void ExistingUserController::PerformLogin(
     login_performer_.reset(nullptr);
     login_performer_.reset(new ChromeLoginPerformer(this));
   }
+  policy::BrowserPolicyConnectorChromeOS* connector =
+      g_browser_process->platform_part()->browser_policy_connector_chromeos();
+  if (connector->IsActiveDirectoryManaged() &&
+      user_context.GetAuthFlow() != UserContext::AUTH_FLOW_ACTIVE_DIRECTORY) {
+    PerformLoginFinishedActions(false /* don't start auto login timer */);
+    ShowError(IDS_LOGIN_ERROR_GOOGLE_ACCOUNT_NOT_ALLOWED,
+              "Google accounts are not allowed on this device");
+    return;
+  }
 
   if (gaia::ExtractDomainName(user_context.GetAccountId().GetUserEmail()) ==
       user_manager::kSupervisedUserDomain) {
     login_performer_->LoginAsSupervisedUser(user_context);
   } else {
-    login_performer_->PerformLogin(user_context, auth_mode);
-    RecordPasswordLoginEvent(user_context);
+    // If a regular user log in to a device which supports ARC, we should make
+    // sure that the user's cryptohome is encrypted in ext4 dircrypto to run the
+    // latest Android runtime.
+    UserContext new_user_context = user_context;
+    new_user_context.SetIsForcingDircrypto(
+        ShouldForceDircrypto(new_user_context.GetAccountId()));
+    login_performer_->PerformLogin(new_user_context, auth_mode);
+    RecordPasswordLoginEvent(new_user_context);
   }
   SendAccessibilityAlert(
       l10n_util::GetStringUTF8(IDS_CHROMEOS_ACC_LOGIN_SIGNING_IN));
+}
+
+void ExistingUserController::ContinuePerformLogin(
+    LoginPerformer::AuthorizationMode auth_mode,
+    const UserContext& user_context) {
+  login_performer_->PerformLogin(user_context, auth_mode);
 }
 
 void ExistingUserController::MigrateUserData(const std::string& old_password) {
@@ -514,6 +562,13 @@ void ExistingUserController::ResyncUserData() {
 
 void ExistingUserController::SetDisplayEmail(const std::string& email) {
   display_email_ = email;
+}
+
+void ExistingUserController::SetDisplayAndGivenName(
+    const std::string& display_name,
+    const std::string& given_name) {
+  display_name_ = base::UTF8ToUTF16(display_name);
+  given_name_ = base::UTF8ToUTF16(given_name);
 }
 
 void ExistingUserController::ShowWrongHWIDScreen() {
@@ -579,6 +634,23 @@ void ExistingUserController::ShowKioskEnableScreen() {
 
 void ExistingUserController::ShowKioskAutolaunchScreen() {
   host_->StartWizard(OobeScreen::SCREEN_KIOSK_AUTOLAUNCH);
+}
+
+void ExistingUserController::ShowEncryptionMigrationScreen(
+    const UserContext& user_context,
+    bool has_incomplete_migration) {
+  host_->StartWizard(OobeScreen::SCREEN_ENCRYPTION_MIGRATION);
+
+  EncryptionMigrationScreen* migration_screen =
+      static_cast<EncryptionMigrationScreen*>(
+          host_->GetWizardController()->current_screen());
+  DCHECK(migration_screen);
+  migration_screen->SetUserContext(user_context);
+  migration_screen->SetShouldResume(has_incomplete_migration);
+  migration_screen->SetContinueLoginCallback(base::BindOnce(
+      &ExistingUserController::ContinuePerformLogin, weak_factory_.GetWeakPtr(),
+      login_performer_->auth_mode()));
+  migration_screen->SetupInitialView();
 }
 
 void ExistingUserController::ShowTPMError() {
@@ -666,8 +738,7 @@ void ExistingUserController::OnAuthFailure(const AuthFailure& failure) {
   if (auth_status_consumer_)
     auth_status_consumer_->OnAuthFailure(failure);
 
-  // Clear the recorded displayed email so it won't affect any future attempts.
-  display_email_.clear();
+  ClearRecordedNames();
 
   // TODO(ginkage): Fix this case once crbug.com/469990 is ready.
   /*
@@ -712,6 +783,17 @@ void ExistingUserController::OnAuthSuccess(const UserContext& user_context) {
     UMA_HISTOGRAM_COUNTS_100("Login.OfflineSuccess.Attempts",
                              num_login_attempts_);
 
+  const bool is_enterprise_managed = g_browser_process->platform_part()
+                                         ->browser_policy_connector_chromeos()
+                                         ->IsEnterpriseManaged();
+
+  // Mark device will be consumer owned if the device is not managed and this is
+  // the first user on the device.
+  if (!is_enterprise_managed &&
+      user_manager::UserManager::Get()->GetUsers().empty()) {
+    DeviceSettingsService::Get()->MarkWillEstablishConsumerOwnership();
+  }
+
   UserSessionManager::StartSessionType start_session_type =
       UserAddingScreen::Get()->IsRunning()
           ? UserSessionManager::SECONDARY_USER_SESSION
@@ -725,7 +807,18 @@ void ExistingUserController::OnAuthSuccess(const UserContext& user_context) {
   if (!display_email_.empty()) {
     user_manager::UserManager::Get()->SaveUserDisplayEmail(
         user_context.GetAccountId(), display_email_);
-    display_email_.clear();
+  }
+  if (!display_name_.empty() || !given_name_.empty()) {
+    user_manager::UserManager::Get()->UpdateUserAccountData(
+        user_context.GetAccountId(),
+        user_manager::UserManager::UserAccountData(display_name_, given_name_,
+                                                   std::string() /* locale */));
+  }
+  ClearRecordedNames();
+
+  if (is_enterprise_managed) {
+    enterprise_user_session_metrics::RecordSignInEvent(
+        user_context, last_login_attempt_was_auto_login_);
   }
 }
 
@@ -797,6 +890,12 @@ void ExistingUserController::OnPasswordChangeDetected() {
   ShowPasswordChangedDialog();
 }
 
+void ExistingUserController::OnOldEncryptionDetected(
+    const UserContext& user_context,
+    bool has_incomplete_migration) {
+  ShowEncryptionMigrationScreen(user_context, has_incomplete_migration);
+}
+
 void ExistingUserController::WhiteListCheckFailed(const std::string& email) {
   PerformLoginFinishedActions(true /* start auto login timer */);
 
@@ -807,14 +906,14 @@ void ExistingUserController::WhiteListCheckFailed(const std::string& email) {
         AuthFailure(AuthFailure::WHITELIST_CHECK_FAILED));
   }
 
-  display_email_.clear();
+  ClearRecordedNames();
 }
 
 void ExistingUserController::PolicyLoadFailed() {
   ShowError(IDS_LOGIN_ERROR_OWNER_KEY_LOST, "");
 
   PerformLoginFinishedActions(false /* don't start auto login timer */);
-  display_email_.clear();
+  ClearRecordedNames();
 }
 
 void ExistingUserController::SetAuthFlowOffline(bool offline) {
@@ -858,7 +957,7 @@ void ExistingUserController::LoginAsGuest() {
     // Disallowed. The UI should normally not show the guest session button.
     LOG(ERROR) << "Guest login attempt when guest mode is disallowed.";
     PerformLoginFinishedActions(true /* start auto login timer */);
-    display_email_.clear();
+    ClearRecordedNames();
     return;
   }
 
@@ -1011,16 +1110,20 @@ void ExistingUserController::ResetAutoLoginTimer() {
 
 void ExistingUserController::OnPublicSessionAutoLoginTimerFire() {
   CHECK(auto_launch_ready_ && public_session_auto_login_account_id_.is_valid());
+  SigninSpecifics signin_specifics;
+  signin_specifics.is_auto_login = true;
   Login(UserContext(user_manager::USER_TYPE_PUBLIC_ACCOUNT,
                     public_session_auto_login_account_id_),
-        SigninSpecifics());
+        signin_specifics);
 }
 
 void ExistingUserController::OnArcKioskAutoLoginTimerFire() {
   CHECK(auto_launch_ready_ && (arc_kiosk_auto_login_account_id_.is_valid()));
+  SigninSpecifics signin_specifics;
+  signin_specifics.is_auto_login = true;
   Login(UserContext(user_manager::USER_TYPE_ARC_KIOSK_APP,
                     arc_kiosk_auto_login_account_id_),
-        SigninSpecifics());
+        signin_specifics);
 }
 
 void ExistingUserController::StopAutoLoginTimer() {
@@ -1258,6 +1361,8 @@ void ExistingUserController::DoCompleteLogin(
 
 void ExistingUserController::DoLogin(const UserContext& user_context,
                                      const SigninSpecifics& specifics) {
+  last_login_attempt_was_auto_login_ = specifics.is_auto_login;
+
   if (user_context.GetUserType() == user_manager::USER_TYPE_GUEST) {
     if (!specifics.guest_mode_url.empty()) {
       guest_mode_url_ = GURL(specifics.guest_mode_url);
@@ -1348,6 +1453,12 @@ void ExistingUserController::OnTokenHandleChecked(
   RecordPasswordChangeFlow(LOGIN_PASSWORD_CHANGE_FLOW_CRYPTOHOME_FAILURE);
   VLOG(1) << "Show unrecoverable cryptohome error dialog.";
   login_display_->ShowUnrecoverableCrypthomeErrorDialog();
+}
+
+void ExistingUserController::ClearRecordedNames() {
+  display_email_.clear();
+  display_name_.clear();
+  given_name_.clear();
 }
 
 }  // namespace chromeos

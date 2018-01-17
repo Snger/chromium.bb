@@ -17,7 +17,7 @@
 #include "ios/chrome/browser/signin/authentication_service_factory.h"
 #include "ios/chrome/browser/sync/ios_chrome_profile_sync_service_factory.h"
 #import "ios/chrome/browser/ui/settings/settings_collection_view_controller.h"
-#import "ios/chrome/browser/ui/tools_menu/tools_menu_view_controller.h"
+#include "ios/chrome/browser/ui/tools_menu/tools_menu_constants.h"
 #import "ios/chrome/browser/ui/tools_menu/tools_popup_controller.h"
 #include "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/app/bookmarks_test_util.h"
@@ -75,18 +75,18 @@ void OpenSignInFromSettings() {
 void SignInIdentity(NSString* userEmail) {
   OpenSignInFromSettings();
   [[EarlGrey
-      selectElementWithMatcher:chrome_test_util::buttonWithAccessibilityLabel(
+      selectElementWithMatcher:chrome_test_util::ButtonWithAccessibilityLabel(
                                    userEmail)] performAction:grey_tap()];
   [[EarlGrey selectElementWithMatcher:
-                 chrome_test_util::buttonWithAccessibilityLabelId(
+                 chrome_test_util::ButtonWithAccessibilityLabelId(
                      IDS_IOS_ACCOUNT_CONSISTENCY_SETUP_SIGNIN_BUTTON)]
       performAction:grey_tap()];
   [[EarlGrey selectElementWithMatcher:
-                 chrome_test_util::buttonWithAccessibilityLabelId(
+                 chrome_test_util::ButtonWithAccessibilityLabelId(
                      IDS_IOS_ACCOUNT_CONSISTENCY_CONFIRMATION_OK_BUTTON)]
       performAction:grey_tap()];
   [[EarlGrey
-      selectElementWithMatcher:chrome_test_util::buttonWithAccessibilityLabelId(
+      selectElementWithMatcher:chrome_test_util::ButtonWithAccessibilityLabelId(
                                    IDS_DONE)] performAction:grey_tap()];
 }
 

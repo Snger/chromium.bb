@@ -19,6 +19,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.library_loader.ProcessInitException;
 import org.chromium.base.test.util.CallbackHelper;
 import org.chromium.base.test.util.CommandLineFlags;
+import org.chromium.base.test.util.DisabledTest;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.RetryOnFailure;
 import org.chromium.chrome.browser.infobar.InfoBar;
@@ -30,6 +31,7 @@ import org.chromium.chrome.test.util.InfoBarUtil;
 import org.chromium.chrome.test.util.browser.TabTitleObserver;
 import org.chromium.chrome.test.util.browser.notifications.MockNotificationManagerProxy.NotificationEntry;
 import org.chromium.components.gcm_driver.GCMDriver;
+import org.chromium.components.gcm_driver.GCMMessage;
 import org.chromium.components.gcm_driver.instance_id.FakeInstanceIDWithSubtype;
 import org.chromium.content.browser.test.util.Criteria;
 import org.chromium.content.browser.test.util.CriteriaHelper;
@@ -115,9 +117,10 @@ public class PushMessagingTest
     /**
      * Verifies that PushManager.subscribe() fails if permission is dismissed or blocked.
      */
-    @MediumTest
-    @Feature({"Browser", "PushMessaging"})
-    @CommandLineFlags.Add("disable-features=ModalPermissionPrompts")
+    //@MediumTest
+    //@Feature({"Browser", "PushMessaging"})
+    //@CommandLineFlags.Add("disable-features=ModalPermissionPrompts")
+    @DisabledTest
     public void testPushPermissionDenied() throws InterruptedException, TimeoutException {
         // Notifications permission should initially be prompt.
         assertEquals("\"default\"", runScriptBlocking("Notification.permission"));
@@ -293,10 +296,14 @@ public class PushMessagingTest
             @Override
             public void run() {
                 Context context = getInstrumentation().getTargetContext().getApplicationContext();
+
                 Bundle extras = new Bundle();
+                extras.putString("subtype", appId);
+
+                GCMMessage message = new GCMMessage(senderId, extras);
                 try {
                     ChromeBrowserInitializer.getInstance(context).handleSynchronousStartup();
-                    GCMDriver.onMessageReceived(appId, senderId, extras);
+                    GCMDriver.dispatchMessage(message);
                 } catch (ProcessInitException e) {
                     fail("Chrome browser failed to initialize.");
                 }

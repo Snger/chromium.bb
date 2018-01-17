@@ -72,15 +72,22 @@ void RenderMediaLog::AddEvent(std::unique_ptr<media::MediaLogEvent> event) {
         // kind, if any, prior to sending the event batch.
         break;
 
-      // Hold onto the most recent PIPELINE_ERROR and MEDIA_LOG_ERROR_ENTRY for
-      // use in GetLastErrorMessage().
+      case media::MediaLogEvent::DURATION_SET:
+        // Similar to the extents changed message, this may fire many times for
+        // badly muxed media. Suppress within our rate limits here.
+        last_duration_changed_event_.swap(event);
+        break;
+
+      // Hold onto the most recent PIPELINE_ERROR and the first, if any,
+      // MEDIA_LOG_ERROR_ENTRY for use in GetErrorMessage().
       case media::MediaLogEvent::PIPELINE_ERROR:
         queued_media_events_.push_back(*event);
         last_pipeline_error_.swap(event);
         break;
       case media::MediaLogEvent::MEDIA_ERROR_LOG_ENTRY:
         queued_media_events_.push_back(*event);
-        last_media_error_log_entry_.swap(event);
+        if (!cached_media_error_for_message_)
+          cached_media_error_for_message_ = std::move(event);
         break;
 
       // Just enqueue all other event types for throttled transmission.
@@ -112,18 +119,25 @@ void RenderMediaLog::AddEvent(std::unique_ptr<media::MediaLogEvent> event) {
       FROM_HERE, base::Bind(&RenderMediaLog::SendQueuedMediaEvents, this));
 }
 
-std::string RenderMediaLog::GetLastErrorMessage() {
+std::string RenderMediaLog::GetErrorMessage() {
   base::AutoLock auto_lock(lock_);
 
-  // Return the conditional concatenation of the last pipeline error and the
-  // last media error log.
+  // Keep message structure in sync with
+  // HTMLMediaElement::BuildElementErrorMessage().
+
   std::stringstream result;
-  if (last_pipeline_error_) {
-    result << MediaEventToLogString(*last_pipeline_error_)
-           << (last_media_error_log_entry_ ? ", " : "");
+  if (last_pipeline_error_)
+    result << MediaEventToMessageString(*last_pipeline_error_);
+
+  if (cached_media_error_for_message_) {
+    DCHECK(last_pipeline_error_)
+        << "Message with detail should be associated with a pipeline error";
+    // This ':' lets web apps extract the UA-specific-error-code from the
+    // MediaError.message prefix.
+    result << ": "
+           << MediaEventToMessageString(*cached_media_error_for_message_);
   }
-  if (last_media_error_log_entry_)
-    result << MediaEventToLogString(*last_media_error_log_entry_);
+
   return result.str();
 }
 
@@ -151,6 +165,11 @@ void RenderMediaLog::SendQueuedMediaEvents() {
     if (last_buffered_extents_changed_event_) {
       queued_media_events_.push_back(*last_buffered_extents_changed_event_);
       last_buffered_extents_changed_event_.reset();
+    }
+
+    if (last_duration_changed_event_) {
+      queued_media_events_.push_back(*last_duration_changed_event_);
+      last_duration_changed_event_.reset();
     }
 
     queued_media_events_.swap(events_to_send);

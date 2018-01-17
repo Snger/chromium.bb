@@ -12,6 +12,7 @@
 
 #include "base/base_paths.h"
 #include "base/bind.h"
+#include "base/callback_helpers.h"
 #include "base/command_line.h"
 #include "base/location.h"
 #include "base/logging.h"
@@ -29,8 +30,9 @@
 #include "chrome/browser/browser_process_platform_part_chromeos.h"
 #include "chrome/browser/browser_shutdown.h"
 #include "chrome/browser/chrome_notification_types.h"
-#include "chrome/browser/chromeos/accessibility/accessibility_manager.h"
+#include "chrome/browser/chromeos/arc/arc_migration_guide_notification.h"
 #include "chrome/browser/chromeos/arc/arc_service_launcher.h"
+#include "chrome/browser/chromeos/arc/arc_util.h"
 #include "chrome/browser/chromeos/base/locale_util.h"
 #include "chrome/browser/chromeos/boot_times_recorder.h"
 #include "chrome/browser/chromeos/first_run/first_run.h"
@@ -56,11 +58,13 @@
 #include "chrome/browser/chromeos/login/users/chrome_user_manager.h"
 #include "chrome/browser/chromeos/login/users/supervised_user_manager.h"
 #include "chrome/browser/chromeos/login/wizard_controller.h"
+#include "chrome/browser/chromeos/net/tether_notification_presenter.h"
 #include "chrome/browser/chromeos/policy/browser_policy_connector_chromeos.h"
 #include "chrome/browser/chromeos/profiles/profile_helper.h"
 #include "chrome/browser/chromeos/settings/cros_settings.h"
 #include "chrome/browser/component_updater/ev_whitelist_component_installer.h"
 #include "chrome/browser/component_updater/sth_set_component_installer.h"
+#include "chrome/browser/cryptauth/chrome_cryptauth_service_factory.h"
 #include "chrome/browser/first_run/first_run.h"
 #include "chrome/browser/google/google_brand_chromeos.h"
 #include "chrome/browser/lifetime/application_lifetime.h"
@@ -71,28 +75,30 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/signin/account_tracker_service_factory.h"
 #include "chrome/browser/signin/easy_unlock_service.h"
+#include "chrome/browser/signin/profile_oauth2_token_service_factory.h"
 #include "chrome/browser/signin/signin_manager_factory.h"
 #include "chrome/browser/supervised_user/child_accounts/child_account_service.h"
 #include "chrome/browser/supervised_user/child_accounts/child_account_service_factory.h"
 #include "chrome/browser/ui/app_list/app_list_service.h"
-#include "chrome/browser/ui/ash/ash_util.h"
-#include "chrome/browser/ui/ash/multi_user/multi_user_util.h"
 #include "chrome/browser/ui/startup/startup_browser_creator.h"
+#include "chrome/common/channel_info.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/logging_chrome.h"
 #include "chrome/common/pref_names.h"
 #include "chromeos/cert_loader.h"
 #include "chromeos/chromeos_switches.h"
+#include "chromeos/components/tether/initializer.h"
 #include "chromeos/cryptohome/cryptohome_parameters.h"
 #include "chromeos/cryptohome/cryptohome_util.h"
 #include "chromeos/dbus/cryptohome_client.h"
 #include "chromeos/dbus/dbus_thread_manager.h"
 #include "chromeos/dbus/session_manager_client.h"
 #include "chromeos/login/auth/stub_authenticator.h"
+#include "chromeos/network/network_connect.h"
+#include "chromeos/network/network_state_handler.h"
 #include "chromeos/network/portal_detector/network_portal_detector.h"
 #include "chromeos/network/portal_detector/network_portal_detector_strategy.h"
 #include "chromeos/settings/cros_settings_names.h"
-#include "components/arc/arc_bridge_service.h"
 #include "components/component_updater/component_updater_service.h"
 #include "components/flags_ui/pref_service_flags_storage.h"
 #include "components/policy/core/common/cloud/cloud_policy_constants.h"
@@ -109,6 +115,7 @@
 #include "components/user_manager/user_manager.h"
 #include "components/user_manager/user_names.h"
 #include "components/user_manager/user_type.h"
+#include "components/version_info/version_info.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/storage_partition.h"
@@ -118,6 +125,7 @@
 #include "rlz/features/features.h"
 #include "ui/base/ime/chromeos/input_method_descriptor.h"
 #include "ui/base/ime/chromeos/input_method_manager.h"
+#include "ui/message_center/message_center.h"
 #include "url/gurl.h"
 
 #if BUILDFLAG(ENABLE_RLZ)
@@ -136,12 +144,6 @@ static const int kFlagsFetchingLoginTimeoutMs = 1000;
 // The maximum ammount of time that we are willing to delay a browser restart
 // for, waiting for a session restore to finish.
 static const int kMaxRestartDelaySeconds = 10;
-
-// ChromeVox tutorial URL (used in place of "getting started" url when
-// accessibility is enabled).
-const char kChromeVoxTutorialURLPattern[] =
-    "chrome-extension://mndnfokpggljbaajbnioimlmbfngpief/"
-    "cvox2/background/panel.html?tutorial";
 
 void InitLocaleAndInputMethodsForNewUser(
     UserSessionManager* session_manager,
@@ -286,20 +288,41 @@ bool NeedRestartToApplyPerSessionFlags(
   if (user_manager::UserManager::Get()->IsLoggedInAsSupervisedUser())
     return false;
 
+  // When running Mus+ash, the flags stored in Profile Prefs will contain
+  // --mash, while the browser command line will not (and should not) have
+  // it, so ignore it for the purpose of comparison.
+  // TODO(mfomitchev): Find a better way. crbug.com/690083
+  bool in_mash = false;
+  base::CommandLine user_flags_no_mash = user_flags;
+
+#if BUILDFLAG(ENABLE_PACKAGE_MASH_SERVICES)
+  in_mash = user_flags.HasSwitch(::switches::kMash);
+  if (in_mash) {
+    base::CommandLine::SwitchMap switches = user_flags.GetSwitches();
+    switches.erase(::switches::kMash);
+    user_flags_no_mash = base::CommandLine(user_flags.GetProgram());
+    for (const std::pair<std::string, base::CommandLine::StringType>& sw :
+         switches) {
+      user_flags_no_mash.AppendSwitchNative(sw.first, sw.second);
+    }
+  }
+#endif  // BUILDFLAG(ENABLE_PACKAGE_MASH_SERVICES)
+
   if (about_flags::AreSwitchesIdenticalToCurrentCommandLine(
-          user_flags, *base::CommandLine::ForCurrentProcess(),
+          user_flags_no_mash, *base::CommandLine::ForCurrentProcess(),
           out_command_line_difference)) {
     return false;
   }
+
+  // TODO(mfomitchev): Browser restart doesn't currently work in Mus+ash.
+  // So if we are running Mustash and we need to restart - just crash right
+  // here. crbug.com/690140
+  CHECK(!in_mash);
 
   return true;
 }
 
 bool CanPerformEarlyRestart() {
-  // Desktop build is used for development only. Early restart is not supported.
-  if (!base::SysInfo::IsRunningOnChromeOS())
-    return false;
-
   if (!ChromeUserManager::Get()
            ->GetCurrentUserFlow()
            ->SupportsEarlyRestartToApplyFlags()) {
@@ -492,7 +515,10 @@ void UserSessionManager::StartSession(
                                           user_context.GetDeviceId());
   }
 
-  PrepareProfile();
+  arc::UpdateArcFileSystemCompatibilityPrefIfNeeded(
+      user_context_.GetAccountId(),
+      ProfileHelper::GetProfilePathByUserIdHash(user_context_.GetUserIDHash()),
+      base::Bind(&UserSessionManager::PrepareProfile, AsWeakPtr()));
 }
 
 void UserSessionManager::DelegateDeleted(UserSessionManagerDelegate* delegate) {
@@ -528,6 +554,16 @@ void UserSessionManager::RestoreAuthenticationSession(Profile* user_profile) {
 
   const user_manager::User* user =
       ProfileHelper::Get()->GetUserByProfile(user_profile);
+
+  const SigninManagerBase* signin_manager =
+      SigninManagerFactory::GetForProfile(user_profile);
+  const bool account_id_valid =
+      signin_manager && !signin_manager->GetAuthenticatedAccountId().empty();
+  if (!account_id_valid)
+    LOG(ERROR) << "No account is associated with sign-in manager on restore.";
+  UMA_HISTOGRAM_BOOLEAN("UserSessionManager.RestoreOnCrash.AccountIdValid",
+                        account_id_valid);
+
   DCHECK(user);
   if (!net::NetworkChangeNotifier::IsOffline()) {
     pending_signin_restore_sessions_.erase(user->GetAccountId().GetUserEmail());
@@ -585,14 +621,18 @@ void UserSessionManager::InitNonKioskExtensionFeaturesSessionType(
   // type has be set before kiosk app controller takes over, as at that point
   // kiosk app profile would already be initialized - feature session type
   // should be set before that.
-  // TODO(tbarzic): Note that this does not work well for auto-launched
-  //     sessions, as information about whether session was auto-launched is not
-  //     persisted over session restart - http://crbug.com/677340.
   if (user->GetType() == user_manager::USER_TYPE_KIOSK_APP) {
     if (base::CommandLine::ForCurrentProcess()->HasSwitch(
             switches::kLoginUser)) {
+      // For kiosk session crash recovery, feature session type has be set
+      // before kiosk app controller takes over, as at that point iosk app
+      // profile would already be initialized - feature session type
+      // should be set before that.
+      bool auto_launched = base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kAppAutoLaunched);
       extensions::SetCurrentFeatureSessionType(
-          extensions::FeatureSessionType::KIOSK);
+          auto_launched ? extensions::FeatureSessionType::AUTOLAUNCHED_KIOSK
+                        : extensions::FeatureSessionType::KIOSK);
     }
     return;
   }
@@ -720,6 +760,11 @@ bool UserSessionManager::RespectLocalePreference(
 bool UserSessionManager::RestartToApplyPerSessionFlagsIfNeed(
     Profile* profile,
     bool early_restart) {
+  SessionManagerClient* session_manager_client =
+      DBusThreadManager::Get()->GetSessionManagerClient();
+  if (!session_manager_client->SupportsRestartToApplyUserFlags())
+    return false;
+
   if (ProfileHelper::IsSigninProfile(profile))
     return false;
 
@@ -756,7 +801,7 @@ bool UserSessionManager::RestartToApplyPerSessionFlagsIfNeed(
   // argv[0] is the program name |base::CommandLine::NO_PROGRAM|.
   flags.assign(user_flags.argv().begin() + 1, user_flags.argv().end());
   LOG(WARNING) << "Restarting to apply per-session flags...";
-  DBusThreadManager::Get()->GetSessionManagerClient()->SetFlagsForUser(
+  session_manager_client->SetFlagsForUser(
       cryptohome::Identification(
           user_manager::UserManager::Get()->GetActiveUser()->GetAccountId()),
       flags);
@@ -1186,11 +1231,19 @@ void UserSessionManager::FinalizePrepareProfile(Profile* profile) {
     InitializeCRLSetFetcher(user);
     InitializeCertificateTransparencyComponents(user);
 
-    if (arc::ArcBridgeService::GetEnabled(
-            base::CommandLine::ForCurrentProcess()) ||
-        arc::ArcBridgeService::GetKioskStarted(
-            base::CommandLine::ForCurrentProcess())) {
-      arc::ArcServiceLauncher::Get()->OnPrimaryUserProfilePrepared(profile);
+    arc::ArcServiceLauncher::Get()->OnPrimaryUserProfilePrepared(profile);
+
+    if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+            chromeos::switches::kEnableTether)) {
+      auto notification_presenter =
+          base::MakeUnique<tether::TetherNotificationPresenter>(
+              message_center::MessageCenter::Get(), NetworkConnect::Get());
+      chromeos::tether::Initializer::Init(
+          ChromeCryptAuthServiceFactory::GetForBrowserContext(profile),
+          std::move(notification_presenter), profile->GetPrefs(),
+          ProfileOAuth2TokenServiceFactory::GetForProfile(profile),
+          NetworkHandler::Get()->network_state_handler(),
+          NetworkConnect::Get());
     }
   }
 
@@ -1247,15 +1300,6 @@ void UserSessionManager::InitializeStartUrls() const {
 
   bool can_show_getstarted_guide = user_manager->GetActiveUser()->GetType() ==
                                    user_manager::USER_TYPE_REGULAR;
-
-  // Skip the default first-run behavior for public accounts.
-  if (!user_manager->IsLoggedInAsPublicAccount()) {
-    if (AccessibilityManager::Get()->IsSpokenFeedbackEnabled()) {
-      const char* url = kChromeVoxTutorialURLPattern;
-      start_urls.push_back(url);
-      can_show_getstarted_guide = false;
-    }
-  }
 
   // Only show getting started guide for a new user.
   const bool should_show_getstarted_guide = user_manager->IsCurrentUserNew();
@@ -1410,15 +1454,14 @@ void UserSessionManager::InitRlzImpl(Profile* profile, bool disabled) {
     local_state->SetBoolean(prefs::kRLZDisabled, disabled);
   }
   // Init the RLZ library.
-  int ping_delay = profile->GetPrefs()->GetInteger(
-      ::first_run::GetPingDelayPrefName().c_str());
+  int ping_delay = profile->GetPrefs()->GetInteger(prefs::kRlzPingDelaySeconds);
   // Negative ping delay means to send ping immediately after a first search is
   // recorded.
   rlz::RLZTracker::SetRlzDelegate(
       base::WrapUnique(new ChromeRLZTrackerDelegate));
   rlz::RLZTracker::InitRlzDelayed(
       user_manager::UserManager::Get()->IsCurrentUserNew(), ping_delay < 0,
-      base::TimeDelta::FromMilliseconds(abs(ping_delay)),
+      base::TimeDelta::FromSeconds(abs(ping_delay)),
       ChromeRLZTrackerDelegate::IsGoogleDefaultSearch(profile),
       ChromeRLZTrackerDelegate::IsGoogleHomepage(profile),
       ChromeRLZTrackerDelegate::IsGoogleInStartpages(profile));
@@ -1750,21 +1793,39 @@ void UserSessionManager::DoBrowserLaunchInternal(Profile* profile,
   if (HatsNotificationController::ShouldShowSurveyToProfile(profile))
     hats_notification_controller_ = new HatsNotificationController(profile);
 
-  if (QuickUnlockNotificationController::ShouldShow(profile) &&
-      quick_unlock_notification_handler_.find(profile) ==
-          quick_unlock_notification_handler_.end()) {
-    auto* qu_feature_notification_controller =
-        new QuickUnlockNotificationController(profile);
-    quick_unlock_notification_handler_.insert(
-        std::make_pair(profile, qu_feature_notification_controller));
+  if (quick_unlock::QuickUnlockNotificationController::
+          ShouldShowPinNotification(profile) &&
+      pin_unlock_notification_handler_.find(profile) ==
+          pin_unlock_notification_handler_.end()) {
+    auto* pin_feature_notification_controller =
+        quick_unlock::QuickUnlockNotificationController::CreateForPin(profile);
+    pin_unlock_notification_handler_.insert(
+        std::make_pair(profile, pin_feature_notification_controller));
   }
+
+  if (quick_unlock::QuickUnlockNotificationController::
+          ShouldShowFingerprintNotification(profile) &&
+      fingerprint_unlock_notification_handler_.find(profile) ==
+          fingerprint_unlock_notification_handler_.end()) {
+    auto* fingerprint_feature_notification_controller =
+        quick_unlock::QuickUnlockNotificationController::CreateForFingerprint(
+            profile);
+    fingerprint_unlock_notification_handler_.insert(
+        std::make_pair(profile, fingerprint_feature_notification_controller));
+  }
+
+  base::OnceClosure login_host_finalized_callback = base::BindOnce(
+      [] { session_manager::SessionManager::Get()->SessionStarted(); });
 
   // Mark login host for deletion after browser starts.  This
   // guarantees that the message loop will be referenced by the
   // browser before it is dereferenced by the login host.
-  if (login_host)
-    login_host->Finalize();
-  session_manager::SessionManager::Get()->SessionStarted();
+  if (login_host) {
+    login_host->Finalize(std::move(login_host_finalized_callback));
+  } else {
+    base::ResetAndReturn(&login_host_finalized_callback).Run();
+  }
+
   chromeos::BootTimesRecorder::Get()->LoginDone(
       user_manager::UserManager::Get()->IsCurrentUserNew());
 
@@ -1772,6 +1833,10 @@ void UserSessionManager::DoBrowserLaunchInternal(Profile* profile,
   // the message accordingly.
   if (ShouldShowEolNotification(profile))
     CheckEolStatus(profile);
+
+  // Show the one-time notification and update the relevant pref about the
+  // completion of the file system migration necessary for ARC, when needed.
+  arc::ShowArcMigrationSuccessNotificationIfNeeded(profile);
 }
 
 void UserSessionManager::RespectLocalePreferenceWrapper(
@@ -1868,6 +1933,11 @@ bool UserSessionManager::TokenHandlesEnabled() {
 }
 
 void UserSessionManager::Shutdown() {
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          chromeos::switches::kEnableTether)) {
+    chromeos::tether::Initializer::Shutdown();
+  }
+
   token_handle_fetcher_.reset();
   token_handle_util_.reset();
   first_run::GoodiesDisplayer::Delete();

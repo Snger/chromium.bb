@@ -6,8 +6,10 @@ package org.chromium.chrome.browser.contextmenu;
 
 import android.text.TextUtils;
 
+import org.chromium.base.VisibleForTesting;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.base.annotations.JNINamespace;
+import org.chromium.chrome.browser.UrlConstants;
 import org.chromium.content_public.common.Referrer;
 
 /**
@@ -122,7 +124,18 @@ public class ContextMenuParams {
         return mCanSavemedia;
     }
 
-    private ContextMenuParams(int mediaType, String pageUrl, String linkUrl, String linkText,
+    /**
+     * @return Whether or not the context menu is been shown for a download item.
+     */
+    public boolean isFile() {
+        if (!TextUtils.isEmpty(mSrcUrl) && mSrcUrl.startsWith(UrlConstants.FILE_URL_PREFIX)) {
+            return true;
+        }
+        return false;
+    }
+
+    @VisibleForTesting
+    ContextMenuParams(int mediaType, String pageUrl, String linkUrl, String linkText,
             String unfilteredLinkUrl, String srcUrl, String titleText, boolean imageWasFetchedLoFi,
             Referrer referrer, boolean canSavemedia) {
         mPageUrl = pageUrl;

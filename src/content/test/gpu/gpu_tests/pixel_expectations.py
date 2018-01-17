@@ -35,7 +35,9 @@ class PixelExpectations(GpuTestExpectations):
     self.Fail('Pixel_SolidColorBackground', ['mac', 'android'], bug=624256)
 
     self.Fail('Pixel_OffscreenCanvasUnaccelerated2DGPUCompositingWorker',
-              ['mac', ('nvidia', 0xfe9)], bug=652931)
+        ['mac', ('nvidia', 0xfe9)], bug=706016)
+    self.Fail('Pixel_CSSFilterEffects',
+        ['mac', ('nvidia', 0xfe9)], bug=690277)
 
     # TODO(kbr): flakily timing out on this configuration.
     self.Flaky('*', ['linux', 'intel', 'debug'], bug=648369)
@@ -45,6 +47,11 @@ class PixelExpectations(GpuTestExpectations):
     self.Flaky('Pixel_ScissorTestWithPreserveDrawingBuffer', ['mac'],
                bug=660461)
 
-    # TODO(kainino): remove this once golden images are generated
-    self.Fail('Pixel_WebGLTransparentGreenTriangle_NoAlpha_ImplicitClear',
-              bug=666259)
+    self.Flaky('Pixel_OffscreenCanvas2DResizeOnWorker',
+        ['win10', ('intel', 0x1912)], bug=690663)
+
+    # TODO(jbauman): Re-enable when references images created.
+    self.Fail('Pixel_DirectComposition_Video_*', ['win'], bug=704389)
+
+    # TODO(zakerinasab): check / generate reference images.
+    self.Fail('Pixel_Canvas2DUntagged', bug=713632)

@@ -38,7 +38,7 @@ class CFWL_DateTimePicker : public CFWL_Widget {
   // CFWL_Widget
   FWL_Type GetClassID() const override;
   void Update() override;
-  FWL_WidgetHit HitTest(FX_FLOAT fx, FX_FLOAT fy) override;
+  FWL_WidgetHit HitTest(const CFX_PointF& point) override;
   void DrawWidget(CFX_Graphics* pGraphics, const CFX_Matrix* pMatrix) override;
   void SetThemeProvider(IFWL_ThemeProvider* pTP) override;
   void OnProcessMessage(CFWL_Message* pMessage) override;
@@ -84,7 +84,7 @@ class CFWL_DateTimePicker : public CFWL_Widget {
 
   bool DisForm_IsMonthCalendarVisible() const;
   void DisForm_ShowMonthCalendar(bool bActivate);
-  FWL_WidgetHit DisForm_HitTest(FX_FLOAT fx, FX_FLOAT fy) const;
+  FWL_WidgetHit DisForm_HitTest(const CFX_PointF& point) const;
   bool DisForm_IsNeedShowButton() const;
   void DisForm_Update();
   CFX_RectF DisForm_GetBBox() const;
@@ -101,7 +101,7 @@ class CFWL_DateTimePicker : public CFWL_Widget {
   std::unique_ptr<CFWL_DateTimeEdit> m_pEdit;
   std::unique_ptr<CFWL_MonthCalendar> m_pMonthCal;
   std::unique_ptr<CFWL_FormProxy> m_pForm;
-  FX_FLOAT m_fBtn;
+  float m_fBtn;
 };
 
 #endif  // XFA_FWL_CFWL_DATETIMEPICKER_H_

@@ -26,16 +26,18 @@ ServerWindow::ServerWindow(ServerWindowDelegate* delegate,
                            const Properties& properties)
     : delegate_(delegate),
       id_(id),
+      frame_sink_id_(WindowIdToTransportId(id), 0),
       parent_(nullptr),
       stacking_target_(nullptr),
       transient_parent_(nullptr),
-      is_modal_(false),
+      modal_type_(MODAL_TYPE_NONE),
       visible_(false),
-      cursor_id_(mojom::Cursor::CURSOR_NULL),
-      non_client_cursor_id_(mojom::Cursor::CURSOR_NULL),
+      // Default to POINTER as CURSOR_NULL doesn't change the cursor, it leaves
+      // the last non-null cursor.
+      cursor_id_(mojom::CursorType::POINTER),
+      non_client_cursor_id_(mojom::CursorType::POINTER),
       opacity_(1),
       can_focus_(true),
-      can_accept_events_(true),
       properties_(properties),
       // Don't notify newly added observers during notification. This causes
       // problems for code that adds an observer as part of an observer
@@ -56,7 +58,7 @@ ServerWindow::~ServerWindow() {
   // parent, as destroying an active transient child may otherwise attempt to
   // refocus us.
   Windows transient_children(transient_children_);
-  for (auto window : transient_children)
+  for (auto* window : transient_children)
     delete window;
   DCHECK(transient_children_.empty());
 
@@ -83,20 +85,20 @@ bool ServerWindow::HasObserver(ServerWindowObserver* observer) {
   return observers_.HasObserver(observer);
 }
 
-void ServerWindow::CreateDisplayCompositorFrameSink(
+void ServerWindow::CreateRootCompositorFrameSink(
     gfx::AcceleratedWidget widget,
-    cc::mojom::MojoCompositorFrameSinkRequest request,
+    cc::mojom::MojoCompositorFrameSinkAssociatedRequest sink_request,
     cc::mojom::MojoCompositorFrameSinkClientPtr client,
-    cc::mojom::DisplayPrivateRequest display_private_request) {
-  GetOrCreateCompositorFrameSinkManager()->CreateDisplayCompositorFrameSink(
-      widget, std::move(request), std::move(client),
-      std::move(display_private_request));
+    cc::mojom::DisplayPrivateAssociatedRequest display_request) {
+  GetOrCreateCompositorFrameSinkManager()->CreateRootCompositorFrameSink(
+      widget, std::move(sink_request), std::move(client),
+      std::move(display_request));
 }
 
-void ServerWindow::CreateOffscreenCompositorFrameSink(
+void ServerWindow::CreateCompositorFrameSink(
     cc::mojom::MojoCompositorFrameSinkRequest request,
     cc::mojom::MojoCompositorFrameSinkClientPtr client) {
-  GetOrCreateCompositorFrameSinkManager()->CreateOffscreenCompositorFrameSink(
+  GetOrCreateCompositorFrameSinkManager()->CreateCompositorFrameSink(
       std::move(request), std::move(client));
 }
 
@@ -116,17 +118,11 @@ void ServerWindow::Add(ServerWindow* child) {
   for (auto& observer : child->observers_)
     observer.OnWillChangeWindowHierarchy(child, this, old_parent);
 
-  ServerWindow* old_root = child->GetRoot();
-  ServerWindow* new_root = GetRoot();
-
   if (child->parent())
     child->parent()->RemoveImpl(child);
 
   child->parent_ = this;
   children_.push_back(child);
-
-  if (old_root != new_root)
-    child->ProcessRootChanged(old_root, new_root);
 
   // Stack the child properly if it is a transient child of a sibling.
   if (child->transient_parent_ && child->transient_parent_->parent() == this)
@@ -145,6 +141,7 @@ void ServerWindow::Remove(ServerWindow* child) {
 
   for (auto& observer : child->observers_)
     observer.OnWillChangeWindowHierarchy(child, nullptr, this);
+
   RemoveImpl(child);
 
   // Stack the child properly if it is a transient child of a sibling.
@@ -175,13 +172,16 @@ void ServerWindow::StackChildAtTop(ServerWindow* child) {
   child->Reorder(children_.back(), mojom::OrderDirection::ABOVE);
 }
 
-void ServerWindow::SetBounds(const gfx::Rect& bounds) {
-  if (bounds_ == bounds)
+void ServerWindow::SetBounds(
+    const gfx::Rect& bounds,
+    const base::Optional<cc::LocalSurfaceId>& local_surface_id) {
+  if (bounds_ == bounds && current_local_surface_id_ == local_surface_id)
     return;
 
-  // TODO(fsamuel): figure out how will this work with CompositorFrames.
-
   const gfx::Rect old_bounds = bounds_;
+
+  current_local_surface_id_ = local_surface_id;
+
   bounds_ = bounds;
   for (auto& observer : observers_)
     observer.OnWindowBoundsChanged(this, old_bounds, bounds);
@@ -231,10 +231,6 @@ ServerWindow* ServerWindow::GetChildWindow(const WindowId& window_id) {
 }
 
 bool ServerWindow::AddTransientWindow(ServerWindow* child) {
-  // A system modal window cannot become a transient child.
-  if (child->is_modal() && !child->transient_parent())
-    return false;
-
   if (child->transient_parent())
     child->transient_parent()->RemoveTransientWindow(child);
 
@@ -271,8 +267,8 @@ void ServerWindow::RemoveTransientWindow(ServerWindow* child) {
     observer.OnTransientWindowRemoved(this, child);
 }
 
-void ServerWindow::SetModal() {
-  is_modal_ = true;
+void ServerWindow::SetModalType(ModalType modal_type) {
+  modal_type_ = modal_type;
 }
 
 bool ServerWindow::Contains(const ServerWindow* window) const {
@@ -303,7 +299,7 @@ void ServerWindow::SetOpacity(float value) {
     observer.OnWindowOpacityChanged(this, old_opacity, opacity_);
 }
 
-void ServerWindow::SetPredefinedCursor(ui::mojom::Cursor value) {
+void ServerWindow::SetPredefinedCursor(ui::mojom::CursorType value) {
   if (value == cursor_id_)
     return;
   cursor_id_ = value;
@@ -311,7 +307,7 @@ void ServerWindow::SetPredefinedCursor(ui::mojom::Cursor value) {
     observer.OnWindowPredefinedCursorChanged(this, value);
 }
 
-void ServerWindow::SetNonClientCursor(ui::mojom::Cursor value) {
+void ServerWindow::SetNonClientCursor(ui::mojom::CursorType value) {
   if (value == non_client_cursor_id_)
     return;
   non_client_cursor_id_ = value;
@@ -397,7 +393,7 @@ void ServerWindow::OnEmbeddedAppDisconnected() {
     observer.OnWindowEmbeddedAppDisconnected(this);
 }
 
-#if !defined(NDEBUG) || defined(DCHECK_ALWAYS_ON)
+#if DCHECK_IS_ON()
 std::string ServerWindow::GetDebugWindowHierarchy() const {
   std::string result;
   BuildDebugInfo(std::string(), &result);
@@ -406,10 +402,17 @@ std::string ServerWindow::GetDebugWindowHierarchy() const {
 
 std::string ServerWindow::GetDebugWindowInfo() const {
   std::string name = GetName();
-  return base::StringPrintf(
-      "id=%s visible=%s bounds=%d,%d %dx%d %s", id_.ToString().c_str(),
-      visible_ ? "true" : "false", bounds_.x(), bounds_.y(), bounds_.width(),
-      bounds_.height(), !name.empty() ? name.c_str() : "(no name)");
+  if (name.empty())
+    name = "(no name)";
+
+  std::string frame_sink;
+  if (compositor_frame_sink_manager_)
+    frame_sink = " [" + frame_sink_id_.ToString() + "]";
+
+  return base::StringPrintf("id=%s visible=%s bounds=%s name=%s%s",
+                            id_.ToString().c_str(), visible_ ? "true" : "false",
+                            bounds_.ToString().c_str(), name.c_str(),
+                            frame_sink.c_str());
 }
 
 void ServerWindow::BuildDebugInfo(const std::string& depth,
@@ -419,19 +422,11 @@ void ServerWindow::BuildDebugInfo(const std::string& depth,
   for (const ServerWindow* child : children_)
     child->BuildDebugInfo(depth + "  ", result);
 }
-#endif
+#endif  // DCHECK_IS_ON()
 
 void ServerWindow::RemoveImpl(ServerWindow* window) {
   window->parent_ = nullptr;
   children_.erase(std::find(children_.begin(), children_.end(), window));
-}
-
-void ServerWindow::ProcessRootChanged(ServerWindow* old_root,
-                                      ServerWindow* new_root) {
-  if (compositor_frame_sink_manager_)
-    compositor_frame_sink_manager_->OnRootChanged(old_root, new_root);
-  for (ServerWindow* child : children_)
-    child->ProcessRootChanged(old_root, new_root);
 }
 
 void ServerWindow::OnStackingChanged() {

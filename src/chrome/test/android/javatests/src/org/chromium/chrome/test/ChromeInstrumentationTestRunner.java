@@ -5,34 +5,38 @@
 package org.chromium.chrome.test;
 
 import android.content.Context;
+import android.os.Build;
 import android.os.Bundle;
 import android.text.TextUtils;
 
 import com.google.android.gms.common.ConnectionResult;
 import com.google.android.gms.common.GoogleApiAvailability;
 
-import org.chromium.base.test.BaseChromiumInstrumentationTestRunner;
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.BaseTestResult;
 import org.chromium.base.test.util.DisableIfSkipCheck;
 import org.chromium.base.test.util.RestrictionSkipCheck;
 import org.chromium.chrome.browser.ChromeVersionInfo;
+import org.chromium.chrome.browser.vr_shell.VrClassesWrapper;
+import org.chromium.chrome.browser.vr_shell.VrDaydreamApi;
 import org.chromium.chrome.test.util.ChromeDisableIf;
 import org.chromium.chrome.test.util.ChromeRestriction;
+import org.chromium.content.browser.test.ContentInstrumentationTestRunner;
 import org.chromium.policy.test.annotations.Policies;
 import org.chromium.ui.base.DeviceFormFactor;
 
+import java.lang.reflect.Constructor;
 import java.lang.reflect.InvocationTargetException;
-import java.lang.reflect.Method;
+import java.util.concurrent.Callable;
+import java.util.concurrent.CancellationException;
+import java.util.concurrent.ExecutionException;
+import java.util.concurrent.FutureTask;
 
 /**
  *  An Instrumentation test runner that optionally spawns a test HTTP server.
  *  The server's root directory is the device's external storage directory.
- *
- *  TODO(jbudorick): remove uses of deprecated org.apache.* crbug.com/488192
  */
-@SuppressWarnings("deprecation")
-public class ChromeInstrumentationTestRunner extends BaseChromiumInstrumentationTestRunner {
-
+public class ChromeInstrumentationTestRunner extends ContentInstrumentationTestRunner {
     private static final String TAG = "ChromeInstrumentationTestRunner";
 
     @Override
@@ -49,33 +53,65 @@ public class ChromeInstrumentationTestRunner extends BaseChromiumInstrumentation
         result.addPreTestHook(Policies.getRegistrationHook());
     }
 
-    private class ChromeRestrictionSkipCheck extends RestrictionSkipCheck {
+    static class ChromeRestrictionSkipCheck extends RestrictionSkipCheck {
+        private VrDaydreamApi mDaydreamApi;
+        private boolean mAttemptedToGetApi;
 
         public ChromeRestrictionSkipCheck(Context targetContext) {
             super(targetContext);
         }
 
-        private boolean isDaydreamReady() {
-            // Might be compiled without the GVR SDK, and thus the NDK, so
-            // use reflection to try to get the class and call its static
-            // method.
-            Class<?> daydreamApi;
-            try {
-                daydreamApi = Class.forName("com.google.vr.ndk.base.DaydreamApi");
-            } catch (ClassNotFoundException e) {
-                return false;
+        @SuppressWarnings("unchecked")
+        private VrDaydreamApi getDaydreamApi() {
+            if (!mAttemptedToGetApi) {
+                mAttemptedToGetApi = true;
+                try {
+                    Class<? extends VrClassesWrapper> vrClassesBuilderClass =
+                            (Class<? extends VrClassesWrapper>) Class.forName(
+                                    "org.chromium.chrome.browser.vr_shell.VrClassesWrapperImpl");
+                    Constructor<?> vrClassesBuilderConstructor =
+                            vrClassesBuilderClass.getConstructor();
+                    VrClassesWrapper vrClassesBuilder =
+                            (VrClassesWrapper) vrClassesBuilderConstructor.newInstance();
+                    mDaydreamApi = vrClassesBuilder.createVrDaydreamApi(getTargetContext());
+                } catch (ClassNotFoundException | InstantiationException | IllegalAccessException
+                        | IllegalArgumentException | InvocationTargetException
+                        | NoSuchMethodException e) {
+                    return null;
+                }
             }
+            return mDaydreamApi;
+        }
 
-            try {
-                Method platformCheck = daydreamApi.getMethod(
-                        "isDaydreamReadyPlatform", Context.class);
-                Boolean isDaydream = (Boolean) platformCheck.invoke(
-                        daydreamApi, getTargetContext());
-                return isDaydream.booleanValue();
-            } catch (NoSuchMethodException | SecurityException | IllegalAccessException
-                    | IllegalArgumentException | InvocationTargetException e) {
+        private boolean isDaydreamReady() {
+            return getDaydreamApi() == null ? false :
+                    getDaydreamApi().isDaydreamReadyDevice();
+        }
+
+        private boolean isDaydreamViewPaired() {
+            if (getDaydreamApi() == null) {
                 return false;
             }
+            // isDaydreamCurrentViewer() creates a concrete instance of DaydreamApi,
+            // which can only be done on the main thread
+            FutureTask<Boolean> checker = new FutureTask<>(new Callable<Boolean>() {
+                @Override
+                public Boolean call() {
+                    return getDaydreamApi().isDaydreamCurrentViewer();
+                }
+            });
+            ThreadUtils.runOnUiThreadBlocking(checker);
+            try {
+                return checker.get().booleanValue();
+            } catch (CancellationException | InterruptedException | ExecutionException
+                    | IllegalArgumentException e) {
+                return false;
+            }
+        }
+
+        private boolean supportsWebVr() {
+            // WebVR support is tied to VR Services support, which is only on K+
+            return Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT;
         }
 
         @Override
@@ -88,10 +124,11 @@ public class ChromeInstrumentationTestRunner extends BaseChromiumInstrumentation
                     && !DeviceFormFactor.isTablet(getTargetContext())) {
                 return true;
             }
-            if (TextUtils.equals(restriction,
-                    ChromeRestriction.RESTRICTION_TYPE_GOOGLE_PLAY_SERVICES)
-                    && (ConnectionResult.SUCCESS != GoogleApiAvailability.getInstance()
-                    .isGooglePlayServicesAvailable(getTargetContext()))) {
+            if (TextUtils.equals(
+                        restriction, ChromeRestriction.RESTRICTION_TYPE_GOOGLE_PLAY_SERVICES)
+                    && (ConnectionResult.SUCCESS
+                               != GoogleApiAvailability.getInstance().isGooglePlayServicesAvailable(
+                                          getTargetContext()))) {
                 return true;
             }
             if (TextUtils.equals(restriction,
@@ -99,19 +136,53 @@ public class ChromeInstrumentationTestRunner extends BaseChromiumInstrumentation
                     && (!ChromeVersionInfo.isOfficialBuild())) {
                 return true;
             }
-            if (TextUtils.equals(restriction,
-                    ChromeRestriction.RESTRICTION_TYPE_DAYDREAM)
+            if (TextUtils.equals(restriction, ChromeRestriction.RESTRICTION_TYPE_DEVICE_DAYDREAM)
                     || TextUtils.equals(restriction,
-                    ChromeRestriction.RESTRICTION_TYPE_NON_DAYDREAM)) {
-                // TODO(crbug/671373): Re-enable vr instrumentation tests when they are safe.
-                return true;
+                               ChromeRestriction.RESTRICTION_TYPE_DEVICE_NON_DAYDREAM)) {
+                boolean isDaydream = isDaydreamReady();
+                if (TextUtils.equals(
+                            restriction, ChromeRestriction.RESTRICTION_TYPE_DEVICE_DAYDREAM)
+                        && !isDaydream) {
+                    return true;
+                } else if (TextUtils.equals(restriction,
+                                   ChromeRestriction.RESTRICTION_TYPE_DEVICE_NON_DAYDREAM)
+                        && isDaydream) {
+                    return true;
+                }
+            }
+            if (TextUtils.equals(restriction, ChromeRestriction.RESTRICTION_TYPE_VIEWER_DAYDREAM)
+                    || TextUtils.equals(restriction,
+                               ChromeRestriction.RESTRICTION_TYPE_VIEWER_NON_DAYDREAM)) {
+                boolean daydreamViewPaired = isDaydreamViewPaired();
+                if (TextUtils.equals(
+                            restriction, ChromeRestriction.RESTRICTION_TYPE_VIEWER_DAYDREAM)
+                        && !daydreamViewPaired) {
+                    return true;
+                } else if (TextUtils.equals(restriction,
+                                   ChromeRestriction.RESTRICTION_TYPE_VIEWER_NON_DAYDREAM)
+                        && daydreamViewPaired) {
+                    return true;
+                }
+            }
+            if (TextUtils.equals(restriction, ChromeRestriction.RESTRICTION_TYPE_WEBVR_SUPPORTED)
+                    || TextUtils.equals(
+                               restriction, ChromeRestriction.RESTRICTION_TYPE_WEBVR_UNSUPPORTED)) {
+                boolean webvrSupported = supportsWebVr();
+                if (TextUtils.equals(
+                            restriction, ChromeRestriction.RESTRICTION_TYPE_WEBVR_SUPPORTED)
+                        && !webvrSupported) {
+                    return true;
+                } else if (TextUtils.equals(restriction,
+                                   ChromeRestriction.RESTRICTION_TYPE_WEBVR_UNSUPPORTED)
+                        && webvrSupported) {
+                    return true;
+                }
             }
             return false;
         }
     }
 
-    private class ChromeDisableIfSkipCheck extends DisableIfSkipCheck {
-
+    static class ChromeDisableIfSkipCheck extends DisableIfSkipCheck {
         private final Context mTargetContext;
 
         public ChromeDisableIfSkipCheck(Context targetContext) {
@@ -121,15 +192,15 @@ public class ChromeInstrumentationTestRunner extends BaseChromiumInstrumentation
         @Override
         protected boolean deviceTypeApplies(String type) {
             if (TextUtils.equals(type, ChromeDisableIf.PHONE)
-                    && !DeviceFormFactor.isTablet(getTargetContext())) {
+                    && !DeviceFormFactor.isTablet(mTargetContext)) {
                 return true;
             }
             if (TextUtils.equals(type, ChromeDisableIf.TABLET)
-                    && DeviceFormFactor.isTablet(getTargetContext())) {
+                    && DeviceFormFactor.isTablet(mTargetContext)) {
                 return true;
             }
             if (TextUtils.equals(type, ChromeDisableIf.LARGETABLET)
-                    && DeviceFormFactor.isLargeTablet(getTargetContext())) {
+                    && DeviceFormFactor.isLargeTablet(mTargetContext)) {
                 return true;
             }
             return false;

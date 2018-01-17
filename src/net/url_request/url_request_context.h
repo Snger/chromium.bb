@@ -23,6 +23,7 @@
 #include "net/http/http_server_properties.h"
 #include "net/http/transport_security_state.h"
 #include "net/ssl/ssl_config_service.h"
+#include "net/traffic_annotation/network_traffic_annotation.h"
 #include "net/url_request/url_request.h"
 
 namespace base {
@@ -44,6 +45,7 @@ class HttpUserAgentSettings;
 class NetLog;
 class NetworkDelegate;
 class NetworkQualityEstimator;
+class ReportingService;
 class SdchManager;
 class ProxyService;
 class URLRequest;
@@ -71,14 +73,28 @@ class NET_EXPORT URLRequestContext
   // session.
   const HttpNetworkSession::Params* GetNetworkSessionParams() const;
 
+  // This function should not be used in Chromium, please use the version with
+  // NetworkTrafficAnnotationTag in the future.
   std::unique_ptr<URLRequest> CreateRequest(
       const GURL& url,
       RequestPriority priority,
       URLRequest::Delegate* delegate) const;
 
-  NetLog* net_log() const {
-    return net_log_;
-  }
+  // |traffic_annotation| is metadata about the network traffic send via this
+  // URLRequest, see net::DefineNetworkTrafficAnnotation. Note that:
+  // - net provides the API for tagging requests with an opaque identifier.
+  // - tools/traffic_annotation/traffic_annotation.proto contains the Chrome
+  // specific .proto describing the verbose annotation format that Chrome's
+  // callsites are expected to follow.
+  // - tools/traffic_annotation/ contains sample and template for annotation and
+  // tools will be added for verification following crbug.com/690323.
+  std::unique_ptr<URLRequest> CreateRequest(
+      const GURL& url,
+      RequestPriority priority,
+      URLRequest::Delegate* delegate,
+      NetworkTrafficAnnotationTag traffic_annotation) const;
+
+  NetLog* net_log() const { return net_log_; }
 
   void set_net_log(NetLog* net_log) {
     net_log_ = net_log;
@@ -234,6 +250,11 @@ class NET_EXPORT URLRequestContext
     network_quality_estimator_ = network_quality_estimator;
   }
 
+  ReportingService* reporting_service() const { return reporting_service_; }
+  void set_reporting_service(ReportingService* reporting_service) {
+    reporting_service_ = reporting_service;
+  }
+
   void set_enable_brotli(bool enable_brotli) { enable_brotli_ = enable_brotli; }
 
   bool enable_brotli() const { return enable_brotli_; }
@@ -250,7 +271,7 @@ class NET_EXPORT URLRequestContext
   // Sets a name for this URLRequestContext. Currently the name is used in
   // MemoryDumpProvier to annotate memory usage. The name does not need to be
   // unique.
-  void set_name(const std::string& name) { name_ = name; }
+  void set_name(const char* name) { name_ = name; }
 
   // MemoryDumpProvider implementation:
   bool OnMemoryDump(const base::trace_event::MemoryDumpArgs& args,
@@ -284,6 +305,7 @@ class NET_EXPORT URLRequestContext
   URLRequestBackoffManager* backoff_manager_;
   SdchManager* sdch_manager_;
   NetworkQualityEstimator* network_quality_estimator_;
+  ReportingService* reporting_service_;
 
   // ---------------------------------------------------------------------------
   // Important: When adding any new members below, consider whether they need to
@@ -301,7 +323,7 @@ class NET_EXPORT URLRequestContext
   // An optional name which can be set to describe this URLRequestContext.
   // Used in MemoryDumpProvier to annotate memory usage. The name does not need
   // to be unique.
-  std::string name_;
+  const char* name_;
 
   DISALLOW_COPY_AND_ASSIGN(URLRequestContext);
 };

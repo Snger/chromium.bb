@@ -41,6 +41,22 @@
 namespace sh
 {
 
+// Encapsulates a unique id for a symbol.
+class TSymbolUniqueId
+{
+  public:
+    POOL_ALLOCATOR_NEW_DELETE();
+    TSymbolUniqueId();
+    TSymbolUniqueId(const TSymbol &symbol);
+    TSymbolUniqueId(const TSymbolUniqueId &) = default;
+    TSymbolUniqueId &operator=(const TSymbolUniqueId &) = default;
+
+    int get() const;
+
+  private:
+    int mId;
+};
+
 // Symbol base class. (Can build functions or variables out of these...)
 class TSymbol : angle::NonCopyable
 {
@@ -158,12 +174,6 @@ class TFunction : public TSymbol
     ~TFunction() override;
     bool isFunction() const override { return true; }
 
-    static TString mangleName(const TString &name) { return name + '('; }
-    static TString unmangleName(const TString &mangledName)
-    {
-        return TString(mangledName.c_str(), mangledName.find_first_of('('));
-    }
-
     void addParameter(const TConstParameter &p)
     {
         parameters.push_back(p);
@@ -180,6 +190,10 @@ class TFunction : public TSymbol
         }
         return *mangledName;
     }
+
+    static const TString &GetMangledNameFromCall(const TString &functionName,
+                                                 const TIntermSequence &arguments);
+
     const TType &getReturnType() const { return *returnType; }
 
     TOperator getBuiltInOp() const { return op; }
@@ -391,19 +405,24 @@ class TSymbolTable : angle::NonCopyable
         insertBuiltIn(level, EOpNull, ext, rvalue, name, ptype1, ptype2, ptype3, ptype4, ptype5);
     }
 
-    void insertBuiltIn(ESymbolLevel level,
-                       TOperator op,
-                       const TType *rvalue,
-                       const char *name,
-                       const TType *ptype1,
-                       const TType *ptype2 = 0,
-                       const TType *ptype3 = 0,
-                       const TType *ptype4 = 0,
-                       const TType *ptype5 = 0)
-    {
-        insertUnmangledBuiltInName(name, level);
-        insertBuiltIn(level, op, "", rvalue, name, ptype1, ptype2, ptype3, ptype4, ptype5);
-    }
+    void insertBuiltInOp(ESymbolLevel level,
+                         TOperator op,
+                         const TType *rvalue,
+                         const TType *ptype1,
+                         const TType *ptype2 = 0,
+                         const TType *ptype3 = 0,
+                         const TType *ptype4 = 0,
+                         const TType *ptype5 = 0);
+
+    void insertBuiltInOp(ESymbolLevel level,
+                         TOperator op,
+                         const char *ext,
+                         const TType *rvalue,
+                         const TType *ptype1,
+                         const TType *ptype2 = 0,
+                         const TType *ptype3 = 0,
+                         const TType *ptype4 = 0,
+                         const TType *ptype5 = 0);
 
     void insertBuiltInFunctionNoParameters(ESymbolLevel level,
                                            TOperator op,

@@ -287,6 +287,63 @@ goog.scope(function() {
         _skip("multisample.fbo_4_samples.constancy_alpha_to_coverage");
         _skip("multisample.fbo_8_samples.constancy_alpha_to_coverage");
         _skip("multisample.fbo_max_samples.constancy_alpha_to_coverage");
+
+        _setReason("Intel Mesa driver bug on updating texture with TexSubImage3D from pixel buffer.");
+        // crbug.com/666384
+        _skip("texture_functions.texturesize.sampler3d*");
+        _skip("texture_functions.texturesize.isampler3d*");
+        _skip("texture_functions.texturesize.sampler2darray*");
+        _skip("texture_functions.texturesize.isampler2darray*");
+
+        _setReason("Fails on Linux NVidia Quadro 600.");
+        // crbug.com/682815
+        _skip("multisample.fbo_max_samples.num_samples_polygon");
+        _skip("multisample.fbo_max_samples.num_samples_line");
+        _skip("multisample.fbo_max_samples.depth");
+
+        _setReason("Fails on Android/Qualcomm (Google Pixel).");
+        // crbug.com/695679
+        _skip("derivate.dfdy.fbo_float.float_highp");
+        _skip("derivate.dfdy.fbo_float.vec2_highp");
+        _skip("derivate.dfdy.fbo_float.vec3_highp");
+        _skip("derivate.dfdy.fbo_float.vec4_highp");
+        _skip("derivate.dfdy.nicest.fbo_float.float_highp");
+        _skip("derivate.dfdy.nicest.fbo_float.vec2_highp");
+        _skip("derivate.dfdy.nicest.fbo_float.vec3_highp");
+        _skip("derivate.dfdy.nicest.fbo_float.vec4_highp");
+        _skip("derivate.dfdy.fastest.fbo_float.float_highp");
+        _skip("derivate.dfdy.fastest.fbo_float.vec2_highp");
+        _skip("derivate.dfdy.fastest.fbo_float.vec3_highp");
+        _skip("derivate.dfdy.fastest.fbo_float.vec4_highp");
+
+        _setReason("Fails on Android/Qualcomm (Google Pixel).");
+        // crbug.com/695673
+        _skip("arrays.declaration.multiple_declarations_single_statement_*");
+
+        _setReason("Fails on Android/Qualcomm (Google Pixel).");
+        // crbug.com/695677
+        _skip("precision.float.mediump_add_fragment");
+
+        _setReason("Fails on Android/Qualcomm (Google Pixel).");
+        // crbug.com/695742
+        _skip("multisample.fbo_4_samples.constancy_sample_coverage*");
+        _skip("multisample.fbo_4_samples.constancy_sample_coverage_inverted");
+        _skip("multisample.fbo_4_samples.constancy_both");
+        _skip("multisample.fbo_4_samples.constancy_both_inverted");
+        _skip("multisample.fbo_max_samples.constancy_sample_coverage");
+        _skip("multisample.fbo_max_samples.constancy_sample_coverage_inverted");
+        _skip("multisample.fbo_max_samples.constancy_both");
+        _skip("multisample.fbo_max_samples.constancy_both_inverted");
+
+        _setReason("Fails on Android/NVIDIA (SHIELD).");
+        // crbug.com/698934
+        _skip("arrays.unnamed_parameter.float_*");
+        _skip("arrays.unnamed_parameter.float_vec3_*");
+        _skip("arrays.unnamed_parameter.float_mat3_*");
+        _skip("arrays.unnamed_parameter.int_*");
+        _skip("arrays.unnamed_parameter.int_vec3_*");
+        _skip("arrays.unnamed_parameter.int_mat3_*");
+        _skip("arrays.unnamed_parameter.bool_mat3_*");
     } // if (!runSkippedTests)
 
     /*

@@ -6,15 +6,25 @@ var mediaRouter;
 
 define('media_router_bindings', [
     'content/public/renderer/frame_interfaces',
+    'chrome/browser/media/router/mojo/media_controller.mojom',
     'chrome/browser/media/router/mojo/media_router.mojom',
+    'chrome/browser/media/router/mojo/media_status.mojom',
     'extensions/common/mojo/keep_alive.mojom',
     'mojo/common/time.mojom',
     'mojo/public/js/bindings',
+    'net/interfaces/ip_address.mojom',
+    'url/mojo/origin.mojom',
+    'url/mojo/url.mojom',
 ], function(frameInterfaces,
+            mediaControllerMojom,
             mediaRouterMojom,
+            mediaStatusMojom,
             keepAliveMojom,
             timeMojom,
-            bindings) {
+            bindings,
+            ipAddressMojom,
+            originMojom,
+            urlMojom) {
   'use strict';
 
   /**
@@ -50,6 +60,8 @@ define('media_router_bindings', [
         return mediaRouterMojom.MediaSink.IconType.GENERIC;
       case 'hangout':
         return mediaRouterMojom.MediaSink.IconType.HANGOUT;
+      case 'meeting':
+        return mediaRouterMojom.MediaSink.IconType.MEETING;
       default:
         console.error('Unknown sink icon type : ' + type);
         return mediaRouterMojom.MediaSink.IconType.GENERIC;
@@ -143,6 +155,43 @@ define('media_router_bindings', [
     }
   }
 
+  // TODO(crbug.com/688177): remove this conversion.
+  /**
+   * Converts Mojo origin to string.
+   * @param {!originMojom.Origin} Mojo origin
+   * @return {string}
+   */
+  function mojoOriginToString_(origin) {
+    return origin.unique ? '' :
+        `${origin.scheme}:\/\/${origin.host}` +
+        `${origin.port ? `:${origin.port}` : ''}/`
+  }
+
+  // TODO(crbug.com/688177): remove this conversion.
+  /**
+   * Converts string to Mojo origin.
+   * @param {string} origin
+   * @return {!originMojom.Origin}
+   */
+  function stringToMojoOrigin_(origin) {
+    var url = new URL(origin);
+    var mojoOrigin = {};
+    mojoOrigin.scheme = url.protocol.replace(':', '');
+    mojoOrigin.host = url.hostname;
+    var port = url.port ? Number.parseInt(url.port) : 0;
+    switch (mojoOrigin.scheme) {
+      case 'http':
+        mojoOrigin.port = port || 80;
+        break;
+      case 'https':
+        mojoOrigin.port = port || 443;
+        break;
+      default:
+        throw new Error('Scheme must be http or https');
+    }
+    return new originMojom.Origin(mojoOrigin);
+  }
+
   /**
    * Parses the given route request Error object and converts it to the
    * corresponding result code.
@@ -217,6 +266,33 @@ define('media_router_bindings', [
   }
 
   /**
+   * Returns definitions of Mojo core and generated Mojom classes that can be
+   * used directly by the component.
+   * @return {!Object}
+   * TODO(imcheng): We should export these along with MediaRouter. This requires
+   * us to modify the component to handle multiple exports. When that logic is
+   * baked in for a couple of milestones, we should be able to remove this
+   * method.
+   */
+  MediaRouter.prototype.getMojoExports = function() {
+    return {
+      Binding: bindings.Binding,
+      DialMediaSink: mediaRouterMojom.DialMediaSink,
+      CastMediaSink: mediaRouterMojom.CastMediaSink,
+      IPAddress: ipAddressMojom.IPAddress,
+      InterfacePtrController: bindings.InterfacePtrController,
+      InterfaceRequest: bindings.InterfaceRequest,
+      MediaController: mediaControllerMojom.MediaController,
+      MediaStatus: mediaStatusMojom.MediaStatus,
+      MediaStatusObserverPtr: mediaStatusMojom.MediaStatusObserverPtr,
+      Sink: mediaRouterMojom.MediaSink,
+      SinkExtraData: mediaRouterMojom.MediaSinkExtraData,
+      TimeDelta: timeMojom.TimeDelta,
+      Url: urlMojom.Url,
+    };
+  };
+
+  /**
    * Registers the Media Router Provider Manager with the Media Router.
    * @return {!Promise<string>} Instance ID for the Media Router.
    */
@@ -254,7 +330,7 @@ define('media_router_bindings', [
   MediaRouter.prototype.onSinksReceived = function(sourceUrn, sinks,
       origins) {
     this.service_.onSinksReceived(sourceUrn, sinks.map(sinkToMojo_),
-        origins);
+        origins.map(stringToMojoOrigin_));
   };
 
   /**
@@ -479,9 +555,24 @@ define('media_router_bindings', [
     this.updateMediaSinks = null;
 
     /**
-     * @type {function(!string, !string, !SinkSearchCriteria): !string}
+     * @type {function(string, string, !SinkSearchCriteria): string}
      */
     this.searchSinks = null;
+
+    /**
+     * @type {function()}
+     */
+    this.provideSinks = null;
+
+    /**
+     * @type {function(string, !bindings.InterfaceRequest): !Promise<boolean>}
+     */
+    this.createMediaRouteController = null;
+
+    /**
+     * @type {function(string, !mediaStatusMojom.MediaStatusObserverPtr)}
+     */
+    this.setMediaRouteStatusObserver = null;
   };
 
   /**
@@ -533,6 +624,9 @@ define('media_router_bindings', [
       'enableMdnsDiscovery',
       'updateMediaSinks',
       'searchSinks',
+      'provideSinks',
+      'createMediaRouteController',
+      'setMediaRouteStatusObserver',
       'onBeforeInvokeHandler'
     ];
     requiredHandlers.forEach(function(nextHandler) {
@@ -572,10 +666,10 @@ define('media_router_bindings', [
    * @param {!string} sinkId Media sink ID.
    * @param {!string} presentationId Presentation ID from the site
    *     requesting presentation. TODO(mfoltz): Remove.
-   * @param {!string} origin Origin of site requesting presentation.
+   * @param {!originMojom.Origin} origin Origin of site requesting presentation.
    * @param {!number} tabId ID of tab requesting presentation.
-   * @param {!TimeDelta} timeout If positive, the timeout duration for the
-   *     request. Otherwise, the default duration will be used.
+   * @param {!timeMojom.TimeDelta} timeout If positive, the timeout duration for
+   *     the request. Otherwise, the default duration will be used.
    * @param {!boolean} incognito If true, the route is being requested by
    *     an incognito profile.
    * @return {!Promise.<!Object>} A Promise resolving to an object describing
@@ -587,7 +681,7 @@ define('media_router_bindings', [
                timeout, incognito) {
     this.handlers_.onBeforeInvokeHandler();
     return this.handlers_.createRoute(
-        sourceUrn, sinkId, presentationId, origin, tabId,
+        sourceUrn, sinkId, presentationId, mojoOriginToString_(origin), tabId,
         Math.floor(timeout.microseconds / 1000), incognito)
         .then(function(route) {
           return toSuccessRouteResponse_(route);
@@ -603,10 +697,10 @@ define('media_router_bindings', [
    * validating same-origin/tab scope.
    * @param {!string} sourceUrn Media source to render.
    * @param {!string} presentationId Presentation ID to join.
-   * @param {!string} origin Origin of site requesting join.
+   * @param {!originMojom.Origin} origin Origin of site requesting join.
    * @param {!number} tabId ID of tab requesting join.
-   * @param {!TimeDelta} timeout If positive, the timeout duration for the
-   *     request. Otherwise, the default duration will be used.
+   * @param {!timeMojom.TimeDelta} timeout If positive, the timeout duration for
+   *     the request. Otherwise, the default duration will be used.
    * @param {!boolean} incognito If true, the route is being requested by
    *     an incognito profile.
    * @return {!Promise.<!Object>} A Promise resolving to an object describing
@@ -618,7 +712,7 @@ define('media_router_bindings', [
                incognito) {
     this.handlers_.onBeforeInvokeHandler();
     return this.handlers_.joinRoute(
-        sourceUrn, presentationId, origin, tabId,
+        sourceUrn, presentationId, mojoOriginToString_(origin), tabId,
         Math.floor(timeout.microseconds / 1000), incognito)
         .then(function(route) {
           return toSuccessRouteResponse_(route);
@@ -635,10 +729,10 @@ define('media_router_bindings', [
    * @param {!string} sourceUrn Media source to render.
    * @param {!string} routeId Route ID to join.
    * @param {!string} presentationId Presentation ID to join.
-   * @param {!string} origin Origin of site requesting join.
+   * @param {!originMojom.Origin} origin Origin of site requesting join.
    * @param {!number} tabId ID of tab requesting join.
-   * @param {!TimeDelta} timeout If positive, the timeout duration for the
-   *     request. Otherwise, the default duration will be used.
+   * @param {!timeMojom.TimeDelta} timeout If positive, the timeout duration for
+   *     the request. Otherwise, the default duration will be used.
    * @param {!boolean} incognito If true, the route is being requested by
    *     an incognito profile.
    * @return {!Promise.<!Object>} A Promise resolving to an object describing
@@ -650,7 +744,7 @@ define('media_router_bindings', [
                timeout, incognito) {
     this.handlers_.onBeforeInvokeHandler();
     return this.handlers_.connectRouteByRouteId(
-        sourceUrn, routeId, presentationId, origin, tabId,
+        sourceUrn, routeId, presentationId, mojoOriginToString_(origin), tabId,
         Math.floor(timeout.microseconds / 1000), incognito)
         .then(function(route) {
           return toSuccessRouteResponse_(route);
@@ -792,15 +886,73 @@ define('media_router_bindings', [
    */
   MediaRouteProvider.prototype.searchSinks = function(
       sinkId, sourceUrn, searchCriteria) {
-    // TODO(btolsch): Remove this check when we no longer expect old extensions
-    // to be missing this API.
-    if (!this.handlers_.searchSinks) {
-      return Promise.resolve({'sink_id': ''});
+    this.handlers_.onBeforeInvokeHandler();
+    const searchSinksResponse =
+        this.handlers_.searchSinks(sinkId, sourceUrn, searchCriteria);
+
+    if ('string' == typeof searchSinksResponse) {
+        // TODO (zijiang): Remove this check when M59 is stable and the
+        // extension is always returning a promise.
+        return Promise.resolve({
+          'sink_id': sink_id
+        });
+    }
+    return searchSinksResponse.then(
+        sink_id => {
+          return { 'sink_id': sink_id };
+        },
+        () => {
+          return { 'sink_id': '' };
+        });
+  };
+
+  /**
+   * Notifies the provider manager that MediaRouter has discovered a list of
+   * sinks.
+   * @param {string} providerName
+   * @param {!Array<!mediaRouterMojom.MediaSink>} sinks
+   */
+  MediaRouteProvider.prototype.provideSinks = function(providerName, sinks) {
+    this.handlers_.onBeforeInvokeHandler();
+    this.handlers_.provideSinks(providerName, sinks);
+  };
+
+  /**
+   * Creates a controller for the given route and binds the given
+   * InterfaceRequest to it.
+   * @param {string} routeId
+   * @param {!bindings.InterfaceRequest} controllerRequest
+   * @return {!Promise<!{success: boolean}>} Resolves to true if a controller
+   *     is created. Resolves to false if a controller cannot be created, or if
+   *     the controller is already bound.
+   */
+  MediaRouteProvider.prototype.createMediaRouteController = function(
+      routeId, controllerRequest) {
+    // TODO(imcheng): Remove this check when M59 is in stable.
+    if (!this.handlers_.createMediaRouteController) {
+      return Promise.resolve({success: false});
+    }
+
+    this.handlers_.onBeforeInvokeHandler();
+    this.handlers_.createMediaRouteController(routeId, controllerRequest)
+        .then(controller => {success: true},
+              e => {success: false});
+  }
+
+  /**
+   * Sets the MediaStatus oberver for a given route. MediaStatus updates are
+   * notified via the given observer interface.
+   * @param {string} routeId
+   * @param {!mediaStatusMojom.MediaStatusObserverPtr} observer
+   */
+  MediaRouteProvider.prototype.setMediaRouteStatusObserver = function(
+      routeId, observer) {
+    // TODO(imcheng): Remove this check when M59 is in stable.
+    if (!this.handlers_.setMediaRouteStatusObserver) {
+      return;
     }
     this.handlers_.onBeforeInvokeHandler();
-    return Promise.resolve({
-      'sink_id': this.handlers_.searchSinks(sinkId, sourceUrn, searchCriteria)
-    });
+    this.handlers_.setMediaRouteStatusObserver(routeId, observer);
   };
 
   mediaRouter = new MediaRouter(new mediaRouterMojom.MediaRouterPtr(

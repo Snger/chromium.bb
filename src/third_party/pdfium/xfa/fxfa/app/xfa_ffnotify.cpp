@@ -24,12 +24,13 @@
 #include "xfa/fxfa/app/xfa_fftextedit.h"
 #include "xfa/fxfa/app/xfa_ffwidgetacc.h"
 #include "xfa/fxfa/app/xfa_fwladapter.h"
-#include "xfa/fxfa/xfa_ffapp.h"
-#include "xfa/fxfa/xfa_ffdoc.h"
-#include "xfa/fxfa/xfa_ffdocview.h"
-#include "xfa/fxfa/xfa_ffpageview.h"
-#include "xfa/fxfa/xfa_ffwidget.h"
-#include "xfa/fxfa/xfa_ffwidgethandler.h"
+#include "xfa/fxfa/cxfa_ffapp.h"
+#include "xfa/fxfa/cxfa_ffdoc.h"
+#include "xfa/fxfa/cxfa_ffdocview.h"
+#include "xfa/fxfa/cxfa_ffpageview.h"
+#include "xfa/fxfa/cxfa_ffwidget.h"
+#include "xfa/fxfa/cxfa_ffwidgethandler.h"
+#include "xfa/fxfa/parser/cxfa_node.h"
 
 static void XFA_FFDeleteWidgetAcc(void* pData) {
   delete static_cast<CXFA_WidgetAcc*>(pData);
@@ -49,8 +50,8 @@ void CXFA_FFNotify::OnPageEvent(CXFA_ContainerLayoutItem* pSender,
 }
 
 void CXFA_FFNotify::OnWidgetListItemAdded(CXFA_WidgetData* pSender,
-                                          const FX_WCHAR* pLabel,
-                                          const FX_WCHAR* pValue,
+                                          const wchar_t* pLabel,
+                                          const wchar_t* pValue,
                                           int32_t iIndex) {
   CXFA_WidgetAcc* pWidgetAcc = static_cast<CXFA_WidgetAcc*>(pSender);
   if (pWidgetAcc->GetUIType() != XFA_Element::ChoiceList)
@@ -102,62 +103,62 @@ CXFA_LayoutItem* CXFA_FFNotify::OnCreateLayoutItem(CXFA_Node* pNode) {
   CXFA_FFWidget* pWidget;
   switch (pAcc->GetUIType()) {
     case XFA_Element::Barcode:
-      pWidget = new CXFA_FFBarcode(nullptr, pAcc);
+      pWidget = new CXFA_FFBarcode(pAcc);
       break;
     case XFA_Element::Button:
-      pWidget = new CXFA_FFPushButton(nullptr, pAcc);
+      pWidget = new CXFA_FFPushButton(pAcc);
       break;
     case XFA_Element::CheckButton:
-      pWidget = new CXFA_FFCheckButton(nullptr, pAcc);
+      pWidget = new CXFA_FFCheckButton(pAcc);
       break;
     case XFA_Element::ChoiceList: {
       if (pAcc->IsListBox()) {
-        pWidget = new CXFA_FFListBox(nullptr, pAcc);
+        pWidget = new CXFA_FFListBox(pAcc);
       } else {
-        pWidget = new CXFA_FFComboBox(nullptr, pAcc);
+        pWidget = new CXFA_FFComboBox(pAcc);
       }
     } break;
     case XFA_Element::DateTimeEdit:
-      pWidget = new CXFA_FFDateTimeEdit(nullptr, pAcc);
+      pWidget = new CXFA_FFDateTimeEdit(pAcc);
       break;
     case XFA_Element::ImageEdit:
-      pWidget = new CXFA_FFImageEdit(nullptr, pAcc);
+      pWidget = new CXFA_FFImageEdit(pAcc);
       break;
     case XFA_Element::NumericEdit:
-      pWidget = new CXFA_FFNumericEdit(nullptr, pAcc);
+      pWidget = new CXFA_FFNumericEdit(pAcc);
       break;
     case XFA_Element::PasswordEdit:
-      pWidget = new CXFA_FFPasswordEdit(nullptr, pAcc);
+      pWidget = new CXFA_FFPasswordEdit(pAcc);
       break;
     case XFA_Element::Signature:
-      pWidget = new CXFA_FFSignature(nullptr, pAcc);
+      pWidget = new CXFA_FFSignature(pAcc);
       break;
     case XFA_Element::TextEdit:
-      pWidget = new CXFA_FFTextEdit(nullptr, pAcc);
+      pWidget = new CXFA_FFTextEdit(pAcc);
       break;
     case XFA_Element::Arc:
-      pWidget = new CXFA_FFArc(nullptr, pAcc);
+      pWidget = new CXFA_FFArc(pAcc);
       break;
     case XFA_Element::Line:
-      pWidget = new CXFA_FFLine(nullptr, pAcc);
+      pWidget = new CXFA_FFLine(pAcc);
       break;
     case XFA_Element::Rectangle:
-      pWidget = new CXFA_FFRectangle(nullptr, pAcc);
+      pWidget = new CXFA_FFRectangle(pAcc);
       break;
     case XFA_Element::Text:
-      pWidget = new CXFA_FFText(nullptr, pAcc);
+      pWidget = new CXFA_FFText(pAcc);
       break;
     case XFA_Element::Image:
-      pWidget = new CXFA_FFImage(nullptr, pAcc);
+      pWidget = new CXFA_FFImage(pAcc);
       break;
     case XFA_Element::Draw:
-      pWidget = new CXFA_FFDraw(nullptr, pAcc);
+      pWidget = new CXFA_FFDraw(pAcc);
       break;
     case XFA_Element::Subform:
-      pWidget = new CXFA_FFSubForm(nullptr, pAcc);
+      pWidget = new CXFA_FFSubForm(pAcc);
       break;
     case XFA_Element::ExclGroup:
-      pWidget = new CXFA_FFExclGroup(nullptr, pAcc);
+      pWidget = new CXFA_FFExclGroup(pAcc);
       break;
     case XFA_Element::DefaultUi:
     default:
@@ -171,8 +172,8 @@ CXFA_LayoutItem* CXFA_FFNotify::OnCreateLayoutItem(CXFA_Node* pNode) {
 }
 
 void CXFA_FFNotify::StartFieldDrawLayout(CXFA_Node* pItem,
-                                         FX_FLOAT& fCalcWidth,
-                                         FX_FLOAT& fCalcHeight) {
+                                         float& fCalcWidth,
+                                         float& fCalcHeight) {
   CXFA_WidgetAcc* pAcc = static_cast<CXFA_WidgetAcc*>(pItem->GetWidgetData());
   if (!pAcc)
     return;
@@ -182,7 +183,7 @@ void CXFA_FFNotify::StartFieldDrawLayout(CXFA_Node* pItem,
 
 bool CXFA_FFNotify::FindSplitPos(CXFA_Node* pItem,
                                  int32_t iBlockIndex,
-                                 FX_FLOAT& fCalcHeightPos) {
+                                 float& fCalcHeightPos) {
   CXFA_WidgetAcc* pAcc = static_cast<CXFA_WidgetAcc*>(pItem->GetWidgetData());
   return pAcc && pAcc->FindSplitPos(iBlockIndex, fCalcHeightPos);
 }
@@ -262,8 +263,9 @@ void CXFA_FFNotify::OpenDropDownList(CXFA_FFWidget* hWidget) {
   pDocView->UpdateDocView();
 }
 CFX_WideString CXFA_FFNotify::GetCurrentDateTime() {
-  CFX_Unitime dataTime;
+  CFX_DateTime dataTime;
   dataTime.Now();
+
   CFX_WideString wsDateTime;
   wsDateTime.Format(L"%d%02d%02dT%02d%02d%02d", dataTime.GetYear(),
                     dataTime.GetMonth(), dataTime.GetDay(), dataTime.GetHour(),
@@ -487,9 +489,7 @@ void CXFA_FFNotify::OnLayoutItemAdded(CXFA_LayoutProcessor* pLayout,
     return;
   }
   if (pWidget->IsLoaded()) {
-    CFX_RectF rtOld;
-    pWidget->GetWidgetRect(rtOld);
-    if (rtOld != pWidget->ReCacheWidgetRect())
+    if (pWidget->GetWidgetRect() != pWidget->RecacheWidgetRect())
       pWidget->PerformLayout();
   } else {
     pWidget->LoadWidget();

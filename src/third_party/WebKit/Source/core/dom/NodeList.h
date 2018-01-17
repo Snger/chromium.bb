@@ -24,7 +24,6 @@
 #ifndef NodeList_h
 #define NodeList_h
 
-#include "bindings/core/v8/Iterable.h"
 #include "bindings/core/v8/ScriptWrappable.h"
 #include "core/CoreExport.h"
 
@@ -33,8 +32,7 @@ namespace blink {
 class Node;
 
 class CORE_EXPORT NodeList : public GarbageCollectedFinalized<NodeList>,
-                             public ScriptWrappable,
-                             public ValueIterable<Node *> {
+                             public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
@@ -45,18 +43,15 @@ class CORE_EXPORT NodeList : public GarbageCollectedFinalized<NodeList>,
   virtual Node* item(unsigned index) const = 0;
 
   // Other methods (not part of DOM)
-  virtual bool isEmptyNodeList() const { return false; }
-  virtual bool isChildNodeList() const { return false; }
+  virtual bool IsEmptyNodeList() const { return false; }
+  virtual bool IsChildNodeList() const { return false; }
 
-  virtual Node* virtualOwnerNode() const { return 0; }
+  virtual Node* VirtualOwnerNode() const { return 0; }
 
   DEFINE_INLINE_VIRTUAL_TRACE() {}
 
  protected:
   NodeList() {}
-
- private:
-  IterationSource* startIteration(ScriptState*, ExceptionState&) override;
 };
 
 }  // namespace blink

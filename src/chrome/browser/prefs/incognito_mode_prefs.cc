@@ -10,6 +10,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/task_scheduler/post_task.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
@@ -31,7 +32,7 @@
 #endif  // OS_WIN
 
 #if defined(OS_ANDROID)
-#include "chrome/browser/android/chrome_application.h"
+#include "chrome/browser/android/partner_browser_customizations.h"
 #endif  // defined(OS_ANDROID)
 
 using content::BrowserThread;
@@ -197,8 +198,11 @@ bool IncognitoModePrefs::CanOpenBrowser(Profile* profile) {
 #if defined(OS_WIN)
 // static
 void IncognitoModePrefs::InitializePlatformParentalControls() {
-  content::BrowserThread::PostBlockingPoolTask(
-      FROM_HERE,
+  // TODO(fdoray): This task uses COM. Add the WithCom() trait once supported.
+  // crbug.com/662122
+  base::PostTaskWithTraits(
+      FROM_HERE, base::TaskTraits().MayBlock().WithPriority(
+                     base::TaskPriority::USER_VISIBLE),
       base::Bind(
           base::IgnoreResult(&PlatformParentalControlsValue::GetInstance)));
 }
@@ -209,7 +213,7 @@ bool IncognitoModePrefs::ArePlatformParentalControlsEnabled() {
 #if defined(OS_WIN)
   return PlatformParentalControlsValue::GetInstance()->is_enabled();
 #elif defined(OS_ANDROID)
-  return chrome::android::ChromeApplication::AreParentalControlsEnabled();
+  return chrome::android::PartnerBrowserCustomizations::IsIncognitoDisabled();
 #else
   return false;
 #endif

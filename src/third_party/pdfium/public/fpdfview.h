@@ -26,17 +26,13 @@ typedef void* FPDF_BITMAP;
 typedef void* FPDF_BOOKMARK;
 typedef void* FPDF_CLIPPATH;
 typedef void* FPDF_DEST;
-typedef void* FPDF_DOCSCHHANDLE;
 typedef void* FPDF_DOCUMENT;
 typedef void* FPDF_FONT;
-typedef void* FPDF_HMODULE;
 typedef void* FPDF_LINK;
-typedef void* FPDF_MODULEMGR;
 typedef void* FPDF_PAGE;
 typedef void* FPDF_PAGELINK;
 typedef void* FPDF_PAGEOBJECT;  // Page object(text, path, etc)
 typedef void* FPDF_PAGERANGE;
-typedef void* FPDF_PATH;
 typedef void* FPDF_RECORDER;
 typedef void* FPDF_SCHHANDLE;
 typedef void* FPDF_STRUCTELEMENT;
@@ -252,7 +248,8 @@ DLLEXPORT void STDCALL FPDF_SetPrintTextWithGDI(FPDF_BOOL use_gdi);
 //                              All other values are invalid.
 // Return value:
 //          True if successful, false if unsucessful (typically invalid input).
-DLLEXPORT FPDF_BOOL STDCALL FPDF_SetPrintPostscriptLevel(FPDF_BOOL use_gdi);
+DLLEXPORT FPDF_BOOL STDCALL
+FPDF_SetPrintPostscriptLevel(FPDF_BOOL postscript_level);
 #endif  // defined(_WIN32)
 
 // Function: FPDF_LoadDocument

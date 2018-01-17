@@ -13,11 +13,9 @@
 #include "net/spdy/hpack/hpack_header_table.h"
 #include "net/spdy/hpack/hpack_huffman_table.h"
 #include "net/spdy/hpack/hpack_output_stream.h"
+#include "net/spdy/platform/api/spdy_estimate_memory_usage.h"
 
 namespace net {
-
-using base::StringPiece;
-using std::string;
 
 class HpackEncoder::RepresentationIterator {
  public:
@@ -58,10 +56,10 @@ class HpackEncoder::RepresentationIterator {
 namespace {
 
 // The default header listener.
-void NoOpListener(StringPiece /*name*/, StringPiece /*value*/) {}
+void NoOpListener(SpdyStringPiece /*name*/, SpdyStringPiece /*value*/) {}
 
 // The default HPACK indexing policy.
-bool DefaultPolicy(StringPiece name, StringPiece /* value */) {
+bool DefaultPolicy(SpdyStringPiece name, SpdyStringPiece /* value */) {
   if (name.empty()) {
     return false;
   }
@@ -88,13 +86,13 @@ HpackEncoder::HpackEncoder(const HpackHuffmanTable& table)
 HpackEncoder::~HpackEncoder() {}
 
 void HpackEncoder::EncodeHeaderSet(const Representations& representations,
-                                   string* output) {
+                                   SpdyString* output) {
   RepresentationIterator iter(representations);
   EncodeRepresentations(&iter, output);
 }
 
 bool HpackEncoder::EncodeHeaderSet(const SpdyHeaderBlock& header_set,
-                                   string* output) {
+                                   SpdyString* output) {
   // Separate header set into pseudo-headers and regular headers.
   Representations pseudo_headers;
   Representations regular_headers;
@@ -132,8 +130,14 @@ void HpackEncoder::ApplyHeaderTableSizeSetting(size_t size_setting) {
   should_emit_table_size_ = true;
 }
 
+size_t HpackEncoder::EstimateMemoryUsage() const {
+  // |huffman_table_| is a singleton. It's accounted for in spdy_session_pool.cc
+  return SpdyEstimateMemoryUsage(header_table_) +
+         SpdyEstimateMemoryUsage(output_stream_);
+}
+
 void HpackEncoder::EncodeRepresentations(RepresentationIterator* iter,
-                                         string* output) {
+                                         SpdyString* output) {
   MaybeEmitTableSize();
   while (iter->HasNext()) {
     const auto header = iter->Next();
@@ -190,7 +194,7 @@ void HpackEncoder::EmitLiteral(const Representation& representation) {
   EmitString(representation.second);
 }
 
-void HpackEncoder::EmitString(StringPiece str) {
+void HpackEncoder::EmitString(SpdyStringPiece str) {
   size_t encoded_size =
       enable_compression_ ? huffman_table_.EncodedSize(str) : str.size();
   if (encoded_size < str.size()) {
@@ -230,19 +234,19 @@ void HpackEncoder::CookieToCrumbs(const Representation& cookie,
   // See Section 8.1.2.5. "Compressing the Cookie Header Field" in the HTTP/2
   // specification at https://tools.ietf.org/html/draft-ietf-httpbis-http2-14.
   // Cookie values are split into individually-encoded HPACK representations.
-  StringPiece cookie_value = cookie.second;
+  SpdyStringPiece cookie_value = cookie.second;
   // Consume leading and trailing whitespace if present.
-  StringPiece::size_type first = cookie_value.find_first_not_of(" \t");
-  StringPiece::size_type last = cookie_value.find_last_not_of(" \t");
-  if (first == StringPiece::npos) {
-    cookie_value = StringPiece();
+  SpdyStringPiece::size_type first = cookie_value.find_first_not_of(" \t");
+  SpdyStringPiece::size_type last = cookie_value.find_last_not_of(" \t");
+  if (first == SpdyStringPiece::npos) {
+    cookie_value = SpdyStringPiece();
   } else {
     cookie_value = cookie_value.substr(first, (last - first) + 1);
   }
   for (size_t pos = 0;;) {
     size_t end = cookie_value.find(";", pos);
 
-    if (end == StringPiece::npos) {
+    if (end == SpdyStringPiece::npos) {
       out->push_back(std::make_pair(cookie.first, cookie_value.substr(pos)));
       break;
     }
@@ -262,12 +266,12 @@ void HpackEncoder::DecomposeRepresentation(const Representation& header_field,
                                            Representations* out) {
   size_t pos = 0;
   size_t end = 0;
-  while (end != StringPiece::npos) {
+  while (end != SpdyStringPiece::npos) {
     end = header_field.second.find('\0', pos);
-    out->push_back(
-        std::make_pair(header_field.first,
-                       header_field.second.substr(
-                           pos, end == StringPiece::npos ? end : end - pos)));
+    out->push_back(std::make_pair(
+        header_field.first,
+        header_field.second.substr(
+            pos, end == SpdyStringPiece::npos ? end : end - pos)));
     pos = end + 1;
   }
 }
@@ -292,7 +296,7 @@ class HpackEncoder::Encoderator : public ProgressiveEncoder {
 
   // Encodes up to max_encoded_bytes of the current header block into the
   // given output string.
-  void Next(size_t max_encoded_bytes, string* output) override;
+  void Next(size_t max_encoded_bytes, SpdyString* output) override;
 
  private:
   HpackEncoder* encoder_;
@@ -329,7 +333,8 @@ HpackEncoder::Encoderator::Encoderator(const SpdyHeaderBlock& header_set,
   encoder_->MaybeEmitTableSize();
 }
 
-void HpackEncoder::Encoderator::Next(size_t max_encoded_bytes, string* output) {
+void HpackEncoder::Encoderator::Next(size_t max_encoded_bytes,
+                                     SpdyString* output) {
   SPDY_BUG_IF(!has_next_)
       << "Encoderator::Next called with nothing left to encode.";
   const bool use_compression = encoder_->enable_compression_;

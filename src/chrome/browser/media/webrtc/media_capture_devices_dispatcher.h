@@ -9,10 +9,11 @@
 #include <list>
 #include <map>
 #include <memory>
+#include <string>
+#include <vector>
 
 #include "base/callback.h"
 #include "base/macros.h"
-#include "base/memory/scoped_vector.h"
 #include "base/memory/singleton.h"
 #include "base/observer_list.h"
 #include "content/public/browser/media_observer.h"
@@ -109,6 +110,14 @@ class MediaCaptureDevicesDispatcher : public content::MediaObserver {
                                    bool video,
                                    content::MediaStreamDevices* devices);
 
+  // Helper to get default device IDs. If the returned value is an empty string,
+  // it means that there is no default device for the given device |type|. The
+  // only supported |type| values are content::MEDIA_DEVICE_AUDIO_CAPTURE and
+  // content::MEDIA_DEVICE_VIDEO_CAPTURE.
+  // Must be called on the UI thread.
+  std::string GetDefaultDeviceIDForProfile(Profile* profile,
+                                           content::MediaStreamType type);
+
   // Helpers for picking particular requested devices, identified by raw id.
   // If the device requested is not available it will return NULL.
   const content::MediaStreamDevice*
@@ -198,7 +207,7 @@ class MediaCaptureDevicesDispatcher : public content::MediaObserver {
   std::unique_ptr<DesktopStreamsRegistry> desktop_streams_registry_;
 
   // Handlers for processing media access requests.
-  ScopedVector<MediaAccessHandler> media_access_handlers_;
+  std::vector<std::unique_ptr<MediaAccessHandler>> media_access_handlers_;
 
   DISALLOW_COPY_AND_ASSIGN(MediaCaptureDevicesDispatcher);
 };

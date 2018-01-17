@@ -15,11 +15,11 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
-#include "content/public/test/mock_special_storage_policy.h"
 #include "net/base/net_errors.h"
 #include "net/base/test_completion_callback.h"
 #include "storage/browser/database/database_tracker.h"
 #include "storage/browser/quota/quota_manager_proxy.h"
+#include "storage/browser/test/mock_special_storage_policy.h"
 #include "storage/common/database/database_identifier.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/sqlite/sqlite3.h"
@@ -140,7 +140,7 @@ class TestQuotaManagerProxy : public storage::QuotaManagerProxy {
   void GetUsageAndQuota(base::SequencedTaskRunner* original_task_runner,
                         const GURL& origin,
                         storage::StorageType type,
-                        const GetUsageAndQuotaCallback& callback) override {}
+                        const UsageAndQuotaCallback& callback) override {}
 
   void SimulateQuotaManagerDestroyed() {
     if (registered_client_) {

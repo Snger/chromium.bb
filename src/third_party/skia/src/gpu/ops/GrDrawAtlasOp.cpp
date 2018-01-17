@@ -12,7 +12,7 @@
 #include "SkRSXform.h"
 #include "SkRandom.h"
 
-void GrDrawAtlasOp::applyPipelineOptimizations(const GrPipelineOptimizations& optimizations) {
+void GrDrawAtlasOp::applyPipelineOptimizations(const PipelineOptimizations& optimizations) {
     SkASSERT(fGeoData.count() == 1);
     if (optimizations.getOverrideColorIfSet(&fGeoData[0].fColor) && fHasColors) {
         size_t vertexStride =
@@ -35,7 +35,7 @@ static sk_sp<GrGeometryProcessor> make_gp(bool hasColors,
     using namespace GrDefaultGeoProcFactory;
     Color gpColor(color);
     if (hasColors) {
-        gpColor.fType = Color::kAttribute_Type;
+        gpColor.fType = Color::kPremulGrColorAttribute_Type;
     }
 
     return GrDefaultGeoProcFactory::Make(gpColor, Coverage::kSolid_Type,
@@ -67,7 +67,7 @@ void GrDrawAtlasOp::onPrepareDraws(Target* target) const {
         memcpy(vertPtr, args.fVerts.begin(), allocSize);
         vertPtr += allocSize;
     }
-    helper.recordDraw(target, gp.get());
+    helper.recordDraw(target, gp.get(), this->pipeline());
 }
 
 GrDrawAtlasOp::GrDrawAtlasOp(GrColor color, const SkMatrix& viewMatrix, int spriteCount,
@@ -179,7 +179,7 @@ bool GrDrawAtlasOp::onCombineIfPossible(GrOp* t, const GrCaps& caps) {
     return true;
 }
 
-#ifdef GR_TEST_UTILS
+#if GR_TEST_UTILS
 
 static SkRSXform random_xform(SkRandom* random) {
     static const SkScalar kMinExtent = -100.f;

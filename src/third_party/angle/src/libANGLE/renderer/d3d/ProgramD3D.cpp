@@ -8,7 +8,7 @@
 
 #include "libANGLE/renderer/d3d/ProgramD3D.h"
 
-#include "common/BitSetIterator.h"
+#include "common/bitset_utils.h"
 #include "common/utilities.h"
 #include "libANGLE/Framebuffer.h"
 #include "libANGLE/FramebufferAttachment.h"
@@ -17,6 +17,7 @@
 #include "libANGLE/VaryingPacking.h"
 #include "libANGLE/VertexArray.h"
 #include "libANGLE/features.h"
+#include "libANGLE/renderer/ContextImpl.h"
 #include "libANGLE/renderer/d3d/DynamicHLSL.h"
 #include "libANGLE/renderer/d3d/FramebufferD3D.h"
 #include "libANGLE/renderer/d3d/RendererD3D.h"
@@ -259,7 +260,7 @@ D3DUniform::D3DUniform(GLenum typeIn,
         data = new uint8_t[bytes];
         memset(data, 0, bytes);
 
-        // TODO(jmadill): is this correct with non-square matrices?
+        // Use the row count as register count, will work for non-square matrices.
         registerCount = gl::VariableRowCount(type) * elementCount();
     }
 }
@@ -1127,6 +1128,10 @@ void ProgramD3D::setBinaryRetrievableHint(bool /* retrievable */)
 {
 }
 
+void ProgramD3D::setSeparable(bool /* separable */)
+{
+}
+
 gl::Error ProgramD3D::getPixelExecutableForFramebuffer(const gl::Framebuffer *fbo,
                                                        ShaderExecutableD3D **outExecutable)
 {
@@ -1188,9 +1193,8 @@ gl::Error ProgramD3D::getPixelExecutableForOutputLayout(const std::vector<GLenum
     }
     else if (!infoLog)
     {
-        std::vector<char> tempCharBuffer(tempInfoLog.getLength() + 3);
-        tempInfoLog.getLog(static_cast<GLsizei>(tempInfoLog.getLength()), NULL, &tempCharBuffer[0]);
-        ERR("Error compiling dynamic pixel executable:\n%s\n", &tempCharBuffer[0]);
+        ERR() << "Error compiling dynamic pixel executable:" << std::endl
+              << tempInfoLog.str() << std::endl;
     }
 
     *outExectuable = pixelExecutable;
@@ -1234,9 +1238,8 @@ gl::Error ProgramD3D::getVertexExecutableForInputLayout(const gl::InputLayout &i
     }
     else if (!infoLog)
     {
-        std::vector<char> tempCharBuffer(tempInfoLog.getLength() + 3);
-        tempInfoLog.getLog(static_cast<GLsizei>(tempInfoLog.getLength()), NULL, &tempCharBuffer[0]);
-        ERR("Error compiling dynamic vertex executable:\n%s\n", &tempCharBuffer[0]);
+        ERR() << "Error compiling dynamic vertex executable:" << std::endl
+              << tempInfoLog.str() << std::endl;
     }
 
     *outExectuable = vertexExecutable;
@@ -1285,9 +1288,8 @@ gl::Error ProgramD3D::getGeometryExecutableForPrimitiveType(const gl::ContextSta
 
     if (!infoLog && error.isError())
     {
-        std::vector<char> tempCharBuffer(tempInfoLog.getLength() + 3);
-        tempInfoLog.getLog(static_cast<GLsizei>(tempInfoLog.getLength()), NULL, &tempCharBuffer[0]);
-        ERR("Error compiling dynamic geometry executable:\n%s\n", &tempCharBuffer[0]);
+        ERR() << "Error compiling dynamic geometry executable:" << std::endl
+              << tempInfoLog.str() << std::endl;
     }
 
     if (geometryExecutable != nullptr)
@@ -1454,7 +1456,8 @@ LinkResult ProgramD3D::compileComputeExecutable(gl::InfoLog &infoLog)
 
     if (computeExecutable == nullptr)
     {
-        ERR("Error compiling dynamic compute executable:\n%s\n", infoLog.str().c_str());
+        ERR() << "Error compiling dynamic compute executable:" << std::endl
+              << infoLog.str() << std::endl;
     }
     else
     {
@@ -1466,10 +1469,12 @@ LinkResult ProgramD3D::compileComputeExecutable(gl::InfoLog &infoLog)
     return mComputeExecutable.get() != nullptr;
 }
 
-LinkResult ProgramD3D::link(const gl::ContextState &data,
+LinkResult ProgramD3D::link(ContextImpl *contextImpl,
                             const gl::VaryingPacking &packing,
                             gl::InfoLog &infoLog)
 {
+    const auto &data = contextImpl->getContextState();
+
     reset();
 
     const gl::Shader *computeShader = mState.getAttachedComputeShader();
@@ -1901,7 +1906,6 @@ void ProgramD3D::defineUniformsAndAssignRegisters()
     if (computeShader)
     {
         for (const sh::Uniform &computeUniform : computeShader->getUniforms())
-
         {
             if (computeUniform.staticUse)
             {
@@ -1913,7 +1917,6 @@ void ProgramD3D::defineUniformsAndAssignRegisters()
     {
         const gl::Shader *vertexShader = mState.getAttachedVertexShader();
         for (const sh::Uniform &vertexUniform : vertexShader->getUniforms())
-
         {
             if (vertexUniform.staticUse)
             {
@@ -1961,7 +1964,7 @@ void ProgramD3D::defineUniformBase(const gl::Shader *shader,
 
     unsigned int startRegister = shaderD3D->getUniformRegister(uniform.name);
     ShShaderOutput outputType = shaderD3D->getCompilerOutputType();
-    sh::HLSLBlockEncoder encoder(sh::HLSLBlockEncoder::GetStrategyFor(outputType));
+    sh::HLSLBlockEncoder encoder(sh::HLSLBlockEncoder::GetStrategyFor(outputType), true);
     encoder.skipRegisters(startRegister);
 
     defineUniform(shader->getType(), uniform, uniform.name, &encoder, uniformMap);
@@ -2191,7 +2194,7 @@ size_t ProgramD3D::getUniformBlockInfo(const sh::InterfaceBlock &interfaceBlock)
 
     // define member uniforms
     sh::Std140BlockEncoder std140Encoder;
-    sh::HLSLBlockEncoder hlslEncoder(sh::HLSLBlockEncoder::ENCODE_PACKED);
+    sh::HLSLBlockEncoder hlslEncoder(sh::HLSLBlockEncoder::ENCODE_PACKED, false);
     sh::BlockLayoutEncoder *encoder = nullptr;
 
     if (interfaceBlock.layout == sh::BLOCKLAYOUT_STANDARD)
@@ -2412,6 +2415,8 @@ void ProgramD3D::gatherTransformFeedbackVaryings(const gl::VaryingPacking &varyi
         }
         else
         {
+            size_t subscript     = GL_INVALID_INDEX;
+            std::string baseName = gl::ParseResourceName(tfVaryingName, &subscript);
             for (const auto &registerInfo : varyingPacking.getRegisterList())
             {
                 const auto &varying   = *registerInfo.packedVarying->varying;
@@ -2427,7 +2432,8 @@ void ProgramD3D::gatherTransformFeedbackVaryings(const gl::VaryingPacking &varyi
 
                 // There can be more than one register assigned to a particular varying, and each
                 // register needs its own stream out entry.
-                if (tfVaryingName == varying.name)
+                if (baseName == registerInfo.packedVarying->varying->name &&
+                    (subscript == GL_INVALID_INDEX || subscript == registerInfo.varyingArrayIndex))
                 {
                     mStreamOutVaryings.push_back(D3DVarying(
                         varyingSemantic, registerInfo.semanticIndex, componentCount, outputSlot));

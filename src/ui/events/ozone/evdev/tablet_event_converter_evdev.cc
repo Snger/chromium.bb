@@ -45,6 +45,7 @@ TabletEventConverterEvdev::TabletEventConverterEvdev(
                           info.vendor_id(),
                           info.product_id()),
       input_device_fd_(std::move(fd)),
+      controller_(FROM_HERE),
       cursor_(cursor),
       dispatcher_(dispatcher) {
   x_abs_min_ = info.GetAbsMinimum(ABS_X);
@@ -187,7 +188,7 @@ void TabletEventConverterEvdev::DispatchMouseButton(const input_event& input) {
   dispatcher_->DispatchMouseButtonEvent(MouseButtonEventParams(
       input_device_.id, EF_NONE, cursor_->GetLocation(), button, down,
       false /* allow_remap */,
-      PointerDetails(GetToolType(stylus_),
+      PointerDetails(GetToolType(stylus_), /* pointer_id*/ 0,
                      /* radius_x */ 0.0f, /* radius_y */ 0.0f, pressure_,
                      tilt_x_, tilt_y_),
       TimeTicksFromInputEvent(input)));
@@ -210,7 +211,7 @@ void TabletEventConverterEvdev::FlushEvents(const input_event& input) {
 
   dispatcher_->DispatchMouseMoveEvent(MouseMoveEventParams(
       input_device_.id, EF_NONE, cursor_->GetLocation(),
-      PointerDetails(GetToolType(stylus_),
+      PointerDetails(GetToolType(stylus_), /* pointer_id*/ 0,
                      /* radius_x */ 0.0f, /* radius_y */ 0.0f, pressure_,
                      tilt_x_, tilt_y_),
       TimeTicksFromInputEvent(input)));

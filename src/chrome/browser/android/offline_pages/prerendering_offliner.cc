@@ -10,11 +10,22 @@
 #include "chrome/browser/android/offline_pages/offline_page_mhtml_archiver.h"
 #include "chrome/browser/android/offline_pages/offliner_helper.h"
 #include "chrome/browser/profiles/profile.h"
+#include "components/offline_pages/core/background/offliner_policy.h"
 #include "components/offline_pages/core/background/save_page_request.h"
 #include "components/offline_pages/core/client_namespace_constants.h"
+#include "components/offline_pages/core/downloads/download_ui_adapter.h"
+#include "components/offline_pages/core/offline_page_feature.h"
 #include "components/offline_pages/core/offline_page_model.h"
 #include "content/public/browser/browser_context.h"
+#include "content/public/browser/mhtml_extra_parts.h"
 #include "content/public/browser/web_contents.h"
+
+namespace {
+const char kContentType[] = "text/plain";
+const char kContentTransferEncodingBinary[] =
+    "Content-Transfer-Encoding: binary";
+const char kXHeaderForSignals[] = "X-Chrome-Loading-Metrics-Data: 1";
+}  // namespace
 
 namespace offline_pages {
 
@@ -23,6 +34,7 @@ PrerenderingOffliner::PrerenderingOffliner(
     const OfflinerPolicy* policy,
     OfflinePageModel* offline_page_model)
     : browser_context_(browser_context),
+      policy_(policy),
       offline_page_model_(offline_page_model),
       pending_request_(nullptr),
       is_low_end_device_(base::SysInfo::IsLowEndDevice()),
@@ -30,6 +42,14 @@ PrerenderingOffliner::PrerenderingOffliner(
       weak_ptr_factory_(this) {}
 
 PrerenderingOffliner::~PrerenderingOffliner() {}
+
+void PrerenderingOffliner::OnNetworkProgress(const SavePageRequest& request,
+                                             int64_t bytes) {
+  if (!pending_request_ || !progress_callback_)
+    return;
+
+  progress_callback_.Run(request, bytes);
+}
 
 void PrerenderingOffliner::OnLoadPageDone(
     const SavePageRequest& request,
@@ -67,8 +87,28 @@ void PrerenderingOffliner::OnLoadPageDone(
     save_page_params.is_background = true;
     // Pass in the original URL if it is different from the last committed URL
     // when redirects occur.
-    if (save_page_params.url != request.url())
+    if (!request.original_url().is_empty())
+      save_page_params.original_url = request.original_url();
+    else if (save_page_params.url != request.url())
       save_page_params.original_url = request.url();
+
+    if (IsOfflinePagesLoadSignalCollectingEnabled()) {
+      // Stash loading signals for writing when we write out the MHTML.
+      std::string headers =
+          base::StringPrintf("%s\r\n%s\r\n\r\n", kContentTransferEncodingBinary,
+                             kXHeaderForSignals);
+      std::string body = headers + SerializeLoadingSignalData();
+      std::string content_type = kContentType;
+      std::string content_location = base::StringPrintf(
+          "cid:signal-data-%" PRId64 "@mhtml.blink", request.request_id());
+
+      content::MHTMLExtraParts* extra_parts =
+          content::MHTMLExtraParts::FromWebContents(web_contents);
+      DCHECK(extra_parts);
+      if (extra_parts != nullptr) {
+        extra_parts->AddExtraMHTMLPart(content_type, content_location, body);
+      }
+    }
 
     SavePage(save_page_params, std::move(archiver),
              base::Bind(&PrerenderingOffliner::OnSavePageDone,
@@ -79,6 +119,19 @@ void PrerenderingOffliner::OnLoadPageDone(
     app_listener_.reset(nullptr);
     completion_callback_.Run(request, load_status);
   }
+}
+
+std::string PrerenderingOffliner::SerializeLoadingSignalData() {
+  // Write the signal data into a single string.
+  std::string signal_string;
+  const std::vector<std::string>& signals = loader_->GetLoadingSignalData();
+
+  // TODO(petewil): Convert this to JSON, use json_writer.h
+  for (std::string signal : signals) {
+    signal_string += signal;
+    signal_string += "\n";
+  }
+  return signal_string;
 }
 
 void PrerenderingOffliner::OnSavePageDone(
@@ -114,8 +167,10 @@ void PrerenderingOffliner::OnSavePageDone(
   completion_callback_.Run(request, save_status);
 }
 
-bool PrerenderingOffliner::LoadAndSave(const SavePageRequest& request,
-                                       const CompletionCallback& callback) {
+bool PrerenderingOffliner::LoadAndSave(
+    const SavePageRequest& request,
+    const CompletionCallback& completion_callback,
+    const ProgressCallback& progress_callback) {
   DCHECK(!pending_request_.get());
 
   if (pending_request_) {
@@ -173,12 +228,15 @@ bool PrerenderingOffliner::LoadAndSave(const SavePageRequest& request,
 
   // Track copy of pending request for callback handling.
   pending_request_.reset(new SavePageRequest(request));
-  completion_callback_ = callback;
+  completion_callback_ = completion_callback;
+  progress_callback_ = progress_callback;
 
   // Kick off load page attempt.
   bool accepted = GetOrCreateLoader()->LoadPage(
       request.url(), base::Bind(&PrerenderingOffliner::OnLoadPageDone,
-                                weak_ptr_factory_.GetWeakPtr(), request));
+                                weak_ptr_factory_.GetWeakPtr(), request),
+      base::Bind(&PrerenderingOffliner::OnNetworkProgress,
+                 weak_ptr_factory_.GetWeakPtr(), request));
   if (!accepted) {
     pending_request_.reset(nullptr);
   } else {
@@ -191,13 +249,30 @@ bool PrerenderingOffliner::LoadAndSave(const SavePageRequest& request,
   return accepted;
 }
 
-void PrerenderingOffliner::Cancel() {
+void PrerenderingOffliner::Cancel(const CancelCallback& callback) {
+  int64_t request_id = 0LL;
   if (pending_request_) {
+    request_id = pending_request_->request_id();
     pending_request_.reset(nullptr);
     app_listener_.reset(nullptr);
     GetOrCreateLoader()->StopLoading();
     // TODO(dougarnett): Consider ability to cancel SavePage request.
   }
+  callback.Run(request_id);
+}
+
+bool PrerenderingOffliner::HandleTimeout(const SavePageRequest& request) {
+  if (pending_request_) {
+    DCHECK(request.request_id() == pending_request_->request_id());
+    if (GetOrCreateLoader()->IsLowbarMet() &&
+        (request.started_attempt_count() + 1 >= policy_->GetMaxStartedTries() ||
+         request.completed_attempt_count() + 1 >=
+             policy_->GetMaxCompletedTries())) {
+      GetOrCreateLoader()->StartSnapshot();
+      return true;
+    }
+  }
+  return false;
 }
 
 void PrerenderingOffliner::SetLoaderForTesting(
@@ -238,10 +313,20 @@ void PrerenderingOffliner::OnApplicationStateChange(
           base::android::APPLICATION_STATE_HAS_RUNNING_ACTIVITIES) {
     DVLOG(1) << "App became active, canceling current offlining request";
     SavePageRequest* request = pending_request_.get();
-    Cancel();
-    completion_callback_.Run(*request,
-                             Offliner::RequestStatus::FOREGROUND_CANCELED);
+    // This works because Bind will make a copy of request, and we
+    // should not have to worry about reset being called before cancel callback.
+    Cancel(base::Bind(&PrerenderingOffliner::HandleApplicationStateChangeCancel,
+                      weak_ptr_factory_.GetWeakPtr(), *request));
   }
 }
 
+void PrerenderingOffliner::HandleApplicationStateChangeCancel(
+    const SavePageRequest& request,
+    int64_t offline_id) {
+  // This shouldn't be immediate, but account for case where request was reset
+  // while waiting for callback.
+  if (pending_request_ && pending_request_->request_id() != offline_id)
+    return;
+  completion_callback_.Run(request, RequestStatus::FOREGROUND_CANCELED);
+}
 }  // namespace offline_pages

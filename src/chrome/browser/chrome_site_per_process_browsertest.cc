@@ -100,8 +100,16 @@ double GetFrameDeviceScaleFactor(const content::ToRenderFrameHost& adapter) {
   return device_scale_factor;
 }
 
+// Flaky on Windows 10. http://crbug.com/700150
+#if defined(OS_WIN)
+#define MAYBE_InterstitialLoadsWithCorrectDeviceScaleFactor \
+  DISABLED_InterstitialLoadsWithCorrectDeviceScaleFactor
+#else
+#define MAYBE_InterstitialLoadsWithCorrectDeviceScaleFactor \
+  InterstitialLoadsWithCorrectDeviceScaleFactor
+#endif
 IN_PROC_BROWSER_TEST_F(SitePerProcessHighDPIExpiredCertBrowserTest,
-                       InterstitialLoadsWithCorrectDeviceScaleFactor) {
+                       MAYBE_InterstitialLoadsWithCorrectDeviceScaleFactor) {
   GURL main_url(embedded_test_server()->GetURL(
       "a.com", "/cross_site_iframe_factory.html?a(b)"));
   ui_test_utils::NavigateToURL(browser(), main_url);
@@ -322,20 +330,11 @@ class ChromeSitePerProcessPDFTest : public ChromeSitePerProcessTest {
   DISALLOW_COPY_AND_ASSIGN(ChromeSitePerProcessPDFTest);
 };
 
-// TODO(ekaramad): This test is flaky on Windows 7. Enable it when the issue is
-// fixed ((https://crbug.com/666379).
-#if defined(OS_WIN)
-#define MAYBE_EmbeddedPDFInsideCrossOriginFrame \
-  DISABLED_EmbeddedPDFInsideCrossOriginFrame
-#else
-#define MAYBE_EmbeddedPDFInsideCrossOriginFrame \
-  EmbeddedPDFInsideCrossOriginFrame
-#endif
 // This test verifies that when navigating an OOPIF to a page with <embed>-ed
 // PDF, the guest is properly created, and by removing the embedder frame, the
 // guest is properly destroyed (https://crbug.com/649856).
 IN_PROC_BROWSER_TEST_F(ChromeSitePerProcessPDFTest,
-                       MAYBE_EmbeddedPDFInsideCrossOriginFrame) {
+                       EmbeddedPDFInsideCrossOriginFrame) {
   // Navigate to a page with an <iframe>.
   GURL main_url(embedded_test_server()->GetURL("a.com", "/iframe.html"));
   ui_test_utils::NavigateToURL(browser(), main_url);

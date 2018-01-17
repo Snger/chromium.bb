@@ -30,7 +30,7 @@ static const int kIndicesPerInstance = 6;
  */
 static sk_sp<GrGeometryProcessor> make_gp() {
     using namespace GrDefaultGeoProcFactory;
-    return GrDefaultGeoProcFactory::Make(Color::kAttribute_Type, Coverage::kSolid_Type,
+    return GrDefaultGeoProcFactory::Make(Color::kPremulGrColorAttribute_Type, Coverage::kSolid_Type,
                                          LocalCoords::kHasExplicit_Type, SkMatrix::I());
 }
 
@@ -67,7 +67,7 @@ static void tesselate(intptr_t vertices,
     }
 }
 
-class NonAAFillRectOp final : public GrMeshDrawOp {
+class NonAAFillRectOp final : public GrLegacyMeshDrawOp {
 public:
     DEFINE_OP_CLASS_ID
 
@@ -110,12 +110,13 @@ public:
 private:
     NonAAFillRectOp() : INHERITED(ClassID()) {}
 
-    void getPipelineAnalysisInput(GrPipelineAnalysisDrawOpInput* input) const override {
-        input->pipelineColorInput()->setKnownFourComponents(fRects[0].fColor);
-        input->pipelineCoverageInput()->setKnownSingleComponent(0xff);
+    void getProcessorAnalysisInputs(GrProcessorAnalysisColor* color,
+                                    GrProcessorAnalysisCoverage* coverage) const override {
+        color->setToConstant(fRects[0].fColor);
+        *coverage = GrProcessorAnalysisCoverage::kNone;
     }
 
-    void applyPipelineOptimizations(const GrPipelineOptimizations& optimizations) override {
+    void applyPipelineOptimizations(const PipelineOptimizations& optimizations) override {
         optimizations.getOverrideColorIfSet(&fRects[0].fColor);
     }
 
@@ -147,7 +148,7 @@ private:
             tesselate(verts, vertexStride, fRects[i].fColor, &fRects[i].fViewMatrix,
                       fRects[i].fRect, &fRects[i].fLocalQuad);
         }
-        helper.recordDraw(target, gp.get());
+        helper.recordDraw(target, gp.get(), this->pipeline());
     }
 
     bool onCombineIfPossible(GrOp* t, const GrCaps& caps) override {
@@ -171,24 +172,24 @@ private:
 
     SkSTArray<1, RectInfo, true> fRects;
 
-    typedef GrMeshDrawOp INHERITED;
+    typedef GrLegacyMeshDrawOp INHERITED;
 };
 
 namespace GrNonAAFillRectOp {
 
-std::unique_ptr<GrDrawOp> Make(GrColor color,
-                               const SkMatrix& viewMatrix,
-                               const SkRect& rect,
-                               const SkRect* localRect,
-                               const SkMatrix* localMatrix) {
-    return std::unique_ptr<GrDrawOp>(
+std::unique_ptr<GrLegacyMeshDrawOp> Make(GrColor color,
+                                         const SkMatrix& viewMatrix,
+                                         const SkRect& rect,
+                                         const SkRect* localRect,
+                                         const SkMatrix* localMatrix) {
+    return std::unique_ptr<GrLegacyMeshDrawOp>(
             new NonAAFillRectOp(color, viewMatrix, rect, localRect, localMatrix));
 }
 };
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef GR_TEST_UTILS
+#if GR_TEST_UTILS
 
 #include "GrDrawOpTest.h"
 

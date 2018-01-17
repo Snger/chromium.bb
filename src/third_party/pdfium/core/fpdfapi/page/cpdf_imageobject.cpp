@@ -12,11 +12,10 @@
 #include "core/fpdfapi/page/cpdf_image.h"
 #include "core/fpdfapi/parser/cpdf_document.h"
 
-CPDF_ImageObject::CPDF_ImageObject()
-    : m_pImage(nullptr), m_pImageOwned(false) {}
+CPDF_ImageObject::CPDF_ImageObject() {}
 
 CPDF_ImageObject::~CPDF_ImageObject() {
-  Release();
+  MaybePurgeCache();
 }
 
 CPDF_PageObject::Type CPDF_ImageObject::GetType() const {
@@ -41,35 +40,38 @@ const CPDF_ImageObject* CPDF_ImageObject::AsImage() const {
 }
 
 void CPDF_ImageObject::CalcBoundingBox() {
-  m_Left = m_Bottom = 0;
-  m_Right = m_Top = 1.0f;
+  m_Left = 0;
+  m_Bottom = 0;
+  m_Right = 1.0f;
+  m_Top = 1.0f;
   m_Matrix.TransformRect(m_Left, m_Right, m_Top, m_Bottom);
 }
 
-void CPDF_ImageObject::SetOwnedImage(std::unique_ptr<CPDF_Image> pImage) {
-  Release();
-  m_pImage = pImage.release();
-  m_pImageOwned = true;
-}
-
-void CPDF_ImageObject::SetUnownedImage(CPDF_Image* pImage) {
-  Release();
+void CPDF_ImageObject::SetImage(const CFX_RetainPtr<CPDF_Image>& pImage) {
+  MaybePurgeCache();
   m_pImage = pImage;
-  m_pImageOwned = false;
 }
 
-void CPDF_ImageObject::Release() {
-  if (m_pImageOwned) {
-    delete m_pImage;
-    m_pImage = nullptr;
-    m_pImageOwned = false;
-    return;
-  }
-
+void CPDF_ImageObject::MaybePurgeCache() {
   if (!m_pImage)
     return;
 
-  CPDF_DocPageData* pPageData = m_pImage->GetDocument()->GetPageData();
-  pPageData->ReleaseImage(m_pImage->GetStream()->GetObjNum());
-  m_pImage = nullptr;
+  CPDF_Document* pDocument = m_pImage->GetDocument();
+  if (!pDocument)
+    return;
+
+  CPDF_DocPageData* pPageData = pDocument->GetPageData();
+  if (pPageData)
+    return;
+
+  CPDF_Stream* pStream = m_pImage->GetStream();
+  if (!pStream)
+    return;
+
+  uint32_t objnum = pStream->GetObjNum();
+  if (!objnum)
+    return;
+
+  m_pImage.Reset();  // Clear my reference before asking the cache.
+  pPageData->MaybePurgeImage(objnum);
 }

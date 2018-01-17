@@ -200,7 +200,7 @@ public class ChromeLauncherActivity extends Activity
 
         // Check if we should launch an Instant App to handle the intent.
         if (InstantAppsHandler.getInstance().handleIncomingIntent(
-                this, intent, mIsCustomTabIntent && !mIsHerbIntent)) {
+                this, intent, mIsCustomTabIntent && !mIsHerbIntent, false)) {
             finish();
             return;
         }
@@ -212,7 +212,7 @@ public class ChromeLauncherActivity extends Activity
                         ChromeSwitches.ENABLE_LIGHTWEIGHT_FIRST_RUN_EXPERIENCE)) {
                 // Launch the First Run Experience for VIEW Intents with URLs before launching
                 // ChromeTabbedActivity if necessary.
-                if (getIntent() != null && getIntent().getAction() == Intent.ACTION_VIEW
+                if (getIntent() != null && Intent.ACTION_VIEW.equals(getIntent().getAction())
                         && IntentHandler.getUrlFromIntent(getIntent()) != null) {
                     if (launchFirstRunExperience(true)) {
                         finish();
@@ -411,6 +411,8 @@ public class ChromeLauncherActivity extends Activity
         boolean handled = CustomTabActivity.handleInActiveContentIfNeeded(getIntent());
         if (handled) return;
 
+        maybePrefetchDnsInBackground();
+
         // Create and fire a launch intent.
         startActivity(createCustomTabActivityIntent(
                 this, getIntent(), !isCustomTabIntent(getIntent()) && mIsHerbIntent));
@@ -435,7 +437,7 @@ public class ChromeLauncherActivity extends Activity
         }
         Uri uri = newIntent.getData();
         boolean isContentScheme = false;
-        if (uri != null && "content".equals(uri.getScheme())) {
+        if (uri != null && UrlConstants.CONTENT_SCHEME.equals(uri.getScheme())) {
             isContentScheme = true;
             newIntent.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION);
         }

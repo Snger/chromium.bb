@@ -22,10 +22,12 @@
                      properties:(int)properties;
 
 // Methods for faking events.
-- (void)simulateReadWithValue:(NSData*)value error:(NSError*)error;
+- (void)simulateReadWithValue:(id)value error:(NSError*)error;
 - (void)simulateWriteWithError:(NSError*)error;
 - (void)simulateGattNotifySessionStarted;
 - (void)simulateGattNotifySessionFailedWithError:(NSError*)error;
+- (void)simulateGattNotifySessionStopped;
+- (void)simulateGattNotifySessionStoppedWithError:(NSError*)error;
 - (void)simulateGattCharacteristicChangedWithValue:(NSData*)value;
 - (void)simulateDescriptorWithUUID:(CBUUID*)uuid;
 - (void)discoverDescriptors;

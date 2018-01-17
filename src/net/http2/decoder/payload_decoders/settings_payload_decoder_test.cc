@@ -9,13 +9,13 @@
 #include <vector>
 
 #include "base/logging.h"
-#include "net/http2/decoder/frame_parts.h"
-#include "net/http2/decoder/frame_parts_collector.h"
 #include "net/http2/decoder/http2_frame_decoder_listener.h"
 #include "net/http2/decoder/payload_decoders/payload_decoder_base_test_util.h"
 #include "net/http2/http2_constants.h"
 #include "net/http2/http2_constants_test_util.h"
 #include "net/http2/http2_structures_test_util.h"
+#include "net/http2/test_tools/frame_parts.h"
+#include "net/http2/test_tools/frame_parts_collector.h"
 #include "net/http2/tools/http2_frame_builder.h"
 #include "net/http2/tools/http2_random.h"
 #include "net/http2/tools/random_decoder_test.h"
@@ -142,8 +142,8 @@ TEST_F(SettingsPayloadDecoderTest, OneRealSetting) {
 
 // Decode a SETTINGS frame with lots of fields.
 TEST_F(SettingsPayloadDecoderTest, ManySettings) {
-  const uint32_t num_settings = 100;
-  const uint32_t size = Http2SettingFields::EncodedSize() * num_settings;
+  const size_t num_settings = 100;
+  const size_t size = Http2SettingFields::EncodedSize() * num_settings;
   Http2FrameHeader header(size, Http2FrameType::SETTINGS,
                           RandFlags(),  // & ~Http2FrameFlag::FLAG_ACK,
                           RandStreamId());

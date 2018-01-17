@@ -9,9 +9,9 @@
 // (disallowed) include: src/factory.h -> src/objects-inl.h
 #include "src/objects-inl.h"
 // FIXME(mstarzinger, marja): This is weird, but required because of the missing
-// (disallowed) include: src/type-feedback-vector.h ->
-// src/type-feedback-vector-inl.h
-#include "src/type-feedback-vector-inl.h"
+// (disallowed) include: src/feedback-vector.h ->
+// src/feedback-vector-inl.h
+#include "src/feedback-vector-inl.h"
 #include "test/cctest/cctest.h"
 #include "test/cctest/heap/heap-tester.h"
 #include "test/cctest/heap/heap-utils.h"
@@ -26,7 +26,7 @@ void CheckInvariantsOfAbortedPage(Page* page) {
   // 1) Markbits are cleared
   // 2) The page is not marked as evacuation candidate anymore
   // 3) The page is not marked as aborted compaction anymore.
-  CHECK(page->markbits()->IsClean());
+  CHECK(MarkingState::Internal(page).bitmap()->IsClean());
   CHECK(!page->IsEvacuationCandidate());
   CHECK(!page->IsFlagSet(Page::COMPACTION_WAS_ABORTED));
 }

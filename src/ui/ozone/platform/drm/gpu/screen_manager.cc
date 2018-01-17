@@ -45,6 +45,19 @@ void FillModesetBuffer(const scoped_refptr<DrmDevice>& drm,
     return;
   }
 
+  uint32_t fourcc_format = buffer->GetFramebufferPixelFormat();
+  const auto& modifiers = controller->GetFormatModifiers(fourcc_format);
+  for (const uint64_t modifier : modifiers) {
+    // A value of 0 means DRM_FORMAT_MOD_NONE. If the CRTC has any other
+    // modifier (tiling, compression, etc.) we can't read the fb and assume it's
+    // a linear buffer.
+    if (modifier) {
+      VLOG(2) << "Crtc has a modifier and we might not know how to interpret "
+                 "the fb.";
+      return;
+    }
+  }
+
   // If the display controller is in mirror mode, the CRTCs should be sharing
   // the same framebuffer.
   DrmConsoleBuffer saved_buffer(drm, saved_crtc->buffer_id);
@@ -335,17 +348,30 @@ OverlayPlane ScreenManager::GetModesetBuffer(
     HardwareDisplayController* controller,
     const gfx::Rect& bounds) {
   DrmWindow* window = FindWindowAt(bounds);
+
+  gfx::BufferFormat format = display::DisplaySnapshot::PrimaryFormat();
+  uint32_t fourcc_format = ui::GetFourCCFormatForOpaqueFramebuffer(format);
+
   if (window) {
     const OverlayPlane* primary = window->GetLastModesetBuffer();
     const DrmDevice* drm = controller->GetAllocationDrmDevice().get();
     if (primary && primary->buffer->GetSize() == bounds.size() &&
-        primary->buffer->GetDrmDevice() == drm)
-      return *primary;
+        primary->buffer->GetDrmDevice() == drm) {
+      // If the controller doesn't advertise modifiers, wont have a
+      // modifier either and we can reuse the buffer. Otherwise, check
+      // to see if the controller supports the buffers format
+      // modifier.
+      const auto& modifiers = controller->GetFormatModifiers(fourcc_format);
+      if (modifiers.empty())
+        return *primary;
+      for (const uint64_t modifier : modifiers) {
+        if (modifier == primary->buffer->GetFormatModifier())
+          return *primary;
+      }
+    }
   }
 
-  gfx::BufferFormat format = display::DisplaySnapshot::PrimaryFormat();
   scoped_refptr<DrmDevice> drm = controller->GetAllocationDrmDevice();
-  uint32_t fourcc_format = ui::GetFourCCFormatForFramebuffer(format);
   scoped_refptr<ScanoutBuffer> buffer =
       buffer_generator_->Create(drm, fourcc_format, bounds.size());
   if (!buffer) {

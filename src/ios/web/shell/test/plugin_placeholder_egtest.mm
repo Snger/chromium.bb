@@ -11,17 +11,17 @@
 #import "base/test/ios/wait_util.h"
 #import "ios/web/public/test/http_server.h"
 #include "ios/web/public/test/http_server_util.h"
-#import "ios/web/shell/test/earl_grey/shell_base_test_case.h"
 #import "ios/web/shell/test/earl_grey/shell_earl_grey.h"
 #import "ios/web/shell/test/earl_grey/shell_matchers.h"
+#import "ios/web/shell/test/earl_grey/web_shell_test_case.h"
 #include "url/gurl.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
-using web::webViewContainingText;
-using web::webViewCssSelector;
+using web::WebViewContainingText;
+using web::WebViewCssSelector;
 
 namespace {
 
@@ -37,7 +37,7 @@ void LoadPage(const std::string& page_content) {
 
 // Plugin placeholder test cases for the web shell. These tests verify that web
 // page shows a placeholder for unsupported plugins.
-@interface PluginPlaceholderTestCase : ShellBaseTestCase
+@interface PluginPlaceholderTestCase : WebShellTestCase
 @end
 
 @implementation PluginPlaceholderTestCase
@@ -57,11 +57,11 @@ void LoadPage(const std::string& page_content) {
   LoadPage(page);
 
   // Verify that placeholder image is not displayed.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kPageDescription)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kPageDescription)]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kFallbackText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kFallbackText)]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewCssSelector("img")]
+  [[EarlGrey selectElementWithMatcher:WebViewCssSelector("img")]
       assertWithMatcher:grey_nil()];
 }
 
@@ -78,9 +78,9 @@ void LoadPage(const std::string& page_content) {
   LoadPage(page);
 
   // Verify that plugin object is replaced with placeholder image.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kPageDescription)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kPageDescription)]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewCssSelector("img[src*='data']")]
+  [[EarlGrey selectElementWithMatcher:WebViewCssSelector("img[src*='data']")]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -101,9 +101,9 @@ void LoadPage(const std::string& page_content) {
   LoadPage(page);
 
   // Verify that plugin object is replaced with placeholder image.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kPageDescription)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kPageDescription)]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewCssSelector("img[src*='data']")]
+  [[EarlGrey selectElementWithMatcher:WebViewCssSelector("img[src*='data']")]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -124,11 +124,11 @@ void LoadPage(const std::string& page_content) {
   LoadPage(page);
 
   // Verify that placeholder image is not displayed.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kPageDescription)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kPageDescription)]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kFallbackText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kFallbackText)]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewCssSelector("img")]
+  [[EarlGrey selectElementWithMatcher:WebViewCssSelector("img")]
       assertWithMatcher:grey_nil()];
 }
 
@@ -146,9 +146,9 @@ void LoadPage(const std::string& page_content) {
   LoadPage(page);
 
   // Verify that plugin object is replaced with placeholder image.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kPageDescription)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kPageDescription)]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewCssSelector("img[src*='data']")]
+  [[EarlGrey selectElementWithMatcher:WebViewCssSelector("img[src*='data']")]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -165,9 +165,9 @@ void LoadPage(const std::string& page_content) {
   LoadPage(page);
 
   // Verify that placeholder image is not displayed.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kPageDescription)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kPageDescription)]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewCssSelector("img")]
+  [[EarlGrey selectElementWithMatcher:WebViewCssSelector("img")]
       assertWithMatcher:grey_nil()];
 }
 
@@ -203,9 +203,9 @@ void LoadPage(const std::string& page_content) {
   LoadPage(page);
 
   // Verify that placeholder image is not displayed.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kPageDescription)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kPageDescription)]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewCssSelector("img")]
+  [[EarlGrey selectElementWithMatcher:WebViewCssSelector("img")]
       assertWithMatcher:grey_nil()];
 }
 

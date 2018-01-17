@@ -78,7 +78,9 @@ class CC_EXPORT PictureLayerTilingSet {
       scoped_refptr<RasterSource> raster_source,
       const Region& layer_invalidation);
 
-  PictureLayerTiling* AddTiling(float contents_scale,
+  void UpdateTilingsForImplSideInvalidation(const Region& layer_invalidation);
+
+  PictureLayerTiling* AddTiling(const gfx::AxisTransform2d& raster_transform,
                                 scoped_refptr<RasterSource> raster_source);
   size_t num_tilings() const { return tilings_.size(); }
   int NumHighResTilings() const;

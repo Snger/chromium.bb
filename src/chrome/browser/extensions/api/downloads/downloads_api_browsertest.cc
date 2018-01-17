@@ -17,8 +17,8 @@
 #include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/message_loop/message_loop.h"
+#include "base/run_loop.h"
 #include "base/strings/stringprintf.h"
-#include "base/synchronization/waitable_event.h"
 #include "build/build_config.h"
 #include "chrome/browser/download/download_file_icon_extractor.h"
 #include "chrome/browser/download/download_service.h"
@@ -432,7 +432,9 @@ class DownloadExtensionTest : public ExtensionApiTest {
           (history_info[i].state != content::DownloadItem::CANCELLED
                ? content::DOWNLOAD_INTERRUPT_REASON_NONE
                : content::DOWNLOAD_INTERRUPT_REASON_USER_CANCELED),
-          false);  // opened
+          false,    // opened
+          current,  // last_access_time
+          false, std::vector<DownloadItem::ReceivedSlice>());
       items->push_back(item);
     }
 
@@ -701,29 +703,25 @@ class HTML5FileWriter {
     }
     // Invoke the fileapi to copy it into the sandboxed filesystem.
     bool result = false;
-    base::WaitableEvent done_event(
-        base::WaitableEvent::ResetPolicy::MANUAL,
-        base::WaitableEvent::InitialState::NOT_SIGNALED);
+    base::RunLoop run_loop;
     BrowserThread::PostTask(
         BrowserThread::IO, FROM_HERE,
-        base::Bind(&CreateFileForTestingOnIOThread,
-                   base::Unretained(context),
-                   path, temp_file,
-                   base::Unretained(&result),
-                   base::Unretained(&done_event)));
+        base::Bind(&CreateFileForTestingOnIOThread, base::Unretained(context),
+                   path, temp_file, base::Unretained(&result),
+                   run_loop.QuitClosure()));
     // Wait for that to finish.
-    done_event.Wait();
+    run_loop.Run();
     base::DeleteFile(temp_file, false);
     return result;
   }
 
  private:
   static void CopyInCompletion(bool* result,
-                               base::WaitableEvent* done_event,
+                               const base::Closure& quit_closure,
                                base::File::Error error) {
     DCHECK_CURRENTLY_ON(BrowserThread::IO);
     *result = error == base::File::FILE_OK;
-    done_event->Signal();
+    BrowserThread::PostTask(BrowserThread::UI, FROM_HERE, quit_closure);
   }
 
   static void CreateFileForTestingOnIOThread(
@@ -731,13 +729,11 @@ class HTML5FileWriter {
       const storage::FileSystemURL& path,
       const base::FilePath& temp_file,
       bool* result,
-      base::WaitableEvent* done_event) {
+      const base::Closure& quit_closure) {
     DCHECK_CURRENTLY_ON(BrowserThread::IO);
     context->operation_runner()->CopyInForeignFile(
         temp_file, path,
-        base::Bind(&CopyInCompletion,
-                   base::Unretained(result),
-                   base::Unretained(done_event)));
+        base::Bind(&CopyInCompletion, base::Unretained(result), quit_closure));
   }
 };
 
@@ -4003,20 +3999,14 @@ IN_PROC_BROWSER_TEST_F(
                           result_id)));
 }
 
-#if defined(OS_WIN)
 // This test is very flaky on Win XP and Aura. http://crbug.com/248438
-#define MAYBE_DownloadExtensionTest_OnDeterminingFilename_InterruptedResume \
-    DISABLED_DownloadExtensionTest_OnDeterminingFilename_InterruptedResume
-#else
-#define MAYBE_DownloadExtensionTest_OnDeterminingFilename_InterruptedResume \
-    DownloadExtensionTest_OnDeterminingFilename_InterruptedResume
-#endif
-
+// Also flaky on Linux. http://crbug.com/700382
+// Also flaky on Mac ASAN with PlzNavigate.
 // Test download interruption while extensions determining filename. Should not
 // re-dispatch onDeterminingFilename.
 IN_PROC_BROWSER_TEST_F(
     DownloadExtensionTest,
-    MAYBE_DownloadExtensionTest_OnDeterminingFilename_InterruptedResume) {
+    DISABLED_DownloadExtensionTest_OnDeterminingFilename_InterruptedResume) {
   LoadExtension("downloads_split");
   ASSERT_TRUE(StartEmbeddedTestServer());
   GoOnTheRecord();

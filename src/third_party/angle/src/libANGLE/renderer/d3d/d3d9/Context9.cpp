@@ -228,9 +228,9 @@ void Context9::popGroupMarker()
     mRenderer->getAnnotator()->endEvent();
 }
 
-void Context9::syncState(const gl::State &state, const gl::State::DirtyBits &dirtyBits)
+void Context9::syncState(const gl::State::DirtyBits &dirtyBits)
 {
-    mRenderer->getStateManager()->syncState(state, dirtyBits);
+    mRenderer->getStateManager()->syncState(mState.getState(), dirtyBits);
 }
 
 GLint Context9::getGPUDisjoint()
@@ -265,6 +265,12 @@ const gl::Extensions &Context9::getNativeExtensions() const
 const gl::Limitations &Context9::getNativeLimitations() const
 {
     return mRenderer->getNativeLimitations();
+}
+
+gl::Error Context9::dispatchCompute(GLuint numGroupsX, GLuint numGroupsY, GLuint numGroupsZ)
+{
+    UNREACHABLE();
+    return gl::InternalError() << "D3D9 doesn't support ES 3.1 DispatchCompute API";
 }
 
 }  // namespace rx

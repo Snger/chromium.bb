@@ -11,7 +11,7 @@
 
 #include "base/memory/ref_counted.h"
 #include "cc/layers/picture_layer.h"
-#include "cc/playback/recording_source.h"
+#include "cc/layers/recording_source.h"
 
 namespace cc {
 class FakePictureLayer : public PictureLayer {
@@ -30,7 +30,6 @@ class FakePictureLayer : public PictureLayer {
   std::unique_ptr<LayerImpl> CreateLayerImpl(LayerTreeImpl* tree_impl) override;
   bool Update() override;
   bool IsSuitableForGpuRasterization() const override;
-  void SetTypeForProtoSerialization(proto::LayerNode* proto) const override;
 
   int update_count() const { return update_count_; }
   void reset_update_count() { update_count_ = 0; }

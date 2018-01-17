@@ -29,7 +29,7 @@ namespace scheduler {
 // fast forward the timers.
 class PerfTestTimeDomain : public VirtualTimeDomain {
  public:
-  PerfTestTimeDomain() : VirtualTimeDomain(nullptr, base::TimeTicks::Now()) {}
+  PerfTestTimeDomain() : VirtualTimeDomain(base::TimeTicks::Now()) {}
   ~PerfTestTimeDomain() override {}
 
   base::Optional<base::TimeDelta> DelayTillNextTask(
@@ -42,10 +42,15 @@ class PerfTestTimeDomain : public VirtualTimeDomain {
     return base::TimeDelta();  // Makes DoWork post an immediate continuation.
   }
 
-  void RequestWakeup(base::TimeTicks now, base::TimeDelta delay) override {
+  void RequestWakeUpAt(base::TimeTicks now, base::TimeTicks run_time) override {
     // De-dupe DoWorks.
-    if (NumberOfScheduledWakeups() == 1u)
+    if (NumberOfScheduledWakeUps() == 1u)
       RequestDoWork();
+  }
+
+  void CancelWakeUpAt(base::TimeTicks run_time) override {
+    // We didn't post a delayed task in RequestWakeUpAt so there's no need to do
+    // anything here.
   }
 
   const char* GetName() const override { return "PerfTestTimeDomain"; }

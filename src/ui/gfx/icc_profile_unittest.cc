@@ -14,35 +14,121 @@ TEST(ICCProfile, Conversions) {
   ICCProfile icc_profile = ICCProfileForTestingColorSpin();
   ColorSpace color_space_from_icc_profile = icc_profile.GetColorSpace();
 
-  ICCProfile icc_profile_from_color_space =
-      ICCProfile::FromColorSpace(color_space_from_icc_profile);
+  ICCProfile icc_profile_from_color_space;
+  bool result =
+      color_space_from_icc_profile.GetICCProfile(&icc_profile_from_color_space);
+  EXPECT_TRUE(result);
   EXPECT_TRUE(icc_profile == icc_profile_from_color_space);
-
-  sk_sp<SkColorSpace> sk_color_space_from_color_space =
-      color_space_from_icc_profile.ToSkColorSpace();
-
-  ColorSpace color_space_from_sk_color_space =
-      ColorSpace::FromSkColorSpace(sk_color_space_from_color_space);
-  EXPECT_TRUE(color_space_from_icc_profile == color_space_from_sk_color_space);
-
-  ICCProfile icc_profile_from_color_space_from_sk_color_space =
-      ICCProfile::FromColorSpace(color_space_from_sk_color_space);
-  EXPECT_TRUE(icc_profile == icc_profile_from_color_space_from_sk_color_space);
 }
 
 TEST(ICCProfile, SRGB) {
   ColorSpace color_space = ColorSpace::CreateSRGB();
-  sk_sp<SkColorSpace> sk_color_space =
-      SkColorSpace::MakeNamed(SkColorSpace::kSRGB_Named);
+  sk_sp<SkColorSpace> sk_color_space = SkColorSpace::MakeSRGB();
 
-  ColorSpace color_space_from_sk_color_space =
-      ColorSpace::FromSkColorSpace(sk_color_space);
-  EXPECT_TRUE(color_space == color_space_from_sk_color_space);
+  // These should be the same pointer, not just equal.
+  EXPECT_EQ(color_space.ToSkColorSpace().get(), sk_color_space.get());
+}
 
-  sk_sp<SkColorSpace> sk_color_space_from_color_space =
-      color_space.ToSkColorSpace();
-  EXPECT_TRUE(SkColorSpace::Equals(sk_color_space.get(),
-                                   sk_color_space_from_color_space.get()));
+TEST(ICCProfile, Equality) {
+  ICCProfile spin_profile = ICCProfileForTestingColorSpin();
+  ICCProfile adobe_profile = ICCProfileForTestingAdobeRGB();
+  EXPECT_TRUE(spin_profile == spin_profile);
+  EXPECT_FALSE(spin_profile != spin_profile);
+  EXPECT_FALSE(spin_profile == adobe_profile);
+  EXPECT_TRUE(spin_profile != adobe_profile);
+
+  gfx::ColorSpace spin_space = spin_profile.GetColorSpace();
+  gfx::ColorSpace adobe_space = adobe_profile.GetColorSpace();
+  EXPECT_TRUE(spin_space == spin_space);
+  EXPECT_FALSE(spin_space != spin_space);
+  EXPECT_FALSE(spin_space == adobe_space);
+  EXPECT_TRUE(spin_space != adobe_space);
+
+  ICCProfile temp;
+  bool get_icc_result = false;
+
+  get_icc_result = spin_space.GetICCProfile(&temp);
+  EXPECT_TRUE(get_icc_result);
+  EXPECT_TRUE(spin_profile == temp);
+  EXPECT_FALSE(spin_profile != temp);
+
+  get_icc_result = adobe_space.GetICCProfile(&temp);
+  EXPECT_TRUE(get_icc_result);
+  EXPECT_FALSE(spin_profile == temp);
+  EXPECT_TRUE(spin_profile != temp);
+
+  EXPECT_TRUE(!!spin_space.ToSkColorSpace());
+  EXPECT_TRUE(!!adobe_space.ToSkColorSpace());
+  EXPECT_FALSE(SkColorSpace::Equals(
+      spin_space.ToSkColorSpace().get(),
+      adobe_space.ToSkColorSpace().get()));
+}
+
+TEST(ICCProfile, ParametricVersusExact) {
+  // This ICC profile has three transfer functions that differ enough that the
+  // parametric color space is considered inaccurate.
+  ICCProfile multi_tr_fn = ICCProfileForTestingNoAnalyticTrFn();
+  EXPECT_NE(multi_tr_fn.GetColorSpace(), multi_tr_fn.GetParametricColorSpace());
+
+  ICCProfile multi_tr_fn_color_space;
+  EXPECT_TRUE(
+      multi_tr_fn.GetColorSpace().GetICCProfile(&multi_tr_fn_color_space));
+  EXPECT_EQ(multi_tr_fn_color_space, multi_tr_fn);
+
+  ICCProfile multi_tr_fn_parametric_color_space;
+  EXPECT_TRUE(multi_tr_fn.GetParametricColorSpace().GetICCProfile(
+      &multi_tr_fn_parametric_color_space));
+  EXPECT_NE(multi_tr_fn_parametric_color_space, multi_tr_fn);
+
+  // This ICC profile has a transfer function with T(1) that is greater than 1
+  // in the approximation, but is still close enough to be considered accurate.
+  ICCProfile overshoot = ICCProfileForTestingOvershoot();
+  EXPECT_EQ(overshoot.GetColorSpace(), overshoot.GetParametricColorSpace());
+
+  ICCProfile overshoot_color_space;
+  EXPECT_TRUE(overshoot.GetColorSpace().GetICCProfile(&overshoot_color_space));
+  EXPECT_EQ(overshoot_color_space, overshoot);
+
+  ICCProfile overshoot_parametric_color_space;
+  EXPECT_TRUE(overshoot.GetParametricColorSpace().GetICCProfile(
+      &overshoot_parametric_color_space));
+  EXPECT_EQ(overshoot_parametric_color_space, overshoot);
+
+  // This ICC profile is precisely represented by the parametric color space.
+  ICCProfile accurate = ICCProfileForTestingAdobeRGB();
+  EXPECT_EQ(accurate.GetColorSpace(), accurate.GetParametricColorSpace());
+
+  ICCProfile accurate_color_space;
+  EXPECT_TRUE(accurate.GetColorSpace().GetICCProfile(&accurate_color_space));
+  EXPECT_EQ(accurate_color_space, accurate);
+
+  ICCProfile accurate_parametric_color_space;
+  EXPECT_TRUE(accurate.GetParametricColorSpace().GetICCProfile(
+      &accurate_parametric_color_space));
+  EXPECT_EQ(accurate_parametric_color_space, accurate);
+
+  // This ICC profile has only an A2B representation. We cannot create an
+  // SkColorSpaceXform to A2B only ICC profiles, so this should be marked
+  // as invalid.
+  ICCProfile a2b = ICCProfileForTestingA2BOnly();
+  EXPECT_FALSE(a2b.GetColorSpace().IsValid());
+}
+
+TEST(ICCProfile, GarbageData) {
+  std::vector<char> bad_data(10 * 1024);
+  const char* bad_data_string = "deadbeef";
+  for (size_t i = 0; i < bad_data.size(); ++i)
+    bad_data[i] = bad_data_string[i % 8];
+  ICCProfile garbage_profile =
+      ICCProfile::FromData(bad_data.data(), bad_data.size());
+  EXPECT_FALSE(garbage_profile.IsValid());
+  EXPECT_FALSE(garbage_profile.GetColorSpace().IsValid());
+  EXPECT_FALSE(garbage_profile.GetParametricColorSpace().IsValid());
+
+  ICCProfile default_ctor_profile;
+  EXPECT_FALSE(default_ctor_profile.IsValid());
+  EXPECT_FALSE(default_ctor_profile.GetColorSpace().IsValid());
+  EXPECT_FALSE(default_ctor_profile.GetParametricColorSpace().IsValid());
 }
 
 }  // namespace gfx

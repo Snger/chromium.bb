@@ -56,6 +56,7 @@ class WMHelper {
   class MaximizeModeObserver {
    public:
     virtual void OnMaximizeModeStarted() = 0;
+    virtual void OnMaximizeModeEnding() = 0;
     virtual void OnMaximizeModeEnded() = 0;
 
    protected:
@@ -78,6 +79,14 @@ class WMHelper {
     virtual ~InputDeviceEventObserver() {}
   };
 
+  class DisplayConfigurationObserver {
+   public:
+    virtual void OnDisplayConfigurationChanged() = 0;
+
+   protected:
+    virtual ~DisplayConfigurationObserver() {}
+  };
+
   virtual ~WMHelper();
 
   static void SetInstance(WMHelper* helper);
@@ -95,6 +104,9 @@ class WMHelper {
   void RemoveAccessibilityObserver(AccessibilityObserver* observer);
   void AddInputDeviceEventObserver(InputDeviceEventObserver* observer);
   void RemoveInputDeviceEventObserver(InputDeviceEventObserver* observer);
+  void AddDisplayConfigurationObserver(DisplayConfigurationObserver* observer);
+  void RemoveDisplayConfigurationObserver(
+      DisplayConfigurationObserver* observer);
 
   virtual const display::ManagedDisplayInfo GetDisplayInfo(
       int64_t display_id) const = 0;
@@ -121,9 +133,11 @@ class WMHelper {
   void NotifyCursorVisibilityChanged(bool is_visible);
   void NotifyCursorSetChanged(ui::CursorSetType cursor_set);
   void NotifyMaximizeModeStarted();
+  void NotifyMaximizeModeEnding();
   void NotifyMaximizeModeEnded();
   void NotifyAccessibilityModeChanged();
   void NotifyKeyboardDeviceConfigurationChanged();
+  void NotifyDisplayConfigurationChanged();
 
  private:
   base::ObserverList<ActivationObserver> activation_observers_;
@@ -132,6 +146,7 @@ class WMHelper {
   base::ObserverList<MaximizeModeObserver> maximize_mode_observers_;
   base::ObserverList<AccessibilityObserver> accessibility_observers_;
   base::ObserverList<InputDeviceEventObserver> input_device_event_observers_;
+  base::ObserverList<DisplayConfigurationObserver> display_config_observers_;
 
   DISALLOW_COPY_AND_ASSIGN(WMHelper);
 };

@@ -12,6 +12,7 @@
 #include "base/run_loop.h"
 #include "base/single_thread_task_runner.h"
 #include "base/threading/thread_task_runner_handle.h"
+#include "cc/animation/animation_host.h"
 #include "cc/output/begin_frame_args.h"
 #include "cc/output/copy_output_request.h"
 #include "cc/test/fake_compositor_frame_sink.h"
@@ -41,11 +42,13 @@ class StubRenderWidgetCompositorDelegate
                            const gfx::Vector2dF& elastic_overscroll_delta,
                            float page_scale,
                            float top_controls_delta) override {}
+  void RecordWheelAndTouchScrollingCount(bool has_scrolled_by_wheel,
+                                         bool has_scrolled_by_touch) override {}
   void BeginMainFrame(double frame_time_sec) override {}
-  std::unique_ptr<cc::CompositorFrameSink> CreateCompositorFrameSink(
-      const cc::FrameSinkId& frame_sink_id,
-      bool fallback) override {
-    return nullptr;
+  void RequestNewCompositorFrameSink(
+      bool fallback,
+      const CompositorFrameSinkCallback& callback) override {
+    callback.Run(nullptr);
   }
   void DidCommitAndDrawCompositorFrame() override {}
   void DidCommitCompositorFrame() override {}
@@ -66,9 +69,9 @@ class FakeRenderWidgetCompositorDelegate
  public:
   FakeRenderWidgetCompositorDelegate() = default;
 
-  std::unique_ptr<cc::CompositorFrameSink> CreateCompositorFrameSink(
-      const cc::FrameSinkId& frame_sink_id,
-      bool fallback) override {
+  void RequestNewCompositorFrameSink(
+      bool fallback,
+      const CompositorFrameSinkCallback& callback) override {
     EXPECT_EQ(num_requests_since_last_success_ >
                   RenderWidgetCompositor::
                       COMPOSITOR_FRAME_SINK_RETRIES_BEFORE_FALLBACK,
@@ -76,15 +79,18 @@ class FakeRenderWidgetCompositorDelegate
     last_create_was_fallback_ = fallback;
 
     bool success = num_failures_ >= num_failures_before_success_;
-    if (!success && use_null_compositor_frame_sink_)
-      return nullptr;
+    if (!success && use_null_compositor_frame_sink_) {
+      callback.Run(std::unique_ptr<cc::CompositorFrameSink>());
+      return;
+    }
 
     auto context_provider = cc::TestContextProvider::Create();
     if (!success) {
       context_provider->UnboundTestContext3d()->loseContextCHROMIUM(
           GL_GUILTY_CONTEXT_RESET_ARB, GL_INNOCENT_CONTEXT_RESET_ARB);
     }
-    return cc::FakeCompositorFrameSink::Create3d(std::move(context_provider));
+    callback.Run(
+        cc::FakeCompositorFrameSink::Create3d(std::move(context_provider)));
   }
 
   void add_success() {
@@ -219,9 +225,17 @@ class RenderWidgetCompositorFrameSinkTest : public testing::Test {
  public:
   RenderWidgetCompositorFrameSinkTest()
       : render_widget_compositor_(&compositor_delegate_, &compositor_deps_) {
+    auto animation_host = cc::AnimationHost::CreateMainInstance();
+
     ScreenInfo dummy_screen_info;
-    render_widget_compositor_.Initialize(1.f /* initial_device_scale_factor */,
-                                         dummy_screen_info);
+    const float initial_device_scale_factor = 1.f;
+
+    auto layer_tree_host = RenderWidgetCompositor::CreateLayerTreeHost(
+        &render_widget_compositor_, &render_widget_compositor_,
+        animation_host.get(), &compositor_deps_, initial_device_scale_factor,
+        dummy_screen_info);
+    render_widget_compositor_.Initialize(std::move(layer_tree_host),
+                                         std::move(animation_host));
   }
 
   void RunTest(bool use_null_compositor_frame_sink,
@@ -234,7 +248,7 @@ class RenderWidgetCompositorFrameSinkTest : public testing::Test {
         num_failures_before_success);
     render_widget_compositor_.SetUp(expected_successes,
                                     expected_fallback_succeses);
-    render_widget_compositor_.setVisible(true);
+    render_widget_compositor_.SetVisible(true);
     base::ThreadTaskRunnerHandle::Get()->PostTask(
         FROM_HERE,
         base::Bind(&RenderWidgetCompositorFrameSink::SynchronousComposite,

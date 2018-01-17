@@ -8,7 +8,7 @@
 #include "core/workers/WorkerNavigator.h"
 #include "platform/Supplementable.h"
 #include "platform/heap/GarbageCollected.h"
-#include "wtf/Noncopyable.h"
+#include "platform/wtf/Noncopyable.h"
 
 namespace blink {
 
@@ -23,7 +23,7 @@ class WorkerNavigatorBudget final
   WTF_MAKE_NONCOPYABLE(WorkerNavigatorBudget);
 
  public:
-  static WorkerNavigatorBudget& from(WorkerNavigator&);
+  static WorkerNavigatorBudget& From(WorkerNavigator&);
 
   static BudgetService* budget(WorkerNavigator&);
   BudgetService* budget();
@@ -31,10 +31,10 @@ class WorkerNavigatorBudget final
   DECLARE_VIRTUAL_TRACE();
 
  private:
-  WorkerNavigatorBudget();
-  static const char* supplementName();
+  explicit WorkerNavigatorBudget(WorkerNavigator&);
+  static const char* SupplementName();
 
-  Member<BudgetService> m_budget;
+  Member<BudgetService> budget_;
 };
 
 }  // namespace blink

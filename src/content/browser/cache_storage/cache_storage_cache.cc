@@ -77,36 +77,36 @@ blink::WebServiceWorkerResponseType ProtoResponseTypeToWebResponseType(
     proto::CacheResponse::ResponseType response_type) {
   switch (response_type) {
     case proto::CacheResponse::BASIC_TYPE:
-      return blink::WebServiceWorkerResponseTypeBasic;
+      return blink::kWebServiceWorkerResponseTypeBasic;
     case proto::CacheResponse::CORS_TYPE:
-      return blink::WebServiceWorkerResponseTypeCORS;
+      return blink::kWebServiceWorkerResponseTypeCORS;
     case proto::CacheResponse::DEFAULT_TYPE:
-      return blink::WebServiceWorkerResponseTypeDefault;
+      return blink::kWebServiceWorkerResponseTypeDefault;
     case proto::CacheResponse::ERROR_TYPE:
-      return blink::WebServiceWorkerResponseTypeError;
+      return blink::kWebServiceWorkerResponseTypeError;
     case proto::CacheResponse::OPAQUE_TYPE:
-      return blink::WebServiceWorkerResponseTypeOpaque;
+      return blink::kWebServiceWorkerResponseTypeOpaque;
     case proto::CacheResponse::OPAQUE_REDIRECT_TYPE:
-      return blink::WebServiceWorkerResponseTypeOpaqueRedirect;
+      return blink::kWebServiceWorkerResponseTypeOpaqueRedirect;
   }
   NOTREACHED();
-  return blink::WebServiceWorkerResponseTypeOpaque;
+  return blink::kWebServiceWorkerResponseTypeOpaque;
 }
 
 proto::CacheResponse::ResponseType WebResponseTypeToProtoResponseType(
     blink::WebServiceWorkerResponseType response_type) {
   switch (response_type) {
-    case blink::WebServiceWorkerResponseTypeBasic:
+    case blink::kWebServiceWorkerResponseTypeBasic:
       return proto::CacheResponse::BASIC_TYPE;
-    case blink::WebServiceWorkerResponseTypeCORS:
+    case blink::kWebServiceWorkerResponseTypeCORS:
       return proto::CacheResponse::CORS_TYPE;
-    case blink::WebServiceWorkerResponseTypeDefault:
+    case blink::kWebServiceWorkerResponseTypeDefault:
       return proto::CacheResponse::DEFAULT_TYPE;
-    case blink::WebServiceWorkerResponseTypeError:
+    case blink::kWebServiceWorkerResponseTypeError:
       return proto::CacheResponse::ERROR_TYPE;
-    case blink::WebServiceWorkerResponseTypeOpaque:
+    case blink::kWebServiceWorkerResponseTypeOpaque:
       return proto::CacheResponse::OPAQUE_TYPE;
-    case blink::WebServiceWorkerResponseTypeOpaqueRedirect:
+    case blink::kWebServiceWorkerResponseTypeOpaqueRedirect:
       return proto::CacheResponse::OPAQUE_REDIRECT_TYPE;
   }
   NOTREACHED();
@@ -195,6 +195,60 @@ void ReadMetadataDidReadMetadata(disk_cache::Entry* entry,
   callback.Run(std::move(metadata));
 }
 
+std::unique_ptr<ServiceWorkerFetchRequest> CreateRequest(
+    const proto::CacheMetadata& metadata,
+    const GURL& request_url) {
+  auto request = base::MakeUnique<ServiceWorkerFetchRequest>(
+      request_url, metadata.request().method(), ServiceWorkerHeaderMap(),
+      Referrer(), false);
+
+  for (int i = 0; i < metadata.request().headers_size(); ++i) {
+    const proto::CacheHeaderMap header = metadata.request().headers(i);
+    DCHECK_EQ(std::string::npos, header.name().find('\0'));
+    DCHECK_EQ(std::string::npos, header.value().find('\0'));
+    request->headers.insert(std::make_pair(header.name(), header.value()));
+  }
+  return request;
+}
+
+std::unique_ptr<ServiceWorkerResponse> CreateResponse(
+    const proto::CacheMetadata& metadata,
+    const std::string& cache_name) {
+  std::unique_ptr<std::vector<GURL>> url_list =
+      base::MakeUnique<std::vector<GURL>>();
+  // From Chrome 57, proto::CacheMetadata's url field was deprecated.
+  UMA_HISTOGRAM_BOOLEAN("ServiceWorkerCache.Response.HasDeprecatedURL",
+                        metadata.response().has_url());
+  if (metadata.response().has_url()) {
+    url_list->push_back(GURL(metadata.response().url()));
+  } else {
+    url_list->reserve(metadata.response().url_list_size());
+    for (int i = 0; i < metadata.response().url_list_size(); ++i)
+      url_list->push_back(GURL(metadata.response().url_list(i)));
+  }
+
+  std::unique_ptr<ServiceWorkerHeaderMap> headers =
+      base::MakeUnique<ServiceWorkerHeaderMap>();
+  for (int i = 0; i < metadata.response().headers_size(); ++i) {
+    const proto::CacheHeaderMap header = metadata.response().headers(i);
+    DCHECK_EQ(std::string::npos, header.name().find('\0'));
+    DCHECK_EQ(std::string::npos, header.value().find('\0'));
+    headers->insert(std::make_pair(header.name(), header.value()));
+  }
+
+  return base::MakeUnique<ServiceWorkerResponse>(
+      std::move(url_list), metadata.response().status_code(),
+      metadata.response().status_text(),
+      ProtoResponseTypeToWebResponseType(metadata.response().response_type()),
+      std::move(headers), "", 0, GURL(),
+      blink::kWebServiceWorkerResponseErrorUnknown,
+      base::Time::FromInternalValue(metadata.response().response_time()),
+      true /* is_in_cache_storage */, cache_name,
+      base::MakeUnique<ServiceWorkerHeaderList>(
+          metadata.response().cors_exposed_header_names().begin(),
+          metadata.response().cors_exposed_header_names().end()));
+}
+
 }  // namespace
 
 // The state needed to pass between CacheStorageCache::Put callbacks.
@@ -237,6 +291,16 @@ struct CacheStorageCache::QueryCacheContext {
         options(options),
         callback(callback),
         matches(base::MakeUnique<QueryCacheResults>()) {}
+
+  ~QueryCacheContext() {
+    // If the CacheStorageCache is deleted before a backend operation to open
+    // an entry completes, the callback won't be run and the resulting entry
+    // will be leaked unless we close it here.
+    if (enumerated_entry) {
+      enumerated_entry->Close();
+      enumerated_entry = nullptr;
+    }
+  }
 
   // Input to QueryCache
   std::unique_ptr<ServiceWorkerFetchRequest> request;
@@ -691,11 +755,8 @@ void CacheStorageCache::QueryCacheDidReadMetadata(
   query_cache_context->matches->push_back(
       QueryCacheResult(base::Time::FromInternalValue(entry_time)));
   QueryCacheResult* match = &query_cache_context->matches->back();
-  match->request = base::MakeUnique<ServiceWorkerFetchRequest>();
-  match->response = base::MakeUnique<ServiceWorkerResponse>();
-  PopulateRequestFromMetadata(*metadata, GURL(entry->GetKey()),
-                              match->request.get());
-  PopulateResponseMetadata(*metadata, match->response.get());
+  match->request = CreateRequest(*metadata, GURL(entry->GetKey()));
+  match->response = CreateResponse(*metadata, cache_name_);
 
   if (query_cache_context->request &&
       !query_cache_context->options.ignore_vary &&
@@ -958,10 +1019,6 @@ void CacheStorageCache::Put(const CacheStorageBatchOperation& operation,
 
   // We don't support streaming for cache.
   DCHECK(operation.response.stream_url.is_empty());
-  // We don't support the body of redirect response.
-  DCHECK(!(operation.response.response_type ==
-               blink::WebServiceWorkerResponseTypeOpaqueRedirect &&
-           operation.response.blob_size));
 
   std::unique_ptr<ServiceWorkerResponse> response =
       base::MakeUnique<ServiceWorkerResponse>(operation.response);
@@ -983,7 +1040,7 @@ void CacheStorageCache::Put(const CacheStorageBatchOperation& operation,
   UMA_HISTOGRAM_ENUMERATION(
       "ServiceWorkerCache.Cache.AllWritesResponseType",
       operation.response.response_type,
-      blink::WebServiceWorkerResponseType::WebServiceWorkerResponseTypeLast +
+      blink::WebServiceWorkerResponseType::kWebServiceWorkerResponseTypeLast +
           1);
 
   std::unique_ptr<PutContext> put_context(new PutContext(
@@ -1389,9 +1446,12 @@ void CacheStorageCache::InitGotCacheSize(const base::Closure& callback,
   // (which is why the size was calculated), or 2) it must match the current
   // size. If the sizes aren't equal then there is a bug in how the cache size
   // is saved in the store's index.
-  if (cache_size_ != CacheStorage::kSizeUnknown && cache_size_ != cache_size) {
-    // TODO(cmumford): Add UMA for this.
-    LOG(ERROR) << "Cache size/index mismatch";
+  if (cache_size_ != CacheStorage::kSizeUnknown) {
+    LOG_IF(ERROR, cache_size_ != cache_size)
+        << "Cache size: " << cache_size
+        << " does not match size from index: " << cache_size_;
+    UMA_HISTOGRAM_COUNTS_10M("ServiceWorkerCache.IndexSizeDifference",
+                             std::abs(cache_size_ - cache_size));
     // Disabled for crbug.com/681900.
     // DCHECK_EQ(cache_size_, cache_size);
   }
@@ -1409,60 +1469,6 @@ void CacheStorageCache::InitGotCacheSize(const base::Closure& callback,
     cache_observer_->CacheSizeUpdated(this, cache_size_);
 
   callback.Run();
-}
-
-void CacheStorageCache::PopulateRequestFromMetadata(
-    const proto::CacheMetadata& metadata,
-    const GURL& request_url,
-    ServiceWorkerFetchRequest* request) {
-  *request =
-      ServiceWorkerFetchRequest(request_url, metadata.request().method(),
-                                ServiceWorkerHeaderMap(), Referrer(), false);
-
-  for (int i = 0; i < metadata.request().headers_size(); ++i) {
-    const proto::CacheHeaderMap header = metadata.request().headers(i);
-    DCHECK_EQ(std::string::npos, header.name().find('\0'));
-    DCHECK_EQ(std::string::npos, header.value().find('\0'));
-    request->headers.insert(std::make_pair(header.name(), header.value()));
-  }
-}
-
-void CacheStorageCache::PopulateResponseMetadata(
-    const proto::CacheMetadata& metadata,
-    ServiceWorkerResponse* response) {
-  std::unique_ptr<std::vector<GURL>> url_list =
-      base::MakeUnique<std::vector<GURL>>();
-  // From Chrome 57, proto::CacheMetadata's url field was deprecated.
-  UMA_HISTOGRAM_BOOLEAN("ServiceWorkerCache.Response.HasDeprecatedURL",
-                        metadata.response().has_url());
-  if (metadata.response().has_url()) {
-    url_list->push_back(GURL(metadata.response().url()));
-  } else {
-    url_list->reserve(metadata.response().url_list_size());
-    for (int i = 0; i < metadata.response().url_list_size(); ++i)
-      url_list->push_back(GURL(metadata.response().url_list(i)));
-  }
-
-  std::unique_ptr<ServiceWorkerHeaderMap> headers =
-      base::MakeUnique<ServiceWorkerHeaderMap>();
-  for (int i = 0; i < metadata.response().headers_size(); ++i) {
-    const proto::CacheHeaderMap header = metadata.response().headers(i);
-    DCHECK_EQ(std::string::npos, header.name().find('\0'));
-    DCHECK_EQ(std::string::npos, header.value().find('\0'));
-    headers->insert(std::make_pair(header.name(), header.value()));
-  }
-
-  *response = ServiceWorkerResponse(
-      std::move(url_list), metadata.response().status_code(),
-      metadata.response().status_text(),
-      ProtoResponseTypeToWebResponseType(metadata.response().response_type()),
-      std::move(headers), "", 0, GURL(),
-      blink::WebServiceWorkerResponseErrorUnknown,
-      base::Time::FromInternalValue(metadata.response().response_time()),
-      true /* is_in_cache_storage */, cache_name_,
-      base::MakeUnique<ServiceWorkerHeaderList>(
-          metadata.response().cors_exposed_header_names().begin(),
-          metadata.response().cors_exposed_header_names().end()));
 }
 
 std::unique_ptr<storage::BlobDataHandle>

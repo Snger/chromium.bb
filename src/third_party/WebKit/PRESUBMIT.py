@@ -14,9 +14,8 @@ import sys
 
 
 _EXCLUDED_PATHS = (
-    # LayoutTests/imported is excluded because these files are automatically
-    # imported, so we do not have direct control over their content.
-    r'^third_party[\\\/]WebKit[\\\/]LayoutTests[\\\/]imported[\\\/].*',
+    # This directory is created and updated via a script.
+    r'^third_party[\\\/]WebKit[\\\/]Tools[\\\/]Scripts[\\\/]webkitpy[\\\/]thirdparty[\\\/]wpt[\\\/]wpt[\\\/].*',
 )
 
 
@@ -34,28 +33,6 @@ def _CheckForNonBlinkVariantMojomIncludes(input_api, output_api):
     if errors:
         results.append(output_api.PresubmitError(
             'Files that include non-Blink variant mojoms found:', errors))
-    return results
-
-
-def _CheckForVersionControlConflictsInFile(input_api, f):
-    pattern = input_api.re.compile('^(?:<<<<<<<|>>>>>>>) |^=======$')
-    errors = []
-    for line_num, line in f.ChangedContents():
-        if pattern.match(line):
-            errors.append('    %s:%d %s' % (f.LocalPath(), line_num, line))
-    return errors
-
-
-def _CheckForVersionControlConflicts(input_api, output_api):
-    """Usually this is not intentional and will cause a compile failure."""
-    errors = []
-    for f in input_api.AffectedFiles():
-        errors.extend(_CheckForVersionControlConflictsInFile(input_api, f))
-
-    results = []
-    if errors:
-        results.append(output_api.PresubmitError(
-            'Version control conflict markers found, please resolve.', errors))
     return results
 
 
@@ -98,25 +75,11 @@ def _CommonChecks(input_api, output_api):
     results.extend(input_api.canned_checks.PanProjectChecks(
         input_api, output_api, excluded_paths=_EXCLUDED_PATHS,
         maxlen=800, license_header=license_header))
-    results.extend(input_api.canned_checks.CheckPatchFormatted(input_api, output_api))
     results.extend(_CheckForNonBlinkVariantMojomIncludes(input_api, output_api))
-    results.extend(_CheckForVersionControlConflicts(input_api, output_api))
-    results.extend(_CheckPatchFiles(input_api, output_api))
     results.extend(_CheckTestExpectations(input_api, output_api))
     results.extend(_CheckChromiumPlatformMacros(input_api, output_api))
     results.extend(_CheckWatchlist(input_api, output_api))
-    results.extend(_CheckFilePermissions(input_api, output_api))
     return results
-
-
-def _CheckPatchFiles(input_api, output_api):
-  problems = [f.LocalPath() for f in input_api.AffectedFiles()
-      if f.LocalPath().endswith(('.orig', '.rej'))]
-  if problems:
-    return [output_api.PresubmitError(
-        "Don't commit .rej and .orig files.", problems)]
-  else:
-    return []
 
 
 def _CheckTestExpectations(input_api, output_api):
@@ -230,26 +193,6 @@ def _CheckForFailInFile(input_api, f):
     return errors
 
 
-def _CheckFilePermissions(input_api, output_api):
-    """Check that all files have their permissions properly set."""
-    if input_api.platform == 'win32':
-        return []
-    args = [input_api.python_executable,
-            input_api.os_path.join(
-                input_api.change.RepositoryRoot(),
-                'tools/checkperms/checkperms.py'),
-            '--root', input_api.change.RepositoryRoot()]
-    for f in input_api.AffectedFiles():
-        args += ['--file', f.LocalPath()]
-    try:
-        input_api.subprocess.check_output(args)
-        return []
-    except input_api.subprocess.CalledProcessError as error:
-        return [output_api.PresubmitError(
-            'checkperms.py failed:',
-            long_text=error.output)]
-
-
 def _CheckForInvalidPreferenceError(input_api, output_api):
     pattern = input_api.re.compile('Invalid name for preference: (.+)')
     results = []
@@ -269,7 +212,7 @@ def _CheckForForbiddenNamespace(input_api, output_api):
     # This list is not exhaustive, but covers likely ones.
     chromium_namespaces = ["base", "cc", "content", "gfx", "net", "ui"]
     chromium_forbidden_classes = ["scoped_refptr"]
-    chromium_allowed_classes = ["gfx::CubicBezier"]
+    chromium_allowed_classes = ["gfx::ColorSpace", "gfx::CubicBezier"]
 
     def source_file_filter(path):
         return input_api.FilterSourceFile(path,
@@ -361,25 +304,9 @@ def PostUploadHook(cl, change, output_api):  # pylint: disable=C0103
     """
     if not _ArePaintOrCompositingDirectoriesModified(change):
         return []
-
-    rietveld_obj = cl.RpcServer()
-    issue = cl.issue
-    description = rietveld_obj.get_description(issue)
-    if re.search(r'^CQ_INCLUDE_TRYBOTS=.*', description, re.M | re.I):
-        return []
-
-    bots = [
-        'master.tryserver.chromium.linux:linux_layout_tests_slimming_paint_v2',
-    ]
-
-    results = []
-    new_description = description
-    new_description += '\nCQ_INCLUDE_TRYBOTS=%s' % ';'.join(bots)
-    results.append(output_api.PresubmitNotifyResult(
+    return output_api.EnsureCQIncludeTrybotsAreAdded(
+        cl,
+        ['master.tryserver.chromium.linux:'
+         'linux_layout_tests_slimming_paint_v2'],
         'Automatically added slimming-paint-v2 tests to run on CQ due to '
-        'changes in paint or compositing directories.'))
-
-    if new_description != description:
-        rietveld_obj.update_description(issue, new_description)
-
-    return results
+        'changes in paint or compositing directories.')

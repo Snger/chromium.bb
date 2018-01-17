@@ -120,6 +120,15 @@ GURL TemplateURLRefToGURL(const TemplateURLRef& ref,
   return GURL(ref.ReplaceSearchTerms(search_terms_args, search_terms_data));
 }
 
+// |url| should either have a secure scheme or have a non-HTTPS base URL that
+// the user specified using --google-base-url. (This allows testers to use
+// --google-base-url to point at non-HTTPS servers, which eases testing.)
+bool IsSuitableURLForInstant(const GURL& url, const TemplateURL* template_url) {
+  return template_url->HasSearchTermsReplacementKey(url) &&
+         (url.SchemeIsCryptographic() ||
+          google_util::StartsWithCommandLineGoogleBaseURL(url));
+}
+
 // Returns true if |url| can be used as an Instant URL for |profile|.
 bool IsInstantURL(const GURL& url, Profile* profile) {
   if (!IsInstantExtendedAPIEnabled())
@@ -153,8 +162,7 @@ bool IsURLAllowedForSupervisedUser(const GURL& url, Profile* profile) {
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
   SupervisedUserService* supervised_user_service =
       SupervisedUserServiceFactory::GetForProfile(profile);
-  SupervisedUserURLFilter* url_filter =
-      supervised_user_service->GetURLFilterForUIThread();
+  SupervisedUserURLFilter* url_filter = supervised_user_service->GetURLFilter();
   if (url_filter->GetFilteringBehaviorForURL(url) ==
           SupervisedUserURLFilter::BLOCK) {
     return false;
@@ -259,11 +267,6 @@ base::string16 ExtractSearchTermsFromURL(Profile* profile, const GURL& url) {
     template_url->ExtractSearchTermsFromURL(
         url, UIThreadSearchTermsData(profile), &search_terms);
   return search_terms;
-}
-
-bool IsQueryExtractionAllowedForURL(Profile* profile, const GURL& url) {
-  TemplateURL* template_url = GetDefaultSearchProviderTemplateURL(profile);
-  return template_url && IsSuitableURLForInstant(url, template_url);
 }
 
 bool ShouldAssignURLToInstantRenderer(const GURL& url, Profile* profile) {
@@ -392,7 +395,7 @@ GURL GetNewTabPageURL(Profile* profile) {
 }
 
 GURL GetSearchResultPrefetchBaseURL(Profile* profile) {
-  return ShouldPrefetchSearchResults() ? GetInstantURL(profile, true) : GURL();
+  return GetInstantURL(profile, true);
 }
 
 GURL GetEffectiveURLForInstant(const GURL& url, Profile* profile) {

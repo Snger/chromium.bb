@@ -26,6 +26,7 @@
 #include "mojo/edk/embedder/embedder.h"
 #include "mojo/edk/embedder/named_platform_handle.h"
 #include "mojo/edk/embedder/named_platform_handle_utils.h"
+#include "mojo/edk/embedder/pending_process_connection.h"
 #include "mojo/edk/embedder/platform_channel_pair.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -45,11 +46,13 @@ const char kMojoPrimordialPipeToken[] = "mojo-primordial-pipe-token";
 const char kMojoNamedPipeName[] = "mojo-named-pipe-name";
 
 template <typename Func>
-int RunClientFunction(Func handler) {
+int RunClientFunction(Func handler, bool pass_pipe_ownership_to_main) {
   CHECK(MultiprocessTestHelper::primordial_pipe.is_valid());
   ScopedMessagePipeHandle pipe =
       std::move(MultiprocessTestHelper::primordial_pipe);
-  return handler(pipe.get().value());
+  MessagePipeHandle pipe_handle =
+      pass_pipe_ownership_to_main ? pipe.release() : pipe.get();
+  return handler(pipe_handle.value());
 }
 
 }  // namespace
@@ -57,7 +60,7 @@ int RunClientFunction(Func handler) {
 MultiprocessTestHelper::MultiprocessTestHelper() {}
 
 MultiprocessTestHelper::~MultiprocessTestHelper() {
-  CHECK(!test_child_.IsValid());
+  CHECK(!test_child_.process.IsValid());
 }
 
 ScopedMessagePipeHandle MultiprocessTestHelper::StartChild(
@@ -73,7 +76,7 @@ ScopedMessagePipeHandle MultiprocessTestHelper::StartChildWithExtraSwitch(
     const std::string& switch_value,
     LaunchType launch_type) {
   CHECK(!test_child_name.empty());
-  CHECK(!test_child_.IsValid());
+  CHECK(!test_child_.process.IsValid());
 
   std::string test_child_main = test_child_name + "TestChildMain";
 
@@ -114,11 +117,6 @@ ScopedMessagePipeHandle MultiprocessTestHelper::StartChildWithExtraSwitch(
     command_line.AppendSwitchNative(kMojoNamedPipeName, named_pipe.name);
   }
 
-  std::string pipe_token = mojo::edk::GenerateRandomToken();
-  if (launch_type == LaunchType::CHILD ||
-      launch_type == LaunchType::NAMED_CHILD)
-    command_line.AppendSwitchASCII(kMojoPrimordialPipeToken, pipe_token);
-
   if (!switch_string.empty()) {
     CHECK(!command_line.HasSwitch(switch_string));
     if (!switch_value.empty())
@@ -151,11 +149,13 @@ ScopedMessagePipeHandle MultiprocessTestHelper::StartChildWithExtraSwitch(
     server_handle = CreateServerHandle(named_pipe);
   }
 
+  PendingProcessConnection process;
   ScopedMessagePipeHandle pipe;
-  std::string child_token = mojo::edk::GenerateRandomToken();
   if (launch_type == LaunchType::CHILD ||
       launch_type == LaunchType::NAMED_CHILD) {
-    pipe = CreateParentMessagePipe(pipe_token, child_token);
+    std::string pipe_token;
+    pipe = process.CreateMessagePipe(&pipe_token);
+    command_line.AppendSwitchASCII(kMojoPrimordialPipeToken, pipe_token);
   } else if (launch_type == LaunchType::PEER ||
              launch_type == LaunchType::NAMED_PEER) {
     peer_token_ = mojo::edk::GenerateRandomToken();
@@ -170,21 +170,22 @@ ScopedMessagePipeHandle MultiprocessTestHelper::StartChildWithExtraSwitch(
   if (launch_type == LaunchType::CHILD ||
       launch_type == LaunchType::NAMED_CHILD) {
     DCHECK(server_handle.is_valid());
-    ChildProcessLaunched(test_child_.Handle(), std::move(server_handle),
-                         child_token, process_error_callback_);
+    process.Connect(test_child_.process.Handle(),
+                    ConnectionParams(std::move(server_handle)),
+                    process_error_callback_);
   }
 
-  CHECK(test_child_.IsValid());
+  CHECK(test_child_.process.IsValid());
   return pipe;
 }
 
 int MultiprocessTestHelper::WaitForChildShutdown() {
-  CHECK(test_child_.IsValid());
+  CHECK(test_child_.process.IsValid());
 
   int rv = -1;
-  WaitForMultiprocessTestChildExit(test_child_, TestTimeouts::action_timeout(),
-                                   &rv);
-  test_child_.Close();
+  WaitForMultiprocessTestChildExit(test_child_.process,
+                                   TestTimeouts::action_timeout(), &rv);
+  test_child_.process.Close();
   return rv;
 }
 
@@ -233,20 +234,25 @@ void MultiprocessTestHelper::ChildSetup() {
 
 // static
 int MultiprocessTestHelper::RunClientMain(
-    const base::Callback<int(MojoHandle)>& main) {
-  return RunClientFunction([main](MojoHandle handle){
-    return main.Run(handle);
-  });
+    const base::Callback<int(MojoHandle)>& main,
+    bool pass_pipe_ownership_to_main) {
+  return RunClientFunction(
+      [main](MojoHandle handle) { return main.Run(handle); },
+      pass_pipe_ownership_to_main);
 }
 
 // static
 int MultiprocessTestHelper::RunClientTestMain(
     const base::Callback<void(MojoHandle)>& main) {
-  return RunClientFunction([main](MojoHandle handle) {
-    main.Run(handle);
-    return (::testing::Test::HasFatalFailure() ||
-            ::testing::Test::HasNonfatalFailure()) ? 1 : 0;
-  });
+  return RunClientFunction(
+      [main](MojoHandle handle) {
+        main.Run(handle);
+        return (::testing::Test::HasFatalFailure() ||
+                ::testing::Test::HasNonfatalFailure())
+                   ? 1
+                   : 0;
+      },
+      true /* close_pipe_on_exit */);
 }
 
 // static

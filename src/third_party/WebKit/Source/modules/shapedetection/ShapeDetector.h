@@ -13,28 +13,23 @@
 
 namespace blink {
 
-class LocalFrame;
-
 class MODULES_EXPORT ShapeDetector
     : public GarbageCollectedFinalized<ShapeDetector> {
  public:
-  // TODO(mcasas): Implement TextDetector after
-  // https://github.com/WICG/shape-detection-api/issues/6
-  explicit ShapeDetector(LocalFrame&);
   virtual ~ShapeDetector() = default;
 
   ScriptPromise detect(ScriptState*, const ImageBitmapSourceUnion&);
   DEFINE_INLINE_VIRTUAL_TRACE() {}
 
  private:
-  ScriptPromise detectShapesOnImageData(ScriptPromiseResolver*, ImageData*);
-  ScriptPromise detectShapesOnImageElement(ScriptPromiseResolver*,
+  ScriptPromise DetectShapesOnImageData(ScriptPromiseResolver*, ImageData*);
+  ScriptPromise DetectShapesOnImageElement(ScriptPromiseResolver*,
                                            const HTMLImageElement*);
 
-  virtual ScriptPromise doDetect(ScriptPromiseResolver*,
+  virtual ScriptPromise DoDetect(ScriptPromiseResolver*,
                                  mojo::ScopedSharedBufferHandle,
-                                 int imageWidth,
-                                 int imageHeight) = 0;
+                                 int image_width,
+                                 int image_height) = 0;
 };
 
 }  // namespace blink

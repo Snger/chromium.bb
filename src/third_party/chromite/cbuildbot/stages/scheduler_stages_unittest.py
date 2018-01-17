@@ -6,6 +6,8 @@
 
 from __future__ import print_function
 
+import mock
+
 from chromite.cbuildbot import buildbucket_lib
 from chromite.cbuildbot.stages import generic_stages
 from chromite.cbuildbot.stages import generic_stages_unittest
@@ -37,10 +39,11 @@ class ScheduleSalvesStageTest(generic_stages_unittest.AbstractStageTestCase):
     self.fake_db = fake_cidb.FakeCIDBConnection()
     cidb.CIDBConnectionFactory.SetupMockCidb(self.fake_db)
 
+    self.sync_stage = mock.Mock()
     self._Prepare()
 
   def ConstructStage(self):
-    return scheduler_stages.ScheduleSlavesStage(self._run)
+    return scheduler_stages.ScheduleSlavesStage(self._run, self.sync_stage)
 
   def testPerformStage(self):
     """Test PerformStage."""
@@ -140,3 +143,59 @@ class ScheduleSalvesStageTest(generic_stages_unittest.AbstractStageTestCase):
     self.assertEqual(len(scheduled_slaves), 1)
     unscheduled_slaves = self._run.attrs.metadata.GetValue('unscheduled_slaves')
     self.assertEqual(len(unscheduled_slaves), 0)
+
+  def testNoScheduledSlaveBuilds(self):
+    """Test no slave builds are scheduled."""
+    stage = self.ConstructStage()
+    schedule_mock = self.PatchObject(
+        scheduler_stages.ScheduleSlavesStage,
+        'ScheduleSlaveBuildsViaBuildbucket')
+    self.sync_stage.pool.HasPickedUpCLs.return_value = False
+
+    stage.PerformStage()
+    self.assertFalse(schedule_mock.called)
+
+  def testScheduleSlaveBuildsWithCLs(self):
+    """Test no slave builds are scheduled."""
+    stage = self.ConstructStage()
+    schedule_mock = self.PatchObject(
+        scheduler_stages.ScheduleSlavesStage,
+        'ScheduleSlaveBuildsViaBuildbucket')
+    self.sync_stage.pool.HasPickedUpCLs.return_value = True
+
+    stage.PerformStage()
+    self.assertTrue(schedule_mock.called)
+
+  def testPostSlaveBuildToBuildbucketOnSingleBoardBuild(self):
+    """Test PostSlaveBuildToBuildbucket on builds with a single board."""
+    content = {'build':{'id':'bb_id_1', 'created_ts':1}}
+    self.PatchObject(buildbucket_lib.BuildbucketClient, 'PutBuildRequest',
+                     return_value=content)
+    slave_config = config_lib.BuildConfig(
+        name='slave',
+        important=True, active_waterfall=constants.WATERFALL_INTERNAL,
+        boards=['board_A'], build_type='paladin')
+
+    stage = self.ConstructStage()
+    buildbucket_id, created_ts = stage.PostSlaveBuildToBuildbucket(
+        'slave', slave_config, 0, 'buildset_tag', True)
+
+    self.assertEqual(buildbucket_id, 'bb_id_1')
+    self.assertEqual(created_ts, 1)
+
+  def testPostSlaveBuildToBuildbucketOnMultiBoardsBuild(self):
+    """Test PostSlaveBuildToBuildbucket on builds with muiltiple boards."""
+    content = {'build':{'id':'bb_id_1', 'created_ts':1}}
+    self.PatchObject(buildbucket_lib.BuildbucketClient, 'PutBuildRequest',
+                     return_value=content)
+    slave_config = config_lib.BuildConfig(
+        name='slave',
+        important=True, active_waterfall=constants.WATERFALL_INTERNAL,
+        boards=['board_A', 'board_B'], build_type='paladin')
+
+    stage = self.ConstructStage()
+    buildbucket_id, created_ts = stage.PostSlaveBuildToBuildbucket(
+        'slave', slave_config, 0, 'buildset_tag', True)
+
+    self.assertEqual(buildbucket_id, 'bb_id_1')
+    self.assertEqual(created_ts, 1)

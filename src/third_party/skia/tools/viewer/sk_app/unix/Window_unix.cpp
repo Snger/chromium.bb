@@ -29,7 +29,7 @@ Window* Window::CreateNativeWindow(void* platformData) {
     SkASSERT(display);
 
     Window_unix* window = new Window_unix();
-    if (!window->initWindow(display, nullptr)) {
+    if (!window->initWindow(display)) {
         delete window;
         return nullptr;
     }
@@ -41,8 +41,8 @@ const long kEventMask = ExposureMask | StructureNotifyMask |
                         KeyPressMask | KeyReleaseMask | 
                         PointerMotionMask | ButtonPressMask | ButtonReleaseMask;
 
-bool Window_unix::initWindow(Display* display, const DisplayParams* params) {
-    if (params && params->fMSAASampleCount != fMSAASampleCount) {
+bool Window_unix::initWindow(Display* display) {
+    if (fRequestedDisplayParams.fMSAASampleCount != fMSAASampleCount) {
         this->closeWindow();
     }
     // we already have a window
@@ -51,34 +51,65 @@ bool Window_unix::initWindow(Display* display, const DisplayParams* params) {
     }
     fDisplay = display;
 
-    fWidth = 1280;
-    fHeight = 960;
+    constexpr int initialWidth = 1280;
+    constexpr int initialHeight = 960;
 
     // Attempt to create a window that supports GL
-    GLint att[] = {
+
+    // We prefer the more recent glXChooseFBConfig but fall back to glXChooseVisual. They have
+    // slight differences in how attributes are specified.
+    static int constexpr kChooseFBConfigAtt[] = {
+        GLX_RENDER_TYPE, GLX_RGBA_BIT,
+        GLX_DOUBLEBUFFER, True,
+        GLX_STENCIL_SIZE, 8,
+        None
+    };
+    // For some reason glXChooseVisual takes a non-const pointer to the attributes.
+    int chooseVisualAtt[] = {
         GLX_RGBA,
-        GLX_DEPTH_SIZE, 24,
         GLX_DOUBLEBUFFER,
         GLX_STENCIL_SIZE, 8,
         None
     };
     SkASSERT(nullptr == fVisualInfo);
-    if (params && params->fMSAASampleCount > 0) {
-        static const GLint kAttCount = SK_ARRAY_COUNT(att);
-        GLint msaaAtt[kAttCount + 4];
-        memcpy(msaaAtt, att, sizeof(att));
-        SkASSERT(None == msaaAtt[kAttCount - 1]);
-        msaaAtt[kAttCount - 1] = GLX_SAMPLE_BUFFERS_ARB;
-        msaaAtt[kAttCount + 0] = 1;
-        msaaAtt[kAttCount + 1] = GLX_SAMPLES_ARB;
-        msaaAtt[kAttCount + 2] = params->fMSAASampleCount;
-        msaaAtt[kAttCount + 3] = None;
-        fVisualInfo = glXChooseVisual(display, DefaultScreen(display), msaaAtt);
-        fMSAASampleCount = params->fMSAASampleCount;
+    if (fRequestedDisplayParams.fMSAASampleCount > 0) {
+        static const GLint kChooseFBConifgAttCnt = SK_ARRAY_COUNT(kChooseFBConfigAtt);
+        GLint msaaChooseFBConfigAtt[kChooseFBConifgAttCnt + 4];
+        memcpy(msaaChooseFBConfigAtt, kChooseFBConfigAtt, sizeof(kChooseFBConfigAtt));
+        SkASSERT(None == msaaChooseFBConfigAtt[kChooseFBConifgAttCnt - 1]);
+        msaaChooseFBConfigAtt[kChooseFBConifgAttCnt - 1] = GLX_SAMPLE_BUFFERS_ARB;
+        msaaChooseFBConfigAtt[kChooseFBConifgAttCnt + 0] = 1;
+        msaaChooseFBConfigAtt[kChooseFBConifgAttCnt + 1] = GLX_SAMPLES_ARB;
+        msaaChooseFBConfigAtt[kChooseFBConifgAttCnt + 2] = fRequestedDisplayParams.fMSAASampleCount;
+        msaaChooseFBConfigAtt[kChooseFBConifgAttCnt + 3] = None;
+        int n;
+        fFBConfig = glXChooseFBConfig(fDisplay, DefaultScreen(fDisplay), msaaChooseFBConfigAtt, &n);
+        if (n > 0) {
+            fVisualInfo = glXGetVisualFromFBConfig(fDisplay, *fFBConfig);
+        } else {
+            static const GLint kChooseVisualAttCnt = SK_ARRAY_COUNT(chooseVisualAtt);
+            GLint msaaChooseVisualAtt[kChooseVisualAttCnt + 4];
+            memcpy(msaaChooseVisualAtt, chooseVisualAtt, sizeof(chooseVisualAtt));
+            SkASSERT(None == msaaChooseVisualAtt[kChooseVisualAttCnt - 1]);
+            msaaChooseFBConfigAtt[kChooseVisualAttCnt - 1] = GLX_SAMPLE_BUFFERS_ARB;
+            msaaChooseFBConfigAtt[kChooseVisualAttCnt + 0] = 1;
+            msaaChooseFBConfigAtt[kChooseVisualAttCnt + 1] = GLX_SAMPLES_ARB;
+            msaaChooseFBConfigAtt[kChooseVisualAttCnt + 2] =
+                    fRequestedDisplayParams.fMSAASampleCount;
+            msaaChooseFBConfigAtt[kChooseVisualAttCnt + 3] = None;
+            fVisualInfo = glXChooseVisual(display, DefaultScreen(display), msaaChooseVisualAtt);
+            fFBConfig = nullptr;
+        }
     }
     if (nullptr == fVisualInfo) {
-        fVisualInfo = glXChooseVisual(display, DefaultScreen(display), att);
-        fMSAASampleCount = 0;
+        int n;
+        fFBConfig = glXChooseFBConfig(fDisplay, DefaultScreen(fDisplay), kChooseFBConfigAtt, &n);
+        if (n > 0) {
+            fVisualInfo = glXGetVisualFromFBConfig(fDisplay, *fFBConfig);
+        } else {
+            fVisualInfo = glXChooseVisual(display, DefaultScreen(display), chooseVisualAtt);
+            fFBConfig = nullptr;
+        }
     }
 
     if (fVisualInfo) {
@@ -92,7 +123,7 @@ bool Window_unix::initWindow(Display* display, const DisplayParams* params) {
         fWindow = XCreateWindow(display,
                                 RootWindow(display, fVisualInfo->screen),
                                 0, 0, // x, y
-                                fWidth, fHeight,
+                                initialWidth, initialHeight,
                                 0, // border width
                                 fVisualInfo->depth,
                                 InputOutput,
@@ -104,7 +135,7 @@ bool Window_unix::initWindow(Display* display, const DisplayParams* params) {
         fWindow = XCreateSimpleWindow(display,
                                       DefaultRootWindow(display),
                                       0, 0,  // x, y
-                                      fWidth, fHeight,
+                                      initialWidth, initialHeight,
                                       0,     // border width
                                       0,     // border value
                                       0);    // background value
@@ -114,6 +145,8 @@ bool Window_unix::initWindow(Display* display, const DisplayParams* params) {
     if (!fWindow) {
         return false;
     }
+
+    fMSAASampleCount = fRequestedDisplayParams.fMSAASampleCount;
 
     // set up to catch window delete message
     fWmDeleteMessage = XInternAtom(display, "WM_DELETE_WINDOW", False);
@@ -132,15 +165,22 @@ bool Window_unix::initWindow(Display* display, const DisplayParams* params) {
 void Window_unix::closeWindow() {
     if (fDisplay) {
         this->detach();
-        SkASSERT(fGC);
-        XFreeGC(fDisplay, fGC);
-        fGC = nullptr;
+        if (fGC) {
+            XFreeGC(fDisplay, fGC);
+            fGC = nullptr;
+        }
         gWindowMap.remove(fWindow);
         XDestroyWindow(fDisplay, fWindow);
         fWindow = 0;
-        fVisualInfo = nullptr;
+        if (fFBConfig) {
+            XFree(fFBConfig);
+            fFBConfig = nullptr;
+        }
+        if (fVisualInfo) {
+            XFree(fVisualInfo);
+            fVisualInfo = nullptr;
+        }
         fDisplay = nullptr;
-        fMSAASampleCount = 0;
     }
 }
 
@@ -155,7 +195,26 @@ static Window::Key get_key(KeySym keysym) {
         { XK_Up, Window::Key::kUp },
         { XK_Down, Window::Key::kDown },
         { XK_Left, Window::Key::kLeft },
-        { XK_Right, Window::Key::kRight }
+        { XK_Right, Window::Key::kRight },
+        { XK_Tab, Window::Key::kTab },
+        { XK_Page_Up, Window::Key::kPageUp },
+        { XK_Page_Down, Window::Key::kPageDown },
+        { XK_Home, Window::Key::kHome },
+        { XK_End, Window::Key::kEnd },
+        { XK_Delete, Window::Key::kDelete },
+        { XK_Escape, Window::Key::kEscape },
+        { XK_Shift_L, Window::Key::kShift },
+        { XK_Shift_R, Window::Key::kShift },
+        { XK_Control_L, Window::Key::kCtrl },
+        { XK_Control_R, Window::Key::kCtrl },
+        { XK_Alt_L, Window::Key::kOption },
+        { XK_Alt_R, Window::Key::kOption },
+        { 'A', Window::Key::kA },
+        { 'C', Window::Key::kC },
+        { 'V', Window::Key::kV },
+        { 'X', Window::Key::kX },
+        { 'Y', Window::Key::kY },
+        { 'Z', Window::Key::kZ },
     };
     for (size_t i = 0; i < SK_ARRAY_COUNT(gPair); i++) {
         if (gPair[i].fXK == keysym) {
@@ -200,9 +259,17 @@ bool Window_unix::handleEvent(const XEvent& event) {
             break;
 
         case ButtonPress:
-            if (event.xbutton.button == Button1) {
-                this->onMouse(event.xbutton.x, event.xbutton.y,
-                              Window::kDown_InputState, get_modifiers(event));
+            switch (event.xbutton.button) {
+                case Button1:
+                    this->onMouse(event.xbutton.x, event.xbutton.y,
+                                  Window::kDown_InputState, get_modifiers(event));
+                    break;
+                case Button4:
+                    this->onMouseWheel(1.0f, get_modifiers(event));
+                    break;
+                case Button5:
+                    this->onMouseWheel(-1.0f, get_modifiers(event));
+                    break;
             }
             break;
 
@@ -214,30 +281,25 @@ bool Window_unix::handleEvent(const XEvent& event) {
             break;
 
         case MotionNotify:
-            // only track if left button is down
-            if (event.xmotion.state & Button1Mask) {
-                this->onMouse(event.xmotion.x, event.xmotion.y, 
-                              Window::kMove_InputState, get_modifiers(event));
-            }
+            this->onMouse(event.xmotion.x, event.xmotion.y,
+                          Window::kMove_InputState, get_modifiers(event));
             break;
 
         case KeyPress: {
             int shiftLevel = (event.xkey.state & ShiftMask) ? 1 : 0;
-            KeySym keysym = XkbKeycodeToKeysym(fDisplay, event.xkey.keycode,
-                                               0, shiftLevel);
-            if (keysym == XK_Escape) {
-                return true;
-            }
+            KeySym keysym = XkbKeycodeToKeysym(fDisplay, event.xkey.keycode, 0, shiftLevel);
             Window::Key key = get_key(keysym);
             if (key != Window::Key::kNONE) {
-                (void) this->onKey(key, Window::kDown_InputState, 
-                                   get_modifiers(event));
-            } else {
-                long uni = keysym2ucs(keysym);
-                if (uni != -1) {
-                    (void) this->onChar((SkUnichar) uni, 
-                                        get_modifiers(event));
+                if (!this->onKey(key, Window::kDown_InputState, get_modifiers(event))) {
+                    if (keysym == XK_Escape) {
+                        return true;
+                    }
                 }
+            }
+
+            long uni = keysym2ucs(keysym);
+            if (uni != -1) {
+                (void) this->onChar((SkUnichar) uni, get_modifiers(event));
             }
         } break;
 
@@ -270,26 +332,39 @@ void Window_unix::show() {
     XMapWindow(fDisplay, fWindow);
 }
 
-bool Window_unix::attach(BackendType attachType, const DisplayParams& params) {
-    this->initWindow(fDisplay, &params);
+bool Window_unix::attach(BackendType attachType) {
+    this->initWindow(fDisplay);
 
     window_context_factory::XlibWindowInfo winInfo;
     winInfo.fDisplay = fDisplay;
     winInfo.fWindow = fWindow;
+    winInfo.fFBConfig = fFBConfig;
     winInfo.fVisualInfo = fVisualInfo;
+
+    XWindowAttributes attrs;
+    if (XGetWindowAttributes(fDisplay, fWindow, &attrs)) {
+        winInfo.fWidth = attrs.width;
+        winInfo.fHeight = attrs.height;
+    } else {
+        winInfo.fWidth = winInfo.fHeight = 0;
+    }
+
     switch (attachType) {
 #ifdef SK_VULKAN
         case kVulkan_BackendType:
-            fWindowContext = window_context_factory::NewVulkanForXlib(winInfo, params);
+            fWindowContext = window_context_factory::NewVulkanForXlib(winInfo,
+                                                                      fRequestedDisplayParams);
             break;
 #endif
         case kNativeGL_BackendType:
-            fWindowContext = window_context_factory::NewGLForXlib(winInfo, params);
+            fWindowContext = window_context_factory::NewGLForXlib(winInfo, fRequestedDisplayParams);
             break;
         case kRaster_BackendType:
-            fWindowContext = window_context_factory::NewRasterForXlib(winInfo, params);
+            fWindowContext = window_context_factory::NewRasterForXlib(winInfo,
+                                                                      fRequestedDisplayParams);
             break;
     }
+    this->onBackendCreated();
 
     return (SkToBool(fWindowContext));
 }
@@ -302,8 +377,8 @@ void Window_unix::onInval() {
     event.xexpose.window = fWindow;
     event.xexpose.x = 0;
     event.xexpose.y = 0;
-    event.xexpose.width = fWidth;
-    event.xexpose.height = fHeight;
+    event.xexpose.width = this->width();
+    event.xexpose.height = this->height();
     event.xexpose.count = 0;
     
     XSendEvent(fDisplay, fWindow, False, 0, &event);

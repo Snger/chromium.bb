@@ -8,21 +8,8 @@
 #define XFA_FDE_CSS_FDE_CSS_H_
 
 #include "core/fxge/fx_dib.h"
-#include "xfa/fgas/crt/fgas_stream.h"
-#include "xfa/fgas/crt/fgas_utils.h"
+#include "xfa/fgas/crt/ifgas_stream.h"
 #include "xfa/fgas/font/cfgas_fontmgr.h"
-
-enum FDE_CSSMEDIATYPE {
-  FDE_CSSMEDIATYPE_Braille = 0x01,
-  FDE_CSSMEDIATYPE_Emboss = 0x02,
-  FDE_CSSMEDIATYPE_Handheld = 0x04,
-  FDE_CSSMEDIATYPE_Print = 0x08,
-  FDE_CSSMEDIATYPE_Projection = 0x10,
-  FDE_CSSMEDIATYPE_Screen = 0x20,
-  FDE_CSSMEDIATYPE_TTY = 0x40,
-  FDE_CSSMEDIATYPE_TV = 0x80,
-  FDE_CSSMEDIATYPE_ALL = 0xFF,
-};
 
 enum FDE_CSSVALUETYPE {
   FDE_CSSVALUETYPE_Primitive = 1 << 0,
@@ -137,17 +124,7 @@ enum class FDE_CSSProperty : uint8_t {
   LAST_MARKER
 };
 
-enum class FDE_CSSPseudo : uint8_t { After, Before, NONE };
-
-enum class FDE_CSSSelectorType : uint8_t {
-  Element = 0,
-  Descendant,
-  Class,
-  Pseudo,
-  ID,
-};
-
-enum class FDE_CSSRuleType : uint8_t { Style, Media, FontFace };
+enum class FDE_CSSSelectorType : uint8_t { Element = 0, Descendant };
 
 enum class FDE_CSSLengthUnit : uint8_t {
   Auto,
@@ -205,25 +182,13 @@ enum FDE_CSSTEXTDECORATION {
   FDE_CSSTEXTDECORATION_Double = 1 << 4,
 };
 
-enum class FDE_CSSStyleSheetGroup : uint8_t {
-  UserAgent = 0,
-  User,
-  Author,
-};
-
-enum class FDE_CSSStyleSheetPriority : uint8_t {
-  High = 0,
-  Mid,
-  Low,
-};
-
 class FDE_CSSLength {
  public:
   FDE_CSSLength() {}
 
   explicit FDE_CSSLength(FDE_CSSLengthUnit eUnit) : m_unit(eUnit) {}
 
-  FDE_CSSLength(FDE_CSSLengthUnit eUnit, FX_FLOAT fValue)
+  FDE_CSSLength(FDE_CSSLengthUnit eUnit, float fValue)
       : m_unit(eUnit), m_fValue(fValue) {}
 
   FDE_CSSLength& Set(FDE_CSSLengthUnit eUnit) {
@@ -231,7 +196,7 @@ class FDE_CSSLength {
     return *this;
   }
 
-  FDE_CSSLength& Set(FDE_CSSLengthUnit eUnit, FX_FLOAT fValue) {
+  FDE_CSSLength& Set(FDE_CSSLengthUnit eUnit, float fValue) {
     m_unit = eUnit;
     m_fValue = fValue;
     return *this;
@@ -239,19 +204,19 @@ class FDE_CSSLength {
 
   FDE_CSSLengthUnit GetUnit() const { return m_unit; }
 
-  FX_FLOAT GetValue() const { return m_fValue; }
+  float GetValue() const { return m_fValue; }
   bool NonZero() const { return static_cast<int>(m_fValue) != 0; }
 
  private:
   FDE_CSSLengthUnit m_unit;
-  FX_FLOAT m_fValue;
+  float m_fValue;
 };
 
 class FDE_CSSRect {
  public:
   FDE_CSSRect() {}
 
-  FDE_CSSRect(FDE_CSSLengthUnit eUnit, FX_FLOAT val)
+  FDE_CSSRect(FDE_CSSLengthUnit eUnit, float val)
       : left(eUnit, val),
         top(eUnit, val),
         right(eUnit, val),
@@ -264,7 +229,7 @@ class FDE_CSSRect {
     bottom.Set(eUnit);
     return *this;
   }
-  FDE_CSSRect& Set(FDE_CSSLengthUnit eUnit, FX_FLOAT fValue) {
+  FDE_CSSRect& Set(FDE_CSSLengthUnit eUnit, float fValue) {
     left.Set(eUnit, fValue);
     top.Set(eUnit, fValue);
     right.Set(eUnit, fValue);

@@ -29,27 +29,59 @@ tr.b.unittest.testSuite(function() {
     var eventSet = new tr.model.EventSet();
     eventSet.push(t1.sliceGroup.slices[0]);
 
-    assert.equal(eventSet.bounds.min, 1);
-    assert.equal(eventSet.bounds.max, 4);
-    assert.deepEqual(eventSet, new tr.model.EventSet(
-        t1.sliceGroup.slices[0]));
+    assert.strictEqual(eventSet.bounds.min, 1);
+    assert.strictEqual(eventSet.bounds.max, 4);
+    assert.deepEqual(eventSet.asSet(), new tr.model.EventSet(
+        t1.sliceGroup.slices[0]).asSet());
 
     eventSet.push(t1.sliceGroup.slices[1]);
-    assert.equal(eventSet.bounds.min, 1);
-    assert.equal(eventSet.bounds.max, 6);
-    assert.deepEqual(eventSet, new tr.model.EventSet(
-        [t1.sliceGroup.slices[0], t1.sliceGroup.slices[1]]));
+    assert.strictEqual(eventSet.bounds.min, 1);
+    assert.strictEqual(eventSet.bounds.max, 6);
+    assert.deepEqual(eventSet.asSet(), new tr.model.EventSet(
+        [t1.sliceGroup.slices[0], t1.sliceGroup.slices[1]]).asSet());
 
     eventSet.clear();
-    assert.equal(eventSet.length, 0);
+    assert.strictEqual(eventSet.length, 0);
+  });
+
+  test('push_noEvents', function() {
+    var eventSet = new tr.model.EventSet();
+    eventSet.push();
+    assert.strictEqual(eventSet.length, 0);
+  });
+
+  test('push_oneEvent', function() {
+    var eventSet = new tr.model.EventSet();
+    eventSet.push({guid: 1});
+    assert.strictEqual(eventSet.length, 1);
+  });
+
+  test('push_multipleEvents', function() {
+    var eventSet = new tr.model.EventSet();
+    eventSet.push({guid: 1}, {guid: 2}, {guid: 3});
+    assert.strictEqual(eventSet.length, 3);
+  });
+
+  test('push_multiplePushes', function() {
+    var eventSet = new tr.model.EventSet();
+    eventSet.push({guid: 1}, {guid: 2}, {guid: 3});
+    eventSet.push({guid: 4}, {guid: 5}, {guid: 6});
+    assert.strictEqual(eventSet.length, 6);
+  });
+
+  test('push_noGuidThrows', function() {
+    var eventSet = new tr.model.EventSet();
+    assert.throws(() => eventSet.push({guid: 1}, {badItem: 2}, {guid: 3}),
+        'Event must have a GUID');
   });
 
   test('iteration', function() {
     var eventSet = new tr.model.EventSet([{guid: 1}, {guid: 2}, {guid: 3}]);
 
     var expectedId = 1;
-    for (var event of eventSet)
-      assert.equal(event.guid, expectedId++);
+    for (var event of eventSet) {
+      assert.strictEqual(event.guid, expectedId++);
+    }
   });
 
   test('uniqueContents', function() {
@@ -60,10 +92,10 @@ tr.b.unittest.testSuite(function() {
 
     eventSet.push(sample1);
     eventSet.push(sample2);
-    assert.equal(eventSet.length, 2);
+    assert.strictEqual(eventSet.length, 2);
 
     eventSet.push(sample1);
-    assert.equal(eventSet.length, 2);
+    assert.strictEqual(eventSet.length, 2);
   });
 
   test('userFriendlyNameSingular', function() {
@@ -85,8 +117,8 @@ tr.b.unittest.testSuite(function() {
     t1.sliceGroup.pushSlice(
         new tr.model.ThreadSlice('', 'a', 0, 2, {}, 3));
     var eventSet = new tr.model.EventSet([
-        t1.sliceGroup.slices[0],
-        t1.sliceGroup.slices[1]
+      t1.sliceGroup.slices[0],
+      t1.sliceGroup.slices[1]
     ]);
     assert.isDefined(eventSet.userFriendlyName);
   });
@@ -105,8 +137,8 @@ tr.b.unittest.testSuite(function() {
     var s10 = i10.addSnapshot(10, {foo: 1});
 
     var eventSet = new tr.model.EventSet([
-        t1.sliceGroup.slices[0],
-        s10
+      t1.sliceGroup.slices[0],
+      s10
     ]);
     assert.isDefined(eventSet.userFriendlyName);
   });
@@ -122,13 +154,13 @@ tr.b.unittest.testSuite(function() {
     t1.sliceGroup.pushSlice(
         new tr.model.ThreadSlice('', 'b', 0, 3, {}, 3));
     var eventSet = new tr.model.EventSet([
-        t1.sliceGroup.slices[0],
-        t1.sliceGroup.slices[1],
-        t1.sliceGroup.slices[2]
+      t1.sliceGroup.slices[0],
+      t1.sliceGroup.slices[1],
+      t1.sliceGroup.slices[2]
     ]);
 
     var eventsByTitle = eventSet.getEventsOrganizedByTitle();
-    assert.equal(2, tr.b.dictionaryLength(eventsByTitle));
+    assert.strictEqual(2, tr.b.dictionaryLength(eventsByTitle));
     assert.sameMembers(eventsByTitle['a'].toArray(),
                  [t1.sliceGroup.slices[0], t1.sliceGroup.slices[1]]);
     assert.sameMembers(eventsByTitle['b'].toArray(),
@@ -144,7 +176,7 @@ tr.b.unittest.testSuite(function() {
       return 's' + event.start;
     }
     var eventsByCallback = eventSet.getEventsOrganizedByCallback(getEventKey);
-    assert.equal(2, tr.b.dictionaryLength(eventsByCallback));
+    assert.strictEqual(2, tr.b.dictionaryLength(eventsByCallback));
     assert.sameMembers(eventsByCallback.s1.toArray(), [a1, b1]);
     assert.sameMembers(eventsByCallback.s2.toArray(), [a2]);
   });
@@ -155,7 +187,7 @@ tr.b.unittest.testSuite(function() {
     var c = new tr.model.AsyncSlice('', 'c', 0, 1, {}, 3);
     var eventSet = new tr.model.EventSet([a, b, c]);
     var eventsByBaseType = eventSet.getEventsOrganizedByBaseType(true);
-    assert.equal(2, tr.b.dictionaryLength(eventsByBaseType));
+    assert.strictEqual(2, tr.b.dictionaryLength(eventsByBaseType));
     assert.sameMembers(eventsByBaseType.slice.toArray(), [a, b]);
     assert.sameMembers(eventsByBaseType.asyncSlice.toArray(), [c]);
 
@@ -164,8 +196,9 @@ tr.b.unittest.testSuite(function() {
     assert.sameMembers(eventsByBaseType.slice.toArray(), [a, b]);
     assert.sameMembers(eventsByBaseType.asyncSlice.toArray(), [c]);
     for (var baseType in eventsByBaseType) {
-      if (baseType !== 'slice' && baseType !== 'asyncSlice')
-        assert.equal(0, eventsByBaseType[baseType].length);
+      if (baseType !== 'slice' && baseType !== 'asyncSlice') {
+        assert.strictEqual(0, eventsByBaseType[baseType].length);
+      }
     }
   });
 
@@ -181,12 +214,12 @@ tr.b.unittest.testSuite(function() {
         new tr.model.ThreadSlice('', 'b', 0, 3, {}, 3));
 
     var set1 = new tr.model.EventSet([
-        t1.sliceGroup.slices[0],
-        t1.sliceGroup.slices[1],
-        t1.sliceGroup.slices[2]
+      t1.sliceGroup.slices[0],
+      t1.sliceGroup.slices[1],
+      t1.sliceGroup.slices[2]
     ]);
     var set2 = new tr.model.EventSet([
-        t1.sliceGroup.slices[2]
+      t1.sliceGroup.slices[2]
     ]);
     assert.isFalse(set1.intersectionIsEmpty(set2));
   });
@@ -203,11 +236,11 @@ tr.b.unittest.testSuite(function() {
         new tr.model.ThreadSlice('', 'b', 0, 3, {}, 3));
 
     var set1 = new tr.model.EventSet([
-        t1.sliceGroup.slices[0],
-        t1.sliceGroup.slices[1]
+      t1.sliceGroup.slices[0],
+      t1.sliceGroup.slices[1]
     ]);
     var set2 = new tr.model.EventSet([
-        t1.sliceGroup.slices[2]
+      t1.sliceGroup.slices[2]
     ]);
     assert.isTrue(set1.intersectionIsEmpty(set2));
   });
@@ -226,23 +259,23 @@ tr.b.unittest.testSuite(function() {
         new tr.model.ThreadSlice('', 'd', 0, 4, {}, 5));
 
     var eventSet1 = new tr.model.EventSet([
-        t1.sliceGroup.slices[0],
-        t1.sliceGroup.slices[1],
-        t1.sliceGroup.slices[2]
+      t1.sliceGroup.slices[0],
+      t1.sliceGroup.slices[1],
+      t1.sliceGroup.slices[2]
     ]);
     var eventSet2 = new tr.model.EventSet([
-        t1.sliceGroup.slices[1],
-        t1.sliceGroup.slices[0],
-        t1.sliceGroup.slices[2]
+      t1.sliceGroup.slices[1],
+      t1.sliceGroup.slices[0],
+      t1.sliceGroup.slices[2]
     ]);
     var eventSet3 = new tr.model.EventSet([
-        t1.sliceGroup.slices[1],
-        t1.sliceGroup.slices[0],
-        t1.sliceGroup.slices[3]
+      t1.sliceGroup.slices[1],
+      t1.sliceGroup.slices[0],
+      t1.sliceGroup.slices[3]
     ]);
     var eventSet4 = new tr.model.EventSet([
-        t1.sliceGroup.slices[1],
-        t1.sliceGroup.slices[0]
+      t1.sliceGroup.slices[1],
+      t1.sliceGroup.slices[0]
     ]);
     assert.isTrue(eventSet1.equals(eventSet2));
     assert.isFalse(eventSet1.equals(eventSet3));
@@ -251,7 +284,6 @@ tr.b.unittest.testSuite(function() {
 
   test('filter', function() {
     var m = newModel(function(m) {
-
       var p = m.getOrCreateProcess(1);
       var t = p.getOrCreateThread(1);
 
@@ -273,14 +305,14 @@ tr.b.unittest.testSuite(function() {
   });
 
   test('toArray', function() {
-     var samples = [
+    var samples = [
        {guid: 1},
        {guid: 2}
-     ];
-     var eventSet = new tr.model.EventSet(samples);
+    ];
+    var eventSet = new tr.model.EventSet(samples);
 
-     assert.deepEqual(eventSet.toArray(), samples);
-   });
+    assert.deepEqual(eventSet.toArray(), samples);
+  });
 
   test('asDict', function() {
     var model = new tr.Model();
@@ -296,16 +328,16 @@ tr.b.unittest.testSuite(function() {
         new tr.model.ThreadSlice('', 'd', 0, 4, {}, 5));
 
     var eventSet = new tr.model.EventSet([
-        t1.sliceGroup.slices[0],
-        t1.sliceGroup.slices[1],
-        t1.sliceGroup.slices[2]
+      t1.sliceGroup.slices[0],
+      t1.sliceGroup.slices[1],
+      t1.sliceGroup.slices[2]
     ]);
 
     assert.deepEqual(
         {'events':
             ['1.1.SliceGroup.0', '1.1.SliceGroup.1', '1.1.SliceGroup.2']},
         eventSet.asDict());
-   });
+  });
 
   test('immutableEmptySet', function() {
     var s = tr.model.EventSet.IMMUTABLE_EMPTY_SET;

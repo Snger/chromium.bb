@@ -10,6 +10,7 @@
 #include "SkColorPriv.h"
 #include "SkGradientShader.h"
 #include "SkPath.h"
+#include "SkRegion.h"
 #include "SkUtils.h"
 #include "SkView.h"
 
@@ -55,12 +56,9 @@ static SkBitmap make_bitmap() {
     for (int i = 0; i < 256; i++) {
         c[i] = SkPackARGB32(0xFF, i, 0, 0);
     }
-    SkColorTable* ctable = new SkColorTable(c, 256);
-
     SkBitmap bm;
     bm.allocPixels(SkImageInfo::Make(256, 32, kIndex_8_SkColorType, kPremul_SkAlphaType),
-                   nullptr, ctable);
-    ctable->unref();
+                   SkColorTable::Make(c, 256));
 
     bm.lockPixels();
     for (int y = 0; y < bm.height(); y++) {

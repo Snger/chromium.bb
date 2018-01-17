@@ -60,6 +60,7 @@
 #include "components/omnibox/browser/autocomplete_match.h"
 #include "components/omnibox/browser/autocomplete_result.h"
 #include "components/strings/grit/components_strings.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/notification_types.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/url_data_source.h"
@@ -138,6 +139,28 @@ constexpr char kLockScreenHTMLPath[] = "people_page/lock_screen.html";
 constexpr char kLockScreenJSPath[] = "people_page/lock_screen.js";
 constexpr char kSetupPinHTMLPath[] = "people_page/setup_pin_dialog.html";
 constexpr char kSetupPinJSPath[] = "people_page/setup_pin_dialog.js";
+constexpr char kEasyUnlockBrowserProxyHTMLPath[] =
+    "people_page/easy_unlock_browser_proxy.html";
+constexpr char kEasyUnlockBrowserProxyJSPath[] =
+    "people_page/easy_unlock_browser_proxy.js";
+constexpr char kEasyUnlockTurnOffDialogHTMLPath[] =
+    "people_page/easy_unlock_turn_off_dialog.html";
+constexpr char kEasyUnlockTurnOffDialogJSPath[] =
+    "people_page/easy_unlock_turn_off_dialog.js";
+constexpr char kFingerprintListHTMLPath[] = "people_page/fingerprint_list.html";
+constexpr char kFingerprintListJSPath[] = "people_page/fingerprint_list.js";
+constexpr char kSetupFingerprintHTMLPath[] =
+    "people_page/setup_fingerprint_dialog.html";
+constexpr char kSetupFingerprintJSPath[] =
+    "people_page/setup_fingerprint_dialog.js";
+constexpr char kFingerprintBrowserProxyHTMLPath[] =
+    "people_page/fingerprint_browser_proxy.html";
+constexpr char kFingerprintBrowserProxyJSPath[] =
+    "people_page/fingerprint_browser_proxy.js";
+constexpr char kFingerprintProgressArcHTMLPath[] =
+    "people_page/fingerprint_progress_arc.html";
+constexpr char kFingerprintProgressArcJSPath[] =
+    "people_page/fingerprint_progress_arc.js";
 constexpr char kSettingsRouteHTMLPath[] = "route.html";
 constexpr char kSettingsRouteJSPath[] = "route.js";
 constexpr char kSettingsSharedCSSHTMLPath[] = "settings_shared_css.html";
@@ -158,6 +181,9 @@ constexpr char kSettingsPrefsBehaviorHTMLPath[] = "prefs/prefs_behavior.html";
 constexpr char kSettingsPrefsBehaviorJSPath[] = "prefs/prefs_behavior.js";
 constexpr char kSettingsPrefsTypesHTMLPath[] = "prefs/prefs_types.html";
 constexpr char kSettingsPrefsTypesJSPath[] = "prefs/prefs_types.js";
+constexpr char kSettingsPrefsHTMLPath[] = "prefs/prefs.html";
+constexpr char kSettingsPrefsJSPath[] = "prefs/prefs.js";
+constexpr char kSettingsI18nHTMLPath[] = "i18n_setup.html";
 constexpr char kOptionsPolymerHTMLPath[] = "options_polymer.html";
 #endif
 
@@ -182,6 +208,7 @@ class OptionsUIHTMLSource : public content::URLDataSource {
       const std::string& path,
       const content::ResourceRequestInfo::WebContentsGetter& wc_getter,
       const content::URLDataSource::GotDataCallback& callback) override;
+  bool AllowCaching() const override;
   std::string GetMimeType(const std::string&) const override;
   bool ShouldDenyXFrameOptions() const override;
 
@@ -252,6 +279,12 @@ void OptionsUIHTMLSource::StartDataRequest(
   callback.Run(response_bytes.get());
 }
 
+bool OptionsUIHTMLSource::AllowCaching() const {
+  // Should not be cached to reflect dynamically-generated contents that depends
+  // on the current locale.
+  return false;
+}
+
 std::string OptionsUIHTMLSource::GetMimeType(const std::string& path) const {
   if (base::EndsWith(path, ".js", base::CompareCase::INSENSITIVE_ASCII))
     return "application/javascript";
@@ -268,6 +301,8 @@ OptionsUIHTMLSource::~OptionsUIHTMLSource() {}
 void OptionsUIHTMLSource::CreateDataSourceMap() {
 #if defined(OS_CHROMEOS)
   path_to_idr_map_[kIconsHTMLPath] = IDR_OPTIONS_ICONS_HTML;
+
+  // These are part of the LockScreen UI.
   path_to_idr_map_[kPinKeyboardHTMLPath] = IDR_OPTIONS_PIN_KEYBOARD_HTML;
   path_to_idr_map_[kPinKeyboardJSPath] = IDR_OPTIONS_PIN_KEYBOARD_JS;
   path_to_idr_map_[kPasswordPromptDialogHTMLPath] =
@@ -284,8 +319,24 @@ void OptionsUIHTMLSource::CreateDataSourceMap() {
       IDR_OPTIONS_LOCK_STATE_BEHAVIOR_JS;
   path_to_idr_map_[kLockScreenHTMLPath] = IDR_OPTIONS_LOCK_SCREEN_HTML;
   path_to_idr_map_[kLockScreenJSPath] = IDR_OPTIONS_LOCK_SCREEN_JS;
+  path_to_idr_map_[kEasyUnlockBrowserProxyHTMLPath] =
+      IDR_OPTIONS_EASY_UNLOCK_BROWSER_PROXY_HTML;
+  path_to_idr_map_[kEasyUnlockBrowserProxyJSPath] =
+      IDR_OPTIONS_EASY_UNLOCK_BROWSER_PROXY_JS;
+  path_to_idr_map_[kEasyUnlockTurnOffDialogHTMLPath] =
+      IDR_OPTIONS_EASY_UNLOCK_TURN_OFF_DIALOG_HTML;
+  path_to_idr_map_[kEasyUnlockTurnOffDialogJSPath] =
+      IDR_OPTIONS_EASY_UNLOCK_TURN_OFF_DIALOG_JS;
   path_to_idr_map_[kSetupPinHTMLPath] = IDR_OPTIONS_SETUP_PIN_DIALOG_HTML;
   path_to_idr_map_[kSetupPinJSPath] = IDR_OPTIONS_SETUP_PIN_DIALOG_JS;
+  path_to_idr_map_[kFingerprintListHTMLPath] =
+      IDR_OPTIONS_FINGERPRINT_LIST_HTML;
+  path_to_idr_map_[kFingerprintListJSPath] = IDR_OPTIONS_FINGERPRINT_LIST_JS;
+  path_to_idr_map_[kSetupFingerprintHTMLPath] =
+      IDR_OPTIONS_SETUP_FINGERPRINT_DIALOG_HTML;
+  path_to_idr_map_[kSetupFingerprintJSPath] =
+      IDR_OPTIONS_SETUP_FINGERPRINT_DIALOG_JS;
+
   path_to_idr_map_[kSettingsRouteHTMLPath] = IDR_OPTIONS_ROUTE_HTML;
   path_to_idr_map_[kSettingsRouteJSPath] = IDR_OPTIONS_ROUTE_JS;
   path_to_idr_map_[kSettingsSharedCSSHTMLPath] = IDR_SETTINGS_SHARED_CSS_HTML;
@@ -308,6 +359,17 @@ void OptionsUIHTMLSource::CreateDataSourceMap() {
   path_to_idr_map_[kSettingsPrefsTypesHTMLPath] = IDR_SETTINGS_PREFS_TYPES_HTML;
   path_to_idr_map_[kSettingsPrefsTypesJSPath] = IDR_SETTINGS_PREFS_TYPES_JS;
   path_to_idr_map_[kOptionsPolymerHTMLPath] = IDR_OPTIONS_POLYMER_ELEMENTS_HTML;
+  path_to_idr_map_[kSettingsPrefsHTMLPath] = IDR_SETTINGS_PREFS_HTML;
+  path_to_idr_map_[kSettingsPrefsJSPath] = IDR_SETTINGS_PREFS_JS;
+  path_to_idr_map_[kSettingsI18nHTMLPath] = IDR_OPTIONS_I18N_SETUP_HTML;
+  path_to_idr_map_[kFingerprintBrowserProxyHTMLPath] =
+      IDR_OPTIONS_FINGERPRINT_BROWSER_PROXY_HTML;
+  path_to_idr_map_[kFingerprintBrowserProxyJSPath] =
+      IDR_OPTIONS_FINGERPRINT_BROWSER_PROXY_JS;
+  path_to_idr_map_[kFingerprintProgressArcHTMLPath] =
+      IDR_OPTIONS_FINGERPRINT_PROGRESS_ARC_HTML;
+  path_to_idr_map_[kFingerprintProgressArcJSPath] =
+      IDR_OPTIONS_FINGERPRINT_PROGRESS_ARC_JS;
 #endif
 }
 
@@ -523,14 +585,16 @@ void OptionsUI::ProcessAutocompleteSuggestions(
   }
 }
 
-void OptionsUI::DidStartProvisionalLoadForFrame(
-    content::RenderFrameHost* render_frame_host,
-    const GURL& validated_url,
-    bool is_error_page) {
+void OptionsUI::ReadyToCommitNavigation(
+    content::NavigationHandle* navigation_handle) {
+  if (navigation_handle->IsSameDocument())
+    return;
+
   load_start_time_ = base::Time::Now();
-  if (render_frame_host->GetRenderViewHost() ==
+  if (navigation_handle->GetRenderFrameHost()->GetRenderViewHost() ==
           web_ui()->GetWebContents()->GetRenderViewHost() &&
-      validated_url.host_piece() == chrome::kChromeUISettingsFrameHost) {
+      navigation_handle->GetURL().host_piece() ==
+          chrome::kChromeUISettingsFrameHost) {
     for (size_t i = 0; i < handlers_.size(); ++i)
       handlers_[i]->PageLoadStarted();
   }

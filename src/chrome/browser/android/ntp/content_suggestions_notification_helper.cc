@@ -22,6 +22,9 @@
 #include "ui/gfx/image/image_skia.h"
 
 using base::android::JavaParamRef;
+using params::ntp_snippets::kNotificationsFeature;
+using params::ntp_snippets::kNotificationsIgnoredLimitParam;
+using params::ntp_snippets::kNotificationsIgnoredDefaultLimit;
 
 namespace ntp_snippets {
 
@@ -29,12 +32,15 @@ namespace {
 
 bool IsDisabledForProfile(Profile* profile) {
   PrefService* prefs = profile->GetPrefs();
+  if (!prefs->GetBoolean(prefs::kContentSuggestionsNotificationsEnabled)) {
+    return true;
+  }
+
   int current =
       prefs->GetInteger(prefs::kContentSuggestionsConsecutiveIgnoredPrefName);
   int limit = variations::GetVariationParamByFeatureAsInt(
-      kContentSuggestionsNotificationsFeature,
-      kContentSuggestionsNotificationsIgnoredLimitParam,
-      kContentSuggestionsNotificationsIgnoredDefaultLimit);
+      kNotificationsFeature, kNotificationsIgnoredLimitParam,
+      kNotificationsIgnoredDefaultLimit);
   return current >= limit;
 }
 
@@ -46,7 +52,8 @@ bool ContentSuggestionsNotificationHelper::SendNotification(
     const base::string16& title,
     const base::string16& text,
     const gfx::Image& image,
-    base::Time timeout_at) {
+    base::Time timeout_at,
+    int priority) {
   JNIEnv* env = base::android::AttachCurrentThread();
   SkBitmap skimage = image.AsImageSkia().GetRepresentation(1.0f).sk_bitmap();
   if (skimage.empty())
@@ -63,7 +70,7 @@ bool ContentSuggestionsNotificationHelper::SendNotification(
           base::android::ConvertUTF8ToJavaString(env, url.spec()),
           base::android::ConvertUTF16ToJavaString(env, title),
           base::android::ConvertUTF16ToJavaString(env, text),
-          gfx::ConvertToJavaBitmap(&skimage), timeout_at_millis)) {
+          gfx::ConvertToJavaBitmap(&skimage), timeout_at_millis, priority)) {
     DVLOG(1) << "Displayed notification for " << id;
     return true;
   } else {
@@ -101,6 +108,20 @@ bool ContentSuggestionsNotificationHelper::IsDisabledForProfile(
 // static
 bool ContentSuggestionsNotificationHelper::Register(JNIEnv* env) {
   return RegisterNativesImpl(env);
+}
+
+static void RecordNotificationOptOut(JNIEnv* env,
+                                     const JavaParamRef<jclass>& class_object,
+                                     jint reason) {
+  RecordContentSuggestionsNotificationOptOut(
+      static_cast<ContentSuggestionsNotificationOptOut>(reason));
+}
+
+static void RecordNotificationAction(JNIEnv* env,
+                                     const JavaParamRef<jclass>& class_object,
+                                     jint action) {
+  RecordContentSuggestionsNotificationAction(
+      static_cast<ContentSuggestionsNotificationAction>(action));
 }
 
 static void ReceiveFlushedMetrics(JNIEnv* env,

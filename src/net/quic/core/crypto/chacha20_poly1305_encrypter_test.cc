@@ -11,7 +11,6 @@
 #include "net/quic/platform/api/quic_text_utils.h"
 #include "net/quic/test_tools/quic_test_utils.h"
 
-using base::StringPiece;
 using std::string;
 
 namespace {
@@ -70,9 +69,9 @@ namespace test {
 // EncryptWithNonce wraps the |Encrypt| method of |encrypter| to allow passing
 // in an nonce and also to allocate the buffer needed for the ciphertext.
 QuicData* EncryptWithNonce(ChaCha20Poly1305Encrypter* encrypter,
-                           StringPiece nonce,
-                           StringPiece associated_data,
-                           StringPiece plaintext) {
+                           QuicStringPiece nonce,
+                           QuicStringPiece associated_data,
+                           QuicStringPiece plaintext) {
   size_t ciphertext_size = encrypter->GetCiphertextSize(plaintext.length());
   std::unique_ptr<char[]> ciphertext(new char[ciphertext_size]);
 
@@ -94,18 +93,17 @@ TEST(ChaCha20Poly1305EncrypterTest, EncryptThenDecrypt) {
   ASSERT_TRUE(encrypter.SetNoncePrefix("abcd"));
   ASSERT_TRUE(decrypter.SetNoncePrefix("abcd"));
 
-  QuicPathId path_id = 0x42;
   QuicPacketNumber packet_number = UINT64_C(0x123456789ABC);
   string associated_data = "associated_data";
   string plaintext = "plaintext";
   char encrypted[1024];
   size_t len;
-  ASSERT_TRUE(encrypter.EncryptPacket(QuicVersionMax(), path_id, packet_number,
+  ASSERT_TRUE(encrypter.EncryptPacket(QuicVersionMax(), packet_number,
                                       associated_data, plaintext, encrypted,
                                       &len, arraysize(encrypted)));
-  StringPiece ciphertext(encrypted, len);
+  QuicStringPiece ciphertext(encrypted, len);
   char decrypted[1024];
-  ASSERT_TRUE(decrypter.DecryptPacket(QuicVersionMax(), path_id, packet_number,
+  ASSERT_TRUE(decrypter.DecryptPacket(QuicVersionMax(), packet_number,
                                       associated_data, ciphertext, decrypted,
                                       &len, arraysize(decrypted)));
 }
@@ -126,7 +124,8 @@ TEST(ChaCha20Poly1305EncrypterTest, Encrypt) {
         &encrypter, fixed + iv,
         // This deliberately tests that the encrypter can handle an AAD that
         // is set to nullptr, as opposed to a zero-length, non-nullptr pointer.
-        StringPiece(aad.length() ? aad.data() : nullptr, aad.length()), pt));
+        QuicStringPiece(aad.length() ? aad.data() : nullptr, aad.length()),
+        pt));
     ASSERT_TRUE(encrypted.get());
     EXPECT_EQ(12u, ct.size() - pt.size());
     EXPECT_EQ(12u, encrypted->length() - pt.size());

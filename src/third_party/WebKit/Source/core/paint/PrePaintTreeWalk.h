@@ -5,6 +5,7 @@
 #ifndef PrePaintTreeWalk_h
 #define PrePaintTreeWalk_h
 
+#include "core/paint/ClipRect.h"
 #include "core/paint/PaintInvalidator.h"
 #include "core/paint/PaintPropertyTreeBuilder.h"
 
@@ -12,6 +13,7 @@ namespace blink {
 
 class FrameView;
 class LayoutObject;
+class PropertyTreeState;
 struct PrePaintTreeWalkContext;
 
 // This class walks the whole layout tree, beginning from the root FrameView,
@@ -19,17 +21,36 @@ struct PrePaintTreeWalkContext;
 // perform actual actions.  It expects to be invoked in InPrePaint phase.
 class PrePaintTreeWalk {
  public:
-  void walk(FrameView& rootFrame);
+  PrePaintTreeWalk() {}
+  void Walk(FrameView& root_frame);
 
  private:
-  // Throttled rendering (see: FrameView::shouldThrottleRendering()) can prevent
-  // updating a subtree. We return true if the subtree was fully walked/updated,
-  // and false if the walk was interrupted by throttling.
-  bool walk(FrameView&, const PrePaintTreeWalkContext&);
-  bool walk(const LayoutObject&, const PrePaintTreeWalkContext&);
+  void Walk(FrameView&, const PrePaintTreeWalkContext&);
+  void Walk(const LayoutObject&, const PrePaintTreeWalkContext&);
 
-  PaintPropertyTreeBuilder m_propertyTreeBuilder;
-  PaintInvalidator m_paintInvalidator;
+  // Invalidates paint-layer painting optimizations, such as subsequence caching
+  // and empty paint phase optimizations if clips from the context have changed.
+  ALWAYS_INLINE void InvalidatePaintLayerOptimizationsIfNeeded(
+      const LayoutObject&,
+      PrePaintTreeWalkContext&);
+
+  // Returns the clip applied to children for the given containing block context
+  // + effect, in the space of ancestorState adjusted by ancestorPaintOffset.
+  ALWAYS_INLINE LayoutRect ComputeClipRectForContext(
+      const PaintPropertyTreeBuilderContext::ContainingBlockContext&,
+      const EffectPaintPropertyNode*,
+      const PropertyTreeState& ancestor_state,
+      const LayoutPoint& ancestor_paint_offset);
+
+  bool ALWAYS_INLINE
+  NeedsTreeBuilderContextUpdate(const FrameView&,
+                                const PrePaintTreeWalkContext&);
+  bool ALWAYS_INLINE
+  NeedsTreeBuilderContextUpdate(const LayoutObject&,
+                                const PrePaintTreeWalkContext&);
+
+  PaintPropertyTreeBuilder property_tree_builder_;
+  PaintInvalidator paint_invalidator_;
 };
 
 }  // namespace blink

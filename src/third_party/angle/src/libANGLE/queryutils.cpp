@@ -12,6 +12,8 @@
 
 #include "libANGLE/Buffer.h"
 #include "libANGLE/Config.h"
+#include "libANGLE/Context.h"
+#include "libANGLE/Fence.h"
 #include "libANGLE/Framebuffer.h"
 #include "libANGLE/Program.h"
 #include "libANGLE/Renderbuffer.h"
@@ -349,8 +351,10 @@ GLint ConvertCurrentValue(GLfloat currentValue)
     return iround<GLint>(currentValue);
 }
 
+// Warning: you should ensure binding really matches attrib.bindingIndex before using this function.
 template <typename ParamType, typename CurrentDataType, size_t CurrentValueCount>
 void QueryVertexAttribBase(const VertexAttribute &attrib,
+                           const VertexBinding &binding,
                            const CurrentDataType (&currentValueData)[CurrentValueCount],
                            GLenum pname,
                            ParamType *params)
@@ -370,7 +374,7 @@ void QueryVertexAttribBase(const VertexAttribute &attrib,
             *params = ConvertFromGLuint<ParamType>(attrib.size);
             break;
         case GL_VERTEX_ATTRIB_ARRAY_STRIDE:
-            *params = ConvertFromGLuint<ParamType>(attrib.stride);
+            *params = ConvertFromGLuint<ParamType>(attrib.vertexAttribArrayStride);
             break;
         case GL_VERTEX_ATTRIB_ARRAY_TYPE:
             *params = ConvertFromGLenum<ParamType>(attrib.type);
@@ -379,13 +383,22 @@ void QueryVertexAttribBase(const VertexAttribute &attrib,
             *params = ConvertFromGLboolean<ParamType>(attrib.normalized);
             break;
         case GL_VERTEX_ATTRIB_ARRAY_BUFFER_BINDING:
-            *params = ConvertFromGLuint<ParamType>(attrib.buffer.id());
+            *params = ConvertFromGLuint<ParamType>(binding.buffer.id());
             break;
         case GL_VERTEX_ATTRIB_ARRAY_DIVISOR:
-            *params = ConvertFromGLuint<ParamType>(attrib.divisor);
+            *params = ConvertFromGLuint<ParamType>(binding.divisor);
             break;
         case GL_VERTEX_ATTRIB_ARRAY_INTEGER:
             *params = ConvertFromGLboolean<ParamType>(attrib.pureInteger);
+            break;
+        case GL_VERTEX_ATTRIB_BINDING:
+            *params = ConvertFromGLuint<ParamType>(attrib.bindingIndex);
+            break;
+        case GL_VERTEX_ATTRIB_RELATIVE_OFFSET:
+            // attrib.relativeOffset should not be negative or greater than max GLint
+            ASSERT(attrib.relativeOffset >= 0 &&
+                   attrib.relativeOffset <= std::numeric_limits<GLint>::max());
+            *params = ConvertFromGLint<ParamType>(static_cast<GLint>(attrib.relativeOffset));
             break;
         default:
             UNREACHABLE();
@@ -602,13 +615,19 @@ void QueryProgramiv(const Program *program, GLenum pname, GLint *params)
         case GL_PROGRAM_BINARY_RETRIEVABLE_HINT:
             *params = program->getBinaryRetrievableHint();
             break;
+        case GL_PROGRAM_SEPARABLE:
+            *params = program->isSeparable();
+            break;
         default:
             UNREACHABLE();
             break;
     }
 }
 
-void QueryRenderbufferiv(const Renderbuffer *renderbuffer, GLenum pname, GLint *params)
+void QueryRenderbufferiv(const Context *context,
+                         const Renderbuffer *renderbuffer,
+                         GLenum pname,
+                         GLint *params)
 {
     ASSERT(renderbuffer != nullptr);
 
@@ -621,7 +640,16 @@ void QueryRenderbufferiv(const Renderbuffer *renderbuffer, GLenum pname, GLint *
             *params = renderbuffer->getHeight();
             break;
         case GL_RENDERBUFFER_INTERNAL_FORMAT:
-            *params = renderbuffer->getFormat().info->internalFormat;
+            // Special case the WebGL 1 DEPTH_STENCIL format.
+            if (context->isWebGL1() &&
+                renderbuffer->getFormat().info->internalFormat == GL_DEPTH24_STENCIL8)
+            {
+                *params = GL_DEPTH_STENCIL;
+            }
+            else
+            {
+                *params = renderbuffer->getFormat().info->internalFormat;
+            }
             break;
         case GL_RENDERBUFFER_RED_SIZE:
             *params = renderbuffer->getRedSize();
@@ -719,19 +747,21 @@ void QuerySamplerParameteriv(const Sampler *sampler, GLenum pname, GLint *params
 }
 
 void QueryVertexAttribfv(const VertexAttribute &attrib,
+                         const VertexBinding &binding,
                          const VertexAttribCurrentValueData &currentValueData,
                          GLenum pname,
                          GLfloat *params)
 {
-    QueryVertexAttribBase(attrib, currentValueData.FloatValues, pname, params);
+    QueryVertexAttribBase(attrib, binding, currentValueData.FloatValues, pname, params);
 }
 
 void QueryVertexAttribiv(const VertexAttribute &attrib,
+                         const VertexBinding &binding,
                          const VertexAttribCurrentValueData &currentValueData,
                          GLenum pname,
                          GLint *params)
 {
-    QueryVertexAttribBase(attrib, currentValueData.FloatValues, pname, params);
+    QueryVertexAttribBase(attrib, binding, currentValueData.FloatValues, pname, params);
 }
 
 void QueryVertexAttribPointerv(const VertexAttribute &attrib, GLenum pname, GLvoid **pointer)
@@ -749,19 +779,21 @@ void QueryVertexAttribPointerv(const VertexAttribute &attrib, GLenum pname, GLvo
 }
 
 void QueryVertexAttribIiv(const VertexAttribute &attrib,
+                          const VertexBinding &binding,
                           const VertexAttribCurrentValueData &currentValueData,
                           GLenum pname,
                           GLint *params)
 {
-    QueryVertexAttribBase(attrib, currentValueData.IntValues, pname, params);
+    QueryVertexAttribBase(attrib, binding, currentValueData.IntValues, pname, params);
 }
 
 void QueryVertexAttribIuiv(const VertexAttribute &attrib,
+                           const VertexBinding &binding,
                            const VertexAttribCurrentValueData &currentValueData,
                            GLenum pname,
                            GLuint *params)
 {
-    QueryVertexAttribBase(attrib, currentValueData.UnsignedIntValues, pname, params);
+    QueryVertexAttribBase(attrib, binding, currentValueData.UnsignedIntValues, pname, params);
 }
 
 void QueryActiveUniformBlockiv(const Program *program,
@@ -832,6 +864,76 @@ void QueryInternalFormativ(const TextureCaps &format, GLenum pname, GLsizei bufS
     }
 }
 
+void QueryFramebufferParameteriv(const Framebuffer *framebuffer, GLenum pname, GLint *params)
+{
+    ASSERT(framebuffer);
+
+    switch (pname)
+    {
+        case GL_FRAMEBUFFER_DEFAULT_WIDTH:
+            *params = framebuffer->getDefaultWidth();
+            break;
+        case GL_FRAMEBUFFER_DEFAULT_HEIGHT:
+            *params = framebuffer->getDefaultHeight();
+            break;
+        case GL_FRAMEBUFFER_DEFAULT_SAMPLES:
+            *params = framebuffer->getDefaultSamples();
+            break;
+        case GL_FRAMEBUFFER_DEFAULT_FIXED_SAMPLE_LOCATIONS:
+            *params = framebuffer->getDefaultFixedSampleLocations();
+            break;
+        default:
+            UNREACHABLE();
+            break;
+    }
+}
+
+Error QuerySynciv(const FenceSync *sync,
+                  GLenum pname,
+                  GLsizei bufSize,
+                  GLsizei *length,
+                  GLint *values)
+{
+    ASSERT(sync);
+
+    // All queries return one value, exit early if the buffer can't fit anything.
+    if (bufSize < 1)
+    {
+        if (length != nullptr)
+        {
+            *length = 0;
+        }
+        return NoError();
+    }
+
+    switch (pname)
+    {
+        case GL_OBJECT_TYPE:
+            *values = ConvertToGLint(GL_SYNC_FENCE);
+            break;
+        case GL_SYNC_CONDITION:
+            *values = ConvertToGLint(sync->getCondition());
+            break;
+        case GL_SYNC_FLAGS:
+            *values = ConvertToGLint(sync->getFlags());
+            break;
+        case GL_SYNC_STATUS:
+            ANGLE_TRY(sync->getStatus(values));
+            break;
+
+        default:
+            UNREACHABLE();
+            break;
+    }
+
+    if (length != nullptr)
+    {
+        *length = 1;
+    }
+
+    return NoError();
+}
+
 void SetTexParameterf(Texture *texture, GLenum pname, GLfloat param)
 {
     SetTexParameterBase(texture, pname, &param);
@@ -870,6 +972,106 @@ void SetSamplerParameteri(Sampler *sampler, GLenum pname, GLint param)
 void SetSamplerParameteriv(Sampler *sampler, GLenum pname, const GLint *params)
 {
     SetSamplerParameterBase(sampler, pname, params);
+}
+
+void SetFramebufferParameteri(Framebuffer *framebuffer, GLenum pname, GLint param)
+{
+    ASSERT(framebuffer);
+
+    switch (pname)
+    {
+        case GL_FRAMEBUFFER_DEFAULT_WIDTH:
+            framebuffer->setDefaultWidth(param);
+            break;
+        case GL_FRAMEBUFFER_DEFAULT_HEIGHT:
+            framebuffer->setDefaultHeight(param);
+            break;
+        case GL_FRAMEBUFFER_DEFAULT_SAMPLES:
+            framebuffer->setDefaultSamples(param);
+            break;
+        case GL_FRAMEBUFFER_DEFAULT_FIXED_SAMPLE_LOCATIONS:
+            framebuffer->setDefaultFixedSampleLocations(static_cast<GLboolean>(param));
+            break;
+        default:
+            UNREACHABLE();
+            break;
+    }
+}
+
+void SetProgramParameteri(Program *program, GLenum pname, GLint value)
+{
+    ASSERT(program);
+
+    switch (pname)
+    {
+        case GL_PROGRAM_BINARY_RETRIEVABLE_HINT:
+            program->setBinaryRetrievableHint(value != GL_FALSE);
+            break;
+        case GL_PROGRAM_SEPARABLE:
+            program->setSeparable(value != GL_FALSE);
+            break;
+        default:
+            UNREACHABLE();
+            break;
+    }
+}
+
+GLuint QueryProgramResourceIndex(const Program *program,
+                                 GLenum programInterface,
+                                 const GLchar *name)
+{
+    switch (programInterface)
+    {
+        case GL_PROGRAM_INPUT:
+            return program->getInputResourceIndex(name);
+
+        case GL_PROGRAM_OUTPUT:
+            return program->getOutputResourceIndex(name);
+
+        // TODO(Jie): more interfaces.
+        case GL_UNIFORM:
+        case GL_UNIFORM_BLOCK:
+        case GL_TRANSFORM_FEEDBACK_VARYING:
+        case GL_BUFFER_VARIABLE:
+        case GL_SHADER_STORAGE_BLOCK:
+            UNIMPLEMENTED();
+            return GL_INVALID_INDEX;
+
+        default:
+            UNREACHABLE();
+            return GL_INVALID_INDEX;
+    }
+}
+
+void QueryProgramResourceName(const Program *program,
+                              GLenum programInterface,
+                              GLuint index,
+                              GLsizei bufSize,
+                              GLsizei *length,
+                              GLchar *name)
+{
+    switch (programInterface)
+    {
+        case GL_PROGRAM_INPUT:
+            program->getInputResourceName(index, bufSize, length, name);
+            break;
+
+        case GL_PROGRAM_OUTPUT:
+            program->getOutputResourceName(index, bufSize, length, name);
+            break;
+
+        // TODO(Jie): more interfaces.
+        case GL_UNIFORM:
+        case GL_UNIFORM_BLOCK:
+        case GL_TRANSFORM_FEEDBACK_VARYING:
+        case GL_BUFFER_VARIABLE:
+        case GL_SHADER_STORAGE_BLOCK:
+            UNIMPLEMENTED();
+            break;
+
+        default:
+            UNREACHABLE();
+    }
 }
 
 }  // namespace gl
@@ -984,6 +1186,9 @@ void QueryConfigAttrib(const Config *config, EGLint attribute, EGLint *value)
             break;
         case EGL_OPTIMAL_SURFACE_ORIENTATION_ANGLE:
             *value = config->optimalOrientation;
+            break;
+        case EGL_COLOR_COMPONENT_TYPE_EXT:
+            *value = config->colorComponentType;
             break;
         default:
             UNREACHABLE();

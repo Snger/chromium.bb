@@ -41,6 +41,10 @@ BoardConfig = collections.namedtuple('BoardConfig', ['board', 'name'])
 class SimpleBuilder(generic_builders.Builder):
   """Builder that performs basic vetting operations."""
 
+  def __init__(self, *args, **kwargs):
+    super(SimpleBuilder, self).__init__(*args, **kwargs)
+    self.sync_stage = None
+
   def GetSyncInstance(self):
     """Sync to lkgm or TOT as necessary.
 
@@ -57,6 +61,7 @@ class SimpleBuilder(generic_builders.Builder):
     else:
       sync_stage = self._GetStageInstance(sync_stages.SyncStage)
 
+    self.sync_stage = sync_stage
     return sync_stage
 
   def GetVersionInfo(self):
@@ -116,6 +121,18 @@ class SimpleBuilder(generic_builders.Builder):
     if parallel_stages:
       self._RunParallelStages(parallel_stages)
 
+  def _RunDebugSymbolStages(self, builder_run, board):
+    """Run debug-related stages for the specified board.
+
+    Args:
+      builder_run: BuilderRun object for these background stages.
+      board: Board name.
+    """
+    # These stages should run sequentially.
+    self._RunStage(android_stages.DownloadAndroidDebugSymbolsStage,
+                   board, builder_run=builder_run)
+    self._RunStage(artifact_stages.DebugSymbolsStage, board,
+                   builder_run=builder_run)
 
   def _RunBackgroundStagesForBoardAndMarkAsSuccessful(self, builder_run, board):
     """Run background board-specific stages for the specified board.
@@ -177,7 +194,7 @@ class SimpleBuilder(generic_builders.Builder):
         self._RunStage(*x, builder_run=builder_run)
       return
 
-    stage_list += [[chrome_stages.SimpleChromeWorkflowStage, board]]
+    stage_list += [[chrome_stages.SimpleChromeArtifactsStage, board]]
 
     if config.vm_test_runs > 1:
       # Run the VMTests multiple times to see if they fail.
@@ -189,7 +206,7 @@ class SimpleBuilder(generic_builders.Builder):
       stage_list += [[generic_stages.RetryStage, 1, test_stages.VMTestStage,
                       board]]
 
-    if config.run_gce_tests:
+    if config.gce_tests:
       # Give the GCETests one retry attempt in case failures are flaky.
       stage_list += [[generic_stages.RetryStage, 1, test_stages.GCETestStage,
                       board]]
@@ -204,7 +221,6 @@ class SimpleBuilder(generic_builders.Builder):
         [test_stages.ImageTestStage, board],
         [artifact_stages.UploadPrebuiltsStage, board],
         [artifact_stages.DevInstallerPrebuiltsStage, board],
-        [artifact_stages.DebugSymbolsStage, board],
         [artifact_stages.CPEExportStage, board],
         [artifact_stages.UploadTestArtifactsStage, board],
     ]
@@ -220,6 +236,7 @@ class SimpleBuilder(generic_builders.Builder):
     parallel.RunParallelSteps([
         lambda: self._RunParallelStages(stage_objs + [archive_stage]),
         lambda: self._RunHWTests(builder_run, board),
+        lambda: self._RunDebugSymbolStages(builder_run, board),
     ])
 
   def RunSetupBoard(self):
@@ -234,7 +251,7 @@ class SimpleBuilder(generic_builders.Builder):
     # If this master build uses Buildbucket scheduler, run
     # scheduler_stages.ScheduleSlavesStage to schedule slaves.
     if config_lib.UseBuildbucketScheduler(self._run.config):
-      self._RunStage(scheduler_stages.ScheduleSlavesStage)
+      self._RunStage(scheduler_stages.ScheduleSlavesStage, self.sync_stage)
     self._RunStage(build_stages.UprevStage)
     self._RunStage(build_stages.InitSDKStage)
     # The CQ/Chrome PFQ master will not actually run the SyncChrome stage, but
@@ -253,7 +270,7 @@ class SimpleBuilder(generic_builders.Builder):
     # scheduler_stages.ScheduleSlavesStage to schedule slaves.
     if (config_lib.UseBuildbucketScheduler(self._run.config) and
         config_lib.IsMasterBuild(self._run.config)):
-      self._RunStage(scheduler_stages.ScheduleSlavesStage)
+      self._RunStage(scheduler_stages.ScheduleSlavesStage, self.sync_stage)
     self._RunStage(build_stages.UprevStage)
     self._RunStage(build_stages.InitSDKStage)
     self._RunStage(build_stages.RegenPortageCacheStage)

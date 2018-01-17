@@ -6,11 +6,11 @@
  */
 
 #include "GrVkCaps.h"
-
+#include "GrRenderTargetProxy.h"
 #include "GrShaderCaps.h"
 #include "GrVkUtil.h"
-#include "vk/GrVkInterface.h"
 #include "vk/GrVkBackendContext.h"
+#include "vk/GrVkInterface.h"
 
 GrVkCaps::GrVkCaps(const GrContextOptions& contextOptions, const GrVkInterface* vkInterface,
                    VkPhysicalDevice physDev, uint32_t featureFlags, uint32_t extensionFlags)
@@ -19,6 +19,8 @@ GrVkCaps::GrVkCaps(const GrContextOptions& contextOptions, const GrVkInterface* 
     fMustDoCopiesFromOrigin = false;
     fSupportsCopiesAsDraws = false;
     fMustSubmitCommandsBeforeCopyOp = false;
+    fMustSleepOnTearDown  = false;
+    fNewSecondaryCBOnPipelineChange = false;
 
     /**************************************************************************
     * GrDrawTargetCaps fields
@@ -36,6 +38,7 @@ GrVkCaps::GrVkCaps(const GrContextOptions& contextOptions, const GrVkInterface* 
 
     fUseDrawInsteadOfClear = false;
     fFenceSyncSupport = true;   // always available in Vulkan
+    fCrossContextTextureSupport = false; // TODO: Add thread-safe memory pools so we can enable this
 
     fMapBufferFlags = kNone_MapFlags; //TODO: figure this out
     fBufferMapThreshold = SK_MaxS32;  //TODO: figure this out
@@ -48,6 +51,27 @@ GrVkCaps::GrVkCaps(const GrContextOptions& contextOptions, const GrVkInterface* 
     fShaderCaps.reset(new GrShaderCaps(contextOptions));
 
     this->init(contextOptions, vkInterface, physDev, featureFlags, extensionFlags);
+}
+
+bool GrVkCaps::initDescForDstCopy(const GrRenderTargetProxy* src, GrSurfaceDesc* desc,
+                                  bool* rectsMustMatch, bool* disallowSubrect) const {
+    // Vk doesn't use rectsMustMatch or disallowSubrect. Always return false.
+    *rectsMustMatch = false;
+    *disallowSubrect = false;
+
+    // We can always succeed here with either a CopyImage (none msaa src) or ResolveImage (msaa).
+    // For CopyImage we can make a simple texture, for ResolveImage we require the dst to be a
+    // render target as well.
+    desc->fOrigin = src->origin();
+    desc->fConfig = src->config();
+    if (src->numColorSamples() > 1 || (src->asTextureProxy() && this->supportsCopiesAsDraws())) {
+        desc->fFlags = kRenderTarget_GrSurfaceFlag;
+    } else {
+        // Just going to use CopyImage here
+        desc->fFlags = kNone_GrSurfaceFlags;
+    }
+
+    return true;
 }
 
 void GrVkCaps::init(const GrContextOptions& contextOptions, const GrVkInterface* vkInterface,
@@ -78,6 +102,16 @@ void GrVkCaps::init(const GrContextOptions& contextOptions, const GrVkInterface*
         fSupportsCopiesAsDraws = true;
         fMustSubmitCommandsBeforeCopyOp = true;
     }
+
+#if defined(SK_BUILD_FOR_WIN)
+    if (kNvidia_VkVendor == properties.vendorID) {
+        fMustSleepOnTearDown = true;
+    }
+#elif defined(SK_BUILD_FOR_ANDROID)
+    if (kImagination_VkVendor == properties.vendorID) {
+        fMustSleepOnTearDown = true;
+    }
+#endif
 
     this->applyOptionsOverrides(contextOptions);
     fShaderCaps->applyOptionsOverrides(contextOptions);
@@ -117,7 +151,17 @@ void GrVkCaps::initSampleCount(const VkPhysicalDeviceProperties& properties) {
 void GrVkCaps::initGrCaps(const VkPhysicalDeviceProperties& properties,
                           const VkPhysicalDeviceMemoryProperties& memoryProperties,
                           uint32_t featureFlags) {
-    fMaxVertexAttributes = SkTMin(properties.limits.maxVertexInputAttributes, (uint32_t)INT_MAX);
+    // So GPUs, like AMD, are reporting MAX_INT support vertex attributes. In general, there is no
+    // need for us ever to support that amount, and it makes tests which tests all the vertex
+    // attribs timeout looping over that many. For now, we'll cap this at 64 max and can raise it if
+    // we ever find that need.
+    static const uint32_t kMaxVertexAttributes = 64;
+    fMaxVertexAttributes = SkTMin(properties.limits.maxVertexInputAttributes, kMaxVertexAttributes);
+    // AMD advertises support for MAX_UINT vertex input attributes, but in reality only supports 32.
+    if (kAMD_VkVendor == properties.vendorID) {
+        fMaxVertexAttributes = SkTMin(fMaxVertexAttributes, 32);
+    }
+
     // We could actually query and get a max size for each config, however maxImageDimension2D will
     // give the minimum max size across all configs. So for simplicity we will use that for now.
     fMaxRenderTargetSize = SkTMin(properties.limits.maxImageDimension2D, (uint32_t)INT_MAX);
@@ -134,6 +178,12 @@ void GrVkCaps::initGrCaps(const VkPhysicalDeviceProperties& properties,
     fStencilWrapOpsSupport = true;
     fOversizedStencilSupport = true;
     fSampleShadingSupport = SkToBool(featureFlags & kSampleRateShading_GrVkFeatureFlag);
+
+    // AMD seems to have issues binding new VkPipelines inside a secondary command buffer.
+    // Current workaround is to use a different secondary command buffer for each new VkPipeline.
+    if (kAMD_VkVendor == properties.vendorID) {
+        fNewSecondaryCBOnPipelineChange = true;
+    }
 }
 
 void GrVkCaps::initShaderCaps(const VkPhysicalDeviceProperties& properties, uint32_t featureFlags) {
@@ -163,6 +213,10 @@ void GrVkCaps::initShaderCaps(const VkPhysicalDeviceProperties& properties, uint
         }
     }
 
+    if (kImagination_VkVendor == properties.vendorID) {
+        shaderCaps->fAtan2ImplementedAsAtanYOverX = true;
+    }
+
     // Vulkan is based off ES 3.0 so the following should all be supported
     shaderCaps->fUsesPrecisionModifiers = true;
     shaderCaps->fFlatInterpolationSupport = true;
@@ -173,6 +227,12 @@ void GrVkCaps::initShaderCaps(const VkPhysicalDeviceProperties& properties, uint
     shaderCaps->fGeometryShaderSupport = SkToBool(featureFlags & kGeometryShader_GrVkFeatureFlag);
 
     shaderCaps->fDualSourceBlendingSupport = SkToBool(featureFlags & kDualSrcBlend_GrVkFeatureFlag);
+    if (kAMD_VkVendor == properties.vendorID) {
+        // Currently DualSourceBlending is not working on AMD. vkCreateGraphicsPipeline fails when
+        // using a draw with dual source. Looking into whether it is driver bug or issue with our
+        // SPIR-V. Bug skia:6405
+        shaderCaps->fDualSourceBlendingSupport = false;
+    }
 
     shaderCaps->fIntegerSupport = true;
 
@@ -240,6 +300,11 @@ void GrVkCaps::initConfigTable(const GrVkInterface* interface, VkPhysicalDevice 
             fConfigTable[i].init(interface, physDev, format);
         }
     }
+
+    // We currently do not support compressed textures in Vulkan
+    const uint16_t kFlagsToRemove = ConfigInfo::kTextureable_Flag|ConfigInfo::kRenderable_Flag;
+    fConfigTable[kETC1_GrPixelConfig].fOptimalFlags &= ~kFlagsToRemove;
+    fConfigTable[kETC1_GrPixelConfig].fLinearFlags &= ~kFlagsToRemove;
 }
 
 void GrVkCaps::ConfigInfo::InitConfigFlags(VkFormatFeatureFlags vkFlags, uint16_t* flags) {

@@ -15,7 +15,6 @@
 #include "build/build_config.h"
 #include "content/browser/browser_child_process_host_impl.h"
 #include "content/browser/child_process_launcher.h"
-#include "content/public/browser/user_metrics.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/common/result_codes.h"
 #include "ipc/ipc_sync_message.h"
@@ -160,6 +159,11 @@ void BrowserMessageFilter::ShutdownForBadMessage() {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   if (command_line->HasSwitch(switches::kDisableKillAfterBadIPC))
     return;
+
+  if (base::Process::Current().Handle() == peer_process_.Handle()) {
+    // Just crash in single process. Matches RenderProcessHostImpl behavior.
+    CHECK(false);
+  }
 
   ChildProcessLauncher::TerminateProcess(
       peer_process_, content::RESULT_CODE_KILLED_BAD_MESSAGE, false);

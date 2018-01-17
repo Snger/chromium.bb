@@ -59,6 +59,63 @@ class ClientManager {
     /** To be called when a client gets disconnected. */
     public interface DisconnectCallback { public void run(CustomTabsSessionToken session); }
 
+    private static class KeepAliveServiceConnection implements ServiceConnection {
+        private final Context mContext;
+        private final Intent mServiceIntent;
+        private boolean mHasDied;
+        private boolean mIsBound;
+
+        public KeepAliveServiceConnection(Context context, Intent serviceIntent) {
+            mContext = context;
+            mServiceIntent = serviceIntent;
+        }
+
+        /**
+         * Connects to the service identified by |serviceIntent|. Does not reconnect if the service
+         * got disconnected at some point from the other end (remote process death).
+         */
+        public boolean connect() {
+            if (mIsBound) return true;
+            // If the remote process died at some point, it doesn't make sense to resurrect it.
+            if (mHasDied) return false;
+
+            boolean ok;
+            try {
+                ok = mContext.bindService(mServiceIntent, this, Context.BIND_AUTO_CREATE);
+            } catch (SecurityException e) {
+                return false;
+            }
+            mIsBound = ok;
+            return ok;
+        }
+
+        /**
+         * Disconnects from the remote process. Safe to call even if {@link connect()} returned
+         * false, or if the remote service died.
+         */
+        public void disconnect() {
+            if (mIsBound) {
+                mContext.unbindService(this);
+                mIsBound = false;
+            }
+        }
+
+        @Override
+        public void onServiceConnected(ComponentName name, IBinder service) {}
+
+        @Override
+        public void onServiceDisconnected(ComponentName name) {
+            if (mIsBound) {
+                // The remote process has died. This typically happens if the system is low enough
+                // on memory to kill one of the last process on the "kill list". In this case, we
+                // shouldn't resurrect the process (which happens with BIND_AUTO_CREATE) because
+                // that could create a "restart/kill" loop.
+                mHasDied = true;
+                disconnect();
+            }
+        }
+    }
+
     /** Per-session values. */
     private static class SessionParams {
         public final int uid;
@@ -71,9 +128,10 @@ class ClientManager {
         private boolean mShouldHideDomain;
         private boolean mShouldPrerenderOnCellular;
         private boolean mShouldSendNavigationInfo;
-        private ServiceConnection mKeepAliveConnection;
+        private KeepAliveServiceConnection mKeepAliveConnection;
         private String mPredictedUrl;
         private long mLastMayLaunchUrlTimestamp;
+        private int mSpeculationMode;
 
         public SessionParams(Context context, int uid, DisconnectCallback callback,
                 PostMessageHandler postMessageHandler) {
@@ -81,6 +139,7 @@ class ClientManager {
             packageName = getPackageName(context, uid);
             disconnectCallback = callback;
             this.postMessageHandler = postMessageHandler;
+            this.mSpeculationMode = CustomTabsConnection.SpeculationParams.PRERENDER;
         }
 
         private static String getPackageName(Context context, int uid) {
@@ -90,11 +149,11 @@ class ClientManager {
             return packageList[0];
         }
 
-        public ServiceConnection getKeepAliveConnection() {
+        public KeepAliveServiceConnection getKeepAliveConnection() {
             return mKeepAliveConnection;
         }
 
-        public void setKeepAliveConnection(ServiceConnection serviceConnection) {
+        public void setKeepAliveConnection(KeepAliveServiceConnection serviceConnection) {
             mKeepAliveConnection = serviceConnection;
         }
 
@@ -393,6 +452,25 @@ class ClientManager {
         if (params != null) params.mShouldPrerenderOnCellular = prerender;
     }
 
+    /**
+     * Sets the speculation mode to be used by default for given session.
+     */
+    public synchronized void setSpeculationModeForSession(
+            CustomTabsSessionToken session, int speculationMode) {
+        SessionParams params = mSessionParams.get(session);
+        if (params != null) params.mSpeculationMode = speculationMode;
+    }
+
+    /**
+     * Get the speculation mode to be used by default for the given session.
+     * If no value has been set will default to PRERENDER mode.
+     */
+    public synchronized int getSpeculationModeForSession(CustomTabsSessionToken session) {
+        SessionParams params = mSessionParams.get(session);
+        return params == null ? CustomTabsConnection.SpeculationParams.PRERENDER
+                              : params.mSpeculationMode;
+    }
+
     /** Tries to bind to a client to keep it alive, and returns true for success. */
     public synchronized boolean keepAliveForSession(CustomTabsSessionToken session, Intent intent) {
         // When an application is bound to a service, its priority is raised to
@@ -402,28 +480,20 @@ class ClientManager {
         SessionParams params = mSessionParams.get(session);
         if (params == null) return false;
 
-        String packageName = intent.getComponent().getPackageName();
-        PackageManager pm = mContext.getApplicationContext().getPackageManager();
-        // Only binds to the application associated to this session.
-        if (!Arrays.asList(pm.getPackagesForUid(params.uid)).contains(packageName)) return false;
-        Intent serviceIntent = new Intent().setComponent(intent.getComponent());
-        // This ServiceConnection doesn't handle disconnects. This is on
-        // purpose, as it occurs when the remote process has died. Since the
-        // only use of this connection is to keep the application alive,
-        // re-connecting would just re-create the process, but the application
-        // state has been lost at that point, the callbacks invalidated, etc.
-        ServiceConnection connection = new ServiceConnection() {
-            @Override
-            public void onServiceConnected(ComponentName name, IBinder service) {}
-            @Override
-            public void onServiceDisconnected(ComponentName name) {}
-        };
-        boolean ok;
-        try {
-            ok = mContext.bindService(serviceIntent, connection, Context.BIND_AUTO_CREATE);
-        } catch (SecurityException e) {
-            return false;
+        KeepAliveServiceConnection connection = params.getKeepAliveConnection();
+
+        if (connection == null) {
+            String packageName = intent.getComponent().getPackageName();
+            PackageManager pm = mContext.getApplicationContext().getPackageManager();
+            // Only binds to the application associated to this session.
+            if (!Arrays.asList(pm.getPackagesForUid(params.uid)).contains(packageName)) {
+                return false;
+            }
+            Intent serviceIntent = new Intent().setComponent(intent.getComponent());
+            connection = new KeepAliveServiceConnection(mContext, serviceIntent);
         }
+
+        boolean ok = connection.connect();
         if (ok) params.setKeepAliveConnection(connection);
         return ok;
     }
@@ -432,9 +502,8 @@ class ClientManager {
     public synchronized void dontKeepAliveForSession(CustomTabsSessionToken session) {
         SessionParams params = mSessionParams.get(session);
         if (params == null || params.getKeepAliveConnection() == null) return;
-        ServiceConnection connection = params.getKeepAliveConnection();
-        params.setKeepAliveConnection(null);
-        mContext.unbindService(connection);
+        KeepAliveServiceConnection connection = params.getKeepAliveConnection();
+        connection.disconnect();
     }
 
     /** See {@link RequestThrottler#isPrerenderingAllowed()} */

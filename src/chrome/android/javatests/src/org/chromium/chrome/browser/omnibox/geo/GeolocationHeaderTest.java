@@ -15,6 +15,7 @@ import org.chromium.base.library_loader.ProcessInitException;
 import org.chromium.base.test.util.CommandLineFlags;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.browser.ChromeActivity;
+import org.chromium.chrome.browser.preferences.PrefServiceBridge;
 import org.chromium.chrome.browser.preferences.website.ContentSetting;
 import org.chromium.chrome.browser.preferences.website.GeolocationInfo;
 import org.chromium.chrome.browser.preferences.website.WebsitePreferenceBridge;
@@ -35,6 +36,17 @@ public class GeolocationHeaderTest extends ChromeActivityTestCaseBase<ChromeActi
 
     public GeolocationHeaderTest() {
         super(ChromeActivity.class);
+    }
+
+    @Override
+    protected void setUp() throws Exception {
+        super.setUp();
+        ThreadUtils.runOnUiThreadBlocking(new Runnable() {
+            @Override
+            public void run() {
+                PrefServiceBridge.getInstance().setEulaAccepted();
+            }
+        });
     }
 
     @SmallTest
@@ -94,16 +106,9 @@ public class GeolocationHeaderTest extends ChromeActivityTestCaseBase<ChromeActi
         setMockLocation(20.3, 155.8, System.currentTimeMillis());
 
         // X-Geo shouldn't be sent when location is disallowed for https origin.
-        // If https origin doesn't have a location setting, fall back to value for http origin.
-        checkHeaderWithPermissions(ContentSetting.ALLOW, ContentSetting.ALLOW, false);
-        checkHeaderWithPermissions(ContentSetting.ALLOW, ContentSetting.DEFAULT, false);
-        checkHeaderWithPermissions(ContentSetting.ALLOW, ContentSetting.BLOCK, false);
-        checkHeaderWithPermissions(ContentSetting.DEFAULT, ContentSetting.ALLOW, false);
-        checkHeaderWithPermissions(ContentSetting.DEFAULT, ContentSetting.DEFAULT, false);
-        checkHeaderWithPermissions(ContentSetting.DEFAULT, ContentSetting.BLOCK, true);
-        checkHeaderWithPermissions(ContentSetting.BLOCK, ContentSetting.ALLOW, true);
-        checkHeaderWithPermissions(ContentSetting.BLOCK, ContentSetting.DEFAULT, true);
-        checkHeaderWithPermissions(ContentSetting.BLOCK, ContentSetting.BLOCK, true);
+        checkHeaderWithPermissions(ContentSetting.ALLOW, false);
+        checkHeaderWithPermissions(ContentSetting.DEFAULT, false);
+        checkHeaderWithPermissions(ContentSetting.BLOCK, true);
     }
 
     @SmallTest
@@ -137,16 +142,14 @@ public class GeolocationHeaderTest extends ChromeActivityTestCaseBase<ChromeActi
         assertNullHeader(SEARCH_URL_1, false);
     }
 
-    private void checkHeaderWithPermissions(final ContentSetting httpsPermission,
-            final ContentSetting httpPermission, final boolean shouldBeNull) {
+    private void checkHeaderWithPermissions(
+            final ContentSetting httpsPermission, final boolean shouldBeNull) {
         ThreadUtils.runOnUiThreadBlocking(new Runnable() {
             @Override
             public void run() {
                 GeolocationInfo infoHttps =
                         new GeolocationInfo("https://www.google.de", null, false);
-                GeolocationInfo infoHttp = new GeolocationInfo("http://www.google.de", null, false);
                 infoHttps.setContentSetting(httpsPermission);
-                infoHttp.setContentSetting(httpPermission);
                 String header = GeolocationHeader.getGeoHeader(
                         "https://www.google.de/search?q=kartoffelsalat",
                         getActivity().getActivityTab());

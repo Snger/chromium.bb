@@ -11,7 +11,6 @@
 #include "GrCaps.h"
 #include "GrProcessor.h"
 #include "GrGeometryProcessor.h"
-#include "GrInvariantOutput.h"
 #include "GrTypesPriv.h"
 
 /**
@@ -90,7 +89,7 @@ public:
         }
     }
 
-    virtual ~GrConicEffect();
+    ~GrConicEffect() override;
 
     const char* name() const override { return "Conic"; }
 
@@ -172,7 +171,7 @@ public:
         }
     }
 
-    virtual ~GrQuadEffect();
+    ~GrQuadEffect() override;
 
     const char* name() const override { return "Quad"; }
 
@@ -249,7 +248,7 @@ public:
         }
     }
 
-    virtual ~GrCubicEffect();
+    ~GrCubicEffect() override;
 
     const char* name() const override { return "Cubic"; }
 

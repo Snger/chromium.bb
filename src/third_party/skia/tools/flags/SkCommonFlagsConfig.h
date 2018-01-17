@@ -46,20 +46,26 @@ class SkCommandLineConfig {
 #if SK_SUPPORT_GPU
 // SkCommandLineConfigGpu is a SkCommandLineConfig that extracts information out of the backend
 // part of the tag. It is constructed tags that have:
-// * backends of form "gpu(option=value,option2=value,...)"
-// * backends that represent a shorthand of above (such as "msaa16" representing "gpu(samples=16)")
+// * backends of form "gpu[option=value,option2=value,...]"
+// * backends that represent a shorthand of above (such as "glmsaa16" representing
+// "gpu(api=gl,samples=16)")
 class SkCommandLineConfigGpu : public SkCommandLineConfig {
   public:
     typedef sk_gpu_test::GrContextFactory::ContextType ContextType;
-    typedef sk_gpu_test::GrContextFactory::ContextOptions ContextOptions;
+    typedef sk_gpu_test::GrContextFactory::ContextOverrides ContextOverrides;
     SkCommandLineConfigGpu(const SkString& tag, const SkTArray<SkString>& viaParts,
                            ContextType contextType, bool useNVPR, bool useInstanced, bool useDIText,
-                           int samples, SkColorType colorType, sk_sp<SkColorSpace> colorSpace);
+                           int samples, SkColorType colorType, sk_sp<SkColorSpace> colorSpace,
+                           bool useStencilBuffers);
     const SkCommandLineConfigGpu* asConfigGpu() const override { return this; }
     ContextType getContextType() const { return fContextType; }
-    ContextOptions getContextOptions() const { return fContextOptions; }
-    bool getUseNVPR() const { return fContextOptions & ContextOptions::kEnableNVPR; }
-    bool getUseInstanced() const { return fContextOptions & ContextOptions::kUseInstanced; }
+    ContextOverrides getContextOverrides() const { return fContextOverrides; }
+    bool getUseNVPR() const {
+        SkASSERT(!(fContextOverrides & ContextOverrides::kRequireNVPRSupport) ||
+                 !(fContextOverrides & ContextOverrides::kDisableNVPR));
+        return fContextOverrides & ContextOverrides::kRequireNVPRSupport;
+    }
+    bool getUseInstanced() const { return fContextOverrides & ContextOverrides::kUseInstanced; }
     bool getUseDIText() const { return fUseDIText; }
     int getSamples() const { return fSamples; }
     SkColorType getColorType() const { return fColorType; }
@@ -67,7 +73,7 @@ class SkCommandLineConfigGpu : public SkCommandLineConfig {
 
   private:
     ContextType fContextType;
-    ContextOptions fContextOptions;
+    ContextOverrides fContextOverrides;
     bool fUseDIText;
     int fSamples;
     SkColorType fColorType;

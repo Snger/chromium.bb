@@ -83,8 +83,9 @@ Polymer({
             new tr.model.EventSet(event), event.title);
 
         var valueString = '';
-        if (event instanceof tr.model.TimedEvent)
+        if (event instanceof tr.model.TimedEvent) {
           valueString = 'took ' + event.duration.toFixed(2) + 'ms';
+        }
 
         rows.push({
           name: linkEl,
@@ -95,8 +96,8 @@ Polymer({
 
     // Description
     var descriptionEl = tr.ui.b.createDiv({
-        textContent: alert.info.description,
-        maxWidth: '300px'
+      textContent: alert.info.description,
+      maxWidth: '300px'
     });
     rows.push({
       name: 'Description',
@@ -128,16 +129,15 @@ Polymer({
       var detailRows = this.getRowsForSingleAlert_(tr.b.getOnlyElement(alerts));
       rows.push.apply(rows, detailRows);
       return rows;
-    } else {
-      return alerts.map(function(alert) {
-        return {
-          name: 'Alert',
-          value: alert.title,
-          isExpanded: alerts.size < 10, // This is somewhat arbitrary for now.
-          subRows: this.getRowsForSingleAlert_(alert)
-        };
-      }, this);
     }
+    return alerts.map(function(alert) {
+      return {
+        name: 'Alert',
+        value: alert.title,
+        isExpanded: alerts.size < 10, // This is somewhat arbitrary for now.
+        subRows: this.getRowsForSingleAlert_(alert)
+      };
+    }, this);
   },
 
   updateContents_: function() {
@@ -153,11 +153,11 @@ Polymer({
   },
 
   get relatedEventsToHighlight() {
-    if (!this.currentSelection_)
-      return undefined;
+    if (!this.currentSelection_) return undefined;
     var result = new tr.model.EventSet();
-    for (var event of this.currentSelection_)
+    for (var event of this.currentSelection_) {
       result.addEventSet(event.associatedEvents);
+    }
     return result;
   }
 });

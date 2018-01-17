@@ -41,6 +41,9 @@ static const struct wl_interface *types[] = {
 	NULL,
 	NULL,
 	NULL,
+	NULL,
+	NULL,
+	NULL,
 	&zcr_remote_surface_v1_interface,
 	&wl_surface_interface,
 	NULL,
@@ -53,19 +56,21 @@ static const struct wl_interface *types[] = {
 
 static const struct wl_message zcr_remote_shell_v1_requests[] = {
 	{ "destroy", "", types + 0 },
-	{ "get_remote_surface", "nou", types + 9 },
-	{ "get_notification_surface", "nos", types + 12 },
+	{ "get_remote_surface", "nou", types + 12 },
+	{ "get_notification_surface", "nos", types + 15 },
 };
 
 static const struct wl_message zcr_remote_shell_v1_events[] = {
-	{ "activated", "?o?o", types + 15 },
+	{ "activated", "?o?o", types + 18 },
 	{ "configuration_changed", "iiifiiiiu", types + 0 },
+	{ "workspace", "4uuiiiiiiiiif", types + 0 },
+	{ "configure", "4u", types + 0 },
 };
 
 WL_EXPORT const struct wl_interface zcr_remote_shell_v1_interface = {
-	"zcr_remote_shell_v1", 3,
+	"zcr_remote_shell_v1", 4,
 	3, zcr_remote_shell_v1_requests,
-	2, zcr_remote_shell_v1_events,
+	4, zcr_remote_shell_v1_events,
 };
 
 static const struct wl_message zcr_remote_surface_v1_requests[] = {
@@ -88,19 +93,19 @@ static const struct wl_message zcr_remote_surface_v1_requests[] = {
 	{ "set_system_modal", "", types + 0 },
 	{ "unset_system_modal", "", types + 0 },
 	{ "set_rectangular_surface_shadow", "2iiii", types + 0 },
-	{ "ack_configure", "3u", types + 0 },
-	{ "set_moving", "3", types + 0 },
-	{ "unset_moving", "3", types + 0 },
+	{ "set_systemui_visibility", "3u", types + 0 },
+	{ "ack_configure", "4u", types + 0 },
+	{ "move", "4", types + 0 },
 };
 
 static const struct wl_message zcr_remote_surface_v1_events[] = {
 	{ "close", "", types + 0 },
 	{ "state_type_changed", "u", types + 0 },
-	{ "configure", "3iiu", types + 0 },
+	{ "configure", "4iiau", types + 0 },
 };
 
 WL_EXPORT const struct wl_interface zcr_remote_surface_v1_interface = {
-	"zcr_remote_surface_v1", 3,
+	"zcr_remote_surface_v1", 4,
 	22, zcr_remote_surface_v1_requests,
 	3, zcr_remote_surface_v1_events,
 };

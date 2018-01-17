@@ -6,6 +6,8 @@
 
 #include "components/sync/protocol/proto_memory_estimations.h"
 
+#include <string>
+
 #include "base/trace_event/memory_usage_estimator.h"
 #include "components/sync/protocol/proto_visitors.h"
 
@@ -119,8 +121,11 @@ size_t EstimateMemoryUsage(const P& proto) {
 #define INSTANTIATE(Proto) \
   template size_t EstimateMemoryUsage<Proto>(const Proto&);
 
-INSTANTIATE(EntitySpecifics)
 INSTANTIATE(AttachmentMetadata)
 INSTANTIATE(DataTypeContext)
+INSTANTIATE(EntityMetadata)
+INSTANTIATE(EntitySpecifics)
+INSTANTIATE(ModelTypeState)
+INSTANTIATE(UniquePosition)
 
 }  // namespace sync_pb

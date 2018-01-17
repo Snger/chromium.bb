@@ -35,13 +35,14 @@ void CPDF_PathObject::CalcBoundingBox() {
   if (!m_Path)
     return;
   CFX_FloatRect rect;
-  FX_FLOAT width = m_GraphState.GetLineWidth();
+  float width = m_GraphState.GetLineWidth();
   if (m_bStroke && width != 0) {
     rect = m_Path.GetBoundingBox(width, m_GraphState.GetMiterLimit());
   } else {
     rect = m_Path.GetBoundingBox();
   }
-  rect.Transform(&m_Matrix);
+  m_Matrix.TransformRect(rect);
+
   if (width == 0 && m_bStroke) {
     rect.left += -0.5f;
     rect.right += 0.5f;

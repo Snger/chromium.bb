@@ -99,12 +99,12 @@ Sources.XHRBreakpointsSidebarPane = class extends Components.BreakpointsSidebarP
     element.addEventListener('contextmenu', this._contextMenu.bind(this, url), true);
 
     var title = url ? Common.UIString('URL contains "%s"', url) : Common.UIString('Any XHR');
-    var label = UI.createCheckboxLabel(title, enabled);
+    var label = UI.CheckboxLabel.create(title, enabled);
     element.appendChild(label);
     label.checkboxElement.addEventListener('click', this._checkboxClicked.bind(this, url), false);
     element._checkboxElement = label.checkboxElement;
 
-    label.textElement.classList.add('cursor-auto');
+    label.classList.add('cursor-auto');
     label.textElement.addEventListener('dblclick', this._labelClicked.bind(this, url), false);
 
     var currentElement = /** @type {?Element} */ (this.listElement.firstChild);

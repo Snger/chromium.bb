@@ -24,6 +24,7 @@
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/observer_list.h"
+#include "base/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "content/browser/loader/global_routing_id.h"
 #include "content/browser/loader/resource_loader_delegate.h"
@@ -58,11 +59,9 @@ class ShareableFileReference;
 namespace content {
 class AppCacheNavigationHandleCore;
 class AppCacheService;
-class AsyncRevalidationManager;
 class LoaderDelegate;
 class NavigationURLLoaderImplCore;
 class NavigationUIData;
-class RenderFrameHostImpl;
 class ResourceContext;
 class ResourceDispatcherHostDelegate;
 class ResourceLoader;
@@ -93,31 +92,14 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
   // Work on moving creation of download handlers out of
   // ResourceDispatcherHostImpl.
   ResourceDispatcherHostImpl(
-      CreateDownloadHandlerIntercept download_handler_intercept);
+      CreateDownloadHandlerIntercept download_handler_intercept,
+      const scoped_refptr<base::SingleThreadTaskRunner>& io_thread_runner);
   ResourceDispatcherHostImpl();
   ~ResourceDispatcherHostImpl() override;
 
   // Returns the current ResourceDispatcherHostImpl. May return NULL if it
   // hasn't been created yet.
   static ResourceDispatcherHostImpl* Get();
-
-  // The following static methods should all be called from the UI thread.
-
-  // Resumes requests for a given render frame routing id. This will only resume
-  // requests for a single frame.
-  static void ResumeBlockedRequestsForRouteFromUI(
-      const GlobalFrameRoutingId& global_routing_id);
-
-  // Blocks (and does not start) all requests for the frame and its subframes.
-  static void BlockRequestsForFrameFromUI(RenderFrameHost* root_frame_host);
-
-  // Resumes any blocked requests for the specified frame and its subframes.
-  static void ResumeBlockedRequestsForFrameFromUI(
-      RenderFrameHost* root_frame_host);
-
-  // Cancels any blocked request for the frame and its subframes.
-  static void CancelBlockedRequestsForFrameFromUI(
-      RenderFrameHostImpl* root_frame_host);
 
   // ResourceDispatcherHost implementation:
   void SetDelegate(ResourceDispatcherHostDelegate* delegate) override;
@@ -126,6 +108,8 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
   void RegisterInterceptor(const std::string& http_header,
                            const std::string& starts_with,
                            const InterceptorCallback& interceptor) override;
+  void ReprioritizeRequest(net::URLRequest* request,
+                           net::RequestPriority priority) override;
 
   // Puts the resource dispatcher host in an inactive state (unable to begin
   // new requests).  Cancels all pending requests.
@@ -277,6 +261,7 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
   // loader to attach to the leaf resource handler.
   void BeginNavigationRequest(
       ResourceContext* resource_context,
+      net::URLRequestContext* request_context,
       const NavigationRequestInfo& info,
       std::unique_ptr<NavigationUIData> navigation_ui_data,
       NavigationURLLoaderImplCore* loader,
@@ -287,10 +272,6 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
     return num_in_flight_requests_;
   }
 
-  // Turns on stale-while-revalidate support, regardless of command-line flags
-  // or experiment status. For unit tests only.
-  void EnableStaleWhileRevalidateForTesting();
-
   // Sets the LoaderDelegate, which must outlive this object. Ownership is not
   // transferred. The LoaderDelegate should be interacted with on the IO thread.
   void SetLoaderDelegate(LoaderDelegate* loader_delegate);
@@ -298,13 +279,12 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
   void OnRenderFrameDeleted(const GlobalFrameRoutingId& global_routing_id);
 
   // Called when loading a request with mojo.
-  void OnRequestResourceWithMojo(
-      ResourceRequesterInfo* requester_info,
-      int routing_id,
-      int request_id,
-      const ResourceRequest& request,
-      mojom::URLLoaderAssociatedRequest mojo_request,
-      mojom::URLLoaderClientAssociatedPtr url_loader_client);
+  void OnRequestResourceWithMojo(ResourceRequesterInfo* requester_info,
+                                 int routing_id,
+                                 int request_id,
+                                 const ResourceRequest& request,
+                                 mojom::URLLoaderAssociatedRequest mojo_request,
+                                 mojom::URLLoaderClientPtr url_loader_client);
 
   void OnSyncLoadWithMojo(ResourceRequesterInfo* requester_info,
                           int routing_id,
@@ -351,6 +331,14 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
   // Note that this cancel is subtly different from the other CancelRequest
   // methods in this file, which also tear down the loader.
   void CancelRequestFromRenderer(GlobalRequestID request_id);
+
+  scoped_refptr<base::SingleThreadTaskRunner> io_thread_task_runner() const {
+    return io_thread_task_runner_;
+  }
+
+  scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner() const {
+    return main_thread_task_runner_;
+  }
 
  private:
   friend class ResourceDispatcherHostTest;
@@ -420,7 +408,8 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
   void DidStartRequest(ResourceLoader* loader) override;
   void DidReceiveRedirect(ResourceLoader* loader, const GURL& new_url,
                           ResourceResponse* response) override;
-  void DidReceiveResponse(ResourceLoader* loader) override;
+  void DidReceiveResponse(ResourceLoader* loader,
+                          ResourceResponse* response) override;
   void DidFinishLoading(ResourceLoader* loader) override;
   std::unique_ptr<net::ClientCertStore> CreateClientCertStore(
       ResourceLoader* loader) override;
@@ -535,13 +524,12 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
                          int request_id,
                          const ResourceRequest& request_data);
 
-  void OnRequestResourceInternal(
-      ResourceRequesterInfo* requester_info,
-      int routing_id,
-      int request_id,
-      const ResourceRequest& request_data,
-      mojom::URLLoaderAssociatedRequest mojo_request,
-      mojom::URLLoaderClientAssociatedPtr url_loader_client);
+  void OnRequestResourceInternal(ResourceRequesterInfo* requester_info,
+                                 int routing_id,
+                                 int request_id,
+                                 const ResourceRequest& request_data,
+                                 mojom::URLLoaderAssociatedRequest mojo_request,
+                                 mojom::URLLoaderClientPtr url_loader_client);
 
   void OnSyncLoad(ResourceRequesterInfo* requester_info,
                   int request_id,
@@ -552,14 +540,13 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
 
   // Update the ResourceRequestInfo and internal maps when a request is
   // transferred from one process to another.
-  void UpdateRequestForTransfer(
-      ResourceRequesterInfo* requester_info,
-      int route_id,
-      int request_id,
-      const ResourceRequest& request_data,
-      LoaderMap::iterator iter,
-      mojom::URLLoaderAssociatedRequest mojo_request,
-      mojom::URLLoaderClientAssociatedPtr url_loader_client);
+  void UpdateRequestForTransfer(ResourceRequesterInfo* requester_info,
+                                int route_id,
+                                int request_id,
+                                const ResourceRequest& request_data,
+                                LoaderMap::iterator iter,
+                                mojom::URLLoaderAssociatedRequest mojo_request,
+                                mojom::URLLoaderClientPtr url_loader_client);
 
   // If |request_data| is for a request being transferred from another process,
   // then CompleteTransfer method can be used to complete the transfer.
@@ -568,7 +555,7 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
                         const ResourceRequest& request_data,
                         int route_id,
                         mojom::URLLoaderAssociatedRequest mojo_request,
-                        mojom::URLLoaderClientAssociatedPtr url_loader_client);
+                        mojom::URLLoaderClientPtr url_loader_client);
 
   void BeginRequest(
       ResourceRequesterInfo* requester_info,
@@ -577,7 +564,7 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
       const SyncLoadResultCallback& sync_result_handler,  // only valid for sync
       int route_id,
       mojom::URLLoaderAssociatedRequest mojo_request,
-      mojom::URLLoaderClientAssociatedPtr url_loader_client);
+      mojom::URLLoaderClientPtr url_loader_client);
 
   // There are requests which need decisions to be made like the following:
   // Whether the presence of certain HTTP headers like the Origin header are
@@ -585,9 +572,8 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
   // decisions which could be time consuming. We allow for these decisions
   // to be made asynchronously. The request proceeds when we hear back from
   // the interceptors about whether to continue or not.
-  // The |continue_request| parameter in the function indicates whether the
-  // request should be continued or aborted. The |error_code| parameter is set
-  // if |continue_request| is false.
+  // The |interceptor_result| indicates whether the request should be continued
+  // or aborted, and in the latter case whether the renderer should be killed.
   void ContinuePendingBeginRequest(
       scoped_refptr<ResourceRequesterInfo> requester_info,
       int request_id,
@@ -596,9 +582,8 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
       int route_id,
       const net::HttpRequestHeaders& headers,
       mojom::URLLoaderAssociatedRequest mojo_request,
-      mojom::URLLoaderClientAssociatedPtr url_loader_client,
-      bool continue_request,
-      int error_code);
+      mojom::URLLoaderClientPtr url_loader_client,
+      HeaderInterceptorResult interceptor_result);
 
   // Creates a ResourceHandler to be used by BeginRequest() for normal resource
   // loading.
@@ -611,7 +596,7 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
       int child_id,
       ResourceContext* resource_context,
       mojom::URLLoaderAssociatedRequest mojo_request,
-      mojom::URLLoaderClientAssociatedPtr url_loader_client);
+      mojom::URLLoaderClientPtr url_loader_client);
 
   // Wraps |handler| in the standard resource handlers for normal resource
   // loading and navigation requests. This adds MimeTypeResourceHandler and
@@ -772,10 +757,6 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
 
   bool allow_cross_origin_auth_prompt_;
 
-  // AsyncRevalidationManager is non-NULL if and only if
-  // stale-while-revalidate is enabled.
-  std::unique_ptr<AsyncRevalidationManager> async_revalidation_manager_;
-
   typedef std::map<GlobalRequestID,
                    base::ObserverList<ResourceMessageDelegate>*> DelegateMap;
   DelegateMap delegate_map_;
@@ -787,6 +768,12 @@ class CONTENT_EXPORT ResourceDispatcherHostImpl
 
   // Points to the registered download handler intercept.
   CreateDownloadHandlerIntercept create_download_handler_intercept_;
+
+  // Task runner for the main thread.
+  scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner_;
+
+  // Task runner for the IO thead.
+  scoped_refptr<base::SingleThreadTaskRunner> io_thread_task_runner_;
 
   DISALLOW_COPY_AND_ASSIGN(ResourceDispatcherHostImpl);
 };

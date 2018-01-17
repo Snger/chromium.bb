@@ -6,6 +6,7 @@
 
 #include <string>
 #include <utility>
+#include <vector>
 
 #include "base/bind.h"
 #include "base/json/json_writer.h"
@@ -21,7 +22,7 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
-#include "content/public/browser/render_widget_host_view.h"
+#include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/common/bindings_policy.h"
@@ -30,8 +31,13 @@
 #include "headless/lib/browser/headless_browser_impl.h"
 #include "headless/lib/browser/headless_browser_main_parts.h"
 #include "headless/lib/browser/headless_devtools_client_impl.h"
+#include "headless/lib/browser/headless_tab_socket_impl.h"
+#include "printing/features/features.h"
 #include "services/service_manager/public/cpp/interface_registry.h"
-#include "ui/aura/window.h"
+
+#if BUILDFLAG(ENABLE_BASIC_PRINTING)
+#include "headless/lib/browser/headless_print_manager.h"
+#endif
 
 namespace headless {
 
@@ -99,6 +105,30 @@ class HeadlessWebContentsImpl::Delegate : public content::WebContentsDelegate {
                                             security_style_explanations);
   }
 
+  void ActivateContents(content::WebContents* contents) override {
+    contents->GetRenderViewHost()->GetWidget()->Focus();
+  }
+
+  void CloseContents(content::WebContents* source) override {
+    if (!browser_context_) {
+      return;
+    }
+
+    std::vector<HeadlessWebContents*> all_contents =
+        browser_context_->GetAllWebContents();
+
+    for (HeadlessWebContents* wc : all_contents) {
+      if (!wc) {
+        continue;
+      }
+      HeadlessWebContentsImpl* hwc = HeadlessWebContentsImpl::From(wc);
+      if (hwc->web_contents() == source) {
+        wc->Close();
+        return;
+      }
+    }
+  }
+
  private:
   HeadlessBrowserContextImpl* browser_context_;  // Not owned.
   DISALLOW_COPY_AND_ASSIGN(Delegate);
@@ -106,8 +136,7 @@ class HeadlessWebContentsImpl::Delegate : public content::WebContentsDelegate {
 
 // static
 std::unique_ptr<HeadlessWebContentsImpl> HeadlessWebContentsImpl::Create(
-    HeadlessWebContents::Builder* builder,
-    aura::Window* parent_window) {
+    HeadlessWebContents::Builder* builder) {
   content::WebContents::CreateParams create_params(builder->browser_context_,
                                                    nullptr);
   create_params.initial_size = builder->window_size_;
@@ -117,8 +146,16 @@ std::unique_ptr<HeadlessWebContentsImpl> HeadlessWebContentsImpl::Create(
           content::WebContents::Create(create_params),
           builder->browser_context_));
 
+  if (builder->create_tab_socket_) {
+    headless_web_contents->headless_tab_socket_ =
+        base::MakeUnique<HeadlessTabSocketImpl>();
+    builder->AddMojoService(base::Bind(
+        &HeadlessTabSocketImpl::CreateMojoService,
+        base::Unretained(headless_web_contents->headless_tab_socket_.get())));
+  }
+
   headless_web_contents->mojo_services_ = std::move(builder->mojo_services_);
-  headless_web_contents->InitializeScreen(parent_window, builder->window_size_);
+  headless_web_contents->InitializeScreen(builder->window_size_);
   if (!headless_web_contents->OpenURL(builder->initial_url_))
     return nullptr;
   return headless_web_contents;
@@ -136,18 +173,8 @@ HeadlessWebContentsImpl::CreateFromWebContents(
   return headless_web_contents;
 }
 
-void HeadlessWebContentsImpl::InitializeScreen(aura::Window* parent_window,
-                                               const gfx::Size& initial_size) {
-  aura::Window* contents = web_contents_->GetNativeView();
-  DCHECK(!parent_window->Contains(contents));
-  parent_window->AddChild(contents);
-  contents->Show();
-
-  contents->SetBounds(gfx::Rect(initial_size));
-  content::RenderWidgetHostView* host_view =
-      web_contents_->GetRenderWidgetHostView();
-  if (host_view)
-    host_view->SetSize(initial_size);
+void HeadlessWebContentsImpl::InitializeScreen(const gfx::Size& initial_size) {
+  browser()->PlatformInitializeWebContents(initial_size, this);
 }
 
 HeadlessWebContentsImpl::HeadlessWebContentsImpl(
@@ -160,12 +187,14 @@ HeadlessWebContentsImpl::HeadlessWebContentsImpl(
       agent_host_(content::DevToolsAgentHost::GetOrCreateFor(web_contents)),
       browser_context_(browser_context),
       render_process_host_(web_contents->GetRenderProcessHost()) {
+#if BUILDFLAG(ENABLE_BASIC_PRINTING)
+  printing::HeadlessPrintManager::CreateForWebContents(web_contents);
+#endif
   web_contents_->SetDelegate(web_contents_delegate_.get());
   render_process_host_->AddObserver(this);
 }
 
 HeadlessWebContentsImpl::~HeadlessWebContentsImpl() {
-  web_contents_->Close();
   if (render_process_host_)
     render_process_host_->RemoveObserver(this);
 }
@@ -173,8 +202,7 @@ HeadlessWebContentsImpl::~HeadlessWebContentsImpl() {
 void HeadlessWebContentsImpl::RenderFrameCreated(
     content::RenderFrameHost* render_frame_host) {
   if (!mojo_services_.empty()) {
-    render_frame_host->GetRenderViewHost()->AllowBindings(
-        content::BINDINGS_POLICY_HEADLESS);
+    render_frame_host->AllowBindings(content::BINDINGS_POLICY_HEADLESS);
   }
 
   service_manager::InterfaceRegistry* interface_registry =
@@ -194,6 +222,7 @@ bool HeadlessWebContentsImpl::OpenURL(const GURL& url) {
   params.transition_type = ui::PageTransitionFromInt(
       ui::PAGE_TRANSITION_TYPED | ui::PAGE_TRANSITION_FROM_ADDRESS_BAR);
   web_contents_->GetController().LoadURLWithParams(params);
+  web_contents_delegate_->ActivateContents(web_contents_.get());
   web_contents_->Focus();
   return true;
 }
@@ -272,6 +301,10 @@ HeadlessBrowserContextImpl* HeadlessWebContentsImpl::browser_context() const {
   return browser_context_;
 }
 
+HeadlessTabSocket* HeadlessWebContentsImpl::GetHeadlessTabSocket() const {
+  return headless_tab_socket_.get();
+}
+
 HeadlessWebContents::Builder::Builder(
     HeadlessBrowserContextImpl* browser_context)
     : browser_context_(browser_context),
@@ -298,6 +331,12 @@ HeadlessWebContents::Builder& HeadlessWebContents::Builder::AddMojoService(
     const base::Callback<void(mojo::ScopedMessagePipeHandle)>&
         service_factory) {
   mojo_services_.emplace_back(service_name, service_factory);
+  return *this;
+}
+
+HeadlessWebContents::Builder& HeadlessWebContents::Builder::CreateTabSocket(
+    bool create_tab_socket) {
+  create_tab_socket_ = create_tab_socket;
   return *this;
 }
 

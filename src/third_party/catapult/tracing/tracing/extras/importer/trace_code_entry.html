@@ -39,19 +39,18 @@ tr.exportTo('tr.e.importer', function() {
     } else if (state === '') {
       state = tr.model.source_info.JSSourceState.COMPILED;
     } else {
-      console.warning('Unknown v8 code state ' + state);
       state = tr.model.source_info.JSSourceState.UNKNOWN;
     }
 
     var rawName;
     var rawUrl;
     if (prefix === 'Script:') {
-        rawName = '';
-        rawUrl = body;
+      rawName = '';
+      rawUrl = body;
     } else {
-        var spacePos = body.lastIndexOf(' ');
-        rawName = spacePos !== -1 ? body.substr(0, spacePos) : body;
-        rawUrl = spacePos !== -1 ? body.substr(spacePos + 1) : '';
+      var spacePos = body.lastIndexOf(' ');
+      rawName = spacePos !== -1 ? body.substr(0, spacePos) : body;
+      rawUrl = spacePos !== -1 ? body.substr(spacePos + 1) : '';
     }
 
     function splitLineAndColumn(url) {

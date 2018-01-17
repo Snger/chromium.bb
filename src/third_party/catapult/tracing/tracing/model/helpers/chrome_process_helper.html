@@ -27,8 +27,9 @@ tr.exportTo('tr.model.helpers', function() {
     for (var i = 0; i < slices.length; i++) {
       var slice = slices[i];
       if (rangeOfInterest.intersectsExplicitRangeInclusive(
-            slice.start, slice.end))
+          slice.start, slice.end)) {
         slicesInFilterRange.push(slice);
+      }
     }
     return slicesInFilterRange;
   }
@@ -60,18 +61,18 @@ tr.exportTo('tr.model.helpers', function() {
     findTelemetryInternalRanges_: function() {
       this.telemetryInternalRanges_ = [];
       var start = 0;
-      tr.b.iterItems(this.process.threads, (tid, thread) => {
+      for (var thread of Object.values(this.process.threads)) {
         for (var slice of thread.asyncSliceGroup.getDescendantEvents()) {
           if (/^telemetry\.internal\.[^.]*\.start$/.test(slice.title)) {
             start = slice.start;
           } else if (/^telemetry\.internal\.[^.]*\.end$/.test(slice.title) &&
               start !== undefined) {
-            this.telemetryInternalRanges_.push(tr.b.Range.fromExplicitRange(
-                start, slice.end));
+            this.telemetryInternalRanges_.push(
+                tr.b.math.Range.fromExplicitRange(start, slice.end));
             start = undefined;
           }
         }
-      });
+      }
     },
 
     getFrameEventsInRange: function(frametimeType, range) {
@@ -79,10 +80,13 @@ tr.exportTo('tr.model.helpers', function() {
         MAIN_RENDERING_STATS : IMPL_RENDERING_STATS);
 
       var frameEvents = [];
-      for (var event of this.process.getDescendantEvents())
-        if (event.title === titleToGet)
-          if (range.intersectsExplicitRangeInclusive(event.start, event.end))
+      for (var event of this.process.getDescendantEvents()) {
+        if (event.title === titleToGet) {
+          if (range.intersectsExplicitRangeInclusive(event.start, event.end)) {
             frameEvents.push(event);
+          }
+        }
+      }
 
       frameEvents.sort(function(a, b) {return a.start - b.start;});
       return frameEvents;

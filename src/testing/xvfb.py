@@ -6,6 +6,7 @@
 """Runs tests with Xvfb and Openbox on Linux and normally on other platforms."""
 
 import os
+import os.path
 import platform
 import signal
 import subprocess
@@ -69,18 +70,30 @@ def run_executable(cmd, env):
         kill(xcompmgr_proc)
     else:
       env['_CHROMIUM_INSIDE_XVFB'] = '1'
+      xvfb_script = __file__
+      if xvfb_script.endswith('.pyc'):
+        xvfb_script = xvfb_script[:-1]
       return subprocess.call(['xvfb-run', '-a', "--server-args=-screen 0 "
                               "1280x800x24 -ac -nolisten tcp -dpi 96",
-                              __file__] + cmd, env=env)
+                              xvfb_script] + cmd, env=env)
   else:
     return test_env.run_executable(cmd, env)
 
 
 def main():
+  USAGE = 'Usage: xvfb.py [command args...]'
   if len(sys.argv) < 2:
-    print >> sys.stderr, (
-        'Usage: xvfb.py [command args...]')
+    print >> sys.stderr, USAGE
     return 2
+
+  # If the user still thinks the first argument is the execution directory then
+  # print a friendly error message and quit.
+  if os.path.isdir(sys.argv[1]):
+    print >> sys.stderr, (
+        'Invalid command: \"%s\" is a directory' % sys.argv[1])
+    print >> sys.stderr, USAGE
+    return 3
+
   return run_executable(sys.argv[1:], os.environ.copy())
 
 

@@ -7,16 +7,18 @@
 
 namespace password_manager {
 
-bool PasswordManagerClient::IsAutomaticPasswordSavingEnabled() const {
-  return false;
-}
-
 bool PasswordManagerClient::IsSavingAndFillingEnabledForCurrentPage() const {
   return true;
 }
 
 bool PasswordManagerClient::IsFillingEnabledForCurrentPage() const {
   return true;
+}
+
+void PasswordManagerClient::PostHSTSQueryForHost(
+    const GURL& origin,
+    const HSTSCallback& callback) const {
+  callback.Run(false);
 }
 
 bool PasswordManagerClient::OnCredentialManagerUsed() {
@@ -46,7 +48,7 @@ bool PasswordManagerClient::DidLastPageLoadEncounterSSLErrors() const {
   return false;
 }
 
-bool PasswordManagerClient::IsOffTheRecord() const {
+bool PasswordManagerClient::IsIncognito() const {
   return false;
 }
 

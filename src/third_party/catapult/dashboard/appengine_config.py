@@ -19,10 +19,17 @@ import dashboard
 # pylint: disable=invalid-name
 
 appstats_SHELL_OK = True
+appstats_CALC_RPC_COSTS = True
 
 # Allows remote_api from the peng team to support the crosbolt dashboard.
 remoteapi_CUSTOM_ENVIRONMENT_AUTHENTICATION = (
     'LOAS_PEER_USERNAME', ['chromeos-peng-performance'])
+
+
+def webapp_add_wsgi_middleware(app):
+  from google.appengine.ext.appstats import recording
+  app = recording.appstats_wsgi_middleware(app)
+  return app
 
 # pylint: enable=invalid-name
 
@@ -36,8 +43,7 @@ def _AddThirdPartyLibraries():
   # The deploy script is expected to add links to third party libraries
   # before deploying. If the directories aren't there (e.g. when running tests)
   # then just ignore it.
-  for library_dir in (dashboard.THIRD_PARTY_LIBRARIES +
-                      dashboard.THIRD_PARTY_LIBRARIES_IN_SDK):
+  for library_dir in dashboard.THIRD_PARTY_LIBRARIES:
     if os.path.exists(library_dir):
       vendor.add(os.path.join(os.path.dirname(__file__), library_dir))
 

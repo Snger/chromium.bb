@@ -26,15 +26,15 @@ Polymer({
    * @private
    */
   onMenuButtonTap_: function(event) {
-    let button = /** @type {!HTMLElement} */ (event.target);
-    let menu = /** @type {!CrActionMenuElement} */ (this.$.dotsMenu);
+    var button = /** @type {!HTMLElement} */ (event.target);
+    var menu = /** @type {!CrActionMenuElement} */ (this.$.dotsMenu);
     menu.showAt(button);
     event.stopPropagation();
   },
 
   /** @private */
   onConnectActionTap_: function() {
-    let action = this.isDisconnected_(this.device) ? 'connect' : 'disconnect';
+    var action = this.isDisconnected_(this.device) ? 'connect' : 'disconnect';
     this.fire('device-event', {
       action: action,
       device: this.device,
@@ -57,7 +57,7 @@ Polymer({
    * @private
    */
   getConnectActionText_: function(connected) {
-    return this.i18n(connected ? 'bluetoothDisconnect' : 'bluetoothPair');
+    return this.i18n(connected ? 'bluetoothDisconnect' : 'bluetoothConnect');
   },
 
   /**

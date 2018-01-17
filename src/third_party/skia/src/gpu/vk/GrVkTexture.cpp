@@ -96,10 +96,13 @@ sk_sp<GrVkTexture> GrVkTexture::MakeWrappedTexture(GrVkGpu* gpu,
         return nullptr;
     }
 
-    GrVkImage::Wrapped wrapped = kBorrow_GrWrapOwnership == ownership ? GrVkImage::kBorrowed_Wrapped
-                                                                      : GrVkImage::kAdopted_Wrapped;
-
-    return sk_sp<GrVkTexture>(new GrVkTexture(gpu, kWrapped, desc, *info, imageView, wrapped));
+    if (kAdoptAndCache_GrWrapOwnership == ownership) {
+        return sk_sp<GrVkTexture>(new GrVkTexture(gpu, SkBudgeted::kYes, desc, *info, imageView));
+    } else {
+        GrVkImage::Wrapped wrapped = kBorrow_GrWrapOwnership == ownership
+                ? GrVkImage::kBorrowed_Wrapped : GrVkImage::kAdopted_Wrapped;
+        return sk_sp<GrVkTexture>(new GrVkTexture(gpu, kWrapped, desc, *info, imageView, wrapped));
+    }
 }
 
 GrVkTexture::~GrVkTexture() {
@@ -142,6 +145,12 @@ void GrVkTexture::onAbandon() {
 
 GrBackendObject GrVkTexture::getTextureHandle() const {
     return (GrBackendObject)&fInfo;
+}
+
+std::unique_ptr<GrExternalTextureData> GrVkTexture::detachBackendTexture() {
+    // Not supported on Vulkan yet
+    // TODO: Add thread-safe memory pools, and implement this.
+    return nullptr;
 }
 
 GrVkGpu* GrVkTexture::getVkGpu() const {

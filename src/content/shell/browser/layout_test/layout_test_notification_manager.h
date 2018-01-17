@@ -16,6 +16,10 @@
 #include "third_party/WebKit/public/platform/modules/permissions/permission_status.mojom.h"
 #include "url/gurl.h"
 
+namespace base {
+class NullableString16;
+}
+
 namespace content {
 
 class DesktopNotificationDelegate;
@@ -67,9 +71,9 @@ class LayoutTestNotificationManager : public PlatformNotificationService {
       const NotificationResources& notification_resources) override;
   void ClosePersistentNotification(BrowserContext* browser_context,
                                    const std::string& notification_id) override;
-  bool GetDisplayedNotifications(
+  void GetDisplayedNotifications(
       BrowserContext* browser_context,
-      std::set<std::string>* displayed_notifications) override;
+      const DisplayedNotificationsCallback& callback) override;
 
  private:
   // Structure to represent the information of a persistent notification.

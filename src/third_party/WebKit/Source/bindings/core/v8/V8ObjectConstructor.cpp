@@ -25,50 +25,34 @@
 #include "bindings/core/v8/V8ObjectConstructor.h"
 
 #include "bindings/core/v8/V8Binding.h"
-#include "bindings/core/v8/V8ScriptRunner.h"
-#include "core/dom/Document.h"
-#include "core/frame/LocalFrame.h"
 #include "platform/instrumentation/tracing/TraceEvent.h"
 
 namespace blink {
 
-v8::MaybeLocal<v8::Object> V8ObjectConstructor::newInstance(
-    v8::Isolate* isolate,
-    v8::Local<v8::Function> function) {
-  ASSERT(!function.IsEmpty());
-  ConstructorMode constructorMode(isolate);
-  return V8ScriptRunner::instantiateObject(isolate, function);
-}
-
-v8::MaybeLocal<v8::Object> V8ObjectConstructor::newInstance(
+v8::MaybeLocal<v8::Object> V8ObjectConstructor::NewInstance(
     v8::Isolate* isolate,
     v8::Local<v8::Function> function,
     int argc,
     v8::Local<v8::Value> argv[]) {
   ASSERT(!function.IsEmpty());
-  ConstructorMode constructorMode(isolate);
-  return V8ScriptRunner::instantiateObject(isolate, function, argc, argv);
+  TRACE_EVENT0("v8", "v8.newInstance");
+  ConstructorMode constructor_mode(isolate);
+  v8::MicrotasksScope microtasks_scope(
+      isolate, v8::MicrotasksScope::kDoNotRunMicrotasks);
+  v8::MaybeLocal<v8::Object> result =
+      function->NewInstance(isolate->GetCurrentContext(), argc, argv);
+  CHECK(!isolate->IsDead());
+  return result;
 }
 
-v8::MaybeLocal<v8::Object> V8ObjectConstructor::newInstanceInDocument(
-    v8::Isolate* isolate,
-    v8::Local<v8::Function> function,
-    int argc,
-    v8::Local<v8::Value> argv[],
-    Document* document) {
-  ASSERT(!function.IsEmpty());
-  return V8ScriptRunner::instantiateObjectInDocument(isolate, function,
-                                                     document, argc, argv);
-}
-
-void V8ObjectConstructor::isValidConstructorMode(
+void V8ObjectConstructor::IsValidConstructorMode(
     const v8::FunctionCallbackInfo<v8::Value>& info) {
-  if (ConstructorMode::current(info.GetIsolate()) ==
-      ConstructorMode::CreateNewObject) {
-    V8ThrowException::throwTypeError(info.GetIsolate(), "Illegal constructor");
+  if (ConstructorMode::Current(info.GetIsolate()) ==
+      ConstructorMode::kCreateNewObject) {
+    V8ThrowException::ThrowTypeError(info.GetIsolate(), "Illegal constructor");
     return;
   }
-  v8SetReturnValue(info, info.Holder());
+  V8SetReturnValue(info, info.Holder());
 }
 
 }  // namespace blink

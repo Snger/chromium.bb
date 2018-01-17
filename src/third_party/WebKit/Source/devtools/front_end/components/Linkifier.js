@@ -153,7 +153,7 @@ Components.Linkifier = class {
         sourceURL ? Components.Linkifier.linkifyURL(sourceURL, undefined, classes, lineNumber, columnNumber) : null;
     if (!target || target.isDisposed())
       return fallbackAnchor;
-    var debuggerModel = SDK.DebuggerModel.fromTarget(target);
+    var debuggerModel = target.model(SDK.DebuggerModel);
     if (!debuggerModel)
       return fallbackAnchor;
 
@@ -169,9 +169,9 @@ Components.Linkifier = class {
     info.fallback = fallbackAnchor;
     info.liveLocation = Bindings.debuggerWorkspaceBinding.createLiveLocation(
         rawLocation, this._updateAnchor.bind(this, anchor),
-        /** @type {!Bindings.LiveLocationPool} */ (this._locationPoolByTarget.get(rawLocation.target())));
+        /** @type {!Bindings.LiveLocationPool} */ (this._locationPoolByTarget.get(rawLocation.debuggerModel.target())));
 
-    var anchors = /** @type {!Array<!Element>} */ (this._anchorsByTarget.get(rawLocation.target()));
+    var anchors = /** @type {!Array<!Element>} */ (this._anchorsByTarget.get(rawLocation.debuggerModel.target()));
     anchors.push(anchor);
     return anchor;
   }
@@ -198,8 +198,8 @@ Components.Linkifier = class {
    */
   linkifyRawLocation(rawLocation, fallbackUrl, classes) {
     return this.linkifyScriptLocation(
-        rawLocation.target(), rawLocation.scriptId, fallbackUrl, rawLocation.lineNumber, rawLocation.columnNumber,
-        classes);
+        rawLocation.debuggerModel.target(), rawLocation.scriptId, fallbackUrl, rawLocation.lineNumber,
+        rawLocation.columnNumber, classes);
   }
 
   /**
@@ -228,7 +228,7 @@ Components.Linkifier = class {
     if (target.isDisposed())
       return fallbackAnchor;
 
-    var debuggerModel = SDK.DebuggerModel.fromTarget(target);
+    var debuggerModel = target.model(SDK.DebuggerModel);
     var rawLocations = debuggerModel.createRawLocationsByStackTrace(stackTrace);
     if (rawLocations.length === 0)
       return fallbackAnchor;
@@ -257,9 +257,9 @@ Components.Linkifier = class {
     info.enableDecorator = this._useLinkDecorator;
     info.liveLocation = Bindings.cssWorkspaceBinding.createLiveLocation(
         rawLocation, this._updateAnchor.bind(this, anchor),
-        /** @type {!Bindings.LiveLocationPool} */ (this._locationPoolByTarget.get(rawLocation.target())));
+        /** @type {!Bindings.LiveLocationPool} */ (this._locationPoolByTarget.get(rawLocation.cssModel().target())));
 
-    var anchors = /** @type {!Array<!Element>} */ (this._anchorsByTarget.get(rawLocation.target()));
+    var anchors = /** @type {!Array<!Element>} */ (this._anchorsByTarget.get(rawLocation.cssModel().target()));
     anchors.push(anchor);
     return anchor;
   }
@@ -497,7 +497,7 @@ Components.Linkifier = class {
       uiLocation = uiSourceCode ? uiSourceCode.uiLocation(info.lineNumber || 0, info.columnNumber || 0) : null;
     }
     var resource = url ? Bindings.resourceForURL(url) : null;
-    var request = url ? SDK.NetworkLog.requestForURL(url) : null;
+    var request = url ? NetworkLog.networkLog.requestForURL(url) : null;
     var contentProvider = uiLocation ? uiLocation.uiSourceCode : resource;
 
     if (info.revealable)

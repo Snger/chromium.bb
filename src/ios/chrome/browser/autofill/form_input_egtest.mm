@@ -14,7 +14,6 @@
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
-#import "ios/testing/earl_grey/disabled_test_macros.h"
 #import "ios/testing/wait_util.h"
 #import "ios/web/public/test/earl_grey/web_view_actions.h"
 #import "ios/web/public/test/earl_grey/web_view_matchers.h"
@@ -85,7 +84,7 @@ void AssertElementIsFocused(const std::string& element_id) {
   [ChromeEarlGrey loadURL:URL];
 
   id<GREYMatcher> webViewMatcher =
-      chrome_test_util::webViewContainingText("hello!");
+      chrome_test_util::WebViewContainingText("hello!");
   [[EarlGrey selectElementWithMatcher:webViewMatcher]
       assertWithMatcher:grey_notNil()];
 
@@ -96,20 +95,20 @@ void AssertElementIsFocused(const std::string& element_id) {
 
   // Brings up the keyboard by tapping on one of the form's field.
   [[EarlGrey
-      selectElementWithMatcher:web::webViewInWebState(
+      selectElementWithMatcher:web::WebViewInWebState(
                                    chrome_test_util::GetCurrentWebState())]
-      performAction:web::webViewTapElement(
+      performAction:web::WebViewTapElement(
                         chrome_test_util::GetCurrentWebState(),
                         kFormElementId1)];
 
   id<GREYMatcher> nextButtonMatcher =
-      chrome_test_util::buttonWithAccessibilityLabelId(
+      chrome_test_util::ButtonWithAccessibilityLabelId(
           IDS_IOS_AUTOFILL_ACCNAME_NEXT_FIELD);
   id<GREYMatcher> previousButtonMatcher =
-      chrome_test_util::buttonWithAccessibilityLabelId(
+      chrome_test_util::ButtonWithAccessibilityLabelId(
           IDS_IOS_AUTOFILL_ACCNAME_PREVIOUS_FIELD);
   id<GREYMatcher> closeButtonMatcher =
-      chrome_test_util::buttonWithAccessibilityLabelId(
+      chrome_test_util::ButtonWithAccessibilityLabelId(
           IDS_IOS_AUTOFILL_ACCNAME_HIDE_KEYBOARD);
 
   // Wait until the keyboard's "Next" button appeared.

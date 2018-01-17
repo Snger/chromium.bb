@@ -7,6 +7,8 @@
 #ifndef CORE_FPDFAPI_RENDER_CPDF_CHARPOSLIST_H_
 #define CORE_FPDFAPI_RENDER_CPDF_CHARPOSLIST_H_
 
+#include <vector>
+
 #include "core/fxcrt/fx_system.h"
 #include "core/fxge/cfx_renderdevice.h"
 
@@ -16,11 +18,10 @@ class CPDF_CharPosList {
  public:
   CPDF_CharPosList();
   ~CPDF_CharPosList();
-  void Load(int nChars,
-            uint32_t* pCharCodes,
-            FX_FLOAT* pCharPos,
+  void Load(const std::vector<uint32_t>& charCodes,
+            const std::vector<float>& charPos,
             CPDF_Font* pFont,
-            FX_FLOAT font_size);
+            float font_size);
   FXTEXT_CHARPOS* m_pCharPos;
   uint32_t m_nChars;
 };

@@ -12,36 +12,37 @@
 
 namespace blink {
 
-NavigatorUserMedia::NavigatorUserMedia(ExecutionContext* context)
-    : m_mediaDevices(MediaDevices::create(context)) {}
+NavigatorUserMedia::NavigatorUserMedia(Navigator& navigator)
+    : Supplement<Navigator>(navigator),
+      media_devices_(MediaDevices::Create(
+          navigator.GetFrame() ? navigator.GetFrame()->GetDocument()
+                               : nullptr)) {}
 
-const char* NavigatorUserMedia::supplementName() {
+const char* NavigatorUserMedia::SupplementName() {
   return "NavigatorUserMedia";
 }
 
-NavigatorUserMedia& NavigatorUserMedia::from(Navigator& navigator) {
+NavigatorUserMedia& NavigatorUserMedia::From(Navigator& navigator) {
   NavigatorUserMedia* supplement = static_cast<NavigatorUserMedia*>(
-      Supplement<Navigator>::from(navigator, supplementName()));
+      Supplement<Navigator>::From(navigator, SupplementName()));
   if (!supplement) {
-    ExecutionContext* context =
-        navigator.frame() ? navigator.frame()->document() : nullptr;
-    supplement = new NavigatorUserMedia(context);
-    provideTo(navigator, supplementName(), supplement);
+    supplement = new NavigatorUserMedia(navigator);
+    ProvideTo(navigator, SupplementName(), supplement);
   }
   return *supplement;
 }
 
-MediaDevices* NavigatorUserMedia::getMediaDevices() {
-  return m_mediaDevices;
+MediaDevices* NavigatorUserMedia::GetMediaDevices() {
+  return media_devices_;
 }
 
 MediaDevices* NavigatorUserMedia::mediaDevices(Navigator& navigator) {
-  return NavigatorUserMedia::from(navigator).getMediaDevices();
+  return NavigatorUserMedia::From(navigator).GetMediaDevices();
 }
 
 DEFINE_TRACE(NavigatorUserMedia) {
-  visitor->trace(m_mediaDevices);
-  Supplement<Navigator>::trace(visitor);
+  visitor->Trace(media_devices_);
+  Supplement<Navigator>::Trace(visitor);
 }
 
 }  // namespace blink

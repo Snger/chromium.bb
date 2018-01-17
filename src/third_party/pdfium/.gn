@@ -4,3 +4,11 @@
 
 buildconfig = "//build/config/BUILDCONFIG.gn"
 secondary_source = "//build/secondary/"
+
+default_args = {
+  v8_extra_library_files = []
+  v8_experimental_extra_library_files = []
+
+  # Turns on compiler optimizations in V8 in Debug build.
+  v8_optimized_debug = true
+}

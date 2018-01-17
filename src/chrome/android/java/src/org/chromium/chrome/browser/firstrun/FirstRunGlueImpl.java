@@ -39,7 +39,8 @@ public class FirstRunGlueImpl implements FirstRunGlue {
         boolean nativePrefValue = prefsBridge.isFirstRunEulaAccepted();
         boolean userHasSeenTos =
                 ToSAckedReceiver.checkAnyUserHasSeenToS(ContextUtils.getApplicationContext());
-        if (javaPrefValue || nativePrefValue || userHasSeenTos) {
+        boolean isFirstRunComplete = FirstRunStatus.getFirstRunFlowComplete();
+        if (javaPrefValue || nativePrefValue || userHasSeenTos || isFirstRunComplete) {
             if (!javaPrefValue) {
                 javaPrefs.edit().putBoolean(CACHED_TOS_ACCEPTED_PREF, true).apply();
             }
@@ -69,16 +70,10 @@ public class FirstRunGlueImpl implements FirstRunGlue {
 
     @Override
     public boolean isDefaultAccountName(Context appContext, String accountName) {
-        List<String> accountNames = AccountManagerHelper.get(appContext).getGoogleAccountNames();
+        List<String> accountNames = AccountManagerHelper.get().getGoogleAccountNames();
         return accountNames != null
                 && accountNames.size() > 0
                 && TextUtils.equals(accountNames.get(0), accountName);
-    }
-
-    @Override
-    public int numberOfAccounts(Context appContext) {
-        List<String> accountNames = AccountManagerHelper.get(appContext).getGoogleAccountNames();
-        return accountNames == null ? 0 : accountNames.size();
     }
 
     @Override

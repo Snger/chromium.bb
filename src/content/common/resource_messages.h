@@ -130,14 +130,14 @@ IPC_ENUM_TRAITS_MAX_VALUE(content::FetchCredentialsMode,
 IPC_ENUM_TRAITS_MAX_VALUE(content::FetchRedirectMode,
                           content::FetchRedirectMode::LAST)
 
-IPC_ENUM_TRAITS_MAX_VALUE(content::SkipServiceWorker,
-                          content::SkipServiceWorker::LAST)
+IPC_ENUM_TRAITS_MAX_VALUE(content::ServiceWorkerMode,
+                          content::ServiceWorkerMode::LAST)
 
 IPC_ENUM_TRAITS_MAX_VALUE(net::EffectiveConnectionType,
                           net::EFFECTIVE_CONNECTION_TYPE_LAST - 1)
 
 IPC_ENUM_TRAITS_MAX_VALUE(blink::WebMixedContentContextType,
-                          blink::WebMixedContentContextType::Last)
+                          blink::WebMixedContentContextType::kLast)
 
 IPC_STRUCT_TRAITS_BEGIN(content::ResourceResponseHead)
 IPC_STRUCT_TRAITS_PARENT(content::ResourceResponseInfo)
@@ -230,7 +230,7 @@ IPC_STRUCT_TRAITS_BEGIN(content::ResourceRequest)
   IPC_STRUCT_TRAITS_MEMBER(should_reset_appcache)
   IPC_STRUCT_TRAITS_MEMBER(service_worker_provider_id)
   IPC_STRUCT_TRAITS_MEMBER(originated_from_service_worker)
-  IPC_STRUCT_TRAITS_MEMBER(skip_service_worker)
+  IPC_STRUCT_TRAITS_MEMBER(service_worker_mode)
   IPC_STRUCT_TRAITS_MEMBER(fetch_request_mode)
   IPC_STRUCT_TRAITS_MEMBER(fetch_credentials_mode)
   IPC_STRUCT_TRAITS_MEMBER(fetch_redirect_mode)
@@ -279,7 +279,7 @@ IPC_MESSAGE_CONTROL2(ResourceMsg_ReceivedResponse,
 // Sent when cached metadata from a resource request is ready.
 IPC_MESSAGE_CONTROL2(ResourceMsg_ReceivedCachedMetadata,
                      int /* request_id */,
-                     std::vector<char> /* data */)
+                     std::vector<uint8_t> /* data */)
 
 // Sent as upload progress is being made.
 IPC_MESSAGE_CONTROL3(ResourceMsg_UploadProgress,
@@ -311,14 +311,6 @@ IPC_MESSAGE_CONTROL4(ResourceMsg_SetDataBuffer,
                      base::SharedMemoryHandle /* shm_handle */,
                      int /* shm_size */,
                      base::ProcessId /* renderer_pid */)
-
-// Sent when a chunk of data from a resource request is ready, and the resource
-// is expected to be small enough to fit in the inlined buffer.
-// The data is sent as a part of IPC message.
-IPC_MESSAGE_CONTROL3(ResourceMsg_InlinedDataChunkReceived,
-                     int /* request_id */,
-                     std::vector<char> /* data */,
-                     int /* encoded_data_length */)
 
 // Sent when some data from a resource request is ready.  The data offset and
 // length specify a byte range into the shared memory buffer provided by the

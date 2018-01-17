@@ -12,12 +12,11 @@
 
 namespace cc {
 namespace mojom {
-class DisplayCompositor;
+class FrameSinkManager;
 }
 }
 
 namespace ui {
-
 
 namespace ws {
 
@@ -25,9 +24,9 @@ class ServerWindow;
 
 class ServerWindowDelegate {
  public:
-  // Returns a display compositor interface pointer. There is only one
-  // DisplayCompositor running in the system.
-  virtual cc::mojom::DisplayCompositor* GetDisplayCompositor() = 0;
+  // Returns a frame sink manager interface pointer. There is only one
+  // MojoFrameSinkManager running in the system.
+  virtual cc::mojom::FrameSinkManager* GetFrameSinkManager() = 0;
 
   // Returns the root of the window tree to which this |window| is attached.
   // Returns null if this window is not attached up through to a root window.

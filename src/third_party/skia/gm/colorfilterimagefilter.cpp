@@ -13,13 +13,14 @@
 
 #include "SkBlurImageFilter.h"
 #include "SkColorFilterImageFilter.h"
+#include "SkTDArray.h"
 
 #define FILTER_WIDTH    SkIntToScalar(30)
 #define FILTER_HEIGHT   SkIntToScalar(30)
 #define MARGIN          SkIntToScalar(10)
 
 static sk_sp<SkColorFilter> cf_make_brightness(float brightness) {
-    SkScalar amount255 = SkScalarMul(brightness, SkIntToScalar(255));
+    SkScalar amount255 = brightness * 255;
     SkScalar matrix[20] = {
         1, 0, 0, 0, amount255,
         0, 1, 0, 0, amount255,

@@ -18,7 +18,16 @@ Commands:
 import argparse
 import cgi
 import os
+import shutil
+import subprocess
 import sys
+import tempfile
+
+# TODO(agrieve): Move build_utils.WriteDepFile into a non-android directory.
+_REPOSITORY_ROOT = os.path.dirname(os.path.dirname(__file__))
+sys.path.append(os.path.join(_REPOSITORY_ROOT, 'build/android/gyp/util'))
+import build_utils
+
 
 # Paths from the root of the tree to directories to skip.
 PRUNE_PATHS = set([
@@ -47,7 +56,6 @@ PRUNE_PATHS = set([
     os.path.join('third_party','gnu_binutils'),
     os.path.join('third_party','gold'),
     os.path.join('third_party','gperf'),
-    os.path.join('third_party','kasko'),
     os.path.join('third_party','lighttpd'),
     os.path.join('third_party','llvm'),
     os.path.join('third_party','llvm-build'),
@@ -271,7 +279,6 @@ KNOWN_NON_IOS_LIBRARIES = set([
     os.path.join('third_party', 'bspatch'),
     os.path.join('third_party', 'cacheinvalidation'),
     os.path.join('third_party', 'cld'),
-    os.path.join('third_party', 'codesighs'),
     os.path.join('third_party', 'flot'),
     os.path.join('third_party', 'gtk+'),
     os.path.join('third_party', 'iaccessible2'),
@@ -353,7 +360,7 @@ def ParseDir(path, root, require_license_file=True, optional_keys=None):
         readme_path = os.path.join(root, path, 'README.chromium')
         if not os.path.exists(readme_path):
             raise LicenseError("missing README.chromium or licenses.py "
-                               "SPECIAL_CASES entry")
+                               "SPECIAL_CASES entry in %s" % path)
 
         for line in open(readme_path):
             line = line.strip()
@@ -457,6 +464,50 @@ def FindThirdPartyDirsWithFiles(root):
     return FilterDirsWithFiles(third_party_dirs, root)
 
 
+# Many builders do not contain 'gn' in their PATH, so use the GN binary from
+# //buildtools.
+def _GnBinary():
+    exe = 'gn'
+    if sys.platform == 'linux2':
+        subdir = 'linux64'
+    elif sys.platform == 'darwin':
+        subdir = 'mac'
+    elif sys.platform == 'win32':
+        subdir, exe = 'win', 'gn.exe'
+    else:
+        raise RuntimeError("Unsupported platform '%s'." % sys.platform)
+
+    return os.path.join(_REPOSITORY_ROOT, 'buildtools', subdir, exe)
+
+
+def FindThirdPartyDeps(gn_out_dir, gn_target):
+    if not gn_out_dir:
+        raise RuntimeError("--gn-out-dir is required if --gn-target is used.")
+
+    # Generate gn project in temp directory and use it to find dependencies.
+    # Current gn directory cannot be used when we run this script in a gn action
+    # rule, because gn doesn't allow recursive invocations due to potential side
+    # effects.
+    tmp_dir = None
+    try:
+        tmp_dir = tempfile.mkdtemp(dir = gn_out_dir)
+        shutil.copy(os.path.join(gn_out_dir, "args.gn"), tmp_dir)
+        subprocess.check_output([_GnBinary(), "gen", tmp_dir])
+        gn_deps = subprocess.check_output([
+            _GnBinary(), "desc", tmp_dir, gn_target,
+            "deps", "--as=buildfile", "--all"])
+    finally:
+        if tmp_dir and os.path.exists(tmp_dir):
+            shutil.rmtree(tmp_dir)
+
+    third_party_deps = set()
+    for build_dep in gn_deps.split():
+        if ("third_party" in build_dep and
+                os.path.basename(build_dep) == "BUILD.gn"):
+            third_party_deps.add(os.path.dirname(build_dep))
+    return third_party_deps
+
+
 def ScanThirdPartyDirs(root=None):
     """Scan a list of directories and report on any problems we find."""
     if root is None:
@@ -478,7 +529,8 @@ def ScanThirdPartyDirs(root=None):
 
 
 def GenerateCredits(
-        file_template_file, entry_template_file, output_file, target_os):
+        file_template_file, entry_template_file, output_file, target_os,
+        gn_out_dir, gn_target, depfile=None):
     """Generate about:credits."""
 
     def EvaluateTemplate(template, env, escape=True):
@@ -490,29 +542,41 @@ def GenerateCredits(
             template = template.replace('{{%s}}' % key, val)
         return template
 
-    root = os.path.join(os.path.dirname(__file__), '..')
-    third_party_dirs = FindThirdPartyDirs(PRUNE_PATHS, root)
+    if gn_target:
+        third_party_dirs = FindThirdPartyDeps(gn_out_dir, gn_target)
+
+        # Sanity-check to raise a build error if invalid gn_... settings are
+        # somehow passed to this script.
+        if not third_party_dirs:
+            raise RuntimeError("No deps found.")
+    else:
+        third_party_dirs = FindThirdPartyDirs(PRUNE_PATHS, _REPOSITORY_ROOT)
 
     if not file_template_file:
-        file_template_file = os.path.join(root, 'components', 'about_ui',
-                                          'resources', 'about_credits.tmpl')
+        file_template_file = os.path.join(_REPOSITORY_ROOT, 'components',
+                                          'about_ui', 'resources',
+                                          'about_credits.tmpl')
     if not entry_template_file:
-        entry_template_file = os.path.join(root, 'components', 'about_ui',
-                                           'resources',
+        entry_template_file = os.path.join(_REPOSITORY_ROOT, 'components',
+                                           'about_ui', 'resources',
                                            'about_credits_entry.tmpl')
 
     entry_template = open(entry_template_file).read()
     entries = []
     for path in third_party_dirs:
         try:
-            metadata = ParseDir(path, root)
+            metadata = ParseDir(path, _REPOSITORY_ROOT)
         except LicenseError:
             # TODO(phajdan.jr): Convert to fatal error (http://crbug.com/39240).
             continue
         if metadata['License File'] == NOT_SHIPPED:
             continue
-        if target_os == 'ios':
-            # Skip over files that are known not to be used on iOS.
+        if target_os == 'ios' and not gn_target:
+            # Skip over files that are known not to be used on iOS. But
+            # skipping is unnecessary if GN was used to query the actual
+            # dependencies.
+            # TODO(lambroslambrou): Remove this step once the iOS build is
+            # updated to provide --gn-target to this script.
             if path in KNOWN_NON_IOS_LIBRARIES:
                 continue
         env = {
@@ -523,6 +587,7 @@ def GenerateCredits(
         entry = {
             'name': metadata['Name'],
             'content': EvaluateTemplate(entry_template, env),
+            'license_file': metadata['License File'],
         }
         entries.append(entry)
 
@@ -535,10 +600,78 @@ def GenerateCredits(
                                           escape=False)
 
     if output_file:
-      with open(output_file, 'w') as output:
-        output.write(template_contents)
+      changed = True
+      try:
+        old_output = open(output_file, 'r').read()
+        if old_output == template_contents:
+          changed = False
+      except:
+        pass
+      if changed:
+        with open(output_file, 'w') as output:
+          output.write(template_contents)
     else:
       print template_contents
+
+    if depfile:
+      assert output_file
+      # Add in build.ninja so that the target will be considered dirty whenever
+      # gn gen is run. Otherwise, it will fail to notice new files being added.
+      # This is still no perfect, as it will fail if no build files are changed,
+      # but a new README.chromium / LICENSE is added. This shouldn't happen in
+      # practice however.
+      license_file_list = (entry['license_file'] for entry in entries)
+      license_file_list = (os.path.relpath(p) for p in license_file_list)
+      license_file_list = sorted(set(license_file_list))
+      build_utils.WriteDepfile(depfile, output_file,
+                               license_file_list + ['build.ninja'])
+
+    return True
+
+
+def _ReadFile(path):
+    """Reads a file from disk.
+    Args:
+      path: The path of the file to read, relative to the root of the
+      repository.
+    Returns:
+      The contents of the file as a string.
+    """
+    with open(os.path.join(_REPOSITORY_ROOT, path), 'rb') as f:
+        return f.read()
+
+
+def GenerateLicenseFile(output_file, gn_out_dir, gn_target):
+    """Generate a plain-text LICENSE file which can be used when you ship a part
+    of Chromium code (specified by gn_target) as a stand-alone library
+    (e.g., //ios/web_view).
+
+    The LICENSE file contains licenses of both Chromium and third-party
+    libraries which gn_target depends on. """
+
+    third_party_dirs = FindThirdPartyDeps(gn_out_dir, gn_target)
+
+    # Start with Chromium's LICENSE file.
+    content = [_ReadFile('LICENSE')]
+
+    # Add necessary third_party.
+    for directory in sorted(third_party_dirs):
+        metadata = ParseDir(
+            directory, _REPOSITORY_ROOT, require_license_file=True)
+        content.append('-' * 20)
+        content.append(directory.split('/')[-1])
+        content.append('-' * 20)
+        license_file = metadata['License File']
+        if license_file and license_file != NOT_SHIPPED:
+            content.append(_ReadFile(license_file))
+
+    content_text = '\n'.join(content)
+
+    if output_file:
+        with open(output_file, 'w') as output:
+            output.write(content_text)
+    else:
+        print content_text
 
     return True
 
@@ -551,8 +684,14 @@ def main():
                         help='Template HTML to use for each license.')
     parser.add_argument('--target-os',
                         help='OS that this build is targeting.')
-    parser.add_argument('command', choices=['help', 'scan', 'credits'])
+    parser.add_argument('--gn-out-dir',
+                        help='GN output directory for scanning dependencies.')
+    parser.add_argument('--gn-target',
+                        help='GN target to scan for dependencies.')
+    parser.add_argument('command',
+                        choices=['help', 'scan', 'credits', 'license_file'])
     parser.add_argument('output_file', nargs='?')
+    build_utils.AddDepfileOption(parser)
     args = parser.parse_args()
 
     if args.command == 'scan':
@@ -560,7 +699,12 @@ def main():
             return 1
     elif args.command == 'credits':
         if not GenerateCredits(args.file_template, args.entry_template,
-                               args.output_file, args.target_os):
+                               args.output_file, args.target_os,
+                               args.gn_out_dir, args.gn_target, args.depfile):
+            return 1
+    elif args.command == 'license_file':
+        if not GenerateLicenseFile(
+                args.output_file, args.gn_out_dir, args.gn_target):
             return 1
     else:
         print __doc__

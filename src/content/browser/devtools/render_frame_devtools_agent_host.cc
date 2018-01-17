@@ -43,6 +43,7 @@
 #include "content/common/view_messages.h"
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/content_browser_client.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_widget_host_iterator.h"
 #include "content/public/browser/web_contents_delegate.h"
 #include "content/public/common/browser_side_navigation_policy.h"
@@ -381,6 +382,17 @@ void RenderFrameDevToolsAgentHost::OnBeforeNavigation(
 }
 
 // static
+void RenderFrameDevToolsAgentHost::OnFailedNavigation(
+    RenderFrameHost* host,
+    const CommonNavigationParams& common_params,
+    const BeginNavigationParams& begin_params,
+    net::Error error_code) {
+  RenderFrameDevToolsAgentHost* agent_host = FindAgentHost(host);
+  if (agent_host)
+    agent_host->OnFailedNavigation(common_params, begin_params, error_code);
+}
+
+// static
 std::unique_ptr<NavigationThrottle>
 RenderFrameDevToolsAgentHost::CreateThrottleForNavigation(
     NavigationHandle* navigation_handle) {
@@ -450,6 +462,7 @@ RenderFrameDevToolsAgentHost::RenderFrameDevToolsAgentHost(
 
   g_instances.Get().push_back(this);
   AddRef();  // Balanced in RenderFrameHostDestroyed.
+
   NotifyCreated();
 }
 
@@ -504,11 +517,11 @@ void RenderFrameDevToolsAgentHost::AttachSession(DevToolsSession* session) {
   session->SetFallThroughForNotFound(true);
   session->SetRenderFrameHost(handlers_frame_host_);
   if (frame_tree_node_ && !frame_tree_node_->parent()) {
-    session->AddHandler(base::WrapUnique(new protocol::EmulationHandler()));
     session->AddHandler(base::WrapUnique(new protocol::PageHandler()));
     session->AddHandler(base::WrapUnique(new protocol::SecurityHandler()));
   }
   session->AddHandler(base::WrapUnique(new protocol::DOMHandler()));
+  session->AddHandler(base::WrapUnique(new protocol::EmulationHandler()));
   session->AddHandler(base::WrapUnique(new protocol::InputHandler()));
   session->AddHandler(base::WrapUnique(new protocol::InspectorHandler()));
   session->AddHandler(base::WrapUnique(new protocol::IOHandler(
@@ -636,8 +649,22 @@ void RenderFrameDevToolsAgentHost::DidFinishNavigation(
   // CommitPending may destruct |this|.
   scoped_refptr<RenderFrameDevToolsAgentHost> protect(this);
 
-  if (!IsBrowserSideNavigationEnabled())
+  if (!IsBrowserSideNavigationEnabled()) {
+    if (navigation_handle->HasCommitted() &&
+        !navigation_handle->IsErrorPage()) {
+      if (pending_ &&
+          pending_->host() == navigation_handle->GetRenderFrameHost()) {
+        CommitPending();
+      }
+      if (session())
+        protocol::TargetHandler::FromSession(session())->UpdateServiceWorkers();
+    } else if (pending_ && pending_->host()->GetFrameTreeNodeId() ==
+                               navigation_handle->GetFrameTreeNodeId()) {
+      DiscardPending();
+    }
+    DCHECK(CheckConsistency());
     return;
+  }
 
   // If the navigation is not tracked, return;
   if (navigating_handles_.count(navigation_handle) == 0)
@@ -702,6 +729,22 @@ void RenderFrameDevToolsAgentHost::AboutToNavigate(
   navigating_handles_.insert(navigation_handle);
   current_->Suspend();
   DCHECK(CheckConsistency());
+}
+
+void RenderFrameDevToolsAgentHost::OnFailedNavigation(
+    const CommonNavigationParams& common_params,
+    const BeginNavigationParams& begin_params,
+    net::Error error_code) {
+  DCHECK(IsBrowserSideNavigationEnabled());
+  if (!session())
+    return;
+
+  protocol::NetworkHandler* handler =
+      protocol::NetworkHandler::FromSession(session());
+  if (!handler)
+    return;
+
+  handler->NavigationFailed(common_params, begin_params, error_code);
 }
 
 void RenderFrameDevToolsAgentHost::RenderFrameHostChanged(
@@ -818,15 +861,6 @@ void RenderFrameDevToolsAgentHost::RenderProcessGone(
 }
 
 bool RenderFrameDevToolsAgentHost::OnMessageReceived(
-    const IPC::Message& message) {
-  if (!current_)
-    return false;
-  if (message.type() == ViewHostMsg_SwapCompositorFrame::ID)
-    OnSwapCompositorFrame(message);
-  return false;
-}
-
-bool RenderFrameDevToolsAgentHost::OnMessageReceived(
     const IPC::Message& message,
     RenderFrameHost* render_frame_host) {
   bool is_current = current_ && current_->host() == render_frame_host;
@@ -872,35 +906,6 @@ void RenderFrameDevToolsAgentHost::DidDetachInterstitialPage() {
     page_handler->DidDetachInterstitialPage();
 }
 
-void RenderFrameDevToolsAgentHost::DidCommitProvisionalLoadForFrame(
-    RenderFrameHost* render_frame_host,
-    const GURL& url,
-    ui::PageTransition transition_type) {
-  // CommitPending may destruct |this|.
-  scoped_refptr<RenderFrameDevToolsAgentHost> protect(this);
-
-  if (IsBrowserSideNavigationEnabled())
-    return;
-  if (pending_ && pending_->host() == render_frame_host)
-    CommitPending();
-  DCHECK(CheckConsistency());
-  if (session())
-    protocol::TargetHandler::FromSession(session())->UpdateServiceWorkers();
-}
-
-void RenderFrameDevToolsAgentHost::DidFailProvisionalLoad(
-    RenderFrameHost* render_frame_host,
-    const GURL& validated_url,
-    int error_code,
-    const base::string16& error_description,
-    bool was_ignored_by_handler) {
-  if (IsBrowserSideNavigationEnabled())
-    return;
-  if (pending_ && pending_->host() == render_frame_host)
-    DiscardPending();
-  DCHECK(CheckConsistency());
-}
-
 void RenderFrameDevToolsAgentHost::WasShown() {
   CreatePowerSaveBlocker();
 }
@@ -909,6 +914,27 @@ void RenderFrameDevToolsAgentHost::WasHidden() {
 #if defined(OS_ANDROID)
   power_save_blocker_.reset();
 #endif
+}
+
+void RenderFrameDevToolsAgentHost::DidReceiveCompositorFrame() {
+  if (!session())
+    return;
+  const cc::CompositorFrameMetadata& metadata =
+      RenderWidgetHostImpl::From(
+          web_contents()->GetRenderViewHost()->GetWidget())
+          ->last_frame_metadata();
+  protocol::PageHandler* page_handler =
+      protocol::PageHandler::FromSession(session());
+  if (page_handler)
+    page_handler->OnSwapCompositorFrame(metadata.Clone());
+  protocol::InputHandler::FromSession(session())->OnSwapCompositorFrame(
+      metadata);
+  protocol::TracingHandler* tracing_handler =
+      protocol::TracingHandler::FromSession(session());
+  if (frame_trace_recorder_ && tracing_handler->did_initiate_recording()) {
+    frame_trace_recorder_->OnSwapCompositorFrame(
+        current_ ? current_->host() : nullptr, metadata);
+  }
 }
 
 void RenderFrameDevToolsAgentHost::
@@ -992,10 +1018,11 @@ std::string RenderFrameDevToolsAgentHost::GetParentId() {
 std::string RenderFrameDevToolsAgentHost::GetType() {
   DevToolsManager* manager = DevToolsManager::GetInstance();
   if (manager->delegate() && current_) {
-    std::string result = manager->delegate()->GetTargetType(current_->host());
-    if (!result.empty())
-      return result;
+    std::string type = manager->delegate()->GetTargetType(current_->host());
+    if (!type.empty())
+      return type;
   }
+
   if (IsChildFrame())
     return kTypeFrame;
   return kTypePage;
@@ -1004,10 +1031,13 @@ std::string RenderFrameDevToolsAgentHost::GetType() {
 std::string RenderFrameDevToolsAgentHost::GetTitle() {
   DevToolsManager* manager = DevToolsManager::GetInstance();
   if (manager->delegate() && current_) {
-    std::string result = manager->delegate()->GetTargetTitle(current_->host());
-    if (!result.empty())
-      return result;
+    std::string title = manager->delegate()->GetTargetTitle(current_->host());
+    if (!title.empty())
+      return title;
   }
+
+  if (current_ && current_->host()->GetParent())
+    return current_->host()->GetLastCommittedURL().spec();
   content::WebContents* web_contents = GetWebContents();
   if (web_contents)
     return base::UTF16ToUTF8(web_contents->GetTitle());
@@ -1070,29 +1100,6 @@ base::TimeTicks RenderFrameDevToolsAgentHost::GetLastActivityTime() {
   if (content::WebContents* contents = web_contents())
     return contents->GetLastActiveTime();
   return base::TimeTicks();
-}
-
-void RenderFrameDevToolsAgentHost::OnSwapCompositorFrame(
-    const IPC::Message& message) {
-  ViewHostMsg_SwapCompositorFrame::Param param;
-  if (!ViewHostMsg_SwapCompositorFrame::Read(&message, &param))
-    return;
-  if (!session())
-    return;
-  protocol::PageHandler* page_handler =
-      protocol::PageHandler::FromSession(session());
-  if (page_handler) {
-    page_handler->OnSwapCompositorFrame(
-        std::move(std::get<1>(param).metadata));
-  }
-  protocol::InputHandler::FromSession(session())
-      ->OnSwapCompositorFrame(std::get<1>(param).metadata);
-  protocol::TracingHandler* tracing_handler =
-      protocol::TracingHandler::FromSession(session());
-  if (frame_trace_recorder_ && tracing_handler->did_initiate_recording()) {
-    frame_trace_recorder_->OnSwapCompositorFrame(
-        current_ ? current_->host() : nullptr, std::get<1>(param).metadata);
-  }
 }
 
 void RenderFrameDevToolsAgentHost::SignalSynchronousSwapCompositorFrame(

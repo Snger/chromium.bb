@@ -7,10 +7,10 @@ package org.chromium.chrome.browser.banners;
 import android.app.Activity;
 import android.app.Instrumentation.ActivityMonitor;
 import android.app.Instrumentation.ActivityResult;
-import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
 import android.content.pm.PackageInfo;
+import android.content.pm.PackageManager;
 import android.graphics.Bitmap;
 import android.support.test.filters.MediumTest;
 import android.support.test.filters.SmallTest;
@@ -21,7 +21,7 @@ import android.widget.Button;
 import android.widget.TextView;
 
 import org.chromium.base.ThreadUtils;
-import org.chromium.base.test.util.DisabledTest;
+import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.test.util.Feature;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ShortcutHelper;
@@ -119,16 +119,15 @@ public class AppBannerManagerTest extends ChromeTabbedActivityTestBase {
         public boolean isInstalled = false;
 
         @Override
-        public List<PackageInfo> getInstalledPackages(int flags) {
-            List<PackageInfo> packages = new ArrayList<PackageInfo>();
-
+        public PackageInfo getPackageInfo(String packageName, int flags)
+                throws NameNotFoundException {
             if (isInstalled) {
                 PackageInfo info = new PackageInfo();
                 info.packageName = NATIVE_APP_PACKAGE;
-                packages.add(info);
+                return info;
+            } else {
+                throw new PackageManager.NameNotFoundException();
             }
-
-            return packages;
         }
     }
 
@@ -183,7 +182,7 @@ public class AppBannerManagerTest extends ChromeTabbedActivityTestBase {
         AppBannerInfoBarDelegateAndroid.setPackageManagerForTesting(mPackageManager);
         ShortcutHelper.setDelegateForTests(new ShortcutHelper.Delegate() {
             @Override
-            public void sendBroadcast(Context context, Intent intent) {
+            public void addShortcutToHomescreen(String title, Bitmap icon, Intent shortcutIntent) {
                 // Ignore to prevent adding homescreen shortcuts.
             }
         });
@@ -216,7 +215,7 @@ public class AppBannerManagerTest extends ChromeTabbedActivityTestBase {
             @Override
             public void run() {
                 SiteEngagementService.getForProfile(Profile.getLastUsedProfile())
-                        .resetScoreForUrl(url, engagement);
+                        .resetBaseScoreForUrl(url, engagement);
             }
         });
     }
@@ -411,9 +410,8 @@ public class AppBannerManagerTest extends ChromeTabbedActivityTestBase {
         waitUntilAppBannerInfoBarAppears(NATIVE_APP_TITLE);
     }
 
-    // @MediumTest
-    // @Feature({"AppBanners"})
-    @DisabledTest
+    @MediumTest
+    @Feature({"AppBanners"})
     public void testBannerAppearsThenDoesNotAppearAgainForCustomTime() throws Exception {
         AppBannerManager.setDaysAfterDismissAndIgnoreForTesting(7, 7);
         triggerWebAppBanner(mWebAppUrl, WEB_APP_TITLE, false);
@@ -539,6 +537,23 @@ public class AppBannerManagerTest extends ChromeTabbedActivityTestBase {
     @Feature({"AppBanners"})
     public void testWebAppBannerAppears() throws Exception {
         triggerWebAppBanner(mWebAppUrl, WEB_APP_TITLE, false);
+
+        // Verify metrics calling in the successful case.
+        ThreadUtils.runOnUiThread(new Runnable() {
+            @Override
+            public void run() {
+                AppBannerManager manager = getActivity().getActivityTab().getAppBannerManager();
+                manager.recordMenuItemAddToHomescreen();
+                assertEquals(1,
+                        RecordHistogram.getHistogramValueCountForTesting(
+                                "Webapp.InstallabilityCheckStatus.MenuItemAddToHomescreen", 5));
+
+                manager.recordMenuOpen();
+                assertEquals(1,
+                        RecordHistogram.getHistogramValueCountForTesting(
+                                "Webapp.InstallabilityCheckStatus.MenuOpen", 5));
+            }
+        });
     }
 
     @SmallTest

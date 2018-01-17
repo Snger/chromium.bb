@@ -18,7 +18,6 @@
 #include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/sys_byteorder.h"
-#include "base/test/simple_test_clock.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/mock_timer.h"
 #include "extensions/browser/api/cast_channel/cast_auth_util.h"
@@ -60,7 +59,7 @@ const char kAuthNamespace[] = "urn:x-cast:com.google.cast.tp.deviceauth";
 // Returns an auth challenge message inline.
 CastMessage CreateAuthChallenge() {
   CastMessage output;
-  CreateAuthChallengeMessage(&output);
+  CreateAuthChallengeMessage(&output, AuthContext::Create());
   return output;
 }
 
@@ -207,7 +206,8 @@ class TestCastSocket : public CastSocketImpl {
                        base::TimeDelta::FromMilliseconds(timeout_ms),
                        false,
                        logger,
-                       device_capabilities),
+                       device_capabilities,
+                       AuthContext::Create()),
         capturing_net_log_(capturing_net_log),
         ip_(ip_endpoint),
         extract_cert_result_(true),
@@ -348,11 +348,7 @@ class TestCastSocket : public CastSocketImpl {
 
 class CastSocketTest : public testing::Test {
  public:
-  CastSocketTest()
-      : logger_(
-            new Logger(base::WrapUnique<base::Clock>(new base::SimpleTestClock),
-                       base::Time())),
-        delegate_(new MockDelegate) {}
+  CastSocketTest() : logger_(new Logger()), delegate_(new MockDelegate) {}
   ~CastSocketTest() override {}
 
   void SetUp() override { EXPECT_CALL(*delegate_, OnMessage(_)).Times(0); }

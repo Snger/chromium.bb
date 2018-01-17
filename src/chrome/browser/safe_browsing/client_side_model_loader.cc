@@ -17,10 +17,10 @@
 #include "base/time/time.h"
 #include "chrome/browser/safe_browsing/protocol_manager.h"
 #include "chrome/common/safe_browsing/client_model.pb.h"
-#include "chrome/common/safe_browsing/csd.pb.h"
 #include "components/data_use_measurement/core/data_use_user_data.h"
 #include "components/safe_browsing/common/safebrowsing_messages.h"
 #include "components/safe_browsing/common/safebrowsing_switches.h"
+#include "components/safe_browsing/csd.pb.h"
 #include "components/variations/variations_associated_data.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_status_code.h"
@@ -188,6 +188,9 @@ void ModelLoader::EndFetch(ClientModelStatus status, base::TimeDelta max_age) {
     max_age += base::TimeDelta::FromMinutes(1);
     delay_ms = max_age.InMilliseconds();
   }
+
+  // Reset |fetcher_| as it will be re-created on next fetch.
+  fetcher_.reset();
 
   // Schedule the next model reload.
   ScheduleFetch(delay_ms);

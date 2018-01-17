@@ -8,6 +8,7 @@
 #include <string>
 
 #include "base/metrics/histogram_macros.h"
+#include "base/metrics/user_metrics.h"
 #include "chrome/browser/after_startup_task_utils.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/browser/search/search.h"
@@ -20,7 +21,6 @@
 #include "components/sync_sessions/sync_sessions_metrics.h"
 #include "content/public/browser/navigation_details.h"
 #include "content/public/browser/navigation_entry.h"
-#include "content/public/browser/user_metrics.h"
 #include "content/public/browser/web_contents.h"
 
 namespace {
@@ -44,20 +44,13 @@ void RecordSyncSessionMetrics(content::WebContents* contents) {
 
 DEFINE_WEB_CONTENTS_USER_DATA_KEY(NTPUserDataLogger);
 
-
-// Log a time event for a given |histogram| at a given |value|. This
-// routine exists because regular histogram macros are cached thus can't be used
-// if the name of the histogram will change at a given call site.
-void LogLoadTimeHistogram(const std::string& histogram, base::TimeDelta value) {
-  base::HistogramBase* counter = base::Histogram::FactoryTimeGet(
-      histogram,
-      base::TimeDelta::FromMilliseconds(1),
-      base::TimeDelta::FromSeconds(60), 100,
-      base::Histogram::kUmaTargetedHistogramFlag);
-  if (counter)
-    counter->AddTime(value);
-}
-
+// Helper macro to log a load time to UMA. There's no good reason why we don't
+// use one of the standard UMA_HISTORAM_*_TIMES macros, but all their ranges are
+// different, and it's not worth changing all the existing histograms.
+#define UMA_HISTOGRAM_LOAD_TIME(name, sample)                      \
+  UMA_HISTOGRAM_CUSTOM_TIMES(name, sample,                         \
+                             base::TimeDelta::FromMilliseconds(1), \
+                             base::TimeDelta::FromSeconds(60), 100)
 
 NTPUserDataLogger::~NTPUserDataLogger() {}
 
@@ -93,34 +86,43 @@ NTPUserDataLogger* NTPUserDataLogger::GetOrCreateFromWebContents(
 
 void NTPUserDataLogger::LogEvent(NTPLoggingEventType event,
                                  base::TimeDelta time) {
-  DCHECK_EQ(NTP_ALL_TILES_LOADED, event);
-  EmitNtpStatistics(time);
+  switch (event) {
+    case NTP_ALL_TILES_RECEIVED:
+      tiles_received_time_ = time;
+      break;
+    case NTP_ALL_TILES_LOADED:
+      EmitNtpStatistics(time);
+      break;
+  }
 }
 
 void NTPUserDataLogger::LogMostVisitedImpression(
     int position,
-    ntp_tiles::NTPTileSource tile_source) {
+    ntp_tiles::TileSource tile_source,
+    ntp_tiles::TileVisualType tile_type) {
   if ((position >= kNumMostVisited) || impression_was_logged_[position]) {
     return;
   }
   impression_was_logged_[position] = true;
   impression_tile_source_[position] = tile_source;
+  impression_tile_type_[position] = tile_type;
 }
 
 void NTPUserDataLogger::LogMostVisitedNavigation(
     int position,
-    ntp_tiles::NTPTileSource tile_source) {
-  ntp_tiles::metrics::RecordTileClick(position, tile_source,
-                                      ntp_tiles::metrics::THUMBNAIL);
+    ntp_tiles::TileSource tile_source,
+    ntp_tiles::TileVisualType tile_type) {
+  ntp_tiles::metrics::RecordTileClick(position, tile_source, tile_type);
 
   // Records the action. This will be available as a time-stamped stream
   // server-side and can be used to compute time-to-long-dwell.
-  content::RecordAction(base::UserMetricsAction("MostVisited_Clicked"));
+  base::RecordAction(base::UserMetricsAction("MostVisited_Clicked"));
 }
 
 NTPUserDataLogger::NTPUserDataLogger(content::WebContents* contents)
     : content::WebContentsObserver(contents),
       impression_tile_source_(kNumMostVisited),
+      impression_tile_type_(kNumMostVisited),
       has_emitted_(false),
       during_startup_(!AfterStartupTaskUtils::IsBrowserStartupComplete()) {
   // We record metrics about session data here because when this class typically
@@ -143,14 +145,16 @@ void NTPUserDataLogger::NavigatedFromURLToURL(const GURL& from,
   if (from.is_valid() && to.is_valid() && (to == ntp_url_)) {
     DVLOG(1) << "Returning to New Tab Page";
     impression_was_logged_.reset();
+    tiles_received_time_ = base::TimeDelta();
     has_emitted_ = false;
   }
 }
 
 void NTPUserDataLogger::EmitNtpStatistics(base::TimeDelta load_time) {
   // We only send statistics once per page.
-  if (has_emitted_)
+  if (has_emitted_) {
     return;
+  }
 
   DVLOG(1) << "Emitting NTP load time: " << load_time << ", "
            << "number of tiles: " << impression_was_logged_.count();
@@ -162,31 +166,53 @@ void NTPUserDataLogger::EmitNtpStatistics(base::TimeDelta load_time) {
       break;
     }
     if (impression_tile_source_[i] ==
-        ntp_tiles::NTPTileSource::SUGGESTIONS_SERVICE) {
+        ntp_tiles::TileSource::SUGGESTIONS_SERVICE) {
       has_server_side_suggestions = true;
     }
     // No URL passed since we're not interested in favicon-related Rappor
     // metrics.
-    tiles.emplace_back(impression_tile_source_[i],
-                       ntp_tiles::metrics::THUMBNAIL, GURL());
+    tiles.emplace_back(impression_tile_source_[i], impression_tile_type_[i],
+                       GURL());
   }
 
   // Not interested in Rappor metrics.
   ntp_tiles::metrics::RecordPageImpression(tiles, /*rappor_service=*/nullptr);
 
-  LogLoadTimeHistogram("NewTabPage.LoadTime", load_time);
+  UMA_HISTOGRAM_LOAD_TIME("NewTabPage.TilesReceivedTime", tiles_received_time_);
+  UMA_HISTOGRAM_LOAD_TIME("NewTabPage.LoadTime", load_time);
 
-  // Split between ML and MV.
-  std::string type = has_server_side_suggestions ? "MostLikely" : "MostVisited";
-  LogLoadTimeHistogram("NewTabPage.LoadTime." + type, load_time);
+  // Split between ML (aka SuggestionsService) and MV (aka TopSites).
+  if (has_server_side_suggestions) {
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.TilesReceivedTime.MostLikely",
+                            tiles_received_time_);
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.LoadTime.MostLikely", load_time);
+  } else {
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.TilesReceivedTime.MostVisited",
+                            tiles_received_time_);
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.LoadTime.MostVisited", load_time);
+  }
 
   // Split between Web and Local.
-  std::string variant = ntp_url_.SchemeIsHTTPOrHTTPS() ? "Web" : "LocalNTP";
-  LogLoadTimeHistogram("NewTabPage.LoadTime." + variant, load_time);
+  if (ntp_url_.SchemeIsHTTPOrHTTPS()) {
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.TilesReceivedTime.Web",
+                            tiles_received_time_);
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.LoadTime.Web", load_time);
+  } else {
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.TilesReceivedTime.LocalNTP",
+                            tiles_received_time_);
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.LoadTime.LocalNTP", load_time);
+  }
 
   // Split between Startup and non-startup.
-  std::string status = during_startup_ ? "Startup" : "NewTab";
-  LogLoadTimeHistogram("NewTabPage.LoadTime." + status, load_time);
+  if (during_startup_) {
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.TilesReceivedTime.Startup",
+                            tiles_received_time_);
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.LoadTime.Startup", load_time);
+  } else {
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.TilesReceivedTime.NewTab",
+                            tiles_received_time_);
+    UMA_HISTOGRAM_LOAD_TIME("NewTabPage.LoadTime.NewTab", load_time);
+  }
 
   has_emitted_ = true;
   during_startup_ = false;

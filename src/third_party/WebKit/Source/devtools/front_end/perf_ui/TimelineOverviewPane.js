@@ -53,10 +53,9 @@ PerfUI.TimelineOverviewPane = class extends UI.VBox {
     this._overviewControls = [];
     this._markers = new Map();
 
-    this._popoverHelper = new UI.PopoverHelper(this._cursorArea);
-    this._popoverHelper.initializeCallbacks(
-        this._getPopoverAnchor.bind(this), this._showPopover.bind(this), this._onHidePopover.bind(this));
-    this._popoverHelper.setTimeout(0);
+    this._popoverHelper = new UI.PopoverHelper(this._cursorArea, this._getPopoverRequest.bind(this));
+    this._popoverHelper.setHasPadding(true);
+    this._popoverHelper.setTimeout(0, 0, true);
 
     this._updateThrottler = new Common.Throttler(100);
 
@@ -66,38 +65,27 @@ PerfUI.TimelineOverviewPane = class extends UI.VBox {
   }
 
   /**
-   * @param {!Element} element
    * @param {!Event} event
-   * @return {!Element|!AnchorBox|undefined}
+   * @return {?UI.PopoverRequest}
    */
-  _getPopoverAnchor(element, event) {
-    return this._cursorArea;
-  }
-
-  /**
-   * @param {!Element} anchor
-   * @param {!UI.Popover} popover
-   */
-  _showPopover(anchor, popover) {
-    this._buildPopoverContents().then(maybeShowPopover.bind(this));
-    /**
-     * @this {PerfUI.TimelineOverviewPane}
-     * @param {!DocumentFragment} fragment
-     */
-    function maybeShowPopover(fragment) {
-      if (!fragment.firstChild)
-        return;
-      var content = new PerfUI.TimelineOverviewPane.PopoverContents();
-      this._popoverContents = content.contentElement.createChild('div');
-      this._popoverContents.appendChild(fragment);
-      this._popover = popover;
-      popover.showView(content, this._cursorElement);
-    }
-  }
-
-  _onHidePopover() {
-    this._popover = null;
-    this._popoverContents = null;
+  _getPopoverRequest(event) {
+    return {
+      box: this._cursorElement.boxInWindow(),
+      show: popover => this._buildPopoverContents().then(fragment => {
+        if (!fragment.firstChild)
+          return false;
+        var content = new PerfUI.TimelineOverviewPane.PopoverContents();
+        this._popoverContents = content.contentElement.createChild('div');
+        this._popoverContents.appendChild(fragment);
+        this._popover = popover;
+        content.show(popover.contentElement);
+        return true;
+      }),
+      hide: () => {
+        this._popover = null;
+        this._popoverContents = null;
+      }
+    };
   }
 
   /**
@@ -112,7 +100,7 @@ PerfUI.TimelineOverviewPane = class extends UI.VBox {
     if (!this._popover)
       return;
     this._buildPopoverContents().then(updatePopover.bind(this));
-    this._popover.positionElement(this._cursorElement);
+    this._popover.setContentAnchorBox(this._cursorElement.boxInWindow());
 
     /**
      * @param {!DocumentFragment} fragment
@@ -216,7 +204,7 @@ PerfUI.TimelineOverviewPane = class extends UI.VBox {
   _update() {
     if (!this.isShowing())
       return;
-    this._overviewCalculator.setDisplayWindow(this._overviewGrid.clientWidth());
+    this._overviewCalculator.setDisplayWidth(this._overviewGrid.clientWidth());
     for (var i = 0; i < this._overviewControls.length; ++i)
       this._overviewControls[i].update();
     this._overviewGrid.updateDividers(this._overviewCalculator);
@@ -260,7 +248,7 @@ PerfUI.TimelineOverviewPane = class extends UI.VBox {
     for (var i = 0; i < this._overviewControls.length; ++i)
       this._overviewControls[i].reset();
     this._popoverHelper.hidePopover();
-    this._update();
+    this.scheduleUpdate();
   }
 
   /**
@@ -284,8 +272,13 @@ PerfUI.TimelineOverviewPane = class extends UI.VBox {
     // Always use first control as a time converter.
     if (!this._overviewControls.length)
       return;
-    var windowTimes =
-        this._overviewControls[0].windowTimes(this._overviewGrid.windowLeft(), this._overviewGrid.windowRight());
+
+    var absoluteMin = this._overviewCalculator.minimumBoundary();
+    var timeSpan = this._overviewCalculator.maximumBoundary() - absoluteMin;
+    var windowTimes = {
+      startTime: absoluteMin + timeSpan * this._overviewGrid.windowLeft(),
+      endTime: absoluteMin + timeSpan * this._overviewGrid.windowRight()
+    };
     this._windowStartTime = windowTimes.startTime;
     this._windowEndTime = windowTimes.endTime;
     this.dispatchEventToListeners(PerfUI.TimelineOverviewPane.Events.WindowChanged, windowTimes);
@@ -308,9 +301,14 @@ PerfUI.TimelineOverviewPane = class extends UI.VBox {
   _updateWindow() {
     if (!this._overviewControls.length)
       return;
-    var windowBoundaries = this._overviewControls[0].windowBoundaries(this._windowStartTime, this._windowEndTime);
+
+    var absoluteMin = this._overviewCalculator.minimumBoundary();
+    var timeSpan = this._overviewCalculator.maximumBoundary() - absoluteMin;
+    var haveRecords = absoluteMin > 0;
+    var left = haveRecords && this._windowStartTime ? Math.min((this._windowStartTime - absoluteMin) / timeSpan, 1) : 0;
+    var right = haveRecords && this._windowEndTime < Infinity ? (this._windowEndTime - absoluteMin) / timeSpan : 1;
     this._muteOnWindowChanged = true;
-    this._overviewGrid.setWindow(windowBoundaries.left, windowBoundaries.right);
+    this._overviewGrid.setWindow(left, right);
     this._muteOnWindowChanged = false;
   }
 };
@@ -341,19 +339,11 @@ PerfUI.TimelineOverviewCalculator = class {
 
   /**
    * @override
-   * @return {number}
-   */
-  paddingLeft() {
-    return this._paddingLeft;
-  }
-
-  /**
-   * @override
    * @param {number} time
    * @return {number}
    */
   computePosition(time) {
-    return (time - this._minimumBoundary) / this.boundarySpan() * this._workingArea + this._paddingLeft;
+    return (time - this._minimumBoundary) / this.boundarySpan() * this._workingArea;
   }
 
   /**
@@ -361,7 +351,7 @@ PerfUI.TimelineOverviewCalculator = class {
    * @return {number}
    */
   positionToTime(position) {
-    return (position - this._paddingLeft) / this._workingArea * this.boundarySpan() + this._minimumBoundary;
+    return position / this._workingArea * this.boundarySpan() + this._minimumBoundary;
   }
 
   /**
@@ -375,11 +365,9 @@ PerfUI.TimelineOverviewCalculator = class {
 
   /**
    * @param {number} clientWidth
-   * @param {number=} paddingLeft
    */
-  setDisplayWindow(clientWidth, paddingLeft) {
-    this._paddingLeft = paddingLeft || 0;
-    this._workingArea = clientWidth - this._paddingLeft;
+  setDisplayWidth(clientWidth) {
+    this._workingArea = clientWidth;
   }
 
   reset() {
@@ -458,24 +446,6 @@ PerfUI.TimelineOverview.prototype = {
    * @return {boolean}
    */
   onClick(event) {},
-
-  /**
-   * @param {number} windowLeft
-   * @param {number} windowRight
-   * @return {!{startTime: number, endTime: number}}
-   */
-  windowTimes(windowLeft, windowRight) {},
-
-  /**
-   * @param {number} startTime
-   * @param {number} endTime
-   * @return {!{left: number, right: number}}
-   */
-  windowBoundaries(startTime, endTime) {},
-
-  timelineStarted() {},
-
-  timelineStopped() {},
 };
 
 /**
@@ -544,18 +514,6 @@ PerfUI.TimelineOverviewBase = class extends UI.VBox {
   }
 
   /**
-   * @override
-   */
-  timelineStarted() {
-  }
-
-  /**
-   * @override
-   */
-  timelineStopped() {
-  }
-
-  /**
    * @param {!PerfUI.TimelineOverviewCalculator} calculator
    */
   setCalculator(calculator) {
@@ -569,34 +527,6 @@ PerfUI.TimelineOverviewBase = class extends UI.VBox {
    */
   onClick(event) {
     return false;
-  }
-
-  /**
-   * @override
-   * @param {number} windowLeft
-   * @param {number} windowRight
-   * @return {!{startTime: number, endTime: number}}
-   */
-  windowTimes(windowLeft, windowRight) {
-    var absoluteMin = this._calculator.minimumBoundary();
-    var timeSpan = this._calculator.maximumBoundary() - absoluteMin;
-    return {startTime: absoluteMin + timeSpan * windowLeft, endTime: absoluteMin + timeSpan * windowRight};
-  }
-
-  /**
-   * @override
-   * @param {number} startTime
-   * @param {number} endTime
-   * @return {!{left: number, right: number}}
-   */
-  windowBoundaries(startTime, endTime) {
-    var absoluteMin = this._calculator.minimumBoundary();
-    var timeSpan = this._calculator.maximumBoundary() - absoluteMin;
-    var haveRecords = absoluteMin > 0;
-    return {
-      left: haveRecords && startTime ? Math.min((startTime - absoluteMin) / timeSpan, 1) : 0,
-      right: haveRecords && endTime < Infinity ? (endTime - absoluteMin) / timeSpan : 1
-    };
   }
 
   resetCanvas() {

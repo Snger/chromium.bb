@@ -21,6 +21,7 @@
 #include "gpu/command_buffer/service/framebuffer_completeness_cache.h"
 #include "gpu/command_buffer/service/gpu_preferences.h"
 #include "gpu/command_buffer/service/shader_translator_cache.h"
+#include "gpu/config/gpu_feature_info.h"
 #include "gpu/gpu_export.h"
 
 namespace gpu {
@@ -47,6 +48,10 @@ class MemoryTracker;
 struct DisallowedFeatures;
 struct PassthroughResources;
 
+DisallowedFeatures AdjustDisallowedFeatures(
+    ContextType context_type,
+    const DisallowedFeatures& disallowed_features);
+
 // A Context Group helps manage multiple GLES2Decoders that share
 // resources.
 class GPU_EXPORT ContextGroup : public base::RefCounted<ContextGroup> {
@@ -61,7 +66,8 @@ class GPU_EXPORT ContextGroup : public base::RefCounted<ContextGroup> {
       const scoped_refptr<FeatureInfo>& feature_info,
       bool bind_generates_resource,
       gpu::ImageFactory* image_factory,
-      ProgressReporter* progress_reporter);
+      ProgressReporter* progress_reporter,
+      const GpuFeatureInfo& gpu_feature_info);
 
   // This should only be called by GLES2Decoder. This must be paired with a
   // call to destroy if it succeeds.
@@ -227,6 +233,8 @@ class GPU_EXPORT ContextGroup : public base::RefCounted<ContextGroup> {
     return passthrough_resources_.get();
   }
 
+  const GpuFeatureInfo& gpu_feature_info() const { return gpu_feature_info_; }
+
  private:
   friend class base::RefCounted<ContextGroup>;
   ~ContextGroup();
@@ -301,6 +309,8 @@ class GPU_EXPORT ContextGroup : public base::RefCounted<ContextGroup> {
   // preventing time-outs when destruction takes a long time. May be null when
   // using in-process command buffer.
   ProgressReporter* progress_reporter_;
+
+  GpuFeatureInfo gpu_feature_info_;
 
   DISALLOW_COPY_AND_ASSIGN(ContextGroup);
 };

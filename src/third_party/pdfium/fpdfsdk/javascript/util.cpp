@@ -18,7 +18,7 @@
 #include "fpdfsdk/javascript/JS_Object.h"
 #include "fpdfsdk/javascript/JS_Value.h"
 #include "fpdfsdk/javascript/PublicMethods.h"
-#include "fpdfsdk/javascript/cjs_context.h"
+#include "fpdfsdk/javascript/cjs_event_context.h"
 #include "fpdfsdk/javascript/cjs_runtime.h"
 #include "fpdfsdk/javascript/resource.h"
 
@@ -26,19 +26,14 @@
 #include <ctype.h>
 #endif
 
-BEGIN_JS_STATIC_CONST(CJS_Util)
-END_JS_STATIC_CONST()
+JSConstSpec CJS_Util::ConstSpecs[] = {{0, JSConstSpec::Number, 0, 0}};
 
-BEGIN_JS_STATIC_PROP(CJS_Util)
-END_JS_STATIC_PROP()
+JSPropertySpec CJS_Util::PropertySpecs[] = {{0, 0, 0}};
 
-BEGIN_JS_STATIC_METHOD(CJS_Util)
-JS_STATIC_METHOD_ENTRY(printd)
-JS_STATIC_METHOD_ENTRY(printf)
-JS_STATIC_METHOD_ENTRY(printx)
-JS_STATIC_METHOD_ENTRY(scand)
-JS_STATIC_METHOD_ENTRY(byteToChar)
-END_JS_STATIC_METHOD()
+JSMethodSpec CJS_Util::MethodSpecs[] = {
+    {"printd", printd_static},         {"printf", printf_static},
+    {"printx", printx_static},         {"scand", scand_static},
+    {"byteToChar", byteToChar_static}, {0, 0}};
 
 IMPLEMENT_JS_CLASS(CJS_Util, util)
 
@@ -51,14 +46,14 @@ namespace {
 // Map PDF-style directives to equivalent wcsftime directives. Not
 // all have direct equivalents, though.
 struct TbConvert {
-  const FX_WCHAR* lpszJSMark;
-  const FX_WCHAR* lpszCppMark;
+  const wchar_t* lpszJSMark;
+  const wchar_t* lpszCppMark;
 };
 
 // Map PDF-style directives lacking direct wcsftime directives to
 // the value with which they will be replaced.
 struct TbConvertAdditional {
-  const FX_WCHAR* lpszJSMark;
+  const wchar_t* lpszJSMark;
   int iValue;
 };
 
@@ -114,14 +109,14 @@ util::util(CJS_Object* pJSObject) : CJS_EmbedObj(pJSObject) {}
 
 util::~util() {}
 
-bool util::printf(IJS_Context* cc,
+bool util::printf(CJS_Runtime* pRuntime,
                   const std::vector<CJS_Value>& params,
                   CJS_Value& vRet,
                   CFX_WideString& sError) {
-  CJS_Runtime* pRuntime = CJS_Runtime::FromContext(cc);
-  int iSize = params.size();
+  const size_t iSize = params.size();
   if (iSize < 1)
     return false;
+
   std::wstring c_ConvChar(params[0].ToCFXWideString(pRuntime).c_str());
   std::vector<std::wstring> c_strConvers;
   int iOffset = 0;
@@ -140,19 +135,19 @@ bool util::printf(IJS_Context* cc,
 
   std::wstring c_strResult;
   std::wstring c_strFormat;
-  for (int iIndex = 0; iIndex < (int)c_strConvers.size(); iIndex++) {
+  for (size_t iIndex = 0; iIndex < c_strConvers.size(); ++iIndex) {
     c_strFormat = c_strConvers[iIndex];
     if (iIndex == 0) {
       c_strResult = c_strFormat;
       continue;
     }
 
-    CFX_WideString strSegment;
     if (iIndex >= iSize) {
       c_strResult += c_strFormat;
       continue;
     }
 
+    CFX_WideString strSegment;
     switch (ParseDataType(&c_strFormat)) {
       case UTIL_INT:
         strSegment.Format(c_strFormat.c_str(), params[iIndex].ToInt(pRuntime));
@@ -177,17 +172,16 @@ bool util::printf(IJS_Context* cc,
   return true;
 }
 
-bool util::printd(IJS_Context* cc,
+bool util::printd(CJS_Runtime* pRuntime,
                   const std::vector<CJS_Value>& params,
                   CJS_Value& vRet,
                   CFX_WideString& sError) {
-  int iSize = params.size();
+  const size_t iSize = params.size();
   if (iSize < 2)
     return false;
 
-  CJS_Runtime* pRuntime = CJS_Runtime::FromContext(cc);
-  CJS_Value p1 = params[0];
-  CJS_Value p2 = params[1];
+  const CJS_Value& p1 = params[0];
+  const CJS_Value& p2 = params[1];
   CJS_Date jsDate;
   if (!p2.ConvertToDate(pRuntime, jsDate)) {
     sError = JSGetStringFromID(IDS_STRING_JSPRINT1);
@@ -307,7 +301,7 @@ bool util::printd(IJS_Context* cc,
   return false;
 }
 
-bool util::printx(IJS_Context* cc,
+bool util::printx(CJS_Runtime* pRuntime,
                   const std::vector<CJS_Value>& params,
                   CJS_Value& vRet,
                   CFX_WideString& sError) {
@@ -316,7 +310,6 @@ bool util::printx(IJS_Context* cc,
     return false;
   }
 
-  CJS_Runtime* pRuntime = CJS_Runtime::FromContext(cc);
   vRet = CJS_Value(pRuntime, printx(params[0].ToCFXWideString(pRuntime),
                                     params[1].ToCFXWideString(pRuntime))
                                  .c_str());
@@ -326,7 +319,7 @@ bool util::printx(IJS_Context* cc,
 
 enum CaseMode { kPreserveCase, kUpperCase, kLowerCase };
 
-static FX_WCHAR TranslateCase(FX_WCHAR input, CaseMode eMode) {
+static wchar_t TranslateCase(wchar_t input, CaseMode eMode) {
   if (eMode == kLowerCase && input >= 'A' && input <= 'Z')
     return input | 0x20;
   if (eMode == kUpperCase && input >= 'a' && input <= 'z')
@@ -425,13 +418,11 @@ CFX_WideString util::printx(const CFX_WideString& wsFormat,
   return wsResult;
 }
 
-bool util::scand(IJS_Context* cc,
+bool util::scand(CJS_Runtime* pRuntime,
                  const std::vector<CJS_Value>& params,
                  CJS_Value& vRet,
                  CFX_WideString& sError) {
-  CJS_Runtime* pRuntime = CJS_Runtime::FromContext(cc);
-  int iSize = params.size();
-  if (iSize < 2)
+  if (params.size() < 2)
     return false;
 
   CFX_WideString sFormat = params[0].ToCFXWideString(pRuntime);
@@ -450,7 +441,7 @@ bool util::scand(IJS_Context* cc,
   return true;
 }
 
-bool util::byteToChar(IJS_Context* cc,
+bool util::byteToChar(CJS_Runtime* pRuntime,
                       const std::vector<CJS_Value>& params,
                       CJS_Value& vRet,
                       CFX_WideString& sError) {
@@ -459,14 +450,13 @@ bool util::byteToChar(IJS_Context* cc,
     return false;
   }
 
-  CJS_Runtime* pRuntime = CJS_Runtime::FromContext(cc);
   int arg = params[0].ToInt(pRuntime);
   if (arg < 0 || arg > 255) {
     sError = JSGetStringFromID(IDS_STRING_JSVALUEERROR);
     return false;
   }
 
-  CFX_WideString wStr(static_cast<FX_WCHAR>(arg));
+  CFX_WideString wStr(static_cast<wchar_t>(arg));
   vRet = CJS_Value(pRuntime, wStr.c_str());
   return true;
 }

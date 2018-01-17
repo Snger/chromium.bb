@@ -17,7 +17,6 @@
 #include "mojo/public/cpp/bindings/binding.h"
 #include "services/catalog/public/interfaces/catalog.mojom.h"
 #include "services/catalog/public/interfaces/constants.mojom.h"
-#include "services/service_manager/public/cpp/connection.h"
 #include "services/service_manager/public/cpp/connector.h"
 #include "services/service_manager/public/cpp/interface_registry.h"
 #include "services/service_manager/public/cpp/service_context.h"
@@ -280,7 +279,9 @@ class TaskViewerContents
 
 }  // namespace
 
-TaskViewer::TaskViewer() {}
+TaskViewer::TaskViewer() {
+  registry_.AddInterface<::mash::mojom::Launchable>(this);
+}
 TaskViewer::~TaskViewer() {}
 
 void TaskViewer::RemoveWindow(views::Widget* widget) {
@@ -299,10 +300,12 @@ void TaskViewer::OnStart() {
       std::string(), nullptr, views::AuraInit::Mode::AURA_MUS);
 }
 
-bool TaskViewer::OnConnect(const service_manager::ServiceInfo& remote_info,
-                           service_manager::InterfaceRegistry* registry) {
-  registry->AddInterface<::mash::mojom::Launchable>(this);
-  return true;
+void TaskViewer::OnBindInterface(
+    const service_manager::ServiceInfo& source_info,
+    const std::string& interface_name,
+    mojo::ScopedMessagePipeHandle interface_pipe) {
+  registry_.BindInterface(source_info.identity, interface_name,
+                          std::move(interface_pipe));
 }
 
 void TaskViewer::Launch(uint32_t what, mojom::LaunchMode how) {

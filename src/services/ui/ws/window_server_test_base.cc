@@ -12,10 +12,7 @@
 #include "base/test/test_timeouts.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "services/service_manager/public/cpp/connector.h"
-#include "services/service_manager/public/cpp/interface_registry.h"
-#include "services/ui/public/cpp/gpu/gpu.h"
 #include "ui/aura/env.h"
-#include "ui/aura/mus/mus_context_factory.h"
 #include "ui/aura/mus/window_tree_client.h"
 #include "ui/aura/mus/window_tree_host_mus.h"
 #include "ui/display/display.h"
@@ -35,7 +32,9 @@ void TimeoutRunLoop(const base::Closure& timeout_task, bool* timeout) {
 
 }  // namespace
 
-WindowServerTestBase::WindowServerTestBase() {}
+WindowServerTestBase::WindowServerTestBase() {
+  registry_.AddInterface<mojom::WindowTreeClient>(this);
+}
 
 WindowServerTestBase::~WindowServerTestBase() {}
 
@@ -93,10 +92,6 @@ void WindowServerTestBase::SetUp() {
   WindowServerServiceTestBase::SetUp();
 
   env_ = aura::Env::CreateInstance(aura::Env::Mode::MUS);
-  gpu_ = ui::Gpu::Create(connector(), nullptr);
-  compositor_context_factory_ =
-      base::MakeUnique<aura::MusContextFactory>(gpu_.get());
-  env_->set_context_factory(compositor_context_factory_.get());
   display::Screen::SetScreenInstance(&screen_);
   std::unique_ptr<aura::WindowTreeClient> window_manager_window_tree_client =
       base::MakeUnique<aura::WindowTreeClient>(connector(), this, this);
@@ -115,17 +110,17 @@ void WindowServerTestBase::TearDown() {
   window_tree_hosts_.clear();
   window_tree_clients_.clear();
   env_.reset();
-  gpu_.reset();
   display::Screen::SetScreenInstance(nullptr);
 
   WindowServerServiceTestBase::TearDown();
 }
 
-bool WindowServerTestBase::OnConnect(
-    const service_manager::Identity& remote_identity,
-    service_manager::InterfaceRegistry* registry) {
-  registry->AddInterface<mojom::WindowTreeClient>(this);
-  return true;
+void WindowServerTestBase::OnBindInterface(
+    const service_manager::ServiceInfo& source_info,
+    const std::string& interface_name,
+    mojo::ScopedMessagePipeHandle interface_pipe) {
+  registry_.BindInterface(source_info.identity, interface_name,
+                          std::move(interface_pipe));
 }
 
 void WindowServerTestBase::OnEmbed(
@@ -150,10 +145,6 @@ void WindowServerTestBase::OnEmbedRootDestroyed(
 void WindowServerTestBase::OnPointerEventObserved(const ui::PointerEvent& event,
                                                   aura::Window* target) {}
 
-aura::client::CaptureClient* WindowServerTestBase::GetCaptureClient() {
-  return wm_state_.capture_controller();
-}
-
 aura::PropertyConverter* WindowServerTestBase::GetPropertyConverter() {
   return &property_converter_;
 }
@@ -163,11 +154,11 @@ void WindowServerTestBase::SetWindowManagerClient(
   window_manager_client_ = client;
 }
 
-bool WindowServerTestBase::OnWmSetBounds(aura::Window* window,
-                                         gfx::Rect* bounds) {
-  return window_manager_delegate_
-             ? window_manager_delegate_->OnWmSetBounds(window, bounds)
-             : true;
+void WindowServerTestBase::OnWmSetBounds(aura::Window* window,
+                                         const gfx::Rect& bounds) {
+  if (!window_manager_delegate_)
+    return;
+  window_manager_delegate_->OnWmSetBounds(window, bounds);
 }
 
 bool WindowServerTestBase::OnWmSetProperty(
@@ -177,6 +168,18 @@ bool WindowServerTestBase::OnWmSetProperty(
   return window_manager_delegate_
              ? window_manager_delegate_->OnWmSetProperty(window, name, new_data)
              : true;
+}
+
+void WindowServerTestBase::OnWmSetModalType(aura::Window* window,
+                                            ui::ModalType type) {
+  if (window_manager_delegate_)
+    window_manager_delegate_->OnWmSetModalType(window, type);
+}
+
+void WindowServerTestBase::OnWmSetCanFocus(aura::Window* window,
+                                           bool can_focus) {
+  if (window_manager_delegate_)
+    window_manager_delegate_->OnWmSetCanFocus(window, can_focus);
 }
 
 aura::Window* WindowServerTestBase::OnWmCreateTopLevelWindow(
@@ -230,10 +233,11 @@ void WindowServerTestBase::OnWmDisplayModified(
 
 ui::mojom::EventResult WindowServerTestBase::OnAccelerator(
     uint32_t accelerator_id,
-    const ui::Event& event) {
-  return window_manager_delegate_
-             ? window_manager_delegate_->OnAccelerator(accelerator_id, event)
-             : ui::mojom::EventResult::UNHANDLED;
+    const ui::Event& event,
+    std::unordered_map<std::string, std::vector<uint8_t>>* properties) {
+  return window_manager_delegate_ ? window_manager_delegate_->OnAccelerator(
+                                        accelerator_id, event, properties)
+                                  : ui::mojom::EventResult::UNHANDLED;
 }
 
 void WindowServerTestBase::OnWmPerformMoveLoop(
@@ -276,8 +280,10 @@ void WindowServerTestBase::OnWmDeactivateWindow(aura::Window* window) {
 void WindowServerTestBase::Create(
     const service_manager::Identity& remote_identity,
     mojom::WindowTreeClientRequest request) {
+  const bool create_discardable_memory = false;
   window_tree_clients_.push_back(base::MakeUnique<aura::WindowTreeClient>(
-      connector(), this, nullptr, std::move(request)));
+      connector(), this, nullptr, std::move(request), nullptr,
+      create_discardable_memory));
 }
 
 bool WindowServerTestBase::DeleteWindowTreeHost(

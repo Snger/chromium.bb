@@ -10,6 +10,7 @@
 #include "base/mac/mac_util.h"
 #include "base/mac/scoped_nsobject.h"
 #include "base/macros.h"
+#include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
 #include "base/strings/string16.h"
 #include "base/strings/string_util.h"
@@ -663,74 +664,6 @@ TEST_F(BookmarkBarControllerTest, TestDragShouldLockBarVisibility) {
   [bar_ updateState:BookmarkBar::DETACHED
          changeType:BookmarkBar::DONT_ANIMATE_STATE_CHANGE];
   EXPECT_FALSE([bar_ dragShouldLockBarVisibility]);
-}
-
-TEST_F(BookmarkBarControllerTest, TagMap) {
-  int64_t ids[] = {1, 3, 4, 40, 400, 4000, 800000000, 2, 123456789};
-  std::vector<int32_t> tags;
-
-  // Generate some tags
-  for (unsigned int i = 0; i < arraysize(ids); i++) {
-    tags.push_back([bar_ menuTagFromNodeId:ids[i]]);
-  }
-
-  // Confirm reverse mapping.
-  for (unsigned int i = 0; i < arraysize(ids); i++) {
-    EXPECT_EQ(ids[i], [bar_ nodeIdFromMenuTag:tags[i]]);
-  }
-
-  // Confirm uniqueness.
-  std::sort(tags.begin(), tags.end());
-  for (unsigned int i=0; i<(tags.size()-1); i++) {
-    EXPECT_NE(tags[i], tags[i+1]);
-  }
-}
-
-TEST_F(BookmarkBarControllerTest, MenuForFolderNode) {
-  BookmarkModel* model = BookmarkModelFactory::GetForBrowserContext(profile());
-
-  // First make sure something (e.g. "(empty)" string) is always present.
-  NSMenu* menu = [bar_ menuForFolderNode:model->bookmark_bar_node()];
-  EXPECT_GT([menu numberOfItems], 0);
-
-  // Test two bookmarks.
-  GURL gurl("http://www.foo.com");
-  bookmarks::AddIfNotBookmarked(model, gurl, ASCIIToUTF16("small"));
-  bookmarks::AddIfNotBookmarked(
-      model, GURL("http://www.cnn.com"), ASCIIToUTF16("bigger title"));
-  menu = [bar_ menuForFolderNode:model->bookmark_bar_node()];
-  EXPECT_EQ([menu numberOfItems], 2);
-  NSMenuItem *item = [menu itemWithTitle:@"bigger title"];
-  EXPECT_TRUE(item);
-  item = [menu itemWithTitle:@"small"];
-  EXPECT_TRUE(item);
-  if (item) {
-    int64_t tag = [bar_ nodeIdFromMenuTag:[item tag]];
-    const BookmarkNode* node = bookmarks::GetBookmarkNodeByID(model, tag);
-    EXPECT_TRUE(node);
-    EXPECT_EQ(gurl, node->url());
-  }
-
-  // Test with an actual folder as well
-  const BookmarkNode* parent = model->bookmark_bar_node();
-  const BookmarkNode* folder = model->AddFolder(parent,
-                                                parent->child_count(),
-                                                ASCIIToUTF16("folder"));
-  model->AddURL(folder, folder->child_count(),
-                ASCIIToUTF16("f1"), GURL("http://framma-lamma.com"));
-  model->AddURL(folder, folder->child_count(),
-                ASCIIToUTF16("f2"), GURL("http://framma-lamma-ding-dong.com"));
-  menu = [bar_ menuForFolderNode:model->bookmark_bar_node()];
-  EXPECT_EQ([menu numberOfItems], 3);
-
-  item = [menu itemWithTitle:@"folder"];
-  EXPECT_TRUE(item);
-  EXPECT_TRUE([item hasSubmenu]);
-  NSMenu *submenu = [item submenu];
-  EXPECT_TRUE(submenu);
-  EXPECT_EQ(2, [submenu numberOfItems]);
-  EXPECT_TRUE([submenu itemWithTitle:@"f1"]);
-  EXPECT_TRUE([submenu itemWithTitle:@"f2"]);
 }
 
 // Confirm openBookmark: forwards the request to the controller's delegate
@@ -1738,12 +1671,12 @@ TEST_F(BookmarkBarControllerTest, ManagedShowAppsShortcutInBookmarksBar) {
 
   // Hide the apps shortcut by policy, via the managed pref.
   prefs->SetManagedPref(bookmarks::prefs::kShowAppsShortcutInBookmarkBar,
-                        new base::FundamentalValue(false));
+                        base::MakeUnique<base::Value>(false));
   EXPECT_TRUE([bar_ appsPageShortcutButtonIsHidden]);
 
   // And try showing it via policy too.
   prefs->SetManagedPref(bookmarks::prefs::kShowAppsShortcutInBookmarkBar,
-                        new base::FundamentalValue(true));
+                        base::MakeUnique<base::Value>(true));
   EXPECT_FALSE([bar_ appsPageShortcutButtonIsHidden]);
 }
 

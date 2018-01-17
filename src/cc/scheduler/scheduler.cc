@@ -13,7 +13,7 @@
 #include "base/single_thread_task_runner.h"
 #include "base/trace_event/trace_event.h"
 #include "base/trace_event/trace_event_argument.h"
-#include "cc/debug/devtools_instrumentation.h"
+#include "cc/base/devtools_instrumentation.h"
 #include "cc/debug/traced_value.h"
 #include "cc/scheduler/compositor_timing_history.h"
 #include "cc/scheduler/delay_based_time_source.h"
@@ -64,6 +64,11 @@ Scheduler::~Scheduler() {
 
 void Scheduler::Stop() {
   stopped_ = true;
+}
+
+void Scheduler::SetNeedsImplSideInvalidation() {
+  state_machine_.SetNeedsImplSideInvalidation();
+  ProcessScheduledActions();
 }
 
 base::TimeTicks Scheduler::Now() const {
@@ -261,6 +266,10 @@ bool Scheduler::OnBeginFrameDerivedImpl(const BeginFrameArgs& args) {
   if (!state_machine_.BeginFrameNeeded()) {
     TRACE_EVENT_INSTANT0("cc", "Scheduler::BeginFrameDropped",
                          TRACE_EVENT_SCOPE_THREAD);
+    // Since we don't use the BeginFrame, we may later receive the same
+    // BeginFrame again. Thus, we can't confirm it at this point, even though we
+    // don't have any updates right now.
+    SendBeginFrameAck(args, kBeginFrameSkipped);
     return false;
   }
 
@@ -322,10 +331,7 @@ void Scheduler::BeginImplFrameWithDeadline(const BeginFrameArgs& args) {
   // Discard missed begin frames if they are too late.
   if (adjusted_args.type == BeginFrameArgs::MISSED &&
       now > adjusted_args.deadline) {
-    // TODO(eseckler): Determine and set correct |ack.latest_confirmed_frame|.
-    BeginFrameAck ack(adjusted_args.source_id, adjusted_args.sequence_number,
-                      adjusted_args.sequence_number, 0, false);
-    begin_frame_source_->DidFinishFrame(this, ack);
+    SendBeginFrameAck(adjusted_args, kBeginFrameSkipped);
     return;
   }
 
@@ -335,10 +341,12 @@ void Scheduler::BeginImplFrameWithDeadline(const BeginFrameArgs& args) {
     OnBeginImplFrameDeadline();
     // We may not need begin frames any longer.
     if (!observing_begin_frame_source_) {
-      // TODO(eseckler): Determine and set correct |ack.latest_confirmed_frame|.
-      BeginFrameAck ack(adjusted_args.source_id, adjusted_args.sequence_number,
-                        adjusted_args.sequence_number, 0, false);
-      begin_frame_source_->DidFinishFrame(this, ack);
+      // We need to confirm the ignored BeginFrame, since we don't have updates.
+      // To persist the confirmation for future BeginFrameAcks, we let the state
+      // machine know about the BeginFrame.
+      state_machine_.OnBeginFrameDroppedNotObserving(args.source_id,
+                                                     args.sequence_number);
+      SendBeginFrameAck(adjusted_args, kBeginFrameSkipped);
       return;
     }
   }
@@ -397,29 +405,23 @@ void Scheduler::BeginImplFrameWithDeadline(const BeginFrameArgs& args) {
                                       can_activate_before_deadline)) {
     TRACE_EVENT_INSTANT0("cc", "SkipBeginImplFrameToReduceLatency",
                          TRACE_EVENT_SCOPE_THREAD);
-    if (begin_frame_source_) {
-      // TODO(eseckler): Determine and set correct |ack.latest_confirmed_frame|.
-      BeginFrameAck ack(adjusted_args.source_id, adjusted_args.sequence_number,
-                        adjusted_args.sequence_number, 0, false);
-      begin_frame_source_->DidFinishFrame(this, ack);
-    }
+    SendBeginFrameAck(begin_main_frame_args_, kBeginFrameSkipped);
     return;
   }
 
-  BeginImplFrame(adjusted_args);
+  BeginImplFrame(adjusted_args, now);
 }
 
 void Scheduler::BeginImplFrameSynchronous(const BeginFrameArgs& args) {
   TRACE_EVENT1("cc,benchmark", "Scheduler::BeginImplFrame", "args",
                args.AsValue());
-
   // The main thread currently can't commit before we draw with the
   // synchronous compositor, so never consider the BeginMainFrame fast.
   state_machine_.SetCriticalBeginMainFrameToActivateIsFast(false);
   begin_main_frame_args_ = args;
   begin_main_frame_args_.on_critical_path = !ImplLatencyTakesPriority();
 
-  BeginImplFrame(args);
+  BeginImplFrame(args, Now());
   compositor_timing_history_->WillFinishImplFrame(
       state_machine_.needs_redraw());
   FinishImplFrame();
@@ -430,31 +432,48 @@ void Scheduler::FinishImplFrame() {
   ProcessScheduledActions();
 
   client_->DidFinishImplFrame();
-  if (begin_frame_source_) {
-    // TODO(eseckler): Determine and set correct |ack.latest_confirmed_frame|.
-    BeginFrameAck ack(begin_main_frame_args_.source_id,
-                      begin_main_frame_args_.sequence_number,
-                      begin_main_frame_args_.sequence_number, 0,
-                      state_machine_.did_submit_in_last_frame());
-    begin_frame_source_->DidFinishFrame(this, ack);
-  }
+  SendBeginFrameAck(begin_main_frame_args_, kBeginFrameFinished);
   begin_impl_frame_tracker_.Finish();
+}
+
+void Scheduler::SendBeginFrameAck(const BeginFrameArgs& args,
+                                  BeginFrameResult result) {
+  if (!begin_frame_source_)
+    return;
+
+  uint64_t latest_confirmed_sequence_number =
+      BeginFrameArgs::kInvalidFrameNumber;
+  if (args.source_id == state_machine_.begin_frame_source_id()) {
+    latest_confirmed_sequence_number =
+        state_machine_
+            .last_begin_frame_sequence_number_compositor_frame_was_fresh();
+  }
+
+  bool did_submit = false;
+  if (result == kBeginFrameFinished) {
+    did_submit = state_machine_.did_submit_in_last_frame();
+  }
+
+  BeginFrameAck ack(args.source_id, args.sequence_number,
+                    latest_confirmed_sequence_number, did_submit);
+  begin_frame_source_->DidFinishFrame(this, ack);
 }
 
 // BeginImplFrame starts a compositor frame that will wait up until a deadline
 // for a BeginMainFrame+activation to complete before it times out and draws
 // any asynchronous animation and scroll/pinch updates.
-void Scheduler::BeginImplFrame(const BeginFrameArgs& args) {
+void Scheduler::BeginImplFrame(const BeginFrameArgs& args,
+                               base::TimeTicks now) {
   DCHECK_EQ(state_machine_.begin_impl_frame_state(),
             SchedulerStateMachine::BEGIN_IMPL_FRAME_STATE_IDLE);
   DCHECK(begin_impl_frame_deadline_task_.IsCancelled());
   DCHECK(state_machine_.HasInitializedCompositorFrameSink());
 
   begin_impl_frame_tracker_.Start(args);
-  state_machine_.OnBeginImplFrame();
+  state_machine_.OnBeginImplFrame(args.source_id, args.sequence_number);
   devtools_instrumentation::DidBeginFrame(layer_tree_host_id_);
   compositor_timing_history_->WillBeginImplFrame(
-      state_machine_.NewActiveTreeLikely());
+      state_machine_.NewActiveTreeLikely(), args.frame_time, args.type, now);
   client_->WillBeginImplFrame(begin_impl_frame_tracker_.Current());
 
   ProcessScheduledActions();
@@ -545,7 +564,8 @@ void Scheduler::OnBeginImplFrameDeadline() {
 
 void Scheduler::DrawIfPossible() {
   bool drawing_with_new_active_tree =
-      state_machine_.active_tree_needs_first_draw();
+      state_machine_.active_tree_needs_first_draw() &&
+      !state_machine_.previous_pending_tree_was_impl_side();
   bool main_thread_missed_last_deadline =
       state_machine_.main_thread_missed_last_deadline();
   compositor_timing_history_->WillDraw();
@@ -559,7 +579,8 @@ void Scheduler::DrawIfPossible() {
 
 void Scheduler::DrawForced() {
   bool drawing_with_new_active_tree =
-      state_machine_.active_tree_needs_first_draw();
+      state_machine_.active_tree_needs_first_draw() &&
+      !state_machine_.previous_pending_tree_was_impl_side();
   bool main_thread_missed_last_deadline =
       state_machine_.main_thread_missed_last_deadline();
   compositor_timing_history_->WillDraw();
@@ -620,6 +641,10 @@ void Scheduler::ProcessScheduledActions() {
         client_->ScheduledActionActivateSyncTree();
         compositor_timing_history_->DidActivate();
         break;
+      case SchedulerStateMachine::ACTION_PERFORM_IMPL_SIDE_INVALIDATION:
+        state_machine_.WillPerformImplSideInvalidation();
+        client_->ScheduledActionPerformImplSideInvalidation();
+        break;
       case SchedulerStateMachine::ACTION_DRAW_IF_POSSIBLE:
         DrawIfPossible();
         break;
@@ -673,11 +698,12 @@ Scheduler::AsValue() const {
   state->SetString("inside_action",
                    SchedulerStateMachine::ActionToString(inside_action_));
 
-  state->BeginDictionary("begin_impl_frame_args");
+  state->BeginDictionary("begin_impl_frame_tracker");
   begin_impl_frame_tracker_.AsValueInto(now, state.get());
   state->EndDictionary();
 
-  state->SetString("begin_impl_frame_deadline_mode_",
+
+  state->SetString("begin_impl_frame_deadline_mode",
                    SchedulerStateMachine::BeginImplFrameDeadlineModeToString(
                        begin_impl_frame_deadline_mode_));
   state->EndDictionary();
@@ -771,6 +797,13 @@ bool Scheduler::IsBeginMainFrameSentOrStarted() const {
               SchedulerStateMachine::BEGIN_MAIN_FRAME_STATE_SENT ||
           state_machine_.begin_main_frame_state() ==
               SchedulerStateMachine::BEGIN_MAIN_FRAME_STATE_STARTED);
+}
+
+BeginFrameAck Scheduler::CurrentBeginFrameAckForActiveTree() const {
+  return BeginFrameAck(
+      begin_main_frame_args_.source_id, begin_main_frame_args_.sequence_number,
+      state_machine_.last_begin_frame_sequence_number_active_tree_was_fresh(),
+      true);
 }
 
 }  // namespace cc

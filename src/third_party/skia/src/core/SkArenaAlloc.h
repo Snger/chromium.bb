@@ -8,6 +8,7 @@
 #ifndef SkFixedAlloc_DEFINED
 #define SkFixedAlloc_DEFINED
 
+#include "SkRefCnt.h"
 #include "SkTFitsIn.h"
 #include "SkTypes.h"
 #include <cstddef>
@@ -51,29 +52,41 @@
 // typical block overhead of 8 bytes. For non-POD objects there is a per item overhead of 4 bytes.
 // For arrays of non-POD objects there is a per array overhead of typically 8 bytes. There is an
 // addition overhead when switching from POD data to non-POD data of typically 8 bytes.
+//
+// If additional blocks are needed they are increased exponentially. This strategy bounds the
+// recursion of the RunDtorsOnBlock to be limited to O(log size-of-memory). Block size grow using
+// the Fibonacci sequence which means that for 2^32 memory there are 48 allocations, and for 2^48
+// there are 71 allocations.
 class SkArenaAlloc {
 public:
     SkArenaAlloc(char* block, size_t size, size_t extraSize = 0);
 
     template <size_t kSize>
-    SkArenaAlloc(char (&block)[kSize], size_t extraSize = 0)
+    SkArenaAlloc(char (&block)[kSize], size_t extraSize = kSize)
         : SkArenaAlloc(block, kSize, extraSize)
+    {}
+
+    SkArenaAlloc(size_t extraSize)
+        : SkArenaAlloc(nullptr, 0, extraSize)
     {}
 
     ~SkArenaAlloc();
 
     template <typename T, typename... Args>
     T* make(Args&&... args) {
+        uint32_t size      = SkTo<uint32_t>(sizeof(T));
+        uint32_t alignment = SkTo<uint32_t>(alignof(T));
         char* objStart;
         if (skstd::is_trivially_destructible<T>::value) {
-            objStart = this->allocObject(sizeof(T), alignof(T));
-            fCursor = objStart + sizeof(T);
+            objStart = this->allocObject(size, alignment);
+            fCursor = objStart + size;
         } else {
-            objStart = this->allocObjectWithFooter(sizeof(T) + sizeof(Footer), alignof(T));
-            size_t padding = objStart - fCursor;
+            objStart = this->allocObjectWithFooter(size + sizeof(Footer), alignment);
+            // Can never be UB because max value is alignof(T).
+            uint32_t padding = SkTo<uint32_t>(objStart - fCursor);
 
             // Advance to end of object to install footer.
-            fCursor = objStart + sizeof(T);
+            fCursor = objStart + size;
             FooterAction* releaser = [](char* objEnd) {
                 char* objStart = objEnd - (sizeof(T) + sizeof(Footer));
                 ((T*)objStart)->~T();
@@ -86,12 +99,22 @@ public:
         return new(objStart) T(std::forward<Args>(args)...);
     }
 
+    template <typename T, typename... Args>
+    sk_sp<T> makeSkSp(Args&&... args) {
+        SkASSERT(SkTFitsIn<uint32_t>(sizeof(T)));
+
+        // The arena takes a ref for itself to account for the destructor. The sk_sp count can't
+        // become zero or the sk_sp will try to call free on the pointer.
+        return sk_sp<T>(SkRef(this->make<T>(std::forward<Args>(args)...)));
+    }
+
     template <typename T>
     T* makeArrayDefault(size_t count) {
-        T* array = (T*)this->commonArrayAlloc<T>(count);
+        uint32_t safeCount = SkTo<uint32_t>(count);
+        T* array = (T*)this->commonArrayAlloc<T>(safeCount);
 
         // If T is primitive then no initialization takes place.
-        for (size_t i = 0; i < count; i++) {
+        for (size_t i = 0; i < safeCount; i++) {
             new (&array[i]) T;
         }
         return array;
@@ -99,11 +122,12 @@ public:
 
     template <typename T>
     T* makeArray(size_t count) {
-        T* array = (T*)this->commonArrayAlloc<T>(count);
+        uint32_t safeCount = SkTo<uint32_t>(count);
+        T* array = (T*)this->commonArrayAlloc<T>(safeCount);
 
         // If T is primitive then the memory is initialized. For example, an array of chars will
         // be zeroed.
-        for (size_t i = 0; i < count; i++) {
+        for (size_t i = 0; i < safeCount; i++) {
             new (&array[i]) T();
         }
         return array;
@@ -113,92 +137,69 @@ public:
     void reset();
 
 private:
-    using Footer = int32_t;
+    using Footer = int64_t;
     using FooterAction = char* (char*);
 
-    void installFooter(FooterAction* releaser, ptrdiff_t padding);
+    static char* SkipPod(char* footerEnd);
+    static void RunDtorsOnBlock(char* footerEnd);
+    static char* NextBlock(char* footerEnd);
 
-    // N.B. Action is different than FooterAction. FooterAction expects the end of the Footer,
-    // and returns the start of the object. An Action expects the end of the *Object* and returns
-    // the start of the object.
-    template<typename Action>
-    void installIntFooter(ptrdiff_t size, ptrdiff_t padding) {
-        if (SkTFitsIn<int32_t>(size)) {
-            int32_t smallSize = static_cast<int32_t>(size);
-            memmove(fCursor, &smallSize, sizeof(int32_t));
-            fCursor += sizeof(int32_t);
-            this->installFooter(
-                [](char* footerEnd) {
-                    char* objEnd = footerEnd - (sizeof(Footer) + sizeof(int32_t));
-                    int32_t data;
-                    memmove(&data, objEnd, sizeof(int32_t));
-                    return Action()(objEnd, data);
-                },
-                padding);
-        } else {
-            memmove(fCursor, &size, sizeof(ptrdiff_t));
-            fCursor += sizeof(ptrdiff_t);
-            this->installFooter(
-                [](char* footerEnd) {
-                    char* objEnd = footerEnd - (sizeof(Footer) + sizeof(ptrdiff_t));
-                    ptrdiff_t data;
-                    memmove(&data, objEnd, sizeof(ptrdiff_t));
-                    return Action()(objEnd, data);
-                },
-                padding);
-        }
-    }
+    void installFooter(FooterAction* releaser, uint32_t padding);
+    void installUint32Footer(FooterAction* action, uint32_t value, uint32_t padding);
+    void installPtrFooter(FooterAction* action, char* ptr, uint32_t padding);
 
-    void ensureSpace(size_t size, size_t alignment);
+    void ensureSpace(uint32_t size, uint32_t alignment);
 
-    char* allocObject(size_t size, size_t alignment);
+    char* allocObject(uint32_t size, uint32_t alignment);
 
-    char* allocObjectWithFooter(size_t sizeIncludingFooter, size_t alignment);
+    char* allocObjectWithFooter(uint32_t sizeIncludingFooter, uint32_t alignment);
 
     template <typename T>
-    char* commonArrayAlloc(size_t count) {
+    char* commonArrayAlloc(uint32_t count) {
         char* objStart;
-        size_t arraySize = count * sizeof(T);
-
-        SkASSERT(arraySize > 0);
+        uint32_t arraySize = SkTo<uint32_t>(count * sizeof(T));
+        uint32_t alignment = SkTo<uint32_t>(alignof(T));
 
         if (skstd::is_trivially_destructible<T>::value) {
-            objStart = this->allocObject(arraySize, alignof(T));
+            objStart = this->allocObject(arraySize, alignment);
             fCursor = objStart + arraySize;
         } else {
-            size_t countSize = SkTFitsIn<int32_t>(count) ? sizeof(int32_t) : sizeof(ptrdiff_t);
-            size_t totalSize = arraySize + sizeof(Footer) + countSize;
-            objStart = this->allocObjectWithFooter(totalSize, alignof(T));
-            size_t padding = objStart - fCursor;
+            uint32_t totalSize = arraySize + sizeof(Footer) + sizeof(uint32_t);
+            objStart = this->allocObjectWithFooter(totalSize, alignment);
+
+            // Can never be UB because max value is alignof(T).
+            uint32_t padding = SkTo<uint32_t>(objStart - fCursor);
 
             // Advance to end of array to install footer.?
             fCursor = objStart + arraySize;
-            this->installIntFooter<ArrayDestructor<T>> (count, padding);
+            this->installUint32Footer(
+                [](char* footerEnd) {
+                    char* objEnd = footerEnd - (sizeof(Footer) + sizeof(uint32_t));
+                    uint32_t count;
+                    memmove(&count, objEnd, sizeof(uint32_t));
+                    char* objStart = objEnd - count * sizeof(T);
+                    T* array = (T*) objStart;
+                    for (uint32_t i = 0; i < count; i++) {
+                        array[i].~T();
+                    }
+                    return objStart;
+                },
+                SkTo<uint32_t>(count),
+                padding);
         }
 
         return objStart;
     }
 
-    char* callFooterAction(char* end);
-
-    static char* EndChain(char*);
-
-    template<typename T>
-    struct ArrayDestructor {
-        char* operator()(char* objEnd, ptrdiff_t count) {
-            char* objStart = objEnd - count * sizeof(T);
-            T* array = (T*) objStart;
-            for (int i = 0; i < count; i++) {
-                array[i].~T();
-            }
-            return objStart;
-        }
-    };
-
-    char*  fDtorCursor;
-    char*  fCursor;
-    char*  fEnd;
-    size_t fExtraSize;
+    char*          fDtorCursor;
+    char*          fCursor;
+    char*          fEnd;
+    char* const    fFirstBlock;
+    const uint32_t fFirstSize;
+    const uint32_t fExtraSize;
+    // Use the Fibonacci sequence as the growth factor for block size. The size of the block
+    // allocated is fFib0 * fExtraSize. Using 2 ^ n * fExtraSize had too much slop for Android.
+    uint32_t       fFib0 {1}, fFib1 {1};
 };
 
 #endif//SkFixedAlloc_DEFINED

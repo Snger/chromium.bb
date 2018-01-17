@@ -15,7 +15,6 @@
 {
   'includes': [
     '../build/crashpad.gypi',
-    '../build/crashpad_dependencies.gypi',
   ],
   'targets': [
     {
@@ -46,6 +45,8 @@
         'mac/exception_handler_server.h',
         'prune_crash_reports_thread.cc',
         'prune_crash_reports_thread.h',
+        'user_stream_data_source.cc',
+        'user_stream_data_source.h',
         'win/crash_report_exception_handler.cc',
         'win/crash_report_exception_handler.h',
       ],
@@ -66,29 +67,6 @@
       ],
 
       'conditions': [
-        ['OS=="mac"', {
-          # In an in-Chromium build with component=shared_library,
-          # crashpad_handler will depend on shared libraries such as
-          # libbase.dylib located in out/{Debug,Release} via the @rpath
-          # mechanism. When crashpad_handler is copied to its home deep inside
-          # the Chromium app bundle, it needs to have an LC_RPATH command
-          # pointing back to the directory containing these dependency
-          # libraries.
-          'variables': {
-            'component%': 'static_library',
-          },
-          'conditions': [
-            ['crashpad_dependencies=="chromium" and component=="shared_library"', {
-              'xcode_settings': {
-                'LD_RUNPATH_SEARCH_PATHS': [  # -Wl,-rpath
-                  # Get back from
-                  # Chromium.app/Contents/Versions/V/Framework.framework/Helpers
-                  '@loader_path/../../../../../..',
-                ],
-              },
-            }],
-          ],
-        }],
         ['OS=="win"',  {
           'msvs_settings': {
             'VCLinkerTool': {

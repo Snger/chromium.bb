@@ -10,18 +10,21 @@
 #include "base/memory/ptr_util.h"
 #include "base/observer_list.h"
 #include "base/strings/string_number_conversions.h"
-#include "chrome/browser/ntp_snippets/fake_download_item.h"
+#include "base/test/simple_test_clock.h"
+#include "base/time/default_clock.h"
 #include "components/ntp_snippets/category.h"
 #include "components/ntp_snippets/mock_content_suggestions_provider_observer.h"
 #include "components/ntp_snippets/offline_pages/offline_pages_test_utils.h"
 #include "components/offline_pages/core/client_namespace_constants.h"
 #include "components/prefs/testing_pref_service.h"
+#include "content/public/test/fake_download_item.h"
 #include "content/public/test/mock_download_item.h"
 #include "content/public/test/mock_download_manager.h"
 #include "content/public/test/test_browser_thread_bundle.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using content::DownloadItem;
+using content::FakeDownloadItem;
 using content::MockDownloadManager;
 using ntp_snippets::Category;
 using ntp_snippets::CategoryStatus;
@@ -32,7 +35,6 @@ using ntp_snippets::test::CaptureDismissedSuggestions;
 using ntp_snippets::test::FakeOfflinePageModel;
 using offline_pages::ClientId;
 using offline_pages::OfflinePageItem;
-using test::FakeDownloadItem;
 using testing::_;
 using testing::AllOf;
 using testing::AnyNumber;
@@ -74,9 +76,6 @@ std::ostream& operator<<(std::ostream& os, const CategoryStatus& value) {
     case CategoryStatus::CATEGORY_EXPLICITLY_DISABLED:
       os << "CATEGORY_EXPLICITLY_DISABLED";
       break;
-    case CategoryStatus::SIGNED_OUT:
-      os << "SIGNED_OUT";
-      break;
     case CategoryStatus::LOADING_ERROR:
       os << "LOADING_ERROR";
       break;
@@ -87,6 +86,11 @@ std::ostream& operator<<(std::ostream& os, const CategoryStatus& value) {
 }  // namespace ntp_snippets
 
 namespace {
+
+const int kDefaultMaxDownloadAgeHours = 6 * 7 * 24;
+
+// Tue, 31 Jan 2017 13:00:00 UTC
+const base::Time now = base::Time::FromJavaTime(1485867600000);
 
 // TODO(vitaliii): Move this and outputting functions above to common file and
 // replace remaining |Property(&ContentSuggestion::url, GURL("some_url"))|.
@@ -113,8 +117,7 @@ MATCHER_P3(HasDownloadSuggestionExtra,
   if (extra.is_download_asset != is_download_asset) {
     return false;
   }
-  *result_listener << "expected target_file_path: "
-                   << target_file_path
+  *result_listener << "expected target_file_path: " << target_file_path
                    << "\nactual target_file_path: "
                    << extra.target_file_path.value();
   if (extra.target_file_path.value() !=
@@ -122,8 +125,7 @@ MATCHER_P3(HasDownloadSuggestionExtra,
     return false;
   }
   *result_listener << "expected mime_type: " << mime_type
-                   << "\nactual mime_type: "
-                   << extra.mime_type;
+                   << "\nactual mime_type: " << extra.mime_type;
   return extra.mime_type == mime_type;
 }
 
@@ -142,16 +144,11 @@ std::vector<OfflinePageItem> CreateDummyOfflinePages(
   return result;
 }
 
-OfflinePageItem CreateDummyOfflinePage(int id, base::Time time) {
-  OfflinePageItem item = CreateDummyOfflinePage(id);
-  item.creation_time = time;
-  return item;
-}
-
 std::unique_ptr<FakeDownloadItem> CreateDummyAssetDownload(int id) {
   std::unique_ptr<FakeDownloadItem> item = base::MakeUnique<FakeDownloadItem>();
   item->SetId(id);
   std::string id_string = base::IntToString(id);
+  item->SetGuid("XYZ-100032-EFZBDF-13323-PXZ" + id_string);
   item->SetTargetFilePath(
       base::FilePath::FromUTF8Unsafe("folder/file" + id_string + ".mhtml"));
   item->SetURL(GURL("http://download.com/redirected" + id_string));
@@ -268,15 +265,19 @@ class DownloadSuggestionsProviderTest : public testing::Test {
     EXPECT_CALL(observer_, OnSuggestionInvalidated(_, _)).Times(AnyNumber());
   }
 
-  DownloadSuggestionsProvider* CreateLoadedProvider(bool show_assets,
-                                                    bool show_offline_pages) {
-    CreateProvider(show_assets, show_offline_pages);
+  DownloadSuggestionsProvider* CreateLoadedProvider(
+      bool show_assets,
+      bool show_offline_pages,
+      std::unique_ptr<base::Clock> clock) {
+    CreateProvider(show_assets, show_offline_pages, std::move(clock));
     FireHistoryQueryComplete();
     return provider_.get();
   }
 
-  DownloadSuggestionsProvider* CreateProvider(bool show_assets,
-                                              bool show_offline_pages) {
+  DownloadSuggestionsProvider* CreateProvider(
+      bool show_assets,
+      bool show_offline_pages,
+      std::unique_ptr<base::Clock> clock) {
     DCHECK(!provider_);
     DCHECK(show_assets || show_offline_pages);
 
@@ -285,7 +286,7 @@ class DownloadSuggestionsProviderTest : public testing::Test {
     provider_ = base::MakeUnique<DownloadSuggestionsProvider>(
         &observer_, show_offline_pages ? &offline_pages_model_ : nullptr,
         show_assets ? &downloads_manager_ : nullptr, &download_history_,
-        pref_service());
+        pref_service(), std::move(clock));
     return provider_.get();
   }
 
@@ -386,7 +387,8 @@ TEST_F(DownloadSuggestionsProviderTest,
                                              HasDownloadSuggestionExtra(
                                                  /*is_download_asset=*/false,
                                                  FILE_PATH_LITERAL(""), "")))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 }
 
 TEST_F(DownloadSuggestionsProviderTest,
@@ -396,7 +398,8 @@ TEST_F(DownloadSuggestionsProviderTest,
 
   EXPECT_CALL(*observer(),
               OnNewSuggestions(_, downloads_category(), SizeIs(0)));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   std::vector<std::unique_ptr<FakeDownloadItem>> asset_downloads =
       CreateDummyAssetDownloads({1, 2});
@@ -437,7 +440,8 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldMixInBothSources) {
                                             UnorderedElementsAre(
                                                 HasUrl("http://dummy.com/1"),
                                                 HasUrl("http://dummy.com/2"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   std::vector<std::unique_ptr<FakeDownloadItem>> asset_downloads =
       CreateDummyAssetDownloads({1, 2});
@@ -464,39 +468,49 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldSortSuggestions) {
   IgnoreOnCategoryStatusChangedToAvailable();
   IgnoreOnSuggestionInvalidated();
 
-  base::Time now = base::Time::Now();
-  base::Time yesterday = now - base::TimeDelta::FromDays(1);
-  base::Time tomorrow = now + base::TimeDelta::FromDays(1);
-  base::Time next_week = now + base::TimeDelta::FromDays(7);
+  std::vector<OfflinePageItem> offline_pages = CreateDummyOfflinePages({0, 1});
 
-  (*offline_pages_model()->mutable_items())
-      .push_back(CreateDummyOfflinePage(1, yesterday));
-  (*offline_pages_model()->mutable_items())
-      .push_back(CreateDummyOfflinePage(2, tomorrow));
+  offline_pages[0].url = GURL("http://dummy.com/0");
+  offline_pages[0].creation_time = now - base::TimeDelta::FromMinutes(10);
+  offline_pages[0].last_access_time = offline_pages[0].creation_time;
+
+  offline_pages[1].url = GURL("http://dummy.com/1");
+  offline_pages[1].creation_time = now - base::TimeDelta::FromMinutes(5);
+  offline_pages[1].last_access_time = offline_pages[1].creation_time;
+
+  *(offline_pages_model()->mutable_items()) = offline_pages;
+
+  auto test_clock = base::MakeUnique<base::SimpleTestClock>();
+  test_clock->SetNow(now);
+  EXPECT_CALL(*observer(),
+              OnNewSuggestions(_, downloads_category(),
+                               ElementsAre(HasUrl("http://dummy.com/1"),
+                                           HasUrl("http://dummy.com/0"))));
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       std::move(test_clock));
+
+  std::vector<std::unique_ptr<FakeDownloadItem>> asset_downloads =
+      CreateDummyAssetDownloads({2, 3});
+
+  asset_downloads[0]->SetURL(GURL("http://download.com/2"));
+  asset_downloads[0]->SetStartTime(now - base::TimeDelta::FromMinutes(3));
+
+  asset_downloads[1]->SetURL(GURL("http://download.com/3"));
+  asset_downloads[1]->SetStartTime(now - base::TimeDelta::FromMinutes(7));
 
   EXPECT_CALL(*observer(),
               OnNewSuggestions(_, downloads_category(),
-                               ElementsAre(HasUrl("http://dummy.com/2"),
-                                           HasUrl("http://dummy.com/1"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
-
-  std::vector<std::unique_ptr<FakeDownloadItem>> asset_downloads;
-  asset_downloads.push_back(CreateDummyAssetDownload(3, next_week));
-  asset_downloads.push_back(CreateDummyAssetDownload(4, now));
-
-  EXPECT_CALL(*observer(),
-              OnNewSuggestions(_, downloads_category(),
-                               ElementsAre(HasUrl("http://download.com/3"),
-                                           HasUrl("http://dummy.com/2"),
-                                           HasUrl("http://dummy.com/1"))));
+                               ElementsAre(HasUrl("http://download.com/2"),
+                                           HasUrl("http://dummy.com/1"),
+                                           HasUrl("http://dummy.com/0"))));
   FireDownloadCreated(asset_downloads[0].get());
 
   EXPECT_CALL(*observer(),
               OnNewSuggestions(_, downloads_category(),
-                               ElementsAre(HasUrl("http://download.com/3"),
-                                           HasUrl("http://dummy.com/2"),
-                                           HasUrl("http://download.com/4"),
-                                           HasUrl("http://dummy.com/1"))));
+                               ElementsAre(HasUrl("http://download.com/2"),
+                                           HasUrl("http://dummy.com/1"),
+                                           HasUrl("http://download.com/3"),
+                                           HasUrl("http://dummy.com/0"))));
   FireDownloadCreated(asset_downloads[1].get());
 }
 
@@ -513,7 +527,8 @@ TEST_F(DownloadSuggestionsProviderTest,
                                             HasUrl("http://dummy.com/2"),
                                             HasUrl("http://download.com/1"),
                                             HasUrl("http://download.com/2"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   EXPECT_CALL(*observer(), OnNewSuggestions(_, _, _)).Times(0);
   EXPECT_CALL(*observer(), OnSuggestionInvalidated(_, _)).Times(0);
@@ -539,7 +554,8 @@ TEST_F(DownloadSuggestionsProviderTest,
                                             HasUrl("http://dummy.com/2"),
                                             HasUrl("http://download.com/1"),
                                             HasUrl("http://download.com/2"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   provider()->DismissSuggestion(
       GetDummySuggestionId(1, /*is_offline_page=*/true));
@@ -567,7 +583,8 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldReturnDismissedSuggestions) {
                                             HasUrl("http://dummy.com/2"),
                                             HasUrl("http://download.com/1"),
                                             HasUrl("http://download.com/2"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   provider()->DismissSuggestion(
       GetDummySuggestionId(1, /*is_offline_page=*/true));
@@ -591,7 +608,8 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldClearDismissedSuggestions) {
                                             HasUrl("http://dummy.com/2"),
                                             HasUrl("http://download.com/1"),
                                             HasUrl("http://download.com/2"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   provider()->DismissSuggestion(
       GetDummySuggestionId(1, /*is_offline_page=*/true));
@@ -622,7 +640,8 @@ TEST_F(DownloadSuggestionsProviderTest,
                                             HasUrl("http://dummy.com/2"),
                                             HasUrl("http://download.com/1"),
                                             HasUrl("http://download.com/2"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   provider()->DismissSuggestion(
       GetDummySuggestionId(1, /*is_offline_page=*/true));
@@ -652,7 +671,8 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldReplaceDismissedItemWithNewData) {
                                             HasUrl("http://download.com/3"),
                                             HasUrl("http://download.com/4"),
                                             HasUrl("http://download.com/5"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   provider()->DismissSuggestion(
       GetDummySuggestionId(1, /*is_offline_page=*/false));
@@ -684,7 +704,8 @@ TEST_F(DownloadSuggestionsProviderTest,
                        UnorderedElementsAre(HasUrl("http://dummy.com/1"),
                                             HasUrl("http://dummy.com/2"),
                                             HasUrl("http://download.com/1"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   // We add another item manually, so that when it gets deleted it is not
   // present in DownloadsManager list.
@@ -724,7 +745,8 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldReplaceRemovedItemWithNewData) {
                                             HasUrl("http://download.com/3"),
                                             HasUrl("http://download.com/4"),
                                             HasUrl("http://download.com/5"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   // Note that |CreateDummyAssetDownloads| creates items "downloaded" before
   // |base::Time::Now()|, so for a new item the time is set in future to enforce
@@ -768,7 +790,8 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldPruneOfflinePagesDismissedIDs) {
                                                 HasUrl("http://dummy.com/1"),
                                                 HasUrl("http://dummy.com/2"),
                                                 HasUrl("http://dummy.com/3"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   provider()->DismissSuggestion(
       GetDummySuggestionId(1, /*is_offline_page=*/true));
@@ -798,7 +821,8 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldPruneAssetDownloadsDismissedIDs) {
       OnNewSuggestions(_, downloads_category(),
                        UnorderedElementsAre(HasUrl("http://download.com/1"),
                                             HasUrl("http://download.com/2"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   provider()->DismissSuggestion(
       GetDummySuggestionId(1, /*is_offline_page=*/false));
@@ -819,7 +843,8 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldFetchAssetDownloadsOnStartup) {
       OnNewSuggestions(_, downloads_category(),
                        UnorderedElementsAre(HasUrl("http://download.com/1"),
                                             HasUrl("http://download.com/2"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 }
 
 TEST_F(DownloadSuggestionsProviderTest,
@@ -831,7 +856,8 @@ TEST_F(DownloadSuggestionsProviderTest,
                                             UnorderedElementsAre(
                                                 HasUrl("http://dummy.com/1"),
                                                 HasUrl("http://dummy.com/2"))));
-  CreateProvider(/*show_assets=*/false, /*show_offline_pages=*/true);
+  CreateProvider(/*show_assets=*/false, /*show_offline_pages=*/true,
+                 base::MakeUnique<base::DefaultClock>());
   FireOfflinePageModelLoaded();
 }
 
@@ -840,7 +866,8 @@ TEST_F(DownloadSuggestionsProviderTest,
   IgnoreOnCategoryStatusChangedToAvailable();
 
   EXPECT_CALL(*observer(), OnNewSuggestions(_, _, _)).Times(0);
-  CreateProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                 base::MakeUnique<base::DefaultClock>());
 
   *(downloads_manager()->mutable_items()) = CreateDummyAssetDownloads({1, 2});
   EXPECT_CALL(
@@ -860,7 +887,8 @@ TEST_F(DownloadSuggestionsProviderTest,
       *observer(),
       OnNewSuggestions(_, downloads_category(),
                        UnorderedElementsAre(HasUrl("http://download.com/1"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
 
   EXPECT_CALL(*observer(),
               OnSuggestionInvalidated(
@@ -877,7 +905,8 @@ TEST_F(DownloadSuggestionsProviderTest,
   *(offline_pages_model()->mutable_items()) = CreateDummyOfflinePages({1, 2});
   EXPECT_CALL(*observer(),
               OnNewSuggestions(_, downloads_category(), IsEmpty()));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/false);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/false,
+                       base::MakeUnique<base::DefaultClock>());
 
   std::vector<std::unique_ptr<FakeDownloadItem>> asset_downloads =
       CreateDummyAssetDownloads({1});
@@ -899,7 +928,8 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldNotShowAssetsWhenTurnedOff) {
                                             UnorderedElementsAre(
                                                 HasUrl("http://dummy.com/1"),
                                                 HasUrl("http://dummy.com/2"))));
-  CreateProvider(/*show_assets=*/false, /*show_offline_pages=*/true);
+  CreateProvider(/*show_assets=*/false, /*show_offline_pages=*/true,
+                 base::MakeUnique<base::DefaultClock>());
   downloads_manager()->NotifyDownloadCreated(
       downloads_manager()->items()[0].get());
   // This notification should not reach the provider, because the asset
@@ -919,7 +949,8 @@ TEST_F(DownloadSuggestionsProviderTest,
       OnNewSuggestions(_, downloads_category(),
                        UnorderedElementsAre(HasUrl("http://download.com/1"),
                                             HasUrl("http://download.com/2"))));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/false);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/false,
+                       base::MakeUnique<base::DefaultClock>());
 }
 
 TEST_F(DownloadSuggestionsProviderTest,
@@ -932,7 +963,8 @@ TEST_F(DownloadSuggestionsProviderTest,
                                             UnorderedElementsAre(
                                                 HasUrl("http://dummy.com/1"),
                                                 HasUrl("http://dummy.com/2"))));
-  CreateProvider(/*show_assets=*/false, /*show_offline_pages=*/true);
+  CreateProvider(/*show_assets=*/false, /*show_offline_pages=*/true,
+                 base::MakeUnique<base::DefaultClock>());
 }
 
 TEST_F(DownloadSuggestionsProviderTest, ShouldStoreDismissedSuggestions) {
@@ -943,7 +975,8 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldStoreDismissedSuggestions) {
   *(offline_pages_model()->mutable_items()) = CreateDummyOfflinePages({1});
   *(downloads_manager()->mutable_items()) = CreateDummyAssetDownloads({1});
   EXPECT_CALL(*observer(), OnNewSuggestions(_, downloads_category(), _));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
   provider()->DismissSuggestion(
       GetDummySuggestionId(1, /*is_offline_page=*/true));
   provider()->DismissSuggestion(
@@ -952,7 +985,8 @@ TEST_F(DownloadSuggestionsProviderTest, ShouldStoreDismissedSuggestions) {
   DestroyProvider();
 
   EXPECT_CALL(*observer(), OnNewSuggestions(_, downloads_category(), _));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       base::MakeUnique<base::DefaultClock>());
   EXPECT_THAT(GetDismissedSuggestions(),
               UnorderedElementsAre(HasUrl("http://dummy.com/1"),
                                    HasUrl("http://download.com/1")));
@@ -966,7 +1000,8 @@ TEST_F(DownloadSuggestionsProviderTest,
   // Dismiss items to store them in the list of dismissed items.
   *(downloads_manager()->mutable_items()) = CreateDummyAssetDownloads({1});
   EXPECT_CALL(*observer(), OnNewSuggestions(_, downloads_category(), _));
-  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/false);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/false,
+                       base::MakeUnique<base::DefaultClock>());
   provider()->DismissSuggestion(
       GetDummySuggestionId(1, /*is_offline_page=*/false));
   ASSERT_THAT(GetDismissedSuggestions(),
@@ -977,7 +1012,8 @@ TEST_F(DownloadSuggestionsProviderTest,
   downloads_manager()->mutable_items()->clear();
 
   EXPECT_CALL(*observer(), OnNewSuggestions(_, _, _)).Times(0);
-  CreateProvider(/*show_assets=*/true, /*show_offline_pages=*/false);
+  CreateProvider(/*show_assets=*/true, /*show_offline_pages=*/false,
+                 base::MakeUnique<base::DefaultClock>());
 
   // Dismissed IDs should not be pruned yet, because the downloads list at the
   // manager is not complete.
@@ -993,4 +1029,121 @@ TEST_F(DownloadSuggestionsProviderTest,
   *(downloads_manager()->mutable_items()) = CreateDummyAssetDownloads({1});
   // Once the manager has been loaded, the ids should be pruned.
   EXPECT_THAT(GetDismissedSuggestions(), IsEmpty());
+}
+
+TEST_F(DownloadSuggestionsProviderTest, ShouldNotShowOutdatedDownloads) {
+  IgnoreOnCategoryStatusChangedToAvailable();
+  IgnoreOnSuggestionInvalidated();
+
+  const base::Time not_outdated =
+      now - base::TimeDelta::FromHours(kDefaultMaxDownloadAgeHours) +
+      base::TimeDelta::FromSeconds(1);
+  const base::Time outdated =
+      now - base::TimeDelta::FromHours(kDefaultMaxDownloadAgeHours) -
+      base::TimeDelta::FromSeconds(1);
+
+  *(offline_pages_model()->mutable_items()) = CreateDummyOfflinePages({0, 1});
+
+  offline_pages_model()->mutable_items()->at(0).url =
+      GURL("http://dummy.com/0");
+  offline_pages_model()->mutable_items()->at(0).creation_time = not_outdated;
+  offline_pages_model()->mutable_items()->at(0).last_access_time = not_outdated;
+
+  offline_pages_model()->mutable_items()->at(1).url =
+      GURL("http://dummy.com/1");
+  offline_pages_model()->mutable_items()->at(1).creation_time = outdated;
+  offline_pages_model()->mutable_items()->at(1).last_access_time = outdated;
+
+  *(downloads_manager()->mutable_items()) = CreateDummyAssetDownloads({0, 1});
+
+  downloads_manager()->mutable_items()->at(0)->SetURL(
+      GURL("http://download.com/0"));
+  downloads_manager()->mutable_items()->at(0)->SetStartTime(not_outdated);
+
+  downloads_manager()->mutable_items()->at(1)->SetURL(
+      GURL("http://download.com/1"));
+  downloads_manager()->mutable_items()->at(1)->SetStartTime(outdated);
+
+  EXPECT_CALL(
+      *observer(),
+      OnNewSuggestions(_, downloads_category(),
+                       UnorderedElementsAre(HasUrl("http://dummy.com/0"),
+                                            HasUrl("http://download.com/0"))));
+  auto test_clock = base::MakeUnique<base::SimpleTestClock>();
+  test_clock->SetNow(now);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/true,
+                       std::move(test_clock));
+}
+
+TEST_F(DownloadSuggestionsProviderTest,
+       ShouldShowRecentlyVisitedOfflinePageDownloads) {
+  IgnoreOnCategoryStatusChangedToAvailable();
+  IgnoreOnSuggestionInvalidated();
+
+  const base::Time not_outdated =
+      now - base::TimeDelta::FromHours(kDefaultMaxDownloadAgeHours) +
+      base::TimeDelta::FromSeconds(1);
+  const base::Time outdated =
+      now - base::TimeDelta::FromHours(kDefaultMaxDownloadAgeHours) -
+      base::TimeDelta::FromSeconds(1);
+
+  std::vector<OfflinePageItem> offline_pages = CreateDummyOfflinePages({0, 1});
+
+  offline_pages[0].url = GURL("http://dummy.com/0");
+  offline_pages[0].creation_time = outdated;
+  offline_pages[0].last_access_time = not_outdated;
+
+  offline_pages[1].url = GURL("http://dummy.com/1");
+  offline_pages[1].creation_time = outdated;
+  offline_pages[1].last_access_time = offline_pages[1].creation_time;
+
+  *(offline_pages_model()->mutable_items()) = offline_pages;
+
+  // Even though page 0 was created long time ago, it should be reported because
+  // it has been visited recently.
+  EXPECT_CALL(
+      *observer(),
+      OnNewSuggestions(_, downloads_category(),
+                       UnorderedElementsAre(HasUrl("http://dummy.com/0"))));
+  auto test_clock = base::MakeUnique<base::SimpleTestClock>();
+  test_clock->SetNow(now);
+  CreateProvider(/*show_assets=*/false, /*show_offline_pages=*/true,
+                 std::move(test_clock));
+}
+
+TEST_F(DownloadSuggestionsProviderTest,
+       ShouldShowRecentlyVisitedAssetDownloads) {
+  IgnoreOnCategoryStatusChangedToAvailable();
+  IgnoreOnSuggestionInvalidated();
+
+  const base::Time not_outdated =
+      now - base::TimeDelta::FromHours(kDefaultMaxDownloadAgeHours) +
+      base::TimeDelta::FromSeconds(1);
+  const base::Time outdated =
+      now - base::TimeDelta::FromHours(kDefaultMaxDownloadAgeHours) -
+      base::TimeDelta::FromSeconds(1);
+
+  *(downloads_manager()->mutable_items()) = CreateDummyAssetDownloads({0, 1});
+
+  downloads_manager()->mutable_items()->at(0)->SetURL(
+      GURL("http://download.com/0"));
+  downloads_manager()->mutable_items()->at(0)->SetStartTime(outdated);
+  downloads_manager()->mutable_items()->at(0)->SetLastAccessTime(not_outdated);
+
+  downloads_manager()->mutable_items()->at(1)->SetURL(
+      GURL("http://download.com/1"));
+  downloads_manager()->mutable_items()->at(1)->SetStartTime(outdated);
+  downloads_manager()->mutable_items()->at(1)->SetLastAccessTime(
+      downloads_manager()->mutable_items()->at(1)->GetStartTime());
+
+  // Even though asset download 0 was downloaded long time ago, it should be
+  // reported because it has been visited recently.
+  EXPECT_CALL(
+      *observer(),
+      OnNewSuggestions(_, downloads_category(),
+                       UnorderedElementsAre(HasUrl("http://download.com/0"))));
+  auto test_clock = base::MakeUnique<base::SimpleTestClock>();
+  test_clock->SetNow(now);
+  CreateLoadedProvider(/*show_assets=*/true, /*show_offline_pages=*/false,
+                       std::move(test_clock));
 }

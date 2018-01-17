@@ -10,8 +10,8 @@
 #include "base/macros.h"
 #include "chrome/browser/chrome_browser_main_extra_parts.h"
 
+class AshInit;
 class CastConfigClientMediaRouter;
-class ChromeBrowserMainExtraPartsViews;
 class ChromeLauncherControllerMus;
 class ChromeNewWindowClient;
 class ChromeShellContentState;
@@ -27,18 +27,17 @@ class VpnListForwarder;
 // TODO(jamescook): Fold this into ChromeBrowserMainPartsChromeOS.
 class ChromeBrowserMainExtraPartsAsh : public ChromeBrowserMainExtraParts {
  public:
-  explicit ChromeBrowserMainExtraPartsAsh(
-      ChromeBrowserMainExtraPartsViews* extra_parts_views);
+  ChromeBrowserMainExtraPartsAsh();
   ~ChromeBrowserMainExtraPartsAsh() override;
 
   // Overridden from ChromeBrowserMainExtraParts:
+  void ServiceManagerConnectionStarted(
+      content::ServiceManagerConnection* connection) override;
   void PreProfileInit() override;
   void PostProfileInit() override;
   void PostMainMessageLoopRun() override;
 
  private:
-  ChromeBrowserMainExtraPartsViews* extra_parts_views_;
-
   std::unique_ptr<ChromeLauncherControllerMus> chrome_launcher_controller_mus_;
   std::unique_ptr<ChromeShellContentState> chrome_shell_content_state_;
   std::unique_ptr<CastConfigClientMediaRouter> cast_config_client_media_router_;
@@ -50,6 +49,7 @@ class ChromeBrowserMainExtraPartsAsh : public ChromeBrowserMainExtraParts {
   std::unique_ptr<ChromeNewWindowClient> new_window_client_;
   std::unique_ptr<VolumeController> volume_controller_;
   std::unique_ptr<VpnListForwarder> vpn_list_forwarder_;
+  std::unique_ptr<AshInit> ash_init_;
 
   DISALLOW_COPY_AND_ASSIGN(ChromeBrowserMainExtraPartsAsh);
 };

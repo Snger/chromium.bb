@@ -9,6 +9,7 @@
 
 #include "base/bind.h"
 #include "base/command_line.h"
+#include "base/memory/ptr_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
@@ -19,9 +20,11 @@
 #include "chrome/browser/profiles/profile_manager.h"
 #include "chrome/browser/profiles/profile_metrics.h"
 #include "chrome/browser/profiles/profile_window.h"
+#include "chrome/browser/signin/force_signin_verifier.h"
 #include "chrome/browser/signin/local_auth.h"
 #include "chrome/browser/signin/profile_oauth2_token_service_factory.h"
 #include "chrome/browser/signin/signin_manager_factory.h"
+#include "chrome/browser/signin/signin_util.h"
 #include "chrome/browser/ui/browser_list.h"
 #include "chrome/browser/ui/user_manager.h"
 #include "chrome/browser/web_data_service_factory.h"
@@ -37,7 +40,6 @@
 #include "components/signin/core/common/profile_management_switches.h"
 #include "components/signin/core/common/signin_pref_names.h"
 #include "components/signin/core/common/signin_switches.h"
-#include "content/public/browser/browser_thread.h"
 #include "google_apis/gaia/gaia_constants.h"
 #include "google_apis/gaia/gaia_urls.h"
 #include "net/url_request/url_request_context_getter.h"
@@ -58,25 +60,12 @@
 #include "chrome/browser/first_run/first_run.h"
 #endif
 
-namespace {
-
-bool IsForceSigninEnabled() {
-  PrefService* prefs = g_browser_process->local_state();
-  return prefs && prefs->GetBoolean(prefs::kForceBrowserSignin);
-}
-
-}  // namespace
-
 ChromeSigninClient::ChromeSigninClient(
     Profile* profile,
     SigninErrorController* signin_error_controller)
     : OAuth2TokenService::Consumer("chrome_signin_client"),
       profile_(profile),
-      signin_error_controller_(signin_error_controller),
-      is_force_signin_enabled_(IsForceSigninEnabled()),
-      request_context_pointer_(nullptr),
-      number_of_request_context_pointer_changes_(0),
-      weak_factory_(this) {
+      signin_error_controller_(signin_error_controller) {
   signin_error_controller_->AddObserver(this);
 #if !defined(OS_CHROMEOS)
   net::NetworkChangeNotifier::AddNetworkChangeObserver(this);
@@ -121,6 +110,7 @@ void ChromeSigninClient::Shutdown() {
 
 void ChromeSigninClient::DoFinalInit() {
   MaybeFetchSigninTokenHandle();
+  VerifySyncToken();
 }
 
 // static
@@ -203,34 +193,7 @@ void ChromeSigninClient::OnSignedOut() {
 }
 
 net::URLRequestContextGetter* ChromeSigninClient::GetURLRequestContext() {
-  net::URLRequestContextGetter* getter = profile_->GetRequestContext();
-  scoped_refptr<net::URLRequestContextGetter> scoped_getter(getter);
-  content::BrowserThread::PostTaskAndReplyWithResult(
-      content::BrowserThread::IO,
-      FROM_HERE,
-      base::Bind(&net::URLRequestContextGetter::GetURLRequestContext,
-                 scoped_getter),
-      base::Bind(&ChromeSigninClient::RequestContextPointerReply,
-                 weak_factory_.GetWeakPtr()));
-  return getter;
-}
-
-void ChromeSigninClient::RequestContextPointerReply(
-    net::URLRequestContext* pointer) {
-  // Because this function runs in the UI thread, it is not possible to
-  // dereference the pointer.  The pointer is used only for its value.
-  if (request_context_pointer_ != nullptr &&
-      pointer != request_context_pointer_) {
-    ++number_of_request_context_pointer_changes_;
-
-    // In theory, |request_context_pointer_changed_| should never be > 0.
-    // Adding a DCHECK here to catch it in debug builds.  In release builds
-    // requests to gaia will be tagged with a special source= parameter.
-    DCHECK_EQ(0, number_of_request_context_pointer_changes_)
-        << "If you hit this DCHECK, open a bug for rogerta@chromium.org";
-  }
-
-  request_context_pointer_ = pointer;
+  return profile_->GetRequestContext();
 }
 
 bool ChromeSigninClient::ShouldMergeSigninCredentialsIntoCookieJar() {
@@ -306,20 +269,28 @@ void ChromeSigninClient::PostSignedIn(const std::string& account_id,
 #endif
 }
 
-void ChromeSigninClient::PreSignOut(const base::Callback<void()>& sign_out) {
+void ChromeSigninClient::PreSignOut(
+    const base::Callback<void()>& sign_out,
+    signin_metrics::ProfileSignout signout_source_metric) {
 #if !defined(OS_ANDROID) && !defined(OS_CHROMEOS)
-  if (is_force_signin_enabled_ && !profile_->IsSystemProfile() &&
+  if (signin_util::IsForceSigninEnabled() && !profile_->IsSystemProfile() &&
       !profile_->IsGuestSession() && !profile_->IsSupervised()) {
+    // TODO(zmin): force window closing based on the reason of sign-out.
+    // This will be updated after force window closing CL is commited.
+
+    // User can't abort the window closing unless user sign out manually.
     BrowserList::CloseAllBrowsersWithProfile(
-        profile_, base::Bind(&ChromeSigninClient::OnCloseBrowsersSuccess,
-                             base::Unretained(this), sign_out),
+        profile_,
+        base::Bind(&ChromeSigninClient::OnCloseBrowsersSuccess,
+                   base::Unretained(this), sign_out, signout_source_metric),
         base::Bind(&ChromeSigninClient::OnCloseBrowsersAborted,
-                   base::Unretained(this)));
+                   base::Unretained(this)),
+        false);
   } else {
 #else
   {
 #endif
-    SigninClient::PreSignOut(sign_out);
+    SigninClient::PreSignOut(sign_out, signout_source_metric);
   }
 }
 
@@ -414,11 +385,18 @@ void ChromeSigninClient::DelayNetworkCall(const base::Closure& callback) {
 #endif
 }
 
-GaiaAuthFetcher* ChromeSigninClient::CreateGaiaAuthFetcher(
+std::unique_ptr<GaiaAuthFetcher> ChromeSigninClient::CreateGaiaAuthFetcher(
     GaiaAuthConsumer* consumer,
     const std::string& source,
     net::URLRequestContextGetter* getter) {
-  return new GaiaAuthFetcher(consumer, source, getter);
+  return base::MakeUnique<GaiaAuthFetcher>(consumer, source, getter);
+}
+
+void ChromeSigninClient::VerifySyncToken() {
+#if !defined(OS_ANDROID) && !defined(OS_CHROMEOS)
+  if (signin_util::IsForceSigninEnabled())
+    force_signin_verifier_ = base::MakeUnique<ForceSigninVerifier>(profile_);
+#endif
 }
 
 void ChromeSigninClient::MaybeFetchSigninTokenHandle() {
@@ -450,7 +428,7 @@ void ChromeSigninClient::MaybeFetchSigninTokenHandle() {
 }
 
 void ChromeSigninClient::AfterCredentialsCopied() {
-  if (is_force_signin_enabled_) {
+  if (signin_util::IsForceSigninEnabled()) {
     // The signout after credential copy won't open UserManager after all
     // browser window are closed. Because the browser window will be opened for
     // the new profile soon.
@@ -458,14 +436,15 @@ void ChromeSigninClient::AfterCredentialsCopied() {
   }
 }
 
-int ChromeSigninClient::number_of_request_context_pointer_changes() const {
-  return number_of_request_context_pointer_changes_;
-}
-
 void ChromeSigninClient::OnCloseBrowsersSuccess(
     const base::Callback<void()>& sign_out,
+    const signin_metrics::ProfileSignout signout_source_metric,
     const base::FilePath& profile_path) {
-  SigninClient::PreSignOut(sign_out);
+#if !defined(OS_ANDROID) && !defined(OS_CHROMEOS)
+  if (signin_util::IsForceSigninEnabled() && force_signin_verifier_.get())
+    force_signin_verifier_->Cancel();
+#endif
+  SigninClient::PreSignOut(sign_out, signout_source_metric);
 
   LockForceSigninProfile(profile_path);
   // After sign out, lock the profile and show UserManager if necessary.

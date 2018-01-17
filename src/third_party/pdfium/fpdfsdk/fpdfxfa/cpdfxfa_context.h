@@ -8,16 +8,17 @@
 #define FPDFSDK_FPDFXFA_CPDFXFA_CONTEXT_H_
 
 #include <memory>
+#include <vector>
 
 #include "fpdfsdk/fpdfxfa/cpdfxfa_docenvironment.h"
-#include "xfa/fxfa/xfa_ffdoc.h"
+#include "xfa/fxfa/cxfa_ffdoc.h"
 
 class CJS_Runtime;
 class CPDFSDK_FormFillEnvironment;
 class CPDFXFA_Page;
 class CXFA_FFDocHandler;
+class IJS_EventContext;
 class IJS_Runtime;
-class IJS_Context;
 
 enum LoadStatus {
   FXFA_LOADSTATUS_PRELOAD = 0,
@@ -36,7 +37,7 @@ class CPDFXFA_Context : public IXFA_AppProvider {
   CPDF_Document* GetPDFDoc() { return m_pPDFDoc.get(); }
   CXFA_FFDoc* GetXFADoc() { return m_pXFADoc.get(); }
   CXFA_FFDocView* GetXFADocView() { return m_pXFADocView; }
-  int GetDocType() const { return m_iDocType; }
+  XFA_DocType GetDocType() const { return m_iDocType; }
   v8::Isolate* GetJSERuntime() const;
   CXFA_FFApp* GetXFAApp() { return m_pXFAApp.get(); }
 
@@ -88,17 +89,16 @@ class CPDFXFA_Context : public IXFA_AppProvider {
   int GetOriginalPageCount() const { return m_nPageCount; }
   void SetOriginalPageCount(int count) {
     m_nPageCount = count;
-    m_XFAPageList.SetSize(count);
+    m_XFAPageList.resize(count);
   }
 
   LoadStatus GetLoadStatus() const { return m_nLoadStatus; }
-
-  CFX_ArrayTemplate<CPDFXFA_Page*>* GetXFAPageList() { return &m_XFAPageList; }
+  std::vector<CPDFXFA_Page*>* GetXFAPageList() { return &m_XFAPageList; }
 
  private:
   void CloseXFADoc();
 
-  int m_iDocType;
+  XFA_DocType m_iDocType;
 
   std::unique_ptr<CPDF_Document> m_pPDFDoc;
   std::unique_ptr<CXFA_FFDoc> m_pXFADoc;
@@ -106,7 +106,7 @@ class CPDFXFA_Context : public IXFA_AppProvider {
   CXFA_FFDocView* m_pXFADocView;                // not owned.
   std::unique_ptr<CXFA_FFApp> m_pXFAApp;
   std::unique_ptr<CJS_Runtime> m_pRuntime;
-  CFX_ArrayTemplate<CPDFXFA_Page*> m_XFAPageList;
+  std::vector<CPDFXFA_Page*> m_XFAPageList;
   LoadStatus m_nLoadStatus;
   int m_nPageCount;
 

@@ -26,6 +26,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/stringize_macros.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/task_scheduler/task_scheduler.h"
 #include "build/build_config.h"
 #include "components/policy/policy_constants.h"
 #include "ipc/ipc_channel.h"
@@ -40,11 +41,12 @@
 #include "net/socket/client_socket_factory.h"
 #include "net/url_request/url_fetcher.h"
 #include "remoting/base/auto_thread_task_runner.h"
-#include "remoting/base/breakpad.h"
 #include "remoting/base/chromium_url_request.h"
 #include "remoting/base/constants.h"
 #include "remoting/base/logging.h"
+#include "remoting/base/oauth_token_getter_impl.h"
 #include "remoting/base/rsa_key_pair.h"
+#include "remoting/base/service_urls.h"
 #include "remoting/base/util.h"
 #include "remoting/host/branding.h"
 #include "remoting/host/chromoting_host.h"
@@ -71,13 +73,11 @@
 #include "remoting/host/ipc_host_event_logger.h"
 #include "remoting/host/logging.h"
 #include "remoting/host/me2me_desktop_environment.h"
-#include "remoting/host/oauth_token_getter_impl.h"
 #include "remoting/host/pairing_registry_delegate.h"
 #include "remoting/host/pin_hash.h"
 #include "remoting/host/policy_watcher.h"
 #include "remoting/host/security_key/security_key_auth_handler.h"
 #include "remoting/host/security_key/security_key_extension.h"
-#include "remoting/host/service_urls.h"
 #include "remoting/host/shutdown_watchdog.h"
 #include "remoting/host/signaling_connector.h"
 #include "remoting/host/single_window_desktop_environment.h"
@@ -133,9 +133,16 @@
 using remoting::protocol::PairingRegistry;
 using remoting::protocol::NetworkSettings;
 
-#if defined(USE_REMOTING_MACOSX_INTERNAL)
-#include "remoting/tools/internal/internal_mac-inl.h"
-#endif
+#if defined(OS_MACOSX)
+
+// The following creates a section that tells Mac OS X that it is OK to let us
+// inject input in the login screen. Just the name of the section is important,
+// not its contents.
+__attribute__((used))
+__attribute__((section ("__CGPreLoginApp,__cgpreloginapp")))
+static const char magic_section[] = "";
+
+#endif  // defined(OS_MACOSX)
 
 namespace {
 
@@ -1347,10 +1354,10 @@ void HostProcess::InitializeSignaling() {
   std::unique_ptr<DnsBlackholeChecker> dns_blackhole_checker(
       new DnsBlackholeChecker(context_->url_request_context_getter(),
                               talkgadget_prefix_));
-  std::unique_ptr<OAuthTokenGetter::OAuthCredentials> oauth_credentials(
-      new OAuthTokenGetter::OAuthCredentials(xmpp_server_config_.username,
-                                             oauth_refresh_token_,
-                                             use_service_account_));
+  std::unique_ptr<OAuthTokenGetter::OAuthAuthorizationCredentials>
+      oauth_credentials(new OAuthTokenGetter::OAuthAuthorizationCredentials(
+          xmpp_server_config_.username, oauth_refresh_token_,
+          use_service_account_));
   oauth_token_getter_.reset(
       new OAuthTokenGetterImpl(std::move(oauth_credentials),
                                context_->url_request_context_getter(), false));
@@ -1634,6 +1641,8 @@ int HostProcessMain() {
   base::GetLinuxDistro();
 #endif
 
+  base::TaskScheduler::CreateAndSetSimpleTaskScheduler("Me2Me");
+
   // Create the main message loop and start helper threads.
   base::MessageLoopForUI message_loop;
   std::unique_ptr<ChromotingHostContext> context =
@@ -1657,6 +1666,9 @@ int HostProcessMain() {
 
   // Run the main (also UI) message loop until the host no longer needs it.
   base::RunLoop().Run();
+
+  // Block until tasks blocking shutdown have completed their execution.
+  base::TaskScheduler::GetInstance()->Shutdown();
 
   return exit_code;
 }

@@ -10,10 +10,12 @@
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "base/optional.h"
 #include "chrome/common/prerender_types.h"
 #include "content/public/browser/resource_request_info.h"
 #include "content/public/browser/resource_throttle.h"
 #include "content/public/common/resource_type.h"
+#include "net/base/request_priority.h"
 
 class GURL;
 
@@ -50,6 +52,9 @@ class PrerenderResourceThrottle
   // May only be called if currently throttling the resource.
   void ResumeHandler();
 
+  // Resets the resource priority back to its original value.
+  void ResetResourcePriority();
+
   static void OverridePrerenderContentsForTesting(PrerenderContents* contents);
 
  private:
@@ -84,11 +89,16 @@ class PrerenderResourceThrottle
       const content::ResourceRequestInfo::WebContentsGetter&
           web_contents_getter);
 
-  // Sets the prerender mode. Must be called befor ResumeHandler().
+  // Sets the prerender mode. Must be called before |ResumeHandler()|.
   void SetPrerenderMode(PrerenderMode mode);
 
   net::URLRequest* request_;
   int load_flags_;  // Load flags to be OR'ed with the existing request flags.
+
+  // The throttle changes most request priorities to IDLE during prerendering.
+  // The priority is reset back to the original priority when prerendering is
+  // finished.
+  base::Optional<net::RequestPriority> original_request_priority_;
 
   scoped_refptr<PrerenderThrottleInfo> prerender_throttle_info_;
 

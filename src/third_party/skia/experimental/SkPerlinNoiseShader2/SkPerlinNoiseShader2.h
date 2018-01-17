@@ -28,9 +28,9 @@ public:
     struct PaintingData;
 
     /**
-     *  About the noise types : the difference between the first 2 is just minor tweaks to the 
-     *  algorithm, they're not 2 entirely different noises. The output looks different, but once the 
-     *  noise is generated in the [1, -1] range, the output is brought back in the [0, 1] range by 
+     *  About the noise types : the difference between the first 2 is just minor tweaks to the
+     *  algorithm, they're not 2 entirely different noises. The output looks different, but once the
+     *  noise is generated in the [1, -1] range, the output is brought back in the [0, 1] range by
      *  doing :
      *  kFractalNoise_Type : noise * 0.5 + 0.5
      *  kTurbulence_Type   : abs(noise)
@@ -86,7 +86,7 @@ public:
     class PerlinNoiseShaderContext : public SkShader::Context {
     public:
         PerlinNoiseShaderContext(const SkPerlinNoiseShader2& shader, const ContextRec&);
-        virtual ~PerlinNoiseShaderContext();
+        ~PerlinNoiseShaderContext() override;
 
         void shadeSpan(int x, int y, SkPMColor[], int count) override;
 
@@ -114,14 +114,13 @@ public:
 
 protected:
     void flatten(SkWriteBuffer&) const override;
-    size_t onContextSize(const ContextRec&) const override;
-    Context* onCreateContext(const ContextRec&, void* storage) const override;
+    Context* onMakeContext(const ContextRec&, SkArenaAlloc*) const override;
 
 private:
     SkPerlinNoiseShader2(SkPerlinNoiseShader2::Type type, SkScalar baseFrequencyX,
                         SkScalar baseFrequencyY, int numOctaves, SkScalar seed,
                         const SkISize* tileSize);
-    virtual ~SkPerlinNoiseShader2();
+    ~SkPerlinNoiseShader2() override;
 
     const SkPerlinNoiseShader2::Type fType;
     const SkScalar                  fBaseFrequencyX;

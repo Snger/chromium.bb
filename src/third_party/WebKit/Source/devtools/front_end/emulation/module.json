@@ -47,14 +47,34 @@
             "order": 1
         },
         {
+            "type": "@UI.ActionDelegate",
+            "actionId": "emulation.capture-full-height-screenshot",
+            "category": "Mobile",
+            "className": "Emulation.DeviceModeWrapper.ActionDelegate",
+            "title": "Capture full size screenshot",
+            "tags": "device"
+        },
+        {
+            "type": "context-menu-item",
+            "location": "deviceModeMenu/tools",
+            "order": 13,
+            "actionId": "emulation.capture-full-height-screenshot"
+        },
+        {
             "type": "setting",
             "category": "Mobile",
             "settingName": "showMediaQueryInspector",
             "settingType": "boolean",
             "defaultValue": false,
             "options": [
-                {"value": true, "title": "Show media queries"},
-                {"value": false, "title": "Hide media queries"}
+                {
+                    "value": true,
+                    "title": "Show media queries"
+                },
+                {
+                    "value": false,
+                    "title": "Hide media queries"
+                }
             ],
             "tags": "device"
         },
@@ -65,8 +85,14 @@
             "settingType": "boolean",
             "defaultValue": false,
             "options": [
-                {"value": true, "title": "Show rulers"},
-                {"value": false, "title": "Hide rulers"}
+                {
+                    "value": true,
+                    "title": "Show rulers"
+                },
+                {
+                    "value": false,
+                    "title": "Hide rulers"
+                }
             ],
             "tags": "device"
         },
@@ -77,8 +103,14 @@
             "settingType": "boolean",
             "defaultValue": false,
             "options": [
-                {"value": true, "title": "Show device frame"},
-                {"value": false, "title": "Hide device frame"}
+                {
+                    "value": true,
+                    "title": "Show device frame"
+                },
+                {
+                    "value": false,
+                    "title": "Hide device frame"
+                }
             ],
             "tags": "device"
         },
@@ -115,7 +147,8 @@
         "bindings",
         "components",
         "platform",
-        "ui"
+        "ui",
+        "network_conditions"
     ],
     "scripts": [
         "AdvancedApp.js",

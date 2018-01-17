@@ -6,15 +6,12 @@ package org.chromium.chrome.browser.offlinepages;
 
 import android.app.Activity;
 import android.content.Context;
-import android.content.Intent;
-import android.content.IntentFilter;
-import android.net.ConnectivityManager;
-import android.net.NetworkInfo;
 import android.net.Uri;
 import android.os.AsyncTask;
-import android.os.BatteryManager;
 import android.os.Environment;
 
+import org.chromium.base.ActivityState;
+import org.chromium.base.ApplicationStatus;
 import org.chromium.base.Callback;
 import org.chromium.base.FileUtils;
 import org.chromium.base.Log;
@@ -24,13 +21,17 @@ import org.chromium.base.metrics.RecordHistogram;
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeActivity;
+import org.chromium.chrome.browser.UrlConstants;
 import org.chromium.chrome.browser.profiles.Profile;
 import org.chromium.chrome.browser.share.ShareHelper;
 import org.chromium.chrome.browser.snackbar.Snackbar;
 import org.chromium.chrome.browser.snackbar.SnackbarManager;
 import org.chromium.chrome.browser.snackbar.SnackbarManager.SnackbarController;
+import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
+import org.chromium.chrome.browser.tabmodel.TabModel;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
+import org.chromium.chrome.browser.tabmodel.TabModelSelectorTabModelObserver;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.components.offlinepages.SavePageResult;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -44,7 +45,9 @@ import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.nio.channels.FileChannel;
+import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 import java.util.concurrent.TimeUnit;
 
@@ -62,12 +65,48 @@ public class OfflinePageUtils {
 
     private static final long STORAGE_ALMOST_FULL_THRESHOLD_BYTES = 10L * (1 << 20); // 10M
 
+    /**
+     * Bit flags to be OR-ed together to build the context of a tab restore to be used to identify
+     * the appropriate TabRestoreType in a lookup table.
+     */
+    private static final int BIT_ONLINE = 1;
+    private static final int BIT_CANT_SAVE_OFFLINE = 1 << 2;
+    private static final int BIT_OFFLINE_PAGE = 1 << 3;
+    private static final int BIT_LAST_N = 1 << 4;
+
     // Used instead of the constant so tests can override the value.
     private static int sSnackbarDurationMs = DEFAULT_SNACKBAR_DURATION_MS;
 
     private static OfflinePageUtils sInstance;
 
     private static File sOfflineSharingDirectory;
+
+    /**
+     * Tracks the observers of ChromeActivity's TabModelSelectors. This is weak so the activity can
+     * be garbage collected without worrying about this map.  The RecentTabTracker is held here so
+     * that it can be destroyed when the ChromeActivity gets a new TabModelSelector.
+     */
+    private static Map<ChromeActivity, RecentTabTracker> sTabModelObservers = new HashMap<>();
+
+    /**
+     * Contains values from the histogram enum OfflinePagesTabRestoreType used for reporting the
+     * OfflinePages.TabRestore metric.
+     */
+    private static class TabRestoreType {
+        public static final int WHILE_ONLINE = 0;
+        public static final int WHILE_ONLINE_CANT_SAVE_FOR_OFFLINE_USAGE = 1;
+        public static final int WHILE_ONLINE_TO_OFFLINE_PAGE = 2;
+        public static final int WHILE_ONLINE_TO_OFFLINE_PAGE_FROM_LAST_N = 3;
+        public static final int WHILE_OFFLINE = 4;
+        public static final int WHILE_OFFLINE_CANT_SAVE_FOR_OFFLINE_USAGE = 5;
+        public static final int WHILE_OFFLINE_TO_OFFLINE_PAGE = 6;
+        public static final int WHILE_OFFLINE_TO_OFFLINE_PAGE_FROM_LAST_N = 7;
+        public static final int FAILED = 8;
+        public static final int CRASHED = 9;
+        // NOTE: always keep this entry at the end. Add new result types only immediately above this
+        // line. Make sure to update the corresponding histogram enum accordingly.
+        public static final int COUNT = 10;
+    }
 
     private static OfflinePageUtils getInstance() {
         if (sInstance == null) {
@@ -120,12 +159,10 @@ public class OfflinePageUtils {
         WebContents webContents = tab.getWebContents();
         ClientId clientId = ClientId.createClientIdForBookmarkId(bookmarkId);
 
-        // TODO(fgorski): Ensure that request is queued if the model is not loaded.
         offlinePageBridge.savePage(webContents, clientId, new OfflinePageBridge.SavePageCallback() {
             @Override
             public void onSavePageDone(int savePageResult, String url, long offlineId) {
-                // TODO(fgorski): Decide if we need to do anything with result.
-                // Perhaps some UMA reporting, but that can really happen someplace else.
+                // Result of the call is ignored.
             }
         });
     }
@@ -148,9 +185,9 @@ public class OfflinePageUtils {
     public static String stripSchemeFromOnlineUrl(String onlineUrl) {
         onlineUrl = onlineUrl.trim();
         // Offline pages are only saved for https:// and http:// schemes.
-        if (onlineUrl.startsWith("https://")) {
+        if (onlineUrl.startsWith(UrlConstants.HTTPS_URL_PREFIX)) {
             return onlineUrl.substring(8);
-        } else if (onlineUrl.startsWith("http://")) {
+        } else if (onlineUrl.startsWith(UrlConstants.HTTP_URL_PREFIX)) {
             return onlineUrl.substring(7);
         } else {
             return onlineUrl;
@@ -237,41 +274,11 @@ public class OfflinePageUtils {
     }
 
     /**
-     * Returns a class encapsulating the current power, battery, and network conditions.
-     */
-    public static DeviceConditions getDeviceConditions(Context context) {
-        return getInstance().getDeviceConditionsImpl(context);
-    }
-
-    /**
-     * Return true if the device is plugged into wall power.
-     */
-    public static boolean getPowerConditions(Context context) {
-        // TODO(petewil): refactor to get power, network, and battery directly from both here and
-        // getDeviceConditionsImpl instead of always making a DeviceConditions object.
-        return getInstance().getDeviceConditionsImpl(context).isPowerConnected();
-    }
-
-    /**
-     * Get the percentage of battery remaining
-     */
-    public static int getBatteryConditions(Context context) {
-        return getInstance().getDeviceConditionsImpl(context).getBatteryPercentage();
-    }
-
-    /**
-     * Returns an enum representing the type of the network connection.
-     */
-    public static int getNetworkConditions(Context context) {
-        return getInstance().getDeviceConditionsImpl(context).getNetConnectionType();
-    }
-
-    /**
      * Records UMA data when the Offline Pages Background Load service awakens.
      * @param context android context
      */
     public static void recordWakeupUMA(Context context, long taskScheduledTimeMillis) {
-        DeviceConditions deviceConditions = getDeviceConditions(context);
+        DeviceConditions deviceConditions = DeviceConditions.getCurrentConditions(context);
         if (deviceConditions == null) return;
 
         // Report charging state.
@@ -635,71 +642,178 @@ public class OfflinePageUtils {
         tab.loadUrl(params);
     }
 
-    private static boolean isPowerConnected(Intent batteryStatus) {
-        int status = batteryStatus.getIntExtra(BatteryManager.EXTRA_STATUS, -1);
-        boolean isConnected = (status == BatteryManager.BATTERY_STATUS_CHARGING
-                || status == BatteryManager.BATTERY_STATUS_FULL);
-        Log.d(TAG, "Power connected is " + isConnected);
-        return isConnected;
-    }
-
-    private static int batteryPercentage(Intent batteryStatus) {
-        int level = batteryStatus.getIntExtra(BatteryManager.EXTRA_LEVEL, -1);
-        int scale = batteryStatus.getIntExtra(BatteryManager.EXTRA_SCALE, -1);
-        if (scale == 0) return 0;
-
-        int percentage = Math.round(100 * level / (float) scale);
-        Log.d(TAG, "Battery Percentage is " + percentage);
-        return percentage;
-    }
-
     protected OfflinePageBridge getOfflinePageBridge(Profile profile) {
         return OfflinePageBridge.getForProfile(profile);
     }
 
-    /** Returns the current device conditions. May be overridden for testing. */
-    protected DeviceConditions getDeviceConditionsImpl(Context context) {
-        IntentFilter filter = new IntentFilter(Intent.ACTION_BATTERY_CHANGED);
-        // Note this is a sticky intent, so we aren't really registering a receiver, just getting
-        // the sticky intent.  That means that we don't need to unregister the filter later.
-        Intent batteryStatus = context.registerReceiver(null, filter);
-        if (batteryStatus == null) return null;
+    /**
+     * Tracks tab creation and closure for the Recent Tabs feature.  UI needs to stop showing
+     * recent offline pages as soon as the tab is closed.  The TabModel is used to get profile
+     * information because Tab's profile is tied to the native WebContents, which may not exist at
+     * tab adding or tab closing time.
+     */
+    private static class RecentTabTracker extends TabModelSelectorTabModelObserver {
+        /**
+         * The single, stateless TabRestoreTracker instance to monitor all tab restores.
+         */
+        private static final TabRestoreTracker sTabRestoreTracker = new TabRestoreTracker();
 
-        // Get the connection type from chromium's internal object.
-        int connectionType = NetworkChangeNotifier.getInstance().getCurrentConnectionType();
+        private TabModelSelector mTabModelSelector;
 
-        // Sometimes the NetworkConnectionNotifier lags the actual connection type, especially when
-        // the GCM NM wakes us from doze state.  If we are really connected, report the connection
-        // type from android.
-        if (connectionType == ConnectionType.CONNECTION_NONE) {
-            // Get the connection type from android in case chromium's type is not yet set.
-            ConnectivityManager cm =
-                    (ConnectivityManager) context.getSystemService(Context.CONNECTIVITY_SERVICE);
-            NetworkInfo activeNetwork = cm.getActiveNetworkInfo();
-            boolean isConnected = activeNetwork != null && activeNetwork.isConnectedOrConnecting();
-            if (isConnected) {
-                connectionType = convertAndroidNetworkTypeToConnectionType(activeNetwork.getType());
-            }
+        public RecentTabTracker(TabModelSelector selector) {
+            super(selector);
+            mTabModelSelector = selector;
         }
 
-        return new DeviceConditions(
-                isPowerConnected(batteryStatus), batteryPercentage(batteryStatus), connectionType);
+        @Override
+        public void didAddTab(Tab tab, TabModel.TabLaunchType type) {
+            tab.addObserver(sTabRestoreTracker);
+
+            Profile profile = mTabModelSelector.getModel(tab.isIncognito()).getProfile();
+            OfflinePageBridge bridge = OfflinePageBridge.getForProfile(profile);
+            if (bridge == null) return;
+            bridge.registerRecentTab(tab.getId());
+        }
+
+        @Override
+        public void willCloseTab(Tab tab, boolean animate) {
+            Profile profile = mTabModelSelector.getModel(tab.isIncognito()).getProfile();
+            OfflinePageBridge bridge = OfflinePageBridge.getForProfile(profile);
+            if (bridge == null) return;
+
+            WebContents webContents = tab.getWebContents();
+            if (webContents != null) bridge.willCloseTab(webContents);
+        }
+
+        @Override
+        public void didCloseTab(int tabId, boolean incognito) {
+            Profile profile = mTabModelSelector.getModel(incognito).getProfile();
+            OfflinePageBridge bridge = OfflinePageBridge.getForProfile(profile);
+            if (bridge == null) return;
+
+            // First, unregister the tab with the UI.
+            bridge.unregisterRecentTab(tabId);
+
+            // Then, delete any "Last N" offline pages as well.  This is an optimization because
+            // the UI will no longer show the page, and the page would also be cleaned up by GC
+            // given enough time.
+            ClientId clientId =
+                    new ClientId(OfflinePageBridge.LAST_N_NAMESPACE, Integer.toString(tabId));
+            List<ClientId> clientIds = new ArrayList<>();
+            clientIds.add(clientId);
+
+            bridge.deletePagesByClientId(clientIds, new Callback<Integer>() {
+                @Override
+                public void onResult(Integer result) {
+                    // Result is ignored.
+                }
+            });
+        }
     }
 
-    /** Returns the NCN network type corresponding to the connectivity manager network type */
-    protected int convertAndroidNetworkTypeToConnectionType(int connectivityManagerNetworkType) {
-        if (connectivityManagerNetworkType == ConnectivityManager.TYPE_WIFI) {
-            return ConnectionType.CONNECTION_WIFI;
+    /**
+     * Starts tracking the tab models in the given selector for tab addition and closure,
+     * destroying obsolete observers as necessary.
+     */
+    public static void observeTabModelSelector(
+            ChromeActivity activity, TabModelSelector tabModelSelector) {
+        RecentTabTracker previousObserver =
+                sTabModelObservers.put(activity, new RecentTabTracker(tabModelSelector));
+        if (previousObserver != null) {
+            previousObserver.destroy();
+        } else {
+            // This is the 1st time we see this activity so register a state listener with it.
+            ApplicationStatus.registerStateListenerForActivity(
+                    new ApplicationStatus.ActivityStateListener() {
+                        @Override
+                        public void onActivityStateChange(Activity activity, int newState) {
+                            if (newState == ActivityState.DESTROYED) {
+                                sTabModelObservers.remove(activity).destroy();
+                                ApplicationStatus.unregisterActivityStateListener(this);
+                            }
+                        }
+                    },
+                    activity);
         }
-        // for mobile, we don't know if it is 2G, 3G, or 4G, default to worst case of 2G.
-        if (connectivityManagerNetworkType == ConnectivityManager.TYPE_MOBILE) {
-            return ConnectionType.CONNECTION_2G;
+    }
+
+    private static class TabRestoreTracker extends EmptyTabObserver {
+        /**
+         * If the tab was being restored, reports that it successfully finished reloading its
+         * contents.
+         */
+        @Override
+        public void onPageLoadFinished(Tab tab) {
+            if (!tab.isBeingRestored()) return;
+
+            // We first compute the bitwise tab restore context.
+            int tabRestoreContext = 0;
+            if (isConnected()) tabRestoreContext |= BIT_ONLINE;
+            OfflinePageItem page = tab.getOfflinePage();
+            if (page != null) {
+                tabRestoreContext |= BIT_OFFLINE_PAGE;
+                if (page.getClientId().getNamespace().equals(OfflinePageBridge.LAST_N_NAMESPACE)) {
+                    tabRestoreContext |= BIT_LAST_N;
+                }
+            } else if (!OfflinePageBridge.canSavePage(tab.getUrl()) || tab.isIncognito()) {
+                tabRestoreContext |= BIT_CANT_SAVE_OFFLINE;
+            }
+
+            // Now determine the correct tab restore type based on the context.
+            int tabRestoreType;
+            switch (tabRestoreContext) {
+                case BIT_ONLINE:
+                    tabRestoreType = TabRestoreType.WHILE_ONLINE;
+                    break;
+                case BIT_ONLINE | BIT_CANT_SAVE_OFFLINE:
+                    tabRestoreType = TabRestoreType.WHILE_ONLINE_CANT_SAVE_FOR_OFFLINE_USAGE;
+                    break;
+                case BIT_ONLINE | BIT_OFFLINE_PAGE:
+                    tabRestoreType = TabRestoreType.WHILE_ONLINE_TO_OFFLINE_PAGE;
+                    break;
+                case BIT_ONLINE | BIT_OFFLINE_PAGE | BIT_LAST_N:
+                    tabRestoreType = TabRestoreType.WHILE_ONLINE_TO_OFFLINE_PAGE_FROM_LAST_N;
+                    break;
+                case 0: // offline (not BIT_ONLINE present).
+                    tabRestoreType = TabRestoreType.WHILE_OFFLINE;
+                    break;
+                case BIT_CANT_SAVE_OFFLINE:
+                    tabRestoreType = TabRestoreType.WHILE_OFFLINE_CANT_SAVE_FOR_OFFLINE_USAGE;
+                    break;
+                case BIT_OFFLINE_PAGE:
+                    tabRestoreType = TabRestoreType.WHILE_OFFLINE_TO_OFFLINE_PAGE;
+                    break;
+                case BIT_OFFLINE_PAGE | BIT_LAST_N:
+                    tabRestoreType = TabRestoreType.WHILE_OFFLINE_TO_OFFLINE_PAGE_FROM_LAST_N;
+                    break;
+                default:
+                    assert false;
+                    return;
+            }
+            recordTabRestoreHistogram(tabRestoreType, tab.getUrl());
         }
-        if (connectivityManagerNetworkType == ConnectivityManager.TYPE_BLUETOOTH) {
-            return ConnectionType.CONNECTION_BLUETOOTH;
+
+        /**
+         * If the tab was being restored, reports that it failed reloading its contents.
+         */
+        @Override
+        public void onPageLoadFailed(Tab tab, int errorCode) {
+            if (tab.isBeingRestored()) recordTabRestoreHistogram(TabRestoreType.FAILED, null);
         }
-        // Since NetworkConnectivityManager doesn't understand the other types, call them UNKNOWN.
-        return ConnectionType.CONNECTION_UNKNOWN;
+
+        /**
+         * If the tab was being restored, reports that it crashed while doing so.
+         */
+        @Override
+        public void onCrash(Tab tab, boolean sadTabShown) {
+            if (tab.isBeingRestored()) recordTabRestoreHistogram(TabRestoreType.CRASHED, null);
+        }
+    }
+
+    private static void recordTabRestoreHistogram(int tabRestoreType, String url) {
+        Log.d(TAG, "Concluded tab restore: type=" + tabRestoreType + ", url=" + url);
+        RecordHistogram.recordEnumeratedHistogram(
+                "OfflinePages.TabRestore", tabRestoreType, TabRestoreType.COUNT);
     }
 
     @VisibleForTesting

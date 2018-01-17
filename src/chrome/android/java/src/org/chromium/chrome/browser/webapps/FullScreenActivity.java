@@ -81,12 +81,17 @@ public abstract class FullScreenActivity extends ChromeActivity {
     }
 
     @Override
-    public void finishNativeInitialization() {
+    public void initializeState() {
+        super.initializeState();
+
         mTab = createTab();
         handleTabContentChanged();
         getTabModelSelector().setTab(mTab);
         mTab.show(TabSelectionType.FROM_NEW);
+    }
 
+    @Override
+    public void finishNativeInitialization() {
         ControlContainer controlContainer = (ControlContainer) findViewById(R.id.control_container);
         initializeCompositorContent(new LayoutManagerDocument(getCompositorViewHolder()),
                 (View) controlContainer, (ViewGroup) findViewById(android.R.id.content),
@@ -169,12 +174,16 @@ public abstract class FullScreenActivity extends ChromeActivity {
         ContentViewCore.fromWebContents(webContents).setFullscreenRequiredForOrientationLock(false);
         mWebContentsObserver = new WebContentsObserver(webContents) {
             @Override
-            public void didCommitProvisionalLoadForFrame(
-                    long frameId, boolean isMainFrame, String url, int transitionType) {
-                if (!isMainFrame) return;
-                // Notify the renderer to permanently hide the top controls since they do
-                // not apply to fullscreen content views.
-                mTab.updateBrowserControlsState(mTab.getBrowserControlsStateConstraints(), true);
+            public void didFinishNavigation(String url, boolean isInMainFrame, boolean isErrorPage,
+                    boolean hasCommitted, boolean isSameDocument, boolean isFragmentNavigation,
+                    Integer pageTransition, int errorCode, String errorDescription,
+                    int httpStatusCode) {
+                if (hasCommitted && isInMainFrame) {
+                    // Notify the renderer to permanently hide the top controls since they do
+                    // not apply to fullscreen content views.
+                    mTab.updateBrowserControlsState(
+                            mTab.getBrowserControlsStateConstraints(), true);
+                }
             }
         };
     }
@@ -196,6 +205,9 @@ public abstract class FullScreenActivity extends ChromeActivity {
     @Override
     protected boolean handleBackPressed() {
         if (mTab == null) return false;
+
+        if (exitFullscreenIfShowing()) return true;
+
         if (mTab.canGoBack()) {
             mTab.goBack();
             return true;

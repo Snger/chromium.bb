@@ -14,11 +14,12 @@
 #include "base/callback.h"
 #include "base/hash.h"
 #include "base/macros.h"
-#include "cc/base/cc_export.h"
+#include "cc/base/filter_operations.h"
 #include "cc/base/list_container.h"
-#include "cc/output/filter_operations.h"
+#include "cc/cc_export.h"
 #include "cc/quads/draw_quad.h"
 #include "cc/quads/largest_draw_quad.h"
+#include "ui/gfx/color_space.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
 #include "ui/gfx/transform.h"
@@ -84,6 +85,7 @@ class CC_EXPORT RenderPass {
               const gfx::Transform& transform_to_root_target,
               const FilterOperations& filters,
               const FilterOperations& background_filters,
+              const gfx::ColorSpace& color_space,
               bool has_transparent_background);
 
   void AsValueInto(base::trace_event::TracedValue* dict) const;
@@ -119,6 +121,9 @@ class CC_EXPORT RenderPass {
   // Post-processing filters, applied to the pixels showing through the
   // background of the render pass, from behind it.
   FilterOperations background_filters;
+
+  // The color space into which content will be rendered for this render pass.
+  gfx::ColorSpace color_space;
 
   // If false, the pixels in the render pass' texture are all opaque.
   bool has_transparent_background = true;

@@ -18,7 +18,6 @@
 #include "QuadRasterizer.hpp"
 #include "Surface.hpp"
 #include "Primitive.hpp"
-#include "CPUID.hpp"
 #include "SamplerCore.hpp"
 #include "Constants.hpp"
 #include "Debug.hpp"
@@ -2544,7 +2543,7 @@ namespace sw
 			}
 
 			{
-				value = (state.targetFormat[index] == FORMAT_X32B32G32R32F) ? Float4(1.0f) : *Pointer<Float4>(buffer + 16, 16);
+				value = *Pointer<Float4>(buffer + 16, 16);
 
 				if(rgbaWriteMask != 0x0000000F)
 				{

@@ -28,7 +28,7 @@ class ScreenshotControllerTest : public test::AshTestBase {
 
  protected:
   ScreenshotController* screenshot_controller() {
-    return Shell::GetInstance()->screenshot_controller();
+    return Shell::Get()->screenshot_controller();
   }
 
   bool TestIfMouseWarpsAt(const gfx::Point& point_in_screen) {
@@ -53,11 +53,11 @@ class ScreenshotControllerTest : public test::AshTestBase {
   }
 
   const gfx::Point& GetStartPosition() const {
-    return Shell::GetInstance()->screenshot_controller()->start_position_;
+    return Shell::Get()->screenshot_controller()->start_position_;
   }
 
   const aura::Window* GetCurrentSelectedWindow() const {
-    return Shell::GetInstance()->screenshot_controller()->selected_;
+    return Shell::Get()->screenshot_controller()->selected_;
   }
 
   aura::Window* CreateSelectableWindow(const gfx::Rect& rect) {
@@ -256,11 +256,8 @@ TEST_F(PartialScreenshotControllerTest, TwoFingerTouch) {
 // across multiple monitors
 // cursor. See http://crbug.com/462229
 TEST_F(PartialScreenshotControllerTest, MouseWarpTest) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   // Create two displays.
-  Shell* shell = Shell::GetInstance();
+  Shell* shell = Shell::Get();
   UpdateDisplay("500x500,500x500");
   EXPECT_EQ(2U, shell->display_manager()->GetNumDisplays());
 
@@ -276,7 +273,7 @@ TEST_F(PartialScreenshotControllerTest, MouseWarpTest) {
 }
 
 TEST_F(PartialScreenshotControllerTest, VisibilityTest) {
-  aura::client::CursorClient* client = Shell::GetInstance()->cursor_manager();
+  aura::client::CursorClient* client = Shell::Get()->cursor_manager();
 
   GetEventGenerator().PressKey(ui::VKEY_A, 0);
   GetEventGenerator().ReleaseKey(ui::VKEY_A, 0);
@@ -299,8 +296,8 @@ TEST_F(PartialScreenshotControllerTest, VisibilityTest) {
 // Make sure ScreenshotController doesn't prevent handling of large
 // cursor. See http://crbug.com/459214
 TEST_F(PartialScreenshotControllerTest, LargeCursor) {
-  Shell::GetInstance()->cursor_manager()->SetCursorSet(ui::CURSOR_SET_LARGE);
-  Shell::GetInstance()
+  Shell::Get()->cursor_manager()->SetCursorSet(ui::CURSOR_SET_LARGE);
+  Shell::Get()
       ->window_tree_host_manager()
       ->cursor_window_controller()
       ->SetCursorCompositingEnabled(true);
@@ -418,9 +415,6 @@ TEST_F(WindowScreenshotControllerTest, MouseOperation) {
 }
 
 TEST_F(WindowScreenshotControllerTest, MultiDisplays) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("400x400,500x500");
 
   ui::test::EventGenerator& generator(GetEventGenerator());
@@ -450,9 +444,6 @@ TEST_F(WindowScreenshotControllerTest, MultiDisplays) {
 }
 
 TEST_F(ScreenshotControllerTest, MultipleDisplays) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   StartPartialScreenshotSession();
   EXPECT_TRUE(IsActive());
   UpdateDisplay("400x400,500x500");

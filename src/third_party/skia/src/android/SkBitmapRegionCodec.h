@@ -5,6 +5,9 @@
  * found in the LICENSE file.
  */
 
+#ifndef SkBitmapRegionCodec_DEFINED
+#define SkBitmapRegionCodec_DEFINED
+
 #include "SkBitmap.h"
 #include "SkBitmapRegionDecoder.h"
 #include "SkAndroidCodec.h"
@@ -22,7 +25,8 @@ public:
 
     bool decodeRegion(SkBitmap* bitmap, SkBRDAllocator* allocator,
                       const SkIRect& desiredSubset, int sampleSize,
-                      SkColorType colorType, bool requireUnpremul) override;
+                      SkColorType colorType, bool requireUnpremul,
+                      sk_sp<SkColorSpace> prefColorSpace) override;
 
     bool conversionSupported(SkColorType colorType) override;
 
@@ -35,3 +39,4 @@ private:
     typedef SkBitmapRegionDecoder INHERITED;
 
 };
+#endif  // SkBitmapRegionCodec_DEFINED

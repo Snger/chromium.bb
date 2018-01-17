@@ -11,8 +11,10 @@
 #include "base/command_line.h"
 #include "base/debug/alias.h"
 #include "base/macros.h"
+#include "base/metrics/user_metrics.h"
 #include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
+#include "cc/paint/paint_shader.h"
 #include "chrome/app/vector_icons/vector_icons.h"
 #include "chrome/browser/themes/theme_properties.h"
 #include "chrome/browser/ui/browser.h"
@@ -32,7 +34,6 @@
 #include "chrome/grit/theme_resources.h"
 #include "components/grit/components_scaled_resources.h"
 #include "components/strings/grit/components_strings.h"
-#include "content/public/browser/user_metrics.h"
 #include "content/public/common/url_constants.h"
 #include "third_party/skia/include/effects/SkGradientShader.h"
 #include "third_party/skia/include/pathops/SkPathOps.h"
@@ -197,13 +198,13 @@ void DrawHighlight(gfx::Canvas* canvas,
                    SkScalar radius,
                    SkColor color) {
   const SkColor colors[2] = { color, SkColorSetA(color, 0) };
-  SkPaint paint;
-  paint.setAntiAlias(true);
-  paint.setShader(SkGradientShader::MakeRadial(p, radius, colors, nullptr, 2,
-                                               SkShader::kClamp_TileMode));
+  cc::PaintFlags flags;
+  flags.setAntiAlias(true);
+  flags.setShader(cc::WrapSkShader(SkGradientShader::MakeRadial(
+      p, radius, colors, nullptr, 2, SkShader::kClamp_TileMode)));
   canvas->sk_canvas()->drawRect(
       SkRect::MakeXYWH(p.x() - radius, p.y() - radius, radius * 2, radius * 2),
-      paint);
+      flags);
 }
 
 // Returns whether the favicon for the given URL should be colored according to
@@ -764,13 +765,13 @@ void Tab::AnimationEnded(const gfx::Animation* animation) {
 
 void Tab::ButtonPressed(views::Button* sender, const ui::Event& event) {
   if (!alert_indicator_button_ || !alert_indicator_button_->visible())
-    content::RecordAction(UserMetricsAction("CloseTab_NoAlertIndicator"));
+    base::RecordAction(UserMetricsAction("CloseTab_NoAlertIndicator"));
   else if (alert_indicator_button_->enabled())
-    content::RecordAction(UserMetricsAction("CloseTab_MuteToggleAvailable"));
+    base::RecordAction(UserMetricsAction("CloseTab_MuteToggleAvailable"));
   else if (data_.alert_state == TabAlertState::AUDIO_PLAYING)
-    content::RecordAction(UserMetricsAction("CloseTab_AudioIndicator"));
+    base::RecordAction(UserMetricsAction("CloseTab_AudioIndicator"));
   else
-    content::RecordAction(UserMetricsAction("CloseTab_RecordingIndicator"));
+    base::RecordAction(UserMetricsAction("CloseTab_RecordingIndicator"));
 
   const CloseTabSource source =
       (event.type() == ui::ET_MOUSE_RELEASED &&
@@ -961,11 +962,11 @@ bool Tab::OnMousePressed(const ui::MouseEvent& event) {
         }
       } else if (!IsSelected()) {
         controller_->SelectTab(this);
-        content::RecordAction(UserMetricsAction("SwitchTab_Click"));
+        base::RecordAction(UserMetricsAction("SwitchTab_Click"));
       }
     } else if (!IsSelected()) {
       controller_->SelectTab(this);
-      content::RecordAction(UserMetricsAction("SwitchTab_Click"));
+      base::RecordAction(UserMetricsAction("SwitchTab_Click"));
     }
     ui::MouseEvent cloned_event(event_in_parent, parent(),
                                 static_cast<View*>(this));
@@ -1014,7 +1015,7 @@ void Tab::OnMouseReleased(const ui::MouseEvent& event) {
 
     if (alert_indicator_button_ && alert_indicator_button_->visible() &&
         alert_indicator_button_->bounds().Contains(event.location())) {
-      content::RecordAction(UserMetricsAction("TabAlertIndicator_Clicked"));
+      base::RecordAction(UserMetricsAction("TabAlertIndicator_Clicked"));
     }
   }
 }
@@ -1212,8 +1213,8 @@ void Tab::PaintTabBackgroundUsingFillId(gfx::Canvas* fill_canvas,
                                         int fill_id,
                                         int y_offset) {
   gfx::Path fill;
-  SkPaint paint;
-  paint.setAntiAlias(true);
+  cc::PaintFlags flags;
+  flags.setAntiAlias(true);
 
   // Draw the fill.
   {
@@ -1233,11 +1234,11 @@ void Tab::PaintTabBackgroundUsingFillId(gfx::Canvas* fill_canvas,
                                   GetMirroredX() + background_offset_.x(),
                                   y_offset, 0, 0, width(), height());
       } else {
-        paint.setColor(
+        flags.setColor(
             is_active ? toolbar_color
                       : tp->GetColor(ThemeProperties::COLOR_BACKGROUND_TAB));
         fill_canvas->DrawRect(
-            gfx::ScaleToEnclosingRect(GetLocalBounds(), scale), paint);
+            gfx::ScaleToEnclosingRect(GetLocalBounds(), scale), flags);
       }
 
       if (!is_active && hover_controller_.ShouldDraw()) {
@@ -1266,8 +1267,8 @@ void Tab::PaintTabBackgroundUsingFillId(gfx::Canvas* fill_canvas,
       stroke_canvas->ClipRect(
           gfx::RectF(width() * scale, height() * scale - 1));
     }
-    paint.setColor(controller_->GetToolbarTopSeparatorColor());
-    stroke_canvas->DrawPath(stroke, paint);
+    flags.setColor(controller_->GetToolbarTopSeparatorColor());
+    stroke_canvas->DrawPath(stroke, flags);
   }
 }
 
@@ -1276,39 +1277,39 @@ void Tab::PaintPinnedTabTitleChangedIndicatorAndIcon(
     const gfx::Rect& favicon_draw_bounds) {
   // The pinned tab title changed indicator consists of two parts:
   // . a clear (totally transparent) part over the bottom right (or left in rtl)
-  //   of the favicon. This is done by drawing the favicon to a canvas, then
+  //   of the favicon. This is done by drawing the favicon to a layer, then
   //   drawing the clear part on top of the favicon.
   // . a circle in the bottom right (or left in rtl) of the favicon.
   if (!favicon_.isNull()) {
-    const float kIndicatorCropRadius = 4.5;
-    gfx::Canvas icon_canvas(gfx::Size(gfx::kFaviconSize, gfx::kFaviconSize),
-                            canvas->image_scale(), false);
-    icon_canvas.DrawImageInt(favicon_, 0, 0);
-    SkPaint clear_paint;
-    clear_paint.setAntiAlias(true);
-    clear_paint.setBlendMode(SkBlendMode::kClear);
-    const int circle_x = base::i18n::IsRTL() ? 0 : gfx::kFaviconSize;
-    icon_canvas.DrawCircle(gfx::PointF(circle_x, gfx::kFaviconSize),
-                           kIndicatorCropRadius, clear_paint);
-    canvas->DrawImageInt(gfx::ImageSkia(icon_canvas.ExtractImageRep()), 0, 0,
-                         favicon_draw_bounds.width(),
+    canvas->SaveLayerAlpha(0xff);
+    canvas->DrawImageInt(favicon_, 0, 0, favicon_draw_bounds.width(),
                          favicon_draw_bounds.height(), favicon_draw_bounds.x(),
                          favicon_draw_bounds.y(), favicon_draw_bounds.width(),
                          favicon_draw_bounds.height(), false);
+    cc::PaintFlags clear_flags;
+    clear_flags.setAntiAlias(true);
+    clear_flags.setBlendMode(SkBlendMode::kClear);
+    const float kIndicatorCropRadius = 4.5f;
+    int circle_x =
+        favicon_draw_bounds.x() + (base::i18n::IsRTL() ? 0 : gfx::kFaviconSize);
+    int circle_y = favicon_draw_bounds.y() + gfx::kFaviconSize;
+    canvas->DrawCircle(gfx::Point(circle_x, circle_y), kIndicatorCropRadius,
+                       clear_flags);
+    canvas->Restore();
   }
 
   // Draws the actual pinned tab title changed indicator.
-  const int kIndicatorRadius = 3;
-  SkPaint indicator_paint;
-  indicator_paint.setColor(GetNativeTheme()->GetSystemColor(
+  cc::PaintFlags indicator_flags;
+  indicator_flags.setColor(GetNativeTheme()->GetSystemColor(
       ui::NativeTheme::kColorId_ProminentButtonColor));
-  indicator_paint.setAntiAlias(true);
+  indicator_flags.setAntiAlias(true);
+  const int kIndicatorRadius = 3;
   const int indicator_x = GetMirroredXWithWidthInView(
       favicon_bounds_.right() - kIndicatorRadius, kIndicatorRadius * 2);
   const int indicator_y = favicon_bounds_.bottom() - kIndicatorRadius;
   canvas->DrawCircle(gfx::Point(indicator_x + kIndicatorRadius,
                                 indicator_y + kIndicatorRadius),
-                     kIndicatorRadius, indicator_paint);
+                     kIndicatorRadius, indicator_flags);
 }
 
 void Tab::PaintIcon(gfx::Canvas* canvas) {
@@ -1367,10 +1368,12 @@ void Tab::AdvanceLoadingAnimation() {
   // when possible to reduce repaint overhead.
   const bool paint_to_layer = controller_->CanPaintThrobberToLayer();
   if (paint_to_layer != !!throbber_->layer()) {
-    throbber_->SetPaintToLayer(paint_to_layer);
     if (paint_to_layer) {
+      throbber_->SetPaintToLayer();
       throbber_->layer()->SetFillsBoundsOpaquely(false);
       ScheduleIconPaint();  // Ensure the non-layered throbber goes away.
+    } else {
+      throbber_->DestroyLayer();
     }
   }
   if (!throbber_->visible()) {

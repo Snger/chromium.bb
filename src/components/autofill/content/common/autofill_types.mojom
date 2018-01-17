@@ -64,6 +64,7 @@ enum PasswordFormFieldPredictionType {
 struct FormFieldData {
   string label;
   string name;
+  string id;
   string value;
   string form_control_type;
   string autocomplete_attribute;
@@ -116,12 +117,6 @@ struct PasswordAndRealm {
   string realm;
 };
 
-// autofill::UsernamesCollectionKey
-struct UsernamesCollectionKey {
-  string username;
-  string password;
-  string realm;
-};
 
 // autofill::PasswordFormFillData
 struct PasswordFormFillData {
@@ -132,11 +127,6 @@ struct PasswordFormFillData {
   FormFieldData password_field;
   string preferred_realm;
   map<string, PasswordAndRealm> additional_logins;
-  // TODO(leonhsl): Use map directly after http://crbug.com/628104 solved.
-  // Keys for std::map<UsernamesCollectionKey, std::vector<base::string16>>
-  array<UsernamesCollectionKey> other_possible_usernames_keys;
-  // Values for std::map<UsernamesCollectionKey, std::vector<base::string16>>
-  array<array<string>> other_possible_usernames_values;
   bool wait_for_username;
   bool is_possible_change_password_form;
 };
@@ -145,6 +135,14 @@ struct PasswordFormFillData {
 struct PasswordFormGenerationData {
   uint64 form_signature;
   uint32 field_signature;
+  bool has_confirmation_field;
+  uint32 confirmation_field_signature;
+};
+
+// autofill::PossibleUsernamePair
+struct PossibleUsernamePair {
+  string value;
+  string field_name;
 };
 
 // autofill::PasswordForm
@@ -158,7 +156,7 @@ struct PasswordForm {
   string username_element;
   bool username_marked_by_site;
   string username_value;
-  array<string> other_possible_usernames;
+  array<PossibleUsernamePair> other_possible_usernames;
   string password_element;
   string password_value;
   bool password_value_is_default;
@@ -166,6 +164,7 @@ struct PasswordForm {
   string new_password_value;
   bool new_password_value_is_default;
   bool new_password_marked_by_site;
+  string confirmation_password_element;
   bool preferred;
   mojo.common.mojom.Time date_created;
   mojo.common.mojom.Time date_synced;

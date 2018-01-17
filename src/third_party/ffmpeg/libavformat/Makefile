@@ -83,7 +83,7 @@ OBJS-$(CONFIG_AEA_DEMUXER)               += aea.o pcm.o
 OBJS-$(CONFIG_AFC_DEMUXER)               += afc.o
 OBJS-$(CONFIG_AIFF_DEMUXER)              += aiffdec.o pcm.o isom.o \
                                             mov_chan.o
-OBJS-$(CONFIG_AIFF_MUXER)                += aiffenc.o isom.o id3v2enc.o
+OBJS-$(CONFIG_AIFF_MUXER)                += aiffenc.o id3v2enc.o
 OBJS-$(CONFIG_AIX_DEMUXER)               += aixdec.o
 OBJS-$(CONFIG_AMR_DEMUXER)               += amr.o
 OBJS-$(CONFIG_AMR_MUXER)                 += amr.o
@@ -123,7 +123,7 @@ OBJS-$(CONFIG_BRSTM_DEMUXER)             += brstm.o
 OBJS-$(CONFIG_C93_DEMUXER)               += c93.o voc_packet.o vocdec.o voc.o
 OBJS-$(CONFIG_CAF_DEMUXER)               += cafdec.o caf.o mov.o mov_chan.o \
                                             replaygain.o
-OBJS-$(CONFIG_CAF_MUXER)                 += cafenc.o caf.o riff.o isom.o
+OBJS-$(CONFIG_CAF_MUXER)                 += cafenc.o caf.o riff.o
 OBJS-$(CONFIG_CAVSVIDEO_DEMUXER)         += cavsvideodec.o rawdec.o
 OBJS-$(CONFIG_CAVSVIDEO_MUXER)           += rawenc.o
 OBJS-$(CONFIG_CDG_DEMUXER)               += cdg.o
@@ -434,8 +434,12 @@ OBJS-$(CONFIG_SAMI_DEMUXER)              += samidec.o subtitles.o
 OBJS-$(CONFIG_SAP_DEMUXER)               += sapdec.o
 OBJS-$(CONFIG_SAP_MUXER)                 += sapenc.o
 OBJS-$(CONFIG_SBG_DEMUXER)               += sbgdec.o
+OBJS-$(CONFIG_SCC_DEMUXER)               += sccdec.o subtitles.o
+OBJS-$(CONFIG_SCC_MUXER)                 += sccenc.o subtitles.o
 OBJS-$(CONFIG_SDP_DEMUXER)               += rtsp.o
 OBJS-$(CONFIG_SDR2_DEMUXER)              += sdr2.o
+OBJS-$(CONFIG_SDS_DEMUXER)               += sdsdec.o
+OBJS-$(CONFIG_SDX_DEMUXER)               += sdxdec.o
 OBJS-$(CONFIG_SEGAFILM_DEMUXER)          += segafilm.o
 OBJS-$(CONFIG_SEGMENT_MUXER)             += segment.o
 OBJS-$(CONFIG_SHORTEN_DEMUXER)           += shortendec.o rawdec.o
@@ -594,7 +598,8 @@ TESTPROGS = seek                                                        \
             url                                                         \
 #           async                                                       \
 
-TESTPROGS-$(CONFIG_FIFO_MUXER)          += fifo_muxer
+FIFO-MUXER-TESTPROGS-$(CONFIG_NETWORK)   += fifo_muxer
+TESTPROGS-$(CONFIG_FIFO_MUXER)           += $(FIFO-MUXER-TESTPROGS-yes)
 TESTPROGS-$(CONFIG_FFRTMPCRYPT_PROTOCOL) += rtmpdh
 TESTPROGS-$(CONFIG_MOV_MUXER)            += movenc
 TESTPROGS-$(CONFIG_NETWORK)              += noproxy

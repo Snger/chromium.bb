@@ -19,6 +19,9 @@ class MockPasswordStore : public PasswordStore {
  public:
   MockPasswordStore();
 
+  bool Init(const syncer::SyncableService::StartSyncFlare& flare) override {
+    return true;
+  };
   MOCK_METHOD1(RemoveLogin, void(const autofill::PasswordForm&));
   MOCK_METHOD2(GetLogins,
                void(const PasswordStore::FormDigest&, PasswordStoreConsumer*));
@@ -59,14 +62,18 @@ class MockPasswordStore : public PasswordStore {
   MOCK_METHOD1(FillBlacklistLogins,
                bool(std::vector<std::unique_ptr<autofill::PasswordForm>>*));
   MOCK_METHOD1(NotifyLoginsChanged, void(const PasswordStoreChangeList&));
+  MOCK_METHOD0(GetAllSiteStatsImpl, std::vector<InteractionsStats>());
   MOCK_METHOD1(GetSiteStatsImpl,
                std::vector<InteractionsStats>(const GURL& origin_domain));
   MOCK_METHOD1(AddSiteStatsImpl, void(const InteractionsStats&));
   MOCK_METHOD1(RemoveSiteStatsImpl, void(const GURL&));
+// TODO(crbug.com/706392): Fix password reuse detection for Android.
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
   MOCK_METHOD3(CheckReuse,
                void(const base::string16&,
                     const std::string&,
                     PasswordReuseDetectorConsumer*));
+#endif
 
   PasswordStoreSync* GetSyncInterface() { return this; }
 

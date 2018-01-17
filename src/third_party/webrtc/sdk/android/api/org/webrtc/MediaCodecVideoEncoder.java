@@ -49,10 +49,10 @@ public class MediaCodecVideoEncoder {
   private static final int BITRATE_ADJUSTMENT_FPS = 30;
   private static final int MAXIMUM_INITIAL_FPS = 30;
   private static final double BITRATE_CORRECTION_SEC = 3.0;
-  // Maximum bitrate correction scale - no more than 2 times.
-  private static final double BITRATE_CORRECTION_MAX_SCALE = 2;
+  // Maximum bitrate correction scale - no more than 4 times.
+  private static final double BITRATE_CORRECTION_MAX_SCALE = 4;
   // Amount of correction steps to reach correction maximum scale.
-  private static final int BITRATE_CORRECTION_STEPS = 10;
+  private static final int BITRATE_CORRECTION_STEPS = 20;
   // Forced key frame interval - used to reduce color distortions on Qualcomm platform.
   private static final long QCOM_VP8_KEY_FRAME_INTERVAL_ANDROID_M_MS = 25000;
   private static final long QCOM_VP8_KEY_FRAME_INTERVAL_ANDROID_N_MS = 15000;
@@ -454,6 +454,7 @@ public class MediaCodecVideoEncoder {
       this.type = type;
       if (mediaCodec == null) {
         Logging.e(TAG, "Can not create media encoder");
+        release();
         return false;
       }
       mediaCodec.configure(format, null, null, MediaCodec.CONFIGURE_FLAG_ENCODE);
@@ -471,6 +472,7 @@ public class MediaCodecVideoEncoder {
 
     } catch (IllegalStateException e) {
       Logging.e(TAG, "initEncode failed", e);
+      release();
       return false;
     }
     return true;
@@ -544,36 +546,47 @@ public class MediaCodecVideoEncoder {
     Logging.d(TAG, "Java releaseEncoder");
     checkOnMediaCodecThread();
 
-    // Run Mediacodec stop() and release() on separate thread since sometime
-    // Mediacodec.stop() may hang.
-    final CountDownLatch releaseDone = new CountDownLatch(1);
+    class CaughtException {
+      Exception e;
+    }
+    final CaughtException caughtException = new CaughtException();
+    boolean stopHung = false;
 
-    Runnable runMediaCodecRelease = new Runnable() {
-      @Override
-      public void run() {
-        try {
+    if (mediaCodec != null) {
+      // Run Mediacodec stop() and release() on separate thread since sometime
+      // Mediacodec.stop() may hang.
+      final CountDownLatch releaseDone = new CountDownLatch(1);
+
+      Runnable runMediaCodecRelease = new Runnable() {
+        @Override
+        public void run() {
           Logging.d(TAG, "Java releaseEncoder on release thread");
-          mediaCodec.stop();
-          mediaCodec.release();
+          try {
+            mediaCodec.stop();
+          } catch (Exception e) {
+            Logging.e(TAG, "Media encoder stop failed", e);
+          }
+          try {
+            mediaCodec.release();
+          } catch (Exception e) {
+            Logging.e(TAG, "Media encoder release failed", e);
+            caughtException.e = e;
+          }
           Logging.d(TAG, "Java releaseEncoder on release thread done");
-        } catch (Exception e) {
-          Logging.e(TAG, "Media encoder release failed", e);
-        }
-        releaseDone.countDown();
-      }
-    };
-    new Thread(runMediaCodecRelease).start();
 
-    if (!ThreadUtils.awaitUninterruptibly(releaseDone, MEDIA_CODEC_RELEASE_TIMEOUT_MS)) {
-      Logging.e(TAG, "Media encoder release timeout");
-      codecErrors++;
-      if (errorCallback != null) {
-        Logging.e(TAG, "Invoke codec error callback. Errors: " + codecErrors);
-        errorCallback.onMediaCodecVideoEncoderCriticalError(codecErrors);
+          releaseDone.countDown();
+        }
+      };
+      new Thread(runMediaCodecRelease).start();
+
+      if (!ThreadUtils.awaitUninterruptibly(releaseDone, MEDIA_CODEC_RELEASE_TIMEOUT_MS)) {
+        Logging.e(TAG, "Media encoder release timeout");
+        stopHung = true;
       }
+
+      mediaCodec = null;
     }
 
-    mediaCodec = null;
     mediaCodecThread = null;
     if (drawer != null) {
       drawer.release();
@@ -588,6 +601,25 @@ public class MediaCodecVideoEncoder {
       inputSurface = null;
     }
     runningInstance = null;
+
+    if (stopHung) {
+      codecErrors++;
+      if (errorCallback != null) {
+        Logging.e(TAG, "Invoke codec error callback. Errors: " + codecErrors);
+        errorCallback.onMediaCodecVideoEncoderCriticalError(codecErrors);
+      }
+      throw new RuntimeException("Media encoder release timeout.");
+    }
+
+    // Re-throw any runtime exception caught inside the other thread. Since this is an invoke, add
+    // stack trace for the waiting thread as well.
+    if (caughtException.e != null) {
+      final RuntimeException runtimeException = new RuntimeException(caughtException.e);
+      runtimeException.setStackTrace(ThreadUtils.concatStackTraces(
+          caughtException.e.getStackTrace(), runtimeException.getStackTrace()));
+      throw runtimeException;
+    }
+
     Logging.d(TAG, "Java releaseEncoder done");
   }
 
@@ -753,12 +785,14 @@ public class MediaCodecVideoEncoder {
       boolean bitrateAdjustmentScaleChanged = false;
       if (bitrateAccumulator > bitrateAccumulatorMax) {
         // Encoder generates too high bitrate - need to reduce the scale.
+        int bitrateAdjustmentInc = (int) (bitrateAccumulator / bitrateAccumulatorMax + 0.5);
+        bitrateAdjustmentScaleExp -= bitrateAdjustmentInc;
         bitrateAccumulator = bitrateAccumulatorMax;
-        bitrateAdjustmentScaleExp--;
         bitrateAdjustmentScaleChanged = true;
       } else if (bitrateAccumulator < -bitrateAccumulatorMax) {
         // Encoder generates too low bitrate - need to increase the scale.
-        bitrateAdjustmentScaleExp++;
+        int bitrateAdjustmentInc = (int) (-bitrateAccumulator / bitrateAccumulatorMax + 0.5);
+        bitrateAdjustmentScaleExp += bitrateAdjustmentInc;
         bitrateAccumulator = -bitrateAccumulatorMax;
         bitrateAdjustmentScaleChanged = true;
       }

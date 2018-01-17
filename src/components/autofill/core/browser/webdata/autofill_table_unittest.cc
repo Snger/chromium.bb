@@ -2,14 +2,12 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include <stddef.h>
+#include "components/autofill/core/browser/webdata/autofill_table.h"
 
 #include <map>
 #include <set>
-#include <string>
 #include <tuple>
 #include <utility>
-#include <vector>
 
 #include "base/command_line.h"
 #include "base/files/file_util.h"
@@ -29,7 +27,6 @@
 #include "components/autofill/core/browser/credit_card.h"
 #include "components/autofill/core/browser/webdata/autofill_change.h"
 #include "components/autofill/core/browser/webdata/autofill_entry.h"
-#include "components/autofill/core/browser/webdata/autofill_table.h"
 #include "components/autofill/core/common/autofill_constants.h"
 #include "components/autofill/core/common/autofill_switches.h"
 #include "components/autofill/core/common/autofill_util.h"
@@ -44,6 +41,10 @@
 using base::ASCIIToUTF16;
 using base::Time;
 using base::TimeDelta;
+using sync_pb::EntityMetadata;
+using sync_pb::ModelTypeState;
+using syncer::EntityMetadataMap;
+using syncer::MetadataBatch;
 
 namespace autofill {
 
@@ -85,8 +86,8 @@ bool CompareAutofillEntries(const AutofillEntry& a, const AutofillEntry& b) {
                   b.date_created(), b.date_last_used());
 }
 
-AutofillEntry MakeAutofillEntry(const char* name,
-                                const char* value,
+AutofillEntry MakeAutofillEntry(const std::string& name,
+                                const std::string& value,
                                 time_t date_created,
                                 time_t date_last_used) {
   if (date_last_used < 0)
@@ -461,6 +462,31 @@ TEST_F(AutofillTableTest, Autofill_UpdateTwo) {
                                      db_.get()));
   EXPECT_EQ(2, GetAutofillEntryCount(ASCIIToUTF16("foo"), ASCIIToUTF16("bar1"),
                                      db_.get()));
+}
+
+TEST_F(AutofillTableTest, Autofill_UpdateNullTerminated) {
+  const char kName[] = "foo";
+  const char kValue[] = "bar";
+  // A value which contains terminating character.
+  std::string value(kValue, arraysize(kValue));
+
+  AutofillEntry entry0(MakeAutofillEntry(kName, kValue, 1, -1));
+  AutofillEntry entry1(MakeAutofillEntry(kName, value, 2, 3));
+  std::vector<AutofillEntry> entries;
+  entries.push_back(entry0);
+  entries.push_back(entry1);
+  ASSERT_TRUE(table_->UpdateAutofillEntries(entries));
+
+  EXPECT_EQ(1, GetAutofillEntryCount(ASCIIToUTF16(kName), ASCIIToUTF16(kValue),
+                                     db_.get()));
+  EXPECT_EQ(2, GetAutofillEntryCount(ASCIIToUTF16(kName), ASCIIToUTF16(value),
+                                     db_.get()));
+
+  std::vector<AutofillEntry> all_entries;
+  ASSERT_TRUE(table_->GetAllAutofillEntries(&all_entries));
+  ASSERT_EQ(2U, all_entries.size());
+  EXPECT_EQ(entry0, all_entries[0]);
+  EXPECT_EQ(entry1, all_entries[1]);
 }
 
 TEST_F(AutofillTableTest, Autofill_UpdateReplace) {
@@ -1823,8 +1849,8 @@ TEST_F(AutofillTableTest, SetServerProfileUpdateUsageStats) {
   table_->GetServerProfiles(&outputs);
   ASSERT_EQ(1u, outputs.size());
   EXPECT_EQ(one.server_id(), outputs[0]->server_id());
-  EXPECT_EQ(0U, outputs[0]->use_count());
-  EXPECT_EQ(base::Time(), outputs[0]->use_date());
+  EXPECT_EQ(1U, outputs[0]->use_count());
+  EXPECT_NE(base::Time(), outputs[0]->use_date());
   // We don't track modification date for server profiles. It should always be
   // base::Time().
   EXPECT_EQ(base::Time(), outputs[0]->modification_date());
@@ -1849,18 +1875,6 @@ TEST_F(AutofillTableTest, SetServerProfileUpdateUsageStats) {
   EXPECT_EQ(one.server_id(), outputs[0]->server_id());
   EXPECT_EQ(4U, outputs[0]->use_count());
   EXPECT_NE(base::Time(), outputs[0]->use_date());
-  EXPECT_EQ(base::Time(), outputs[0]->modification_date());
-  outputs.clear();
-
-  // Set a null profile list --- this should clear metadata.
-  table_->SetServerProfiles(std::vector<AutofillProfile>());
-  // Reset the old profile list and see the metadata is reset.
-  table_->SetServerProfiles(inputs);
-  table_->GetServerProfiles(&outputs);
-  ASSERT_EQ(1u, outputs.size());
-  EXPECT_EQ(one.server_id(), outputs[0]->server_id());
-  EXPECT_EQ(0U, outputs[0]->use_count());
-  EXPECT_EQ(base::Time(), outputs[0]->use_date());
   EXPECT_EQ(base::Time(), outputs[0]->modification_date());
   outputs.clear();
 }
@@ -1941,63 +1955,122 @@ TEST_F(AutofillTableTest, DeleteUnmaskedCard) {
   outputs.clear();
 }
 
-TEST_F(AutofillTableTest, GetFormValuesForElementName_SubstringMatchEnabled) {
+const size_t kMaxCount = 2;
+struct GetFormValuesTestCase {
+  const char* const field_suggestion[kMaxCount];
+  const char* const field_contents;
+  size_t expected_suggestion_count;
+  const char* const expected_suggestion[kMaxCount];
+};
+
+class GetFormValuesTest : public testing::TestWithParam<GetFormValuesTestCase> {
+ public:
+  GetFormValuesTest() {}
+  ~GetFormValuesTest() override {}
+
+ protected:
+  void SetUp() override {
+    OSCryptMocker::SetUpWithSingleton();
+    ASSERT_TRUE(temp_dir_.CreateUniqueTempDir());
+    file_ = temp_dir_.GetPath().AppendASCII("TestWebDatabase");
+
+    table_.reset(new AutofillTable);
+    db_.reset(new WebDatabase);
+    db_->AddTable(table_.get());
+    ASSERT_EQ(sql::INIT_OK, db_->Init(file_));
+  }
+
+  void TearDown() override { OSCryptMocker::TearDown(); }
+
+  base::FilePath file_;
+  base::ScopedTempDir temp_dir_;
+  std::unique_ptr<AutofillTable> table_;
+  std::unique_ptr<WebDatabase> db_;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(GetFormValuesTest);
+};
+
+TEST_P(GetFormValuesTest, GetFormValuesForElementName_SubstringMatchEnabled) {
   // Token matching is currently behind a flag.
   base::CommandLine::ForCurrentProcess()->AppendSwitch(
       switches::kEnableSuggestionsWithSubstringMatch);
 
-  const size_t kMaxCount = 2;
-  const struct {
-    const char* const field_suggestion[kMaxCount];
-    const char* const field_contents;
-    size_t expected_suggestion_count;
-    const char* const expected_suggestion[kMaxCount];
-  } kTestCases[] = {
-      {{"user.test", "test_user"}, "TEST",   2, {"test_user", "user.test"}},
-      {{"user test", "test-user"}, "user",   2, {"user test", "test-user"}},
-      {{"user test", "test-rest"}, "user",   1, {"user test", nullptr}},
-      {{"user@test", "test_user"}, "user@t", 1, {"user@test", nullptr}},
-      {{"user.test", "test_user"}, "er.tes", 0, {nullptr,     nullptr}},
-      {{"user test", "test_user"}, "_ser",   0, {nullptr,     nullptr}},
-      {{"user.test", "test_user"}, "%ser",   0, {nullptr,     nullptr}},
-      {{"user.test", "test_user"},
-       "; DROP TABLE autofill;",
-       0,
-       {nullptr, nullptr}},
-  };
+  auto test_case = GetParam();
+  SCOPED_TRACE(testing::Message()
+               << "suggestion = " << test_case.field_suggestion[0]
+               << ", contents = " << test_case.field_contents);
 
-  for (const auto& test_case : kTestCases) {
-    SCOPED_TRACE(testing::Message()
-                 << "suggestion = " << test_case.field_suggestion[0]
-                 << ", contents = " << test_case.field_contents);
+  Time t1 = Time::Now();
 
-    Time t1 = Time::Now();
-
-    // Simulate the submission of a handful of entries in a field called "Name".
-    AutofillChangeList changes;
-    FormFieldData field;
-    for (size_t k = 0; k < kMaxCount; ++k) {
-      field.name = ASCIIToUTF16("Name");
-      field.value = ASCIIToUTF16(test_case.field_suggestion[k]);
-      table_->AddFormFieldValue(field, &changes);
-    }
-
-    std::vector<base::string16> v;
-    table_->GetFormValuesForElementName(
-        ASCIIToUTF16("Name"), ASCIIToUTF16(test_case.field_contents), &v, 6);
-
-    EXPECT_EQ(test_case.expected_suggestion_count, v.size());
-    for (size_t j = 0; j < test_case.expected_suggestion_count; ++j) {
-      EXPECT_EQ(ASCIIToUTF16(test_case.expected_suggestion[j]), v[j]);
-    }
-
-    changes.clear();
-    table_->RemoveFormElementsAddedBetween(t1, Time(), &changes);
+  // Simulate the submission of a handful of entries in a field called "Name".
+  AutofillChangeList changes;
+  FormFieldData field;
+  for (size_t k = 0; k < kMaxCount; ++k) {
+    field.name = ASCIIToUTF16("Name");
+    field.value = ASCIIToUTF16(test_case.field_suggestion[k]);
+    table_->AddFormFieldValue(field, &changes);
   }
+
+  std::vector<base::string16> v;
+  table_->GetFormValuesForElementName(
+      ASCIIToUTF16("Name"), ASCIIToUTF16(test_case.field_contents), &v, 6);
+
+  EXPECT_EQ(test_case.expected_suggestion_count, v.size());
+  for (size_t j = 0; j < test_case.expected_suggestion_count; ++j) {
+    EXPECT_EQ(ASCIIToUTF16(test_case.expected_suggestion[j]), v[j]);
+  }
+
+  changes.clear();
+  table_->RemoveFormElementsAddedBetween(t1, Time(), &changes);
 }
 
-TEST_F(AutofillTableTest, GetAllSyncMetadata) {
-  sync_pb::EntityMetadata metadata;
+INSTANTIATE_TEST_CASE_P(
+    AutofillTableTest,
+    GetFormValuesTest,
+    testing::Values(GetFormValuesTestCase{{"user.test", "test_user"},
+                                          "TEST",
+                                          2,
+                                          {"test_user", "user.test"}},
+                    GetFormValuesTestCase{{"user test", "test-user"},
+                                          "user",
+                                          2,
+                                          {"user test", "test-user"}},
+                    GetFormValuesTestCase{{"user test", "test-rest"},
+                                          "user",
+                                          1,
+                                          {"user test", nullptr}},
+                    GetFormValuesTestCase{{"user@test", "test_user"},
+                                          "user@t",
+                                          1,
+                                          {"user@test", nullptr}},
+                    GetFormValuesTestCase{{"user.test", "test_user"},
+                                          "er.tes",
+                                          0,
+                                          {nullptr, nullptr}},
+                    GetFormValuesTestCase{{"user test", "test_user"},
+                                          "_ser",
+                                          0,
+                                          {nullptr, nullptr}},
+                    GetFormValuesTestCase{{"user.test", "test_user"},
+                                          "%ser",
+                                          0,
+                                          {nullptr, nullptr}},
+                    GetFormValuesTestCase{{"user.test", "test_user"},
+                                          "; DROP TABLE autofill;",
+                                          0,
+                                          {nullptr, nullptr}}));
+
+TEST_F(AutofillTableTest, AutofillNoMetadata) {
+  MetadataBatch metadata_batch;
+  EXPECT_TRUE(table_->GetAllSyncMetadata(syncer::AUTOFILL, &metadata_batch));
+  EXPECT_EQ(0u, metadata_batch.TakeAllMetadata().size());
+  EXPECT_EQ(ModelTypeState().SerializeAsString(),
+            metadata_batch.GetModelTypeState().SerializeAsString());
+}
+
+TEST_F(AutofillTableTest, AutofillGetAllSyncMetadata) {
+  EntityMetadata metadata;
   std::string storage_key = "storage_key";
   std::string storage_key2 = "storage_key2";
   metadata.set_sequence_number(1);
@@ -2005,7 +2078,7 @@ TEST_F(AutofillTableTest, GetAllSyncMetadata) {
   EXPECT_TRUE(
       table_->UpdateSyncMetadata(syncer::AUTOFILL, storage_key, metadata));
 
-  sync_pb::ModelTypeState model_type_state;
+  ModelTypeState model_type_state;
   model_type_state.set_initial_sync_done(true);
 
   EXPECT_TRUE(table_->UpdateModelTypeState(syncer::AUTOFILL, model_type_state));
@@ -2014,12 +2087,12 @@ TEST_F(AutofillTableTest, GetAllSyncMetadata) {
   EXPECT_TRUE(
       table_->UpdateSyncMetadata(syncer::AUTOFILL, storage_key2, metadata));
 
-  syncer::MetadataBatch metadata_batch;
+  MetadataBatch metadata_batch;
   EXPECT_TRUE(table_->GetAllSyncMetadata(syncer::AUTOFILL, &metadata_batch));
 
   EXPECT_TRUE(metadata_batch.GetModelTypeState().initial_sync_done());
 
-  syncer::EntityMetadataMap metadata_records = metadata_batch.TakeAllMetadata();
+  EntityMetadataMap metadata_records = metadata_batch.TakeAllMetadata();
 
   EXPECT_EQ(metadata_records.size(), 2u);
   EXPECT_EQ(metadata_records[storage_key].sequence_number(), 1);
@@ -2033,11 +2106,11 @@ TEST_F(AutofillTableTest, GetAllSyncMetadata) {
   EXPECT_FALSE(metadata_batch.GetModelTypeState().initial_sync_done());
 }
 
-TEST_F(AutofillTableTest, WriteThenDeleteSyncMetadata) {
-  sync_pb::EntityMetadata metadata;
-  syncer::MetadataBatch metadata_batch;
+TEST_F(AutofillTableTest, AutofillWriteThenDeleteSyncMetadata) {
+  EntityMetadata metadata;
+  MetadataBatch metadata_batch;
   std::string storage_key = "storage_key";
-  sync_pb::ModelTypeState model_type_state;
+  ModelTypeState model_type_state;
 
   model_type_state.set_initial_sync_done(true);
 
@@ -2052,32 +2125,35 @@ TEST_F(AutofillTableTest, WriteThenDeleteSyncMetadata) {
   // It shouldn't be there any more.
   EXPECT_TRUE(table_->GetAllSyncMetadata(syncer::AUTOFILL, &metadata_batch));
 
-  syncer::EntityMetadataMap metadata_records = metadata_batch.TakeAllMetadata();
+  EntityMetadataMap metadata_records = metadata_batch.TakeAllMetadata();
   EXPECT_EQ(metadata_records.size(), 0u);
 
   // Now delete the model type state.
   EXPECT_TRUE(table_->ClearModelTypeState(syncer::AUTOFILL));
-  EXPECT_FALSE(table_->GetAllSyncMetadata(syncer::AUTOFILL, &metadata_batch));
+  EXPECT_TRUE(table_->GetAllSyncMetadata(syncer::AUTOFILL, &metadata_batch));
+  EXPECT_EQ(ModelTypeState().SerializeAsString(),
+            metadata_batch.GetModelTypeState().SerializeAsString());
 }
 
-TEST_F(AutofillTableTest, CorruptSyncMetadata) {
-  syncer::MetadataBatch metadata_batch;
-  sync_pb::ModelTypeState state;
-  std::string storage_key = "storage_key";
-
+TEST_F(AutofillTableTest, AutofillCorruptSyncMetadata) {
+  MetadataBatch metadata_batch;
   sql::Statement s(db_->GetSQLConnection()->GetUniqueStatement(
       "INSERT OR REPLACE INTO autofill_sync_metadata "
       "(storage_key, value) VALUES(?, ?)"));
-  s.BindString(0, storage_key);
+  s.BindString(0, "storage_key");
   s.BindString(1, "unparseable");
+  EXPECT_TRUE(s.Run());
 
-  sql::Statement s2(db_->GetSQLConnection()->GetUniqueStatement(
+  EXPECT_FALSE(table_->GetAllSyncMetadata(syncer::AUTOFILL, &metadata_batch));
+}
+
+TEST_F(AutofillTableTest, AutofillCorruptModelTypeState) {
+  MetadataBatch metadata_batch;
+  sql::Statement s(db_->GetSQLConnection()->GetUniqueStatement(
       "INSERT OR REPLACE INTO autofill_model_type_state "
       "(rowid, value) VALUES(1, ?)"));
-  s2.BindString(0, "unparseable");
-
+  s.BindString(0, "unparseable");
   EXPECT_TRUE(s.Run());
-  EXPECT_TRUE(s2.Run());
 
   EXPECT_FALSE(table_->GetAllSyncMetadata(syncer::AUTOFILL, &metadata_batch));
 }

@@ -17,7 +17,7 @@ namespace {
 
 #if _FXM_PLATFORM_ == _FXM_PLATFORM_APPLE_ || \
     _FXM_PLATFORM_ == _FXM_PLATFORM_WINDOWS_
-CFX_WideString ChangeSlashToPlatform(const FX_WCHAR* str) {
+CFX_WideString ChangeSlashToPlatform(const wchar_t* str) {
   CFX_WideString result;
   while (*str) {
     if (*str == '/') {
@@ -34,7 +34,7 @@ CFX_WideString ChangeSlashToPlatform(const FX_WCHAR* str) {
   return result;
 }
 
-CFX_WideString ChangeSlashToPDF(const FX_WCHAR* str) {
+CFX_WideString ChangeSlashToPDF(const wchar_t* str) {
   CFX_WideString result;
   while (*str) {
     if (*str == '\\' || *str == ':')
@@ -143,7 +143,7 @@ CFX_WideString CPDF_FileSpec::EncodeFileName(const CFX_WideStringC& filepath) {
   }
   return ChangeSlashToPDF(filepath.c_str());
 #elif _FXM_PLATFORM_ == _FXM_PLATFORM_APPLE_
-  if (filepath.Left(sizeof("Mac") - 1) == FX_WSTRC(L"Mac")) {
+  if (filepath.Left(sizeof("Mac") - 1) == L"Mac") {
     CFX_WideString result;
     result = '/';
     result += ChangeSlashToPDF(filepath.c_str());

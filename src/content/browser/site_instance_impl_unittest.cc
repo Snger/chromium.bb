@@ -6,10 +6,12 @@
 
 #include <stddef.h>
 
+#include <memory>
+#include <vector>
+
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/memory/ptr_util.h"
-#include "base/memory/scoped_vector.h"
 #include "base/run_loop.h"
 #include "base/strings/string16.h"
 #include "content/browser/browser_thread_impl.h"
@@ -28,7 +30,7 @@
 #include "content/public/common/url_utils.h"
 #include "content/public/test/mock_render_process_host.h"
 #include "content/public/test/test_browser_context.h"
-#include "content/public/test/test_browser_thread.h"
+#include "content/public/test/test_browser_thread_bundle.h"
 #include "content/public/test/test_utils.h"
 #include "content/test/test_content_browser_client.h"
 #include "content/test/test_content_client.h"
@@ -95,12 +97,7 @@ class SiteInstanceTestBrowserClient : public TestContentBrowserClient {
 
 class SiteInstanceTest : public testing::Test {
  public:
-  SiteInstanceTest()
-      : ui_thread_(BrowserThread::UI, &message_loop_),
-        file_user_blocking_thread_(BrowserThread::FILE_USER_BLOCKING,
-                                   &message_loop_),
-        io_thread_(BrowserThread::IO, &message_loop_),
-        old_browser_client_(nullptr) {}
+  SiteInstanceTest() : old_browser_client_(nullptr) {}
 
   void SetUp() override {
     old_browser_client_ = SetBrowserClientForTesting(&browser_client_);
@@ -143,10 +140,7 @@ class SiteInstanceTest : public testing::Test {
   SiteInstanceTestBrowserClient* browser_client() { return &browser_client_; }
 
  private:
-  base::MessageLoopForUI message_loop_;
-  TestBrowserThread ui_thread_;
-  TestBrowserThread file_user_blocking_thread_;
-  TestBrowserThread io_thread_;
+  TestBrowserThreadBundle test_browser_thread_bundle_;
 
   SiteInstanceTestBrowserClient browser_client_;
   ContentBrowserClient* old_browser_client_;
@@ -600,9 +594,10 @@ TEST_F(SiteInstanceTest, ProcessSharingByType) {
 
   // Make a bunch of mock renderers so that we hit the limit.
   std::unique_ptr<TestBrowserContext> browser_context(new TestBrowserContext());
-  ScopedVector<MockRenderProcessHost> hosts;
+  std::vector<std::unique_ptr<MockRenderProcessHost>> hosts;
   for (size_t i = 0; i < kMaxRendererProcessCount; ++i)
-    hosts.push_back(new MockRenderProcessHost(browser_context.get()));
+    hosts.push_back(
+        base::MakeUnique<MockRenderProcessHost>(browser_context.get()));
 
   // Create some extension instances and make sure they share a process.
   scoped_refptr<SiteInstanceImpl> extension1_instance(
@@ -635,8 +630,8 @@ TEST_F(SiteInstanceTest, ProcessSharingByType) {
   EXPECT_NE(extension1_instance->GetProcess(), webui1_instance->GetProcess());
 
   for (size_t i = 0; i < kMaxRendererProcessCount; ++i) {
-    EXPECT_NE(extension1_instance->GetProcess(), hosts[i]);
-    EXPECT_NE(webui1_instance->GetProcess(), hosts[i]);
+    EXPECT_NE(extension1_instance->GetProcess(), hosts[i].get());
+    EXPECT_NE(webui1_instance->GetProcess(), hosts[i].get());
   }
 
   DrainMessageLoop();

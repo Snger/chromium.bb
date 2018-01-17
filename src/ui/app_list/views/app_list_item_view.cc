@@ -52,16 +52,7 @@ const int kMouseDragUIDelayInMs = 200;
 
 gfx::FontList GetFontList() {
   ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
-  const gfx::FontList& font_list = rb.GetFontList(kItemTextFontStyle);
-// The font is different on each platform. The font size is adjusted on some
-// platforms to keep a consistent look.
-#if defined(OS_LINUX) && !defined(OS_CHROMEOS)
-  // Reducing the font size by 2 makes it the same as the Windows font size.
-  const int kFontSizeDelta = -2;
-  return font_list.DeriveWithSizeDelta(kFontSizeDelta);
-#else
-  return font_list;
-#endif
+  return rb.GetFontList(kItemTextFontStyle);
 }
 
 }  // namespace
@@ -87,7 +78,7 @@ AppListItemView::AppListItemView(AppsGridView* apps_grid_view,
   shadow_animator_.animation()->SetTweenType(gfx::Tween::FAST_OUT_SLOW_IN);
   shadow_animator_.SetStartAndEndShadows(IconStartShadows(), IconEndShadows());
 
-  icon_->set_interactive(false);
+  icon_->set_can_process_events_within_subtree(false);
   icon_->SetVerticalAlignment(views::ImageView::LEADING);
 
   title_->SetBackgroundColor(0);
@@ -281,11 +272,11 @@ void AppListItemView::OnPaint(gfx::Canvas* canvas) {
     // Draw folder dropping preview circle.
     gfx::Point center = gfx::Point(icon_->x() + icon_->size().width() / 2,
                                    icon_->y() + icon_->size().height() / 2);
-    SkPaint paint;
-    paint.setStyle(SkPaint::kFill_Style);
-    paint.setAntiAlias(true);
-    paint.setColor(kFolderBubbleColor);
-    canvas->DrawCircle(center, kFolderPreviewRadius, paint);
+    cc::PaintFlags flags;
+    flags.setStyle(cc::PaintFlags::kFill_Style);
+    flags.setAntiAlias(true);
+    flags.setColor(kFolderBubbleColor);
+    canvas->DrawCircle(center, kFolderPreviewRadius, flags);
   }
 }
 
@@ -306,7 +297,7 @@ void AppListItemView::ShowContextMenuForView(views::View* source,
                                   views::MENU_ANCHOR_TOPLEFT, source_type);
 }
 
-void AppListItemView::StateChanged() {
+void AppListItemView::StateChanged(ButtonState old_state) {
   if (state() == STATE_HOVERED || state() == STATE_PRESSED) {
     shadow_animator_.animation()->Show();
     // Show the hover/tap highlight: for tap, lighter highlight replaces darker

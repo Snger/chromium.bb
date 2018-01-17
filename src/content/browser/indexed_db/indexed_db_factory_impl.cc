@@ -185,7 +185,7 @@ void IndexedDBFactoryImpl::GetDatabaseNames(
                        &data_loss_info, &disk_full, &s);
   if (!backing_store.get()) {
     callbacks->OnError(
-        IndexedDBDatabaseError(blink::WebIDBDatabaseExceptionUnknownError,
+        IndexedDBDatabaseError(blink::kWebIDBDatabaseExceptionUnknownError,
                                "Internal error opening backing store for "
                                "indexedDB.webkitGetDatabaseNames."));
     return;
@@ -194,7 +194,7 @@ void IndexedDBFactoryImpl::GetDatabaseNames(
   std::vector<base::string16> names = backing_store->GetDatabaseNames(&s);
   if (!s.ok()) {
     DLOG(ERROR) << "Internal error getting database names";
-    IndexedDBDatabaseError error(blink::WebIDBDatabaseExceptionUnknownError,
+    IndexedDBDatabaseError error(blink::kWebIDBDatabaseExceptionUnknownError,
                                  "Internal error opening backing store for "
                                  "indexedDB.webkitGetDatabaseNames.");
     callbacks->OnError(error);
@@ -213,14 +213,15 @@ void IndexedDBFactoryImpl::DeleteDatabase(
     scoped_refptr<net::URLRequestContextGetter> request_context_getter,
     scoped_refptr<IndexedDBCallbacks> callbacks,
     const Origin& origin,
-    const base::FilePath& data_directory) {
+    const base::FilePath& data_directory,
+    bool force_close) {
   IDB_TRACE("IndexedDBFactoryImpl::DeleteDatabase");
   IndexedDBDatabase::Identifier unique_identifier(origin, name);
   const auto& it = database_map_.find(unique_identifier);
   if (it != database_map_.end()) {
     // If there are any connections to the database, directly delete the
     // database.
-    it->second->DeleteDatabase(callbacks);
+    it->second->DeleteDatabase(callbacks, force_close);
     return;
   }
 
@@ -232,10 +233,10 @@ void IndexedDBFactoryImpl::DeleteDatabase(
       OpenBackingStore(origin, data_directory, request_context_getter,
                        &data_loss_info, &disk_full, &s);
   if (!backing_store.get()) {
-    IndexedDBDatabaseError error(blink::WebIDBDatabaseExceptionUnknownError,
-                                 ASCIIToUTF16(
-                                     "Internal error opening backing store "
-                                     "for indexedDB.deleteDatabase."));
+    IndexedDBDatabaseError error(
+        blink::kWebIDBDatabaseExceptionUnknownError,
+        ASCIIToUTF16("Internal error opening backing store "
+                     "for indexedDB.deleteDatabase."));
     callbacks->OnError(error);
     if (s.IsCorruption()) {
       HandleBackingStoreCorruption(origin, error);
@@ -246,7 +247,7 @@ void IndexedDBFactoryImpl::DeleteDatabase(
   std::vector<base::string16> names = backing_store->GetDatabaseNames(&s);
   if (!s.ok()) {
     DLOG(ERROR) << "Internal error getting database names";
-    IndexedDBDatabaseError error(blink::WebIDBDatabaseExceptionUnknownError,
+    IndexedDBDatabaseError error(blink::kWebIDBDatabaseExceptionUnknownError,
                                  "Internal error opening backing store for "
                                  "indexedDB.deleteDatabase.");
     callbacks->OnError(error);
@@ -268,10 +269,9 @@ void IndexedDBFactoryImpl::DeleteDatabase(
                                                     this, unique_identifier);
   if (!database.get()) {
     IndexedDBDatabaseError error(
-        blink::WebIDBDatabaseExceptionUnknownError,
-        ASCIIToUTF16(
-            "Internal error creating database backend for "
-            "indexedDB.deleteDatabase."));
+        blink::kWebIDBDatabaseExceptionUnknownError,
+        ASCIIToUTF16("Internal error creating database backend for "
+                     "indexedDB.deleteDatabase."));
     callbacks->OnError(error);
     if (s.IsCorruption()) {
       backing_store = NULL;
@@ -282,7 +282,7 @@ void IndexedDBFactoryImpl::DeleteDatabase(
 
   database_map_[unique_identifier] = database.get();
   origin_dbs_.insert(std::make_pair(origin, database.get()));
-  database->DeleteDatabase(callbacks);
+  database->DeleteDatabase(callbacks, force_close);
   RemoveDatabaseFromMaps(unique_identifier);
   database = NULL;
   backing_store = NULL;
@@ -428,15 +428,15 @@ void IndexedDBFactoryImpl::Open(
     if (!backing_store.get()) {
       if (disk_full) {
         connection->callbacks->OnError(IndexedDBDatabaseError(
-            blink::WebIDBDatabaseExceptionQuotaError,
+            blink::kWebIDBDatabaseExceptionQuotaError,
             ASCIIToUTF16("Encountered full disk while opening "
                          "backing store for indexedDB.open.")));
         return;
       }
-      IndexedDBDatabaseError error(blink::WebIDBDatabaseExceptionUnknownError,
-                                   ASCIIToUTF16(
-                                       "Internal error opening backing store"
-                                       " for indexedDB.open."));
+      IndexedDBDatabaseError error(
+          blink::kWebIDBDatabaseExceptionUnknownError,
+          ASCIIToUTF16("Internal error opening backing store"
+                       " for indexedDB.open."));
       connection->callbacks->OnError(error);
       if (s.IsCorruption()) {
         HandleBackingStoreCorruption(origin, error);
@@ -448,11 +448,10 @@ void IndexedDBFactoryImpl::Open(
                                                       this, unique_identifier);
     if (!database.get()) {
       DLOG(ERROR) << "Unable to create the database";
-      IndexedDBDatabaseError error(blink::WebIDBDatabaseExceptionUnknownError,
-                                   ASCIIToUTF16(
-                                       "Internal error creating "
-                                       "database backend for "
-                                       "indexedDB.open."));
+      IndexedDBDatabaseError error(blink::kWebIDBDatabaseExceptionUnknownError,
+                                   ASCIIToUTF16("Internal error creating "
+                                                "database backend for "
+                                                "indexedDB.open."));
       connection->callbacks->OnError(error);
       if (s.IsCorruption()) {
         backing_store = NULL;  // Closes the LevelDB so that it can be deleted

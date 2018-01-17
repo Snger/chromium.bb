@@ -30,13 +30,14 @@
 #include "content/public/common/webrtc_ip_handling_policy.h"
 #include "content/shell/browser/layout_test/blink_test_controller.h"
 #include "content/shell/browser/layout_test/layout_test_bluetooth_chooser_factory.h"
-#include "content/shell/browser/layout_test/layout_test_devtools_frontend.h"
+#include "content/shell/browser/layout_test/layout_test_devtools_bindings.h"
 #include "content/shell/browser/layout_test/layout_test_javascript_dialog_manager.h"
 #include "content/shell/browser/layout_test/secondary_test_window_observer.h"
 #include "content/shell/browser/shell_browser_main_parts.h"
 #include "content/shell/browser/shell_content_browser_client.h"
 #include "content/shell/browser/shell_devtools_frontend.h"
 #include "content/shell/browser/shell_javascript_dialog_manager.h"
+#include "content/shell/common/layout_test/layout_test_switches.h"
 #include "content/shell/common/shell_messages.h"
 #include "content/shell/common/shell_switches.h"
 #include "media/media_features.h"
@@ -415,8 +416,9 @@ blink::WebDisplayMode Shell::GetDisplayMode(
  // TODO : should return blink::WebDisplayModeFullscreen wherever user puts
  // a browser window into fullscreen (not only in case of renderer-initiated
  // fullscreen mode): crbug.com/476874.
- return IsFullscreenForTabOrPending(web_contents) ?
-     blink::WebDisplayModeFullscreen : blink::WebDisplayModeBrowser;
+ return IsFullscreenForTabOrPending(web_contents)
+            ? blink::kWebDisplayModeFullscreen
+            : blink::kWebDisplayModeBrowser;
 }
 
 void Shell::RequestToLockMouse(WebContents* web_contents,
@@ -478,6 +480,23 @@ void Shell::RendererUnresponsive(
 
 void Shell::ActivateContents(WebContents* contents) {
   contents->GetRenderViewHost()->GetWidget()->Focus();
+}
+
+bool Shell::ShouldAllowRunningInsecureContent(
+    content::WebContents* web_contents,
+    bool allowed_per_prefs,
+    const url::Origin& origin,
+    const GURL& resource_url) {
+  bool allowed_by_test = false;
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(
+          switches::kRunLayoutTest)) {
+    const base::DictionaryValue& test_flags =
+        BlinkTestController::Get()
+            ->accumulated_layout_test_runtime_flags_changes();
+    test_flags.GetBoolean("running_insecure_content_allowed", &allowed_by_test);
+  }
+
+  return allowed_per_prefs || allowed_by_test;
 }
 
 gfx::Size Shell::GetShellDefaultSize() {

@@ -12,6 +12,7 @@
 #include "base/callback.h"
 #include "base/macros.h"
 #include "base/observer_list.h"
+#include "base/time/time.h"
 #include "chromeos/chromeos_export.h"
 #include "chromeos/dbus/dbus_client.h"
 #include "chromeos/dbus/dbus_client_implementation_type.h"
@@ -27,6 +28,24 @@ namespace chromeos {
 // SessionManagerClient is used to communicate with the session manager.
 class CHROMEOS_EXPORT SessionManagerClient : public DBusClient {
  public:
+  // The result type received from session manager on request to retrieve the
+  // policy. Used to define the buckets for an enumerated UMA histogram.
+  // Hence,
+  //   (a) existing enumerated constants should never be deleted or reordered.
+  //   (b) new constants should be inserted immediately before COUNT.
+  enum class RetrievePolicyResponseType {
+    // Other type of error while retrieving policy data (e.g. D-Bus timeout).
+    OTHER_ERROR = 0,
+    // The policy was retrieved successfully.
+    SUCCESS = 1,
+    // Retrieve policy request issued before session started.
+    SESSION_DOES_NOT_EXIST = 2,
+    // Session manager failed to encode the policy data.
+    POLICY_ENCODE_ERROR = 3,
+    // Has to be the last value of enumeration. Used for UMA.
+    COUNT
+  };
+
   // Interface for observing changes from the session manager.
   class Observer {
    public:
@@ -142,23 +161,26 @@ class CHROMEOS_EXPORT SessionManagerClient : public DBusClient {
 
   // Used for RetrieveDevicePolicy, RetrievePolicyForUser and
   // RetrieveDeviceLocalAccountPolicy. Takes a serialized protocol buffer as
-  // string.  Upon success, we will pass a protobuf to the callback.  On
-  // failure, we will pass "".
+  // string.  Upon success, we will pass a protobuf and SUCCESS |response_type|
+  // to the callback. On failure, we will pass "" and the details of error type
+  // in |response_type|.
   using RetrievePolicyCallback =
-      base::Callback<void(const std::string& protobuf)>;
+      base::Callback<void(const std::string& protobuf,
+                          RetrievePolicyResponseType response_type)>;
 
   // Fetches the device policy blob stored by the session manager.  Upon
   // completion of the retrieve attempt, we will call the provided callback.
   virtual void RetrieveDevicePolicy(const RetrievePolicyCallback& callback) = 0;
 
   // Same as RetrieveDevicePolicy() but blocks until a reply is received, and
-  // returns the policy synchronously. Returns an empty string if the method
-  // call fails.
+  // populates the policy synchronously. Returns SUCCESS when successful, or
+  // the corresponding error from enum in case of a failure.
   // This may only be called in situations where blocking the UI thread is
   // considered acceptable (e.g. restarting the browser after a crash or after
   // a flag change).
   // TODO: Get rid of blocking calls (crbug.com/160522).
-  virtual std::string BlockingRetrieveDevicePolicy() = 0;
+  virtual RetrievePolicyResponseType BlockingRetrieveDevicePolicy(
+      std::string* policy_out) = 0;
 
   // Fetches the user policy blob stored by the session manager for the given
   // |cryptohome_id|. Upon completion of the retrieve attempt, we will call the
@@ -168,14 +190,15 @@ class CHROMEOS_EXPORT SessionManagerClient : public DBusClient {
       const RetrievePolicyCallback& callback) = 0;
 
   // Same as RetrievePolicyForUser() but blocks until a reply is received, and
-  // returns the policy synchronously. Returns an empty string if the method
-  // call fails.
+  // populates the policy synchronously. Returns SUCCESS when successful, or
+  // the corresponding error from enum in case of a failure.
   // This may only be called in situations where blocking the UI thread is
   // considered acceptable (e.g. restarting the browser after a crash or after
   // a flag change).
   // TODO: Get rid of blocking calls (crbug.com/160522).
-  virtual std::string BlockingRetrievePolicyForUser(
-      const cryptohome::Identification& cryptohome_id) = 0;
+  virtual RetrievePolicyResponseType BlockingRetrievePolicyForUser(
+      const cryptohome::Identification& cryptohome_id,
+      std::string* policy_out) = 0;
 
   // Fetches the policy blob associated with the specified device-local account
   // from session manager.  |callback| is invoked up on completion.
@@ -184,14 +207,15 @@ class CHROMEOS_EXPORT SessionManagerClient : public DBusClient {
       const RetrievePolicyCallback& callback) = 0;
 
   // Same as RetrieveDeviceLocalAccountPolicy() but blocks until a reply is
-  // received, and returns the policy synchronously.
-  // Returns an empty string if the method call fails.
+  // received, and populates the policy synchronously. Returns SUCCESS when
+  // successful, or the corresponding error from enum in case of a failure.
   // This may only be called in situations where blocking the UI thread is
   // considered acceptable (e.g. restarting the browser after a crash or after
   // a flag change).
   // TODO: Get rid of blocking calls (crbug.com/160522).
-  virtual std::string BlockingRetrieveDeviceLocalAccountPolicy(
-      const std::string& account_id) = 0;
+  virtual RetrievePolicyResponseType BlockingRetrieveDeviceLocalAccountPolicy(
+      const std::string& account_id,
+      std::string* policy_out) = 0;
 
   // Used for StoreDevicePolicy, StorePolicyForUser and
   // StoreDeviceLocalAccountPolicy. Takes a boolean indicating whether the
@@ -217,6 +241,10 @@ class CHROMEOS_EXPORT SessionManagerClient : public DBusClient {
       const std::string& account_id,
       const std::string& policy_blob,
       const StorePolicyCallback& callback) = 0;
+
+  // Returns whether session manager can be used to restart Chrome in order to
+  // apply per-user session flags.
+  virtual bool SupportsRestartToApplyUserFlags() const = 0;
 
   // Sets the flags to be applied next time by the session manager when Chrome
   // is restarted inside an already started session for a particular user.
@@ -274,14 +302,6 @@ class CHROMEOS_EXPORT SessionManagerClient : public DBusClient {
   // reached).
   virtual void StopArcInstance(const ArcCallback& callback) = 0;
 
-  // Deprecated. Use SetArcCpuRestriction() instead.
-  // TODO(yusukes): Remove the interface.
-  // Prioritizes the ARC instance by removing cgroups restrictions that
-  // session_manager applies to the instance by default. Upon completion,
-  // invokes |callback| with the result; true on success, false on failure.
-  // All calls after the first one will have no effect.
-  virtual void PrioritizeArcInstance(const ArcCallback& callback) = 0;
-
   // Adjusts the amount of CPU the ARC instance is allowed to use. When
   // |restriction_state| is CONTAINER_CPU_RESTRICTION_FOREGROUND the limit is
   // adjusted so ARC can use all the system's CPU if needed. When it is
@@ -294,7 +314,8 @@ class CHROMEOS_EXPORT SessionManagerClient : public DBusClient {
       const ArcCallback& callback) = 0;
 
   // Emits the "arc-booted" upstart signal.
-  virtual void EmitArcBooted() = 0;
+  virtual void EmitArcBooted(const cryptohome::Identification& cryptohome_id,
+                             const ArcCallback& callback) = 0;
 
   // Asynchronously retrieves the timestamp which ARC instance is invoked or
   // returns false if there is no ARC instance or ARC is not available.

@@ -215,6 +215,24 @@
             ]
         },
         {
+            "type": "@QuickOpen.FilteredListWidget.Provider",
+            "title": "Open file",
+            "prefix": "",
+            "className": "Sources.OpenFileQuickOpen"
+        },
+        {
+            "type": "@QuickOpen.FilteredListWidget.Provider",
+            "title": "Go to line",
+            "prefix": ":",
+            "className": "Sources.GoToLineQuickOpen"
+        },
+        {
+            "type": "@QuickOpen.FilteredListWidget.Provider",
+            "title": "Go to symbol",
+            "prefix": "@",
+            "className": "Sources.OutlineQuickOpen"
+        },
+        {
             "type": "context-menu-item",
             "location": "mainMenu/navigate",
             "actionId": "sources.search.toggle"
@@ -222,7 +240,7 @@
         {
             "type": "context-menu-item",
             "location": "navigatorMenu/navigate",
-            "actionId": "sources.go-to-source"
+            "actionId": "quickOpen.show"
         },
         {
             "type": "@Common.Revealer",
@@ -338,23 +356,6 @@
         },
         {
             "type": "@UI.ActionDelegate",
-            "actionId": "sources.go-to-source",
-            "title": "Go to file...",
-            "className": "Sources.SourcesPanel.RevealingActionDelegate",
-            "order": 100,
-            "bindings": [
-                {
-                    "platform": "mac",
-                    "shortcut": "Meta+P Meta+O"
-                },
-                {
-                    "platform": "windows,linux",
-                    "shortcut": "Ctrl+P Ctrl+O"
-                }
-            ]
-        },
-        {
-            "type": "@UI.ActionDelegate",
             "actionId": "sources.switch-file",
             "className": "Sources.SourcesView.SwitchFileActionDelegate",
             "contextTypes": [
@@ -375,8 +376,8 @@
         {
             "type": "setting",
             "category": "Sources",
-            "title": "Search in content scripts",
-            "settingName": "searchInContentScripts",
+            "title": "Search in anonymous and content scripts",
+            "settingName": "searchInAnonymousAndContentScripts",
             "settingType": "boolean",
             "defaultValue": false
         },
@@ -615,10 +616,11 @@
         "persistence",
         "quick_open",
         "inline_editor",
-        "color_picker"
+        "color_picker",
+        "event_listeners",
+        "object_ui"
     ],
     "scripts": [
-        "UIList.js",
         "AddSourceMapURLDialog.js",
         "CallStackSidebarPane.js",
         "DebuggerPausedMessage.js",
@@ -626,24 +628,25 @@
         "EditingLocationHistoryManager.js",
         "EventListenerBreakpointsSidebarPane.js",
         "FilePathScoreFunction.js",
-        "FilteredUISourceCodeListDelegate.js",
+        "FilteredUISourceCodeListProvider.js",
+        "GoToLineQuickOpen.js",
         "SourceMapNamesResolver.js",
         "JavaScriptBreakpointsSidebarPane.js",
-        "JavaScriptOutlineDialog.js",
         "JavaScriptSourceFrame.js",
         "CSSSourceFrame.js",
         "NavigatorView.js",
         "RevisionHistoryView.js",
         "ScopeChainSidebarPane.js",
         "SourcesNavigator.js",
-        "StyleSheetOutlineDialog.js",
+        "OutlineQuickOpen.js",
         "TabbedEditorContainer.js",
         "WatchExpressionsSidebarPane.js",
         "ThreadsSidebarPane.js",
         "ScriptFormatterEditorAction.js",
         "InplaceFormatterEditorAction.js",
         "ScriptFormatter.js",
-        "OpenResourceDialog.js",
+        "SourceFormatter.js",
+        "OpenFileQuickOpen.js",
         "SourcesView.js",
         "AdvancedSearchView.js",
         "FileBasedSearchResultsPane.js",
@@ -655,7 +658,7 @@
         "ObjectEventListenersSidebarPane.js"
     ],
     "resources": [
-        "uiList.css",
+        "callStackSidebarPane.css",
         "debuggerPausedMessage.css",
         "eventListenerBreakpoints.css",
         "fileBasedSearchResultsPane.css",
@@ -666,6 +669,7 @@
         "sourcesPanel.css",
         "sourcesSearch.css",
         "sourcesView.css",
+        "threadsSidebarPane.css",
         "dialog.css"
     ]
 }

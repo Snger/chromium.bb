@@ -15,7 +15,6 @@
 
 #include "base/lazy_instance.h"
 #include "base/macros.h"
-#include "base/memory/scoped_vector.h"
 #include "base/sequenced_task_runner.h"
 #include "base/time/time.h"
 #include "chrome/browser/task_manager/providers/task_provider.h"
@@ -85,6 +84,7 @@ class TaskManagerImpl :
   bool GetWebCacheStats(
       TaskId task_id,
       blink::WebCache::ResourceTypeStats* stats) const override;
+  int GetKeepaliveCount(TaskId task_id) const override;
   const TaskIdList& GetTaskIdsList() const override;
   TaskIdList GetIdsOfTasksSharingSameProcess(TaskId task_id) const override;
   size_t GetNumberOfTasksOnSameProcess(TaskId task_id) const override;
@@ -105,7 +105,7 @@ class TaskManagerImpl :
   static void OnMultipleBytesReadUI(std::vector<BytesReadParam>* params);
 
  private:
-  friend struct base::DefaultLazyInstanceTraits<TaskManagerImpl>;
+  friend struct base::LazyInstanceTraitsBase<TaskManagerImpl>;
 
   TaskManagerImpl();
 

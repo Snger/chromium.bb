@@ -7,12 +7,14 @@
 #ifndef XFA_FXFA_APP_XFA_FFCHOICELIST_H_
 #define XFA_FXFA_APP_XFA_FFCHOICELIST_H_
 
+#include <vector>
+
 #include "xfa/fxfa/app/xfa_fffield.h"
-#include "xfa/fxfa/xfa_ffpageview.h"
+#include "xfa/fxfa/cxfa_ffpageview.h"
 
 class CXFA_FFListBox : public CXFA_FFField {
  public:
-  CXFA_FFListBox(CXFA_FFPageView* pPageView, CXFA_WidgetAcc* pDataAcc);
+  explicit CXFA_FFListBox(CXFA_WidgetAcc* pDataAcc);
   ~CXFA_FFListBox() override;
 
   // CXFA_FFField
@@ -23,12 +25,13 @@ class CXFA_FFListBox : public CXFA_FFField {
   void OnDrawWidget(CFX_Graphics* pGraphics,
                     const CFX_Matrix* pMatrix = nullptr) override;
 
-  void OnSelectChanged(CFWL_Widget* pWidget, const CFX_Int32Array& arrSels);
+  void OnSelectChanged(CFWL_Widget* pWidget,
+                       const std::vector<int32_t>& arrSels);
   void SetItemState(int32_t nIndex, bool bSelected);
   void InsertItem(const CFX_WideStringC& wsLabel, int32_t nIndex = -1);
   void DeleteItem(int32_t nIndex);
 
- protected:
+ private:
   bool CommitData() override;
   bool UpdateFWLData() override;
   bool IsDataChanged() override;
@@ -40,16 +43,14 @@ class CXFA_FFListBox : public CXFA_FFField {
 
 class CXFA_FFComboBox : public CXFA_FFField {
  public:
-  CXFA_FFComboBox(CXFA_FFPageView* pPageView, CXFA_WidgetAcc* pDataAcc);
+  explicit CXFA_FFComboBox(CXFA_WidgetAcc* pDataAcc);
   ~CXFA_FFComboBox() override;
 
   // CXFA_FFField
-  bool GetBBox(CFX_RectF& rtBox,
-               uint32_t dwStatus,
-               bool bDrawFocus = false) override;
+  CFX_RectF GetBBox(uint32_t dwStatus, bool bDrawFocus = false) override;
   bool LoadWidget() override;
   void UpdateWidgetProperty() override;
-  bool OnRButtonUp(uint32_t dwFlags, FX_FLOAT fx, FX_FLOAT fy) override;
+  bool OnRButtonUp(uint32_t dwFlags, const CFX_PointF& point) override;
   bool OnKillFocus(CXFA_FFWidget* pNewWidget) override;
   bool CanUndo() override;
   bool CanRedo() override;
@@ -83,9 +84,9 @@ class CXFA_FFComboBox : public CXFA_FFField {
   void InsertItem(const CFX_WideStringC& wsLabel, int32_t nIndex = -1);
   void DeleteItem(int32_t nIndex);
 
- protected:
+ private:
   // CXFA_FFField
-  bool PtInActiveRect(FX_FLOAT fx, FX_FLOAT fy) override;
+  bool PtInActiveRect(const CFX_PointF& point) override;
   bool CommitData() override;
   bool UpdateFWLData() override;
   bool IsDataChanged() override;

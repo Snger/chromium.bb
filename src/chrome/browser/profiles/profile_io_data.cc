@@ -74,6 +74,7 @@
 #include "components/policy/core/common/cloud/policy_header_service.h"
 #include "components/policy/core/common/cloud/user_cloud_policy_manager.h"
 #include "components/prefs/pref_service.h"
+#include "components/previews/core/previews_io_data.h"
 #include "components/signin/core/common/signin_pref_names.h"
 #include "components/url_formatter/url_fixer.h"
 #include "content/public/browser/browser_thread.h"
@@ -118,12 +119,6 @@
 #include "extensions/browser/extension_throttle_manager.h"
 #include "extensions/browser/info_map.h"
 #include "extensions/common/constants.h"
-#endif
-
-#if BUILDFLAG(ENABLE_SUPERVISED_USERS)
-#include "chrome/browser/supervised_user/supervised_user_service.h"
-#include "chrome/browser/supervised_user/supervised_user_service_factory.h"
-#include "chrome/browser/supervised_user/supervised_user_url_filter.h"
 #endif
 
 #if defined(OS_ANDROID)
@@ -421,12 +416,6 @@ void ProfileIOData::InitializeOnUIThread(Profile* profile) {
 
   params->proxy_config_service = ProxyServiceFactory::CreateProxyConfigService(
       profile->GetProxyConfigTracker());
-#if BUILDFLAG(ENABLE_SUPERVISED_USERS)
-  SupervisedUserService* supervised_user_service =
-      SupervisedUserServiceFactory::GetForProfile(profile);
-  params->supervised_user_url_filter =
-      supervised_user_service->GetURLFilterForIOThread();
-#endif
 #if defined(OS_CHROMEOS)
   user_manager::UserManager* user_manager = user_manager::UserManager::Get();
   if (user_manager) {
@@ -542,8 +531,7 @@ void ProfileIOData::InitializeOnUIThread(Profile* profile) {
   BrowserContext::EnsureResourceContextInitialized(profile);
 }
 
-ProfileIOData::MediaRequestContext::MediaRequestContext(
-    const std::string& name) {
+ProfileIOData::MediaRequestContext::MediaRequestContext(const char* name) {
   set_name(name);
 }
 
@@ -945,6 +933,11 @@ void ProfileIOData::set_data_reduction_proxy_io_data(
   data_reduction_proxy_io_data_ = std::move(data_reduction_proxy_io_data);
 }
 
+void ProfileIOData::set_previews_io_data(
+    std::unique_ptr<previews::PreviewsIOData> previews_io_data) const {
+  previews_io_data_ = std::move(previews_io_data);
+}
+
 ProfileIOData::ResourceContext::ResourceContext(ProfileIOData* io_data)
     : io_data_(io_data),
       host_resolver_(NULL),
@@ -1072,10 +1065,6 @@ void ProfileIOData::Init(
         profile_params_->resource_prefetch_predictor_observer_.release());
   }
 
-#if BUILDFLAG(ENABLE_SUPERVISED_USERS)
-  supervised_user_url_filter_ = profile_params_->supervised_user_url_filter;
-#endif
-
 #if defined(OS_CHROMEOS)
   username_hash_ = profile_params_->username_hash;
   use_system_key_slot_ = profile_params_->use_system_key_slot;
@@ -1121,7 +1110,7 @@ void ProfileIOData::Init(
   main_request_context_->set_cert_transparency_verifier(ct_verifier.get());
 
   ct_tree_tracker_.reset(new certificate_transparency::TreeStateTracker(
-      io_thread_globals->ct_logs));
+      io_thread_globals->ct_logs, io_thread->net_log()));
   ct_verifier->SetObserver(ct_tree_tracker_.get());
 
   cert_transparency_verifier_ = std::move(ct_verifier);
@@ -1304,16 +1293,18 @@ std::unique_ptr<net::HttpCache> ProfileIOData::CreateMainHttpFactory(
   return base::MakeUnique<net::HttpCache>(
       base::WrapUnique(new DevToolsNetworkTransactionFactory(
           network_controller_handle_.GetController(), session)),
-      std::move(main_backend), true /* set_up_quic_server_info */);
+      std::move(main_backend), true /* is_main_cache */);
 }
 
 std::unique_ptr<net::HttpCache> ProfileIOData::CreateHttpFactory(
-    net::HttpNetworkSession* shared_session,
+    net::HttpTransactionFactory* main_http_factory,
     std::unique_ptr<net::HttpCache::BackendFactory> backend) const {
+  DCHECK(main_http_factory);
+  net::HttpNetworkSession* shared_session = main_http_factory->GetSession();
   return base::MakeUnique<net::HttpCache>(
       base::WrapUnique(new DevToolsNetworkTransactionFactory(
           network_controller_handle_.GetController(), shared_session)),
-      std::move(backend), true /* set_up_quic_server_info */);
+      std::move(backend), false /* is_main_cache */);
 }
 
 void ProfileIOData::SetCookieSettingsForTesting(

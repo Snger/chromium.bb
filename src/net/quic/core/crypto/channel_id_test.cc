@@ -9,7 +9,6 @@
 #include "net/quic/test_tools/crypto_test_utils.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
-using base::StringPiece;
 using std::string;
 
 namespace net {
@@ -274,16 +273,17 @@ TEST(ChannelIDTest, VerifyKnownAnswerTest) {
     EXPECT_EQ(sizeof(signature) / 2, r_len);
     EXPECT_EQ(sizeof(signature) / 2, s_len);
 
-    EXPECT_EQ(test_vector[i].result,
-              ChannelIDVerifier::VerifyRaw(
-                  StringPiece(key, sizeof(key)), StringPiece(msg, msg_len),
-                  StringPiece(signature, sizeof(signature)), false));
+    EXPECT_EQ(
+        test_vector[i].result,
+        ChannelIDVerifier::VerifyRaw(
+            QuicStringPiece(key, sizeof(key)), QuicStringPiece(msg, msg_len),
+            QuicStringPiece(signature, sizeof(signature)), false));
   }
 }
 
 TEST(ChannelIDTest, SignAndVerify) {
   std::unique_ptr<ChannelIDSource> source(
-      CryptoTestUtils::ChannelIDSourceForTesting());
+      crypto_test_utils::ChannelIDSourceForTesting());
 
   const string signed_data = "signed data";
   const string hostname = "foo.example.com";

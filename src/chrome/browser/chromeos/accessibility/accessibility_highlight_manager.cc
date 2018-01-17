@@ -38,7 +38,7 @@ AccessibilityHighlightManager::~AccessibilityHighlightManager() {
   AccessibilityFocusRingController::GetInstance()->HideCaretRing();
   AccessibilityFocusRingController::GetInstance()->HideCursorRing();
 
-  ash::Shell* shell = ash::Shell::GetInstance();
+  ash::Shell* shell = ash::Shell::Get();
   if (shell && registered_observers_) {
     shell->RemovePreTargetHandler(this);
     shell->cursor_manager()->RemoveObserver(this);
@@ -65,7 +65,7 @@ void AccessibilityHighlightManager::HighlightCaret(bool caret) {
 }
 
 void AccessibilityHighlightManager::RegisterObservers() {
-  ash::Shell* shell = ash::Shell::GetInstance();
+  ash::Shell* shell = ash::Shell::Get();
   shell->AddPreTargetHandler(this);
   shell->cursor_manager()->AddObserver(this);
   registrar_.Add(this, content::NOTIFICATION_FOCUS_CHANGED_IN_PAGE,
@@ -74,6 +74,12 @@ void AccessibilityHighlightManager::RegisterObservers() {
   ui::InputMethod* input_method = GetInputMethod(root_window);
   input_method->AddObserver(this);
   registered_observers_ = true;
+}
+
+void AccessibilityHighlightManager::OnViewFocusedInArc(
+    const gfx::Rect& bounds_in_screen) {
+  focus_rect_ = bounds_in_screen;
+  UpdateFocusAndCaretHighlights();
 }
 
 void AccessibilityHighlightManager::OnMouseEvent(ui::MouseEvent* event) {
@@ -125,7 +131,7 @@ void AccessibilityHighlightManager::OnCursorVisibilityChanged(bool is_visible) {
 }
 
 bool AccessibilityHighlightManager::IsCursorVisible() {
-  return ash::Shell::GetInstance()->cursor_manager()->IsCursorVisible();
+  return ash::Shell::Get()->cursor_manager()->IsCursorVisible();
 }
 
 void AccessibilityHighlightManager::UpdateFocusAndCaretHighlights() {

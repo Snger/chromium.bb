@@ -13,7 +13,6 @@
 #include "GrDefaultGeoProcFactory.h"
 #include "GrDrawOpTest.h"
 #include "GrGeometryProcessor.h"
-#include "GrInvariantOutput.h"
 #include "GrOpFlushState.h"
 #include "GrProcessor.h"
 #include "GrStyle.h"
@@ -238,7 +237,7 @@ static sk_sp<GrGeometryProcessor> make_dash_gp(GrColor,
                                                const SkMatrix& localMatrix,
                                                bool usesLocalCoords);
 
-class DashOp final : public GrMeshDrawOp {
+class DashOp final : public GrLegacyMeshDrawOp {
 public:
     DEFINE_OP_CLASS_ID
     struct LineData {
@@ -252,9 +251,11 @@ public:
         SkScalar fPerpendicularScale;
     };
 
-    static std::unique_ptr<GrDrawOp> Make(const LineData& geometry, GrColor color, SkPaint::Cap cap,
-                                          AAMode aaMode, bool fullDash) {
-        return std::unique_ptr<GrDrawOp>(new DashOp(geometry, color, cap, aaMode, fullDash));
+    static std::unique_ptr<GrLegacyMeshDrawOp> Make(const LineData& geometry, GrColor color,
+                                                    SkPaint::Cap cap, AAMode aaMode,
+                                                    bool fullDash) {
+        return std::unique_ptr<GrLegacyMeshDrawOp>(
+                new DashOp(geometry, color, cap, aaMode, fullDash));
     }
 
     const char* name() const override { return "DashOp"; }
@@ -297,12 +298,13 @@ private:
         this->setTransformedBounds(bounds, combinedMatrix, aaBloat, zeroArea);
     }
 
-    void getPipelineAnalysisInput(GrPipelineAnalysisDrawOpInput* input) const override {
-        input->pipelineColorInput()->setKnownFourComponents(fColor);
-        input->pipelineCoverageInput()->setUnknownSingleComponent();
+    void getProcessorAnalysisInputs(GrProcessorAnalysisColor* color,
+                                    GrProcessorAnalysisCoverage* coverage) const override {
+        color->setToConstant(fColor);
+        *coverage = GrProcessorAnalysisCoverage::kSingleChannel;
     }
 
-    void applyPipelineOptimizations(const GrPipelineOptimizations& optimizations) override {
+    void applyPipelineOptimizations(const PipelineOptimizations& optimizations) override {
         optimizations.getOverrideColorIfSet(&fColor);
 
         fUsesLocalCoords = optimizations.readsLocalCoords();
@@ -625,7 +627,7 @@ private:
             rectIndex++;
         }
         SkASSERT(0 == (curVIdx % 4) && (curVIdx / 4) == totalRectCount);
-        helper.recordDraw(target, gp.get());
+        helper.recordDraw(target, gp.get(), this->pipeline());
     }
 
     bool onCombineIfPossible(GrOp* t, const GrCaps& caps) override {
@@ -679,14 +681,14 @@ private:
     bool fFullDash;
     SkSTArray<1, LineData, true> fLines;
 
-    typedef GrMeshDrawOp INHERITED;
+    typedef GrLegacyMeshDrawOp INHERITED;
 };
 
-std::unique_ptr<GrDrawOp> GrDashOp::MakeDashLineOp(GrColor color,
-                                                   const SkMatrix& viewMatrix,
-                                                   const SkPoint pts[2],
-                                                   AAMode aaMode,
-                                                   const GrStyle& style) {
+std::unique_ptr<GrLegacyMeshDrawOp> GrDashOp::MakeDashLineOp(GrColor color,
+                                                             const SkMatrix& viewMatrix,
+                                                             const SkPoint pts[2],
+                                                             AAMode aaMode,
+                                                             const GrStyle& style) {
     SkASSERT(GrDashOp::CanDrawDashLine(pts, style, viewMatrix));
     const SkScalar* intervals = style.dashIntervals();
     SkScalar phase = style.dashPhase();
@@ -936,12 +938,14 @@ DashingCircleEffect::DashingCircleEffect(GrColor color,
 
 GR_DEFINE_GEOMETRY_PROCESSOR_TEST(DashingCircleEffect);
 
+#if GR_TEST_UTILS
 sk_sp<GrGeometryProcessor> DashingCircleEffect::TestCreate(GrProcessorTestData* d) {
     AAMode aaMode = static_cast<AAMode>(d->fRandom->nextULessThan(GrDashOp::kAAModeCnt));
     return DashingCircleEffect::Make(GrRandomColor(d->fRandom),
                                     aaMode, GrTest::TestMatrix(d->fRandom),
                                     d->fRandom->nextBool());
 }
+#endif
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1156,12 +1160,14 @@ DashingLineEffect::DashingLineEffect(GrColor color,
 
 GR_DEFINE_GEOMETRY_PROCESSOR_TEST(DashingLineEffect);
 
+#if GR_TEST_UTILS
 sk_sp<GrGeometryProcessor> DashingLineEffect::TestCreate(GrProcessorTestData* d) {
     AAMode aaMode = static_cast<AAMode>(d->fRandom->nextULessThan(GrDashOp::kAAModeCnt));
     return DashingLineEffect::Make(GrRandomColor(d->fRandom),
                                    aaMode, GrTest::TestMatrix(d->fRandom),
                                    d->fRandom->nextBool());
 }
+#endif
 
 //////////////////////////////////////////////////////////////////////////////
 
@@ -1187,7 +1193,7 @@ static sk_sp<GrGeometryProcessor> make_dash_gp(GrColor color,
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef GR_TEST_UTILS
+#if GR_TEST_UTILS
 
 DRAW_OP_TEST_DEFINE(DashOp) {
     GrColor color = GrRandomColor(random);

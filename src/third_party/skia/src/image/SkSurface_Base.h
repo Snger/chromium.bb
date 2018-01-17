@@ -43,7 +43,7 @@ public:
      *  must faithfully represent the current contents, even if the surface
      *  is changed after this called (e.g. it is drawn to via its canvas).
      */
-    virtual sk_sp<SkImage> onNewImageSnapshot(SkBudgeted) = 0;
+    virtual sk_sp<SkImage> onNewImageSnapshot() = 0;
 
     /**
      *  Default implementation:
@@ -81,7 +81,7 @@ public:
     virtual void onPrepareForExternalIO() {}
 
     inline SkCanvas* getCachedCanvas();
-    inline sk_sp<SkImage> refCachedImage(SkBudgeted);
+    inline sk_sp<SkImage> refCachedImage();
 
     bool hasCachedImage() const { return fCachedImage != nullptr; }
 
@@ -90,7 +90,7 @@ public:
 
 private:
     std::unique_ptr<SkCanvas>   fCachedCanvas;
-    SkImage*                    fCachedImage;
+    sk_sp<SkImage>              fCachedImage;
 
     void aboutToDraw(ContentChangeMode mode);
 
@@ -114,18 +114,15 @@ SkCanvas* SkSurface_Base::getCachedCanvas() {
     return fCachedCanvas.get();
 }
 
-sk_sp<SkImage> SkSurface_Base::refCachedImage(SkBudgeted budgeted) {
-    SkImage* snap = fCachedImage;
-    if (snap) {
-        return sk_ref_sp(snap);
+sk_sp<SkImage> SkSurface_Base::refCachedImage() {
+    if (fCachedImage) {
+        return fCachedImage;
     }
 
-    snap = this->onNewImageSnapshot(budgeted).release();
-    SkASSERT(!fCachedImage);
-    fCachedImage = SkSafeRef(snap);
+    fCachedImage = this->onNewImageSnapshot();
 
     SkASSERT(!fCachedCanvas || fCachedCanvas->getSurfaceBase() == this);
-    return sk_sp<SkImage>(snap);
+    return fCachedImage;
 }
 
 #endif

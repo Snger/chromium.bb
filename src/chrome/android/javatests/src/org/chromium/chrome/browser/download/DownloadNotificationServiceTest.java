@@ -18,6 +18,8 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.AdvancedMockContext;
 import org.chromium.base.test.util.Feature;
 import org.chromium.base.test.util.RetryOnFailure;
+import org.chromium.components.offline_items_collection.ContentId;
+import org.chromium.components.offline_items_collection.LegacyHelpers;
 
 import java.util.ArrayList;
 import java.util.HashSet;
@@ -43,7 +45,7 @@ public class DownloadNotificationServiceTest extends
         protected void init() {}
 
         @Override
-        public void resumeDownload(DownloadItem item, boolean hasUserGesture) {
+        public void resumeDownload(ContentId id, DownloadItem item, boolean hasUserGesture) {
             mDownloads.add(item);
         }
     }
@@ -66,6 +68,24 @@ public class DownloadNotificationServiceTest extends
         }
     }
 
+    private static String buildEntryStringWithGuid(String guid, int notificationId, String fileName,
+            boolean metered, boolean autoResume, boolean offTheRecord) {
+        return new DownloadSharedPreferenceEntry(LegacyHelpers.buildLegacyContentId(false, guid),
+                notificationId, offTheRecord, metered, fileName, autoResume, false)
+                .getSharedPreferenceString();
+    }
+
+    private static String buildEntryStringWithGuid(
+            String guid, int notificationId, String fileName, boolean metered, boolean autoResume) {
+        return buildEntryStringWithGuid(guid, notificationId, fileName, metered, autoResume, false);
+    }
+
+    private static String buildEntryString(
+            int notificationId, String fileName, boolean metered, boolean autoResume) {
+        return buildEntryStringWithGuid(
+                UUID.randomUUID().toString(), notificationId, fileName, metered, autoResume);
+    }
+
     public DownloadNotificationServiceTest() {
         super(MockDownloadNotificationService.class);
     }
@@ -76,8 +96,17 @@ public class DownloadNotificationServiceTest extends
     }
 
     @Override
+    protected void shutdownService() {
+        ThreadUtils.runOnUiThreadBlocking(new Runnable() {
+            @Override
+            public void run() {
+                DownloadNotificationServiceTest.super.shutdownService();
+            }
+        });
+    }
+
+    @Override
     protected void tearDown() throws Exception {
-        super.setupService();
         SharedPreferences sharedPrefs = ContextUtils.getAppSharedPreferences();
         SharedPreferences.Editor editor = sharedPrefs.edit();
         editor.remove(DownloadSharedPreferenceHelper.KEY_PENDING_DOWNLOAD_NOTIFICATIONS);
@@ -125,6 +154,12 @@ public class DownloadNotificationServiceTest extends
     public void testPausingWithoutOngoingDownloads() {
         setupService();
         startNotificationService();
+        ThreadUtils.runOnUiThreadBlocking(new Runnable() {
+            @Override
+            public void run() {
+                getService().updateNotificationsForShutdown();
+            }
+        });
         assertTrue(getService().isPaused());
         assertTrue(getService().getNotificationIds().isEmpty());
     }
@@ -141,16 +176,14 @@ public class DownloadNotificationServiceTest extends
         DownloadResumptionScheduler.setDownloadResumptionScheduler(scheduler);
         setupService();
         Set<String> notifications = new HashSet<>();
-        notifications.add(
-                new DownloadSharedPreferenceEntry(1, false, true, UUID.randomUUID().toString(),
-                        "test1", DownloadSharedPreferenceEntry.ITEM_TYPE_DOWNLOAD, true)
-                        .getSharedPreferenceString());
+        notifications.add(buildEntryString(1, "test1", true, true));
         SharedPreferences sharedPrefs = ContextUtils.getAppSharedPreferences();
         SharedPreferences.Editor editor = sharedPrefs.edit();
         editor.putStringSet(
                 DownloadSharedPreferenceHelper.KEY_PENDING_DOWNLOAD_NOTIFICATIONS, notifications);
         editor.apply();
         startNotificationService();
+        shutdownService();
         assertTrue(scheduler.mScheduled);
     }
 
@@ -188,10 +221,7 @@ public class DownloadNotificationServiceTest extends
         DownloadResumptionScheduler.setDownloadResumptionScheduler(scheduler);
         setupService();
         Set<String> notifications = new HashSet<>();
-        notifications.add(
-                new DownloadSharedPreferenceEntry(1, false, true, UUID.randomUUID().toString(),
-                        "test1", DownloadSharedPreferenceEntry.ITEM_TYPE_DOWNLOAD, false)
-                        .getSharedPreferenceString());
+        notifications.add(buildEntryString(1, "test1", true, false));
         SharedPreferences sharedPrefs = ContextUtils.getAppSharedPreferences();
         SharedPreferences.Editor editor = sharedPrefs.edit();
         editor.putStringSet(
@@ -211,14 +241,8 @@ public class DownloadNotificationServiceTest extends
         Context mockContext = new AdvancedMockContext(getSystemContext());
         getService().setContext(mockContext);
         Set<String> notifications = new HashSet<>();
-        notifications.add(
-                new DownloadSharedPreferenceEntry(1, false, true, UUID.randomUUID().toString(),
-                        "test1", DownloadSharedPreferenceEntry.ITEM_TYPE_DOWNLOAD, true)
-                        .getSharedPreferenceString());
-        notifications.add(
-                new DownloadSharedPreferenceEntry(2, false, true, UUID.randomUUID().toString(),
-                        "test2", DownloadSharedPreferenceEntry.ITEM_TYPE_DOWNLOAD, true)
-                        .getSharedPreferenceString());
+        notifications.add(buildEntryString(1, "test1", true, true));
+        notifications.add(buildEntryString(2, "test2", true, true));
         SharedPreferences sharedPrefs =
                 ContextUtils.getAppSharedPreferences();
         SharedPreferences.Editor editor = sharedPrefs.edit();
@@ -226,6 +250,12 @@ public class DownloadNotificationServiceTest extends
                 DownloadSharedPreferenceHelper.KEY_PENDING_DOWNLOAD_NOTIFICATIONS, notifications);
         editor.apply();
         startNotificationService();
+        ThreadUtils.runOnUiThreadBlocking(new Runnable() {
+            @Override
+            public void run() {
+                getService().updateNotificationsForShutdown();
+            }
+        });
         assertTrue(getService().isPaused());
         assertEquals(2, getService().getNotificationIds().size());
         assertTrue(getService().getNotificationIds().contains(1));
@@ -245,45 +275,59 @@ public class DownloadNotificationServiceTest extends
         getService().setContext(mockContext);
         Set<String> notifications = new HashSet<>();
         String guid1 = UUID.randomUUID().toString();
-        notifications.add(new DownloadSharedPreferenceEntry(3, false, true, guid1, "success",
-                DownloadSharedPreferenceEntry.ITEM_TYPE_DOWNLOAD, true)
-                        .getSharedPreferenceString());
         String guid2 = UUID.randomUUID().toString();
-        notifications.add(new DownloadSharedPreferenceEntry(4, false, true, guid2, "failed",
-                DownloadSharedPreferenceEntry.ITEM_TYPE_DOWNLOAD, true)
-                        .getSharedPreferenceString());
+        notifications.add(buildEntryStringWithGuid(guid1, 3, "success", true, true));
+        notifications.add(buildEntryStringWithGuid(guid2, 4, "failed", true, true));
         SharedPreferences sharedPrefs = ContextUtils.getAppSharedPreferences();
         SharedPreferences.Editor editor = sharedPrefs.edit();
         editor.putStringSet(
                 DownloadSharedPreferenceHelper.KEY_PENDING_DOWNLOAD_NOTIFICATIONS, notifications);
         editor.apply();
         startNotificationService();
+        ThreadUtils.runOnUiThreadBlocking(new Runnable() {
+            @Override
+            public void run() {
+                getService().updateNotificationsForShutdown();
+            }
+        });
         assertEquals(2, getService().getNotificationIds().size());
         assertTrue(getService().getNotificationIds().contains(3));
         assertTrue(getService().getNotificationIds().contains(4));
 
         DownloadNotificationService service = bindNotificationService();
-        String guid3 = UUID.randomUUID().toString();
-        service.notifyDownloadProgress(guid3, "test", 1, 100L, 1L, 1L, true, true, false);
+        ContentId id3 = LegacyHelpers.buildLegacyContentId(false, UUID.randomUUID().toString());
+        service.notifyDownloadProgress(id3, "test", 1, 100L, 1L, 1L, true, true, false);
         assertEquals(3, getService().getNotificationIds().size());
         int lastNotificationId = getService().getLastAddedNotificationId();
         Set<String> entries = DownloadManagerService.getStoredDownloadInfo(
                 sharedPrefs, DownloadSharedPreferenceHelper.KEY_PENDING_DOWNLOAD_NOTIFICATIONS);
         assertEquals(3, entries.size());
 
-        service.notifyDownloadSuccessful(guid1, "/path/to/success", "success", 100L, false, false);
+        ContentId id1 = LegacyHelpers.buildLegacyContentId(false, guid1);
+        service.notifyDownloadSuccessful(
+                id1, "/path/to/success", "success", 100L, false, false, true);
         entries = DownloadManagerService.getStoredDownloadInfo(
                 sharedPrefs, DownloadSharedPreferenceHelper.KEY_PENDING_DOWNLOAD_NOTIFICATIONS);
         assertEquals(2, entries.size());
 
-        service.notifyDownloadFailed(guid2, "failed");
+        ContentId id2 = LegacyHelpers.buildLegacyContentId(false, guid2);
+        service.notifyDownloadFailed(id2, "failed");
         entries = DownloadManagerService.getStoredDownloadInfo(
                 sharedPrefs, DownloadSharedPreferenceHelper.KEY_PENDING_DOWNLOAD_NOTIFICATIONS);
         assertEquals(1, entries.size());
 
-        service.notifyDownloadCanceled(guid3);
+        service.notifyDownloadCanceled(id3);
         assertEquals(2, getService().getNotificationIds().size());
         assertFalse(getService().getNotificationIds().contains(lastNotificationId));
+
+        ContentId id4 = LegacyHelpers.buildLegacyContentId(false, UUID.randomUUID().toString());
+        service.notifyDownloadSuccessful(
+                id4, "/path/to/success", "success", 100L, false, false, true);
+        assertEquals(3, getService().getNotificationIds().size());
+        int nextNotificationId = getService().getLastAddedNotificationId();
+        service.cancelNotification(nextNotificationId, id4);
+        assertEquals(2, getService().getNotificationIds().size());
+        assertFalse(getService().getNotificationIds().contains(nextNotificationId));
     }
 
     /**
@@ -296,8 +340,8 @@ public class DownloadNotificationServiceTest extends
         setupService();
         startNotificationService();
         DownloadNotificationService service = bindNotificationService();
-        String guid = UUID.randomUUID().toString();
-        service.notifyDownloadSuccessful(guid, "/path/to/test", "test", 100L, false, false);
+        ContentId id = LegacyHelpers.buildLegacyContentId(false, UUID.randomUUID().toString());
+        service.notifyDownloadSuccessful(id, "/path/to/test", "test", 100L, false, false, true);
         assertEquals(1, getService().getNotificationIds().size());
     }
 
@@ -306,23 +350,20 @@ public class DownloadNotificationServiceTest extends
      */
     @SmallTest
     @Feature({"Download"})
+    @RetryOnFailure
     public void testResumeAllPendingDownloads() throws Exception {
         setupService();
         Context mockContext = new AdvancedMockContext(getSystemContext());
         getService().setContext(mockContext);
         Set<String> notifications = new HashSet<>();
         String guid1 = UUID.randomUUID().toString();
-        notifications.add(new DownloadSharedPreferenceEntry(3, false, false, guid1, "success",
-                DownloadSharedPreferenceEntry.ITEM_TYPE_DOWNLOAD, true)
-                        .getSharedPreferenceString());
         String guid2 = UUID.randomUUID().toString();
-        notifications.add(new DownloadSharedPreferenceEntry(4, false, true, guid2, "failed",
-                DownloadSharedPreferenceEntry.ITEM_TYPE_DOWNLOAD, true)
-                        .getSharedPreferenceString());
         String guid3 = UUID.randomUUID().toString();
-        notifications.add(new DownloadSharedPreferenceEntry(5, false, true, guid3, "nonresumable",
-                DownloadSharedPreferenceEntry.ITEM_TYPE_DOWNLOAD, false)
-                        .getSharedPreferenceString());
+
+        notifications.add(buildEntryStringWithGuid(guid1, 3, "success", false, true));
+        notifications.add(buildEntryStringWithGuid(guid2, 4, "failed", true, true));
+        notifications.add(buildEntryStringWithGuid(guid3, 5, "nonresumable", true, false));
+
         SharedPreferences sharedPrefs = ContextUtils.getAppSharedPreferences();
         SharedPreferences.Editor editor = sharedPrefs.edit();
         editor.putStringSet(
@@ -357,15 +398,13 @@ public class DownloadNotificationServiceTest extends
      */
     @SmallTest
     @Feature({"Download"})
-    public void testIncognitoDownloadCanceledOnBrowserKill() throws Exception {
+    public void testIncognitoDownloadCanceledOnServiceShutdown() throws Exception {
         setupService();
         Context mockContext = new AdvancedMockContext(getSystemContext());
         getService().setContext(mockContext);
         Set<String> notifications = new HashSet<>();
         String uuid = UUID.randomUUID().toString();
-        notifications.add(new DownloadSharedPreferenceEntry(1, true, true, uuid, "test1",
-                DownloadSharedPreferenceEntry.ITEM_TYPE_DOWNLOAD, true)
-                        .getSharedPreferenceString());
+        notifications.add(buildEntryStringWithGuid(uuid, 1, "test1", true, true, true));
         SharedPreferences sharedPrefs =
                 ContextUtils.getAppSharedPreferences();
         SharedPreferences.Editor editor = sharedPrefs.edit();
@@ -373,6 +412,14 @@ public class DownloadNotificationServiceTest extends
                 DownloadSharedPreferenceHelper.KEY_PENDING_DOWNLOAD_NOTIFICATIONS, notifications);
         editor.apply();
         startNotificationService();
+
+        ThreadUtils.runOnUiThreadBlocking(new Runnable() {
+            @Override
+            public void run() {
+                getService().onTaskRemoved(new Intent());
+            }
+        });
+
         assertTrue(getService().isPaused());
         assertFalse(sharedPrefs.contains(
                 DownloadSharedPreferenceHelper.KEY_PENDING_DOWNLOAD_NOTIFICATIONS));

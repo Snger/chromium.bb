@@ -8,16 +8,11 @@
 #ifndef SkCanvas_DEFINED
 #define SkCanvas_DEFINED
 
-#include "SkTypes.h"
 #include "SkBlendMode.h"
-#include "SkBitmap.h"
 #include "SkClipOp.h"
 #include "SkDeque.h"
-#include "SkImage.h"
 #include "SkPaint.h"
 #include "SkRasterHandleAllocator.h"
-#include "SkRefCnt.h"
-#include "SkRegion.h"
 #include "SkSurfaceProps.h"
 #include "SkLights.h"
 #include "../private/SkShadowParams.h"
@@ -25,23 +20,29 @@
 class GrContext;
 class GrRenderTargetContext;
 class SkBaseDevice;
+class SkBitmap;
+#ifdef SK_SUPPORT_OBSOLETE_REPLAYCLIP
 class SkCanvasClipVisitor;
+#endif
 class SkClipStack;
 class SkData;
 class SkDraw;
 class SkDrawable;
 class SkDrawFilter;
+class SkImage;
 class SkImageFilter;
 class SkMetaData;
 class SkPath;
 class SkPicture;
 class SkPixmap;
 class SkRasterClip;
+class SkRegion;
 class SkRRect;
 struct SkRSXform;
 class SkSurface;
 class SkSurface_Base;
 class SkTextBlob;
+class SkVertices;
 
 /** \class SkCanvas
 
@@ -111,6 +112,19 @@ public:
     */
     explicit SkCanvas(const SkBitmap& bitmap);
 
+#ifdef SK_BUILD_FOR_ANDROID_FRAMEWORK
+    enum class ColorBehavior {
+        kLegacy,
+    };
+
+    /**
+     *  Android framework only constructor.
+     *  Allows the creation of a legacy SkCanvas even though the |bitmap|
+     *  and its pixel ref may have an SkColorSpace.
+     */
+    SkCanvas(const SkBitmap& bitmap, ColorBehavior);
+#endif
+
     /** Construct a canvas with the specified bitmap to draw into.
         @param bitmap   Specifies a bitmap for the canvas to draw into. Its
                         structure are copied to the canvas.
@@ -150,11 +164,6 @@ public:
      * smaller (due to clipping or saveLayer).
      */
     virtual SkISize getBaseLayerSize() const;
-
-    /**
-     *  DEPRECATED: call getBaseLayerSize
-     */
-    SkISize getDeviceSize() const { return this->getBaseLayerSize(); }
 
     /**
      *  Create a new surface matching the specified info, one that attempts to
@@ -319,6 +328,9 @@ public:
     enum {
         kIsOpaque_SaveLayerFlag         = 1 << 0,
         kPreserveLCDText_SaveLayerFlag  = 1 << 1,
+
+        /** initialize the new layer with the contents of the previous layer */
+        kInitWithPrevious_SaveLayerFlag = 1 << 2,
 
 #ifdef SK_SUPPORT_LEGACY_CLIPTOLAYERFLAG
         kDontClipToLayer_Legacy_SaveLayerFlag = kDontClipToLayer_PrivateSaveLayerFlag,
@@ -526,28 +538,33 @@ public:
     */
     bool quickReject(const SkPath& path) const;
 
-    /** Return the bounds of the current clip (in local coordinates) in the
-        bounds parameter, and return true if it is non-empty. This can be useful
-        in a way similar to quickReject, in that it tells you that drawing
-        outside of these bounds will be clipped out.
-    */
-    virtual bool getClipBounds(SkRect* bounds) const;
+    /**
+     *  Return the bounds of the current clip in local coordinates. If the clip is empty,
+     *  return { 0, 0, 0, 0 }.
+     */
+    SkRect getLocalClipBounds() const { return this->onGetLocalClipBounds(); }
 
-    /** Return the bounds of the current clip, in device coordinates; returns
-        true if non-empty. Maybe faster than getting the clip explicitly and
-        then taking its bounds.
-    */
-    virtual bool getClipDeviceBounds(SkIRect* bounds) const;
+    /**
+     *  Returns true if the clip bounds are non-empty.
+     */
+    bool getLocalClipBounds(SkRect* bounds) const {
+        *bounds = this->onGetLocalClipBounds();
+        return !bounds->isEmpty();
+    }
 
-    /** Fill the entire canvas' bitmap (restricted to the current clip) with the
-        specified ARGB color, using the specified mode.
-        @param a    the alpha component (0..255) of the color to fill the canvas
-        @param r    the red component (0..255) of the color to fill the canvas
-        @param g    the green component (0..255) of the color to fill the canvas
-        @param b    the blue component (0..255) of the color to fill the canvas
-        @param mode the mode to apply the color in (defaults to SrcOver)
-    */
-    void drawARGB(U8CPU a, U8CPU r, U8CPU g, U8CPU b, SkBlendMode mode = SkBlendMode::kSrcOver);
+    /**
+     *  Return the bounds of the current clip in device coordinates. If the clip is empty,
+     *  return { 0, 0, 0, 0 }.
+     */
+    SkIRect getDeviceClipBounds() const { return this->onGetDeviceClipBounds(); }
+
+    /**
+     *  Returns true if the clip bounds are non-empty.
+     */
+    bool getDeviceClipBounds(SkIRect* bounds) const {
+        *bounds = this->onGetDeviceClipBounds();
+        return !bounds->isEmpty();
+    }
 
     /** Fill the entire canvas' bitmap (restricted to the current clip) with the
         specified color and mode.
@@ -617,17 +634,9 @@ public:
     */
     void drawPoints(PointMode mode, size_t count, const SkPoint pts[], const SkPaint& paint);
 
-    /** Helper method for drawing a single point. See drawPoints() for a more
-        details.
-    */
+    /** Helper method for drawing a single point. See drawPoints() for more details.
+     */
     void drawPoint(SkScalar x, SkScalar y, const SkPaint& paint);
-
-    /** Draws a single pixel in the specified color.
-        @param x        The X coordinate of which pixel to draw
-        @param y        The Y coordiante of which pixel to draw
-        @param color    The color to draw
-    */
-    void drawPoint(SkScalar x, SkScalar y, SkColor color);
 
     /** Draw a line segment with the specified start and stop x,y coordinates,
         using the specified paint. NOTE: since a line is always "framed", the
@@ -638,8 +647,7 @@ public:
         @param y1    The y-coordinate of the end point of the line
         @param paint The paint used to draw the line
     */
-    void drawLine(SkScalar x0, SkScalar y0, SkScalar x1, SkScalar y1,
-                  const SkPaint& paint);
+    void drawLine(SkScalar x0, SkScalar y0, SkScalar x1, SkScalar y1, const SkPaint& paint);
 
     /** Draw the specified rectangle using the specified paint. The rectangle
         will be filled or stroked based on the Style in the paint.
@@ -658,17 +666,6 @@ public:
         r.set(rect);    // promotes the ints to scalars
         this->drawRect(r, paint);
     }
-
-    /** Draw the specified rectangle using the specified paint. The rectangle
-        will be filled or framed based on the Style in the paint.
-        @param left     The left side of the rectangle to be drawn
-        @param top      The top side of the rectangle to be drawn
-        @param right    The right side of the rectangle to be drawn
-        @param bottom   The bottom side of the rectangle to be drawn
-        @param paint    The paint used to draw the rect
-    */
-    void drawRectCoords(SkScalar left, SkScalar top, SkScalar right,
-                        SkScalar bottom, const SkPaint& paint);
 
     /** Draw the outline of the specified region using the specified paint.
         @param region   The region to be drawn
@@ -706,8 +703,7 @@ public:
         @param radius   The radius of the cirle to be drawn
         @param paint    The paint used to draw the circle
     */
-    void drawCircle(SkScalar cx, SkScalar cy, SkScalar radius,
-                    const SkPaint& paint);
+    void drawCircle(SkScalar cx, SkScalar cy, SkScalar radius, const SkPaint& paint);
 
     /** Draw the specified arc, which will be scaled to fit inside the
         specified oval. Sweep angles are not treated as modulo 360 and thus can
@@ -733,8 +729,7 @@ public:
         @param ry       The y-radius of the oval used to round the corners
         @param paint    The paint used to draw the roundRect
     */
-    void drawRoundRect(const SkRect& rect, SkScalar rx, SkScalar ry,
-                       const SkPaint& paint);
+    void drawRoundRect(const SkRect& rect, SkScalar rx, SkScalar ry, const SkPaint& paint);
 
     /** Draw the specified path using the specified paint. The path will be
         filled or framed based on the Style in the paint.
@@ -1117,46 +1112,16 @@ public:
     }
 #endif
 
-    enum VertexMode {
-        kTriangles_VertexMode,
-        kTriangleStrip_VertexMode,
-        kTriangleFan_VertexMode
-    };
+    /** Draw vertices from an immutable SkVertices object.
 
-    /** Draw the array of vertices, interpreted as triangles (based on mode).
-
-        If both textures and vertex-colors are NULL, it strokes hairlines with
-        the paint's color. This behavior is a useful debugging mode to visualize
-        the mesh.
-
-        @param vmode How to interpret the array of vertices
-        @param vertexCount The number of points in the vertices array (and
-                    corresponding texs and colors arrays if non-null)
-        @param vertices Array of vertices for the mesh
-        @param texs May be null. If not null, specifies the coordinate
-                    in _texture_ space (not uv space) for each vertex.
-        @param colors May be null. If not null, specifies a color for each
-                      vertex, to be interpolated across the triangle.
-        @param mode Used if both texs and colors are present. In this
-                    case the colors are combined with the texture using mode,
-                    before being drawn using the paint. 
-        @param indices If not null, array of indices to reference into the
-                    vertex (texs, colors) array.
-        @param indexCount number of entries in the indices array (if not null)
+        @param vertices The mesh to draw.
+        @param mode Used if both texs and colors are present and paint has a
+                    shader. In this case the colors are combined with the texture
+                    using mode, before being drawn using the paint.
         @param paint Specifies the shader/texture if present.
-    */
-    void drawVertices(VertexMode vmode, int vertexCount,
-                      const SkPoint vertices[], const SkPoint texs[],
-                      const SkColor colors[], SkBlendMode mode,
-                      const uint16_t indices[], int indexCount,
-                      const SkPaint& paint);
-    void drawVertices(VertexMode vmode, int vertexCount,
-                      const SkPoint vertices[], const SkPoint texs[],
-                      const SkColor colors[], const uint16_t indices[], int indexCount,
-                      const SkPaint& paint) {
-        this->drawVertices(vmode, vertexCount, vertices, texs, colors, SkBlendMode::kModulate,
-                           indices, indexCount, paint);
-    }
+     */
+    void drawVertices(const SkVertices* vertices, SkBlendMode mode, const SkPaint& paint);
+    void drawVertices(const sk_sp<SkVertices>& vertices, SkBlendMode mode, const SkPaint& paint);
 
     /**
      Draw a cubic coons patch
@@ -1288,6 +1253,7 @@ public:
     */
     const SkMatrix& getTotalMatrix() const;
 
+#ifdef SK_SUPPORT_OBSOLETE_REPLAYCLIP
     typedef SkCanvasClipVisitor ClipVisitor;
     /**
      *  Replays the clip operations, back to front, that have been applied to
@@ -1295,6 +1261,7 @@ public:
      *  clip. All clips have already been transformed into device space.
      */
     void replayClips(ClipVisitor*) const;
+#endif
 
     ///////////////////////////////////////////////////////////////////////////
 
@@ -1320,6 +1287,12 @@ public:
      * Returns CTM and clip bounds, translated from canvas coordinates to top layer coordinates.
      */
     void temporary_internal_describeTopLayer(SkMatrix* matrix, SkIRect* clip_bounds);
+
+    /**
+     *  Returns the global clip as a region. If the clip contains AA, then only the bounds
+     *  of the clip may be returned.
+     */
+    void temporary_internal_getRgnClip(SkRegion*);
 
 protected:
 #ifdef SK_EXPERIMENTAL_SHADOWING
@@ -1365,6 +1338,10 @@ protected:
     virtual void didTranslateZ(SkScalar) {}
 #endif
 
+    virtual SkRect onGetLocalClipBounds() const;
+    virtual SkIRect onGetDeviceClipBounds() const;
+
+
     virtual void onDrawAnnotation(const SkRect&, const char key[], SkData* value);
     virtual void onDrawDRRect(const SkRRect&, const SkRRect&, const SkPaint&);
 
@@ -1400,10 +1377,7 @@ protected:
                            const SkPaint&);
     virtual void onDrawRRect(const SkRRect&, const SkPaint&);
     virtual void onDrawPoints(PointMode, size_t count, const SkPoint pts[], const SkPaint&);
-    virtual void onDrawVertices(VertexMode, int vertexCount, const SkPoint vertices[],
-                                const SkPoint texs[], const SkColor colors[], SkBlendMode,
-                                const uint16_t indices[], int indexCount, const SkPaint&);
-
+    virtual void onDrawVerticesObject(const SkVertices*, SkBlendMode, const SkPaint&);
     virtual void onDrawAtlas(const SkImage*, const SkRSXform[], const SkRect[], const SkColor[],
                              int count, SkBlendMode, const SkRect* cull, const SkPaint*);
     virtual void onDrawPath(const SkPath&, const SkPaint&);
@@ -1473,7 +1447,7 @@ private:
 
         SkBaseDevice*   device() const;
         const SkMatrix& matrix() const;
-        const SkRasterClip& clip() const;
+        void clip(SkRegion*) const;
         const SkPaint&  paint() const;
         int             x() const;
         int             y() const;
@@ -1494,8 +1468,8 @@ private:
     static SaveLayerFlags LegacySaveFlagsToSaveLayerFlags(uint32_t legacySaveFlags);
 
     static void DrawDeviceWithFilter(SkBaseDevice* src, const SkImageFilter* filter,
-                                     SkBaseDevice* dst, const SkMatrix& ctm,
-                                     const SkClipStack* clipStack);
+                                     SkBaseDevice* dst, const SkIPoint& dstOrigin,
+                                     const SkMatrix& ctm);
 
     enum ShaderOverrideOpacity {
         kNone_ShaderOverrideOpacity,        //!< there is no overriding shader (bitmap or image)
@@ -1517,7 +1491,6 @@ private:
 
     class MCRec;
 
-    sk_sp<SkClipStack> fClipStack;
     SkDeque     fMCStack;
     // points to top of stack
     MCRec*      fMCRec;
@@ -1545,9 +1518,7 @@ private:
     friend class SkSurface_Base;
     friend class SkSurface_Gpu;
 
-    bool fDeviceCMDirty;            // cleared by updateDeviceCMCache()
     SkIRect fClipRestrictionRect = SkIRect::MakeEmpty();
-    void updateDeviceCMCache();
 
     void doSave();
     void checkForDeferredSave();
@@ -1555,7 +1526,6 @@ private:
 
     friend class SkDrawIter;        // needs setupDrawForLayerDevice()
     friend class AutoDrawLooper;
-    friend class SkLua;             // needs top layer size and offset
     friend class SkDebugCanvas;     // needs experimental fAllowSimplifyClip
     friend class SkSurface_Raster;  // needs getDevice()
     friend class SkRecorder;        // resetForNextPicture
@@ -1605,14 +1575,6 @@ private:
     // shared by save() and saveLayer()
     void internalSave();
     void internalRestore();
-    static void DrawRect(const SkDraw& draw, const SkPaint& paint,
-                         const SkRect& r, SkScalar textSize);
-    static void DrawTextDecorations(const SkDraw& draw, const SkPaint& paint,
-                                    const char text[], size_t byteLength,
-                                    SkScalar x, SkScalar y);
-
-    // only for canvasutils
-    const SkRegion& internal_private_getTotalClip() const;
 
     /*
      *  Returns true if drawing the specified rect (or all if it is null) with the specified
@@ -1626,18 +1588,11 @@ private:
      */
     bool canDrawBitmapAsSprite(SkScalar x, SkScalar y, int w, int h, const SkPaint&);
 
-#ifdef SK_SUPPORT_LEGACY_CANVAS_GETCLIPSTACK
-public:
-#endif
-    /** Return the clip stack. The clip stack stores all the individual
-     *  clips organized by the save/restore frame in which they were
-     *  added.
-     *  @return the current clip stack ("list" of individual clip elements)
+    /**
+     *  Returns true if the clip (for any active layer) contains antialiasing.
+     *  If the clip is empty, this will return false.
      */
-    const SkClipStack* getClipStack() const {
-        return fClipStack.get();
-    }
-private:
+    bool androidFramework_isClipAA() const;
 
     /**
      *  Keep track of the device clip bounds and if the matrix is scale-translate.  This allows
@@ -1648,7 +1603,6 @@ private:
 
     bool fAllowSoftClip;
     bool fAllowSimplifyClip;
-    const bool fConservativeRasterClip;
 
     class AutoValidateClip : ::SkNoncopyable {
     public:
@@ -1707,6 +1661,7 @@ private:
 };
 #define SkAutoCanvasRestore(...) SK_REQUIRE_LOCAL_VAR(SkAutoCanvasRestore)
 
+#ifdef SK_SUPPORT_OBSOLETE_REPLAYCLIP
 class SkCanvasClipVisitor {
 public:
     virtual ~SkCanvasClipVisitor();
@@ -1714,5 +1669,6 @@ public:
     virtual void clipRRect(const SkRRect&, SkClipOp, bool antialias) = 0;
     virtual void clipPath(const SkPath&, SkClipOp, bool antialias) = 0;
 };
+#endif
 
 #endif

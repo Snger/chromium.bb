@@ -13,8 +13,8 @@
 #include <algorithm>
 
 #include "webrtc/base/checks.h"
+#include "webrtc/base/logging.h"
 #include "webrtc/base/timeutils.h"
-#include "webrtc/system_wrappers/include/logging.h"
 
 #ifdef ENABLE_RTC_EVENT_LOG
 
@@ -307,10 +307,9 @@ void RtcEventLogHelperThread::ProcessEvents() {
   }
 }
 
-bool RtcEventLogHelperThread::ThreadOutputFunction(void* obj) {
+void RtcEventLogHelperThread::ThreadOutputFunction(void* obj) {
   RtcEventLogHelperThread* helper = static_cast<RtcEventLogHelperThread*>(obj);
   helper->ProcessEvents();
-  return false;
 }
 
 }  // namespace webrtc

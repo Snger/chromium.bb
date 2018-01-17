@@ -5,7 +5,6 @@
  * found in the LICENSE file.
  */
 
-#include "sk_tool_utils.h"
 #include "SkBlurImageFilter.h"
 #include "SkColor.h"
 #include "SkDisplacementMapEffect.h"
@@ -22,13 +21,14 @@
 #include "SkScalar.h"
 #include "SkSurface.h"
 #include "gm.h"
+#include "sk_tool_utils.h"
 
 #define RESIZE_FACTOR SkIntToScalar(4)
 
 static sk_sp<SkImage> make_gradient_circle(int width, int height) {
     SkScalar x = SkIntToScalar(width / 2);
     SkScalar y = SkIntToScalar(height / 2);
-    SkScalar radius = SkScalarMul(SkMinScalar(x, y), SkIntToScalar(4) / SkIntToScalar(5));
+    SkScalar radius = SkMinScalar(x, y) * 4 / 5;
     sk_sp<SkSurface> surface(SkSurface::MakeRasterN32Premul(width, height));
     SkCanvas* canvas = surface->getCanvas();
     canvas->clear(0x00000000);

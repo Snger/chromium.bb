@@ -212,9 +212,9 @@ public class LocationBarTablet extends LocationBarLayout {
         if (hasFocus) {
             if (mSecurityButton.getVisibility() == VISIBLE) mSecurityButton.setVisibility(GONE);
             if (getWindowDelegate().getWindowSoftInputMode()
-                    != WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN) {
+                    != WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING) {
                 getWindowDelegate().setWindowSoftInputMode(
-                        WindowManager.LayoutParams.SOFT_INPUT_ADJUST_PAN);
+                        WindowManager.LayoutParams.SOFT_INPUT_ADJUST_NOTHING);
             }
             UiUtils.showKeyboard(mUrlBar);
         } else {
@@ -277,7 +277,7 @@ public class LocationBarTablet extends LocationBarLayout {
         if (showSaveOfflineButton) mSaveOfflineButton.setEnabled(isSaveOfflineButtonEnabled());
 
         if (!mShouldShowButtonsWhenUnfocused) {
-            updateMicButtonVisiblity(mUrlFocusChangePercent);
+            updateMicButtonVisibility(mUrlFocusChangePercent);
         } else {
             mMicButton.setVisibility(shouldShowMicButton() ? View.VISIBLE : View.GONE);
         }

@@ -4,6 +4,9 @@
 
 #include "chrome/browser/ui/views/payments/view_stack.h"
 
+#include <memory>
+#include <utility>
+
 #include "base/memory/ptr_util.h"
 #include "ui/views/layout/fill_layout.h"
 
@@ -16,7 +19,7 @@ ViewStack::ViewStack()
   // Paint to a layer and Mask to Bounds, otherwise descendant views that paint
   // to a layer themselves will still paint while they're being animated out and
   // are out of bounds of their parent.
-  SetPaintToLayer(true);
+  SetPaintToLayer();
   layer()->SetMasksToBounds(true);
 }
 
@@ -81,7 +84,7 @@ void ViewStack::UpdateAnimatorBounds(
   // If an animator is currently animating, figure out which views and update
   // their target bounds.
   if (animator->IsAnimating()) {
-    for (auto& view: stack_) {
+    for (auto& view : stack_) {
       if (animator->IsAnimating(view.get())) {
         animator->SetTargetBounds(view.get(), target);
       }

@@ -50,8 +50,6 @@ IdleHelper::IdleHelper(
   // This fence will block any idle tasks from running.
   idle_queue_->InsertFence(TaskQueue::InsertFencePosition::BEGINNING_OF_TIME);
   idle_queue_->SetQueuePriority(TaskQueue::BEST_EFFORT_PRIORITY);
-
-  helper_->AddTaskObserver(this);
 }
 
 IdleHelper::~IdleHelper() {
@@ -67,7 +65,6 @@ void IdleHelper::Shutdown() {
   weak_factory_.InvalidateWeakPtrs();
   // Belt & braces, might not be needed.
   idle_queue_->InsertFence(TaskQueue::InsertFencePosition::BEGINNING_OF_TIME);
-  helper_->RemoveTaskObserver(this);
 }
 
 IdleHelper::Delegate::Delegate() {}
@@ -113,7 +110,7 @@ IdleHelper::IdlePeriodState IdleHelper::ComputeNewLongIdlePeriodState(
       return IdlePeriodState::IN_LONG_IDLE_PERIOD;
     }
   } else {
-    // If we can't start the idle period yet then try again after wakeup.
+    // If we can't start the idle period yet then try again after wake-up.
     *next_long_idle_period_delay_out = base::TimeDelta::FromMilliseconds(
         kRetryEnableLongIdlePeriodDelayMillis);
     return IdlePeriodState::NOT_IN_IDLE_PERIOD;
@@ -145,7 +142,7 @@ void IdleHelper::EnableLongIdlePeriod() {
 
   if (ShouldWaitForQuiescence()) {
     helper_->ControlTaskRunner()->PostDelayedTask(
-        FROM_HERE, enable_next_long_idle_period_closure_.callback(),
+        FROM_HERE, enable_next_long_idle_period_closure_.GetCallback(),
         required_quiescence_duration_before_long_idle_period_);
     delegate_->IsNotQuiescent();
     return;
@@ -161,7 +158,7 @@ void IdleHelper::EnableLongIdlePeriod() {
   } else {
     // Otherwise wait for the next long idle period delay before trying again.
     helper_->ControlTaskRunner()->PostDelayedTask(
-        FROM_HERE, enable_next_long_idle_period_closure_.callback(),
+        FROM_HERE, enable_next_long_idle_period_closure_.GetCallback(),
         next_long_idle_period_delay);
   }
 }
@@ -188,6 +185,9 @@ void IdleHelper::StartIdlePeriod(IdlePeriodState new_state,
   }
 
   TRACE_EVENT0(disabled_by_default_tracing_category_, "StartIdlePeriod");
+  if (!IsInIdlePeriod(state_.idle_period_state()))
+    helper_->AddTaskObserver(this);
+
   // Use a fence to make sure any idle tasks posted after this point do not run
   // until the next idle period and unblock existing tasks.
   idle_queue_->InsertFence(TaskQueue::InsertFencePosition::NOW);
@@ -209,6 +209,8 @@ void IdleHelper::EndIdlePeriod() {
   if (!IsInIdlePeriod(state_.idle_period_state()))
     return;
 
+  helper_->RemoveTaskObserver(this);
+
   // This fence will block any idle tasks from running.
   idle_queue_->InsertFence(TaskQueue::InsertFencePosition::BEGINNING_OF_TIME);
   state_.UpdateState(IdlePeriodState::NOT_IN_IDLE_PERIOD, base::TimeTicks(),
@@ -222,9 +224,9 @@ void IdleHelper::WillProcessTask(const base::PendingTask& pending_task) {
 void IdleHelper::DidProcessTask(const base::PendingTask& pending_task) {
   helper_->CheckOnValidThread();
   DCHECK(!is_shutdown_);
+  DCHECK(IsInIdlePeriod(state_.idle_period_state()));
   TRACE_EVENT0(disabled_by_default_tracing_category_, "DidProcessTask");
-  if (IsInIdlePeriod(state_.idle_period_state()) &&
-      state_.idle_period_state() !=
+  if (state_.idle_period_state() !=
           IdlePeriodState::IN_LONG_IDLE_PERIOD_PAUSED &&
       helper_->scheduler_tqm_delegate()->NowTicks() >=
           state_.idle_period_deadline()) {
@@ -271,7 +273,7 @@ void IdleHelper::UpdateLongIdlePeriodStateAfterIdleTask() {
       EnableLongIdlePeriod();
     } else {
       helper_->ControlTaskRunner()->PostDelayedTask(
-          FROM_HERE, enable_next_long_idle_period_closure_.callback(),
+          FROM_HERE, enable_next_long_idle_period_closure_.GetCallback(),
           next_long_idle_period_delay);
     }
   }
@@ -290,7 +292,7 @@ void IdleHelper::OnIdleTaskPosted() {
     OnIdleTaskPostedOnMainThread();
   } else {
     helper_->ControlTaskRunner()->PostTask(
-        FROM_HERE, on_idle_task_posted_closure_.callback());
+        FROM_HERE, on_idle_task_posted_closure_.GetCallback());
   }
 }
 
@@ -303,7 +305,7 @@ void IdleHelper::OnIdleTaskPostedOnMainThread() {
       IdlePeriodState::IN_LONG_IDLE_PERIOD_PAUSED) {
     // Restart long idle period ticks.
     helper_->ControlTaskRunner()->PostTask(
-        FROM_HERE, enable_next_long_idle_period_closure_.callback());
+        FROM_HERE, enable_next_long_idle_period_closure_.GetCallback());
   }
 }
 

@@ -7,7 +7,7 @@
 
 #include "core/css/cssom/CSSStyleValue.h"
 
-#include "core/fetch/Resource.h"
+#include "platform/loader/fetch/Resource.h"
 
 namespace blink {
 
@@ -19,15 +19,15 @@ class CORE_EXPORT CSSResourceValue : public CSSStyleValue {
   virtual ~CSSResourceValue() {}
 
   const String state() const {
-    switch (status()) {
-      case Resource::Status::NotStarted:
+    switch (Status()) {
+      case ResourceStatus::kNotStarted:
         return "unloaded";
-      case Resource::Status::Pending:
+      case ResourceStatus::kPending:
         return "loading";
-      case Resource::Status::Cached:
+      case ResourceStatus::kCached:
         return "loaded";
-      case Resource::Status::LoadError:
-      case Resource::Status::DecodeError:
+      case ResourceStatus::kLoadError:
+      case ResourceStatus::kDecodeError:
         return "error";
       default:
         NOTREACHED();
@@ -35,12 +35,12 @@ class CORE_EXPORT CSSResourceValue : public CSSStyleValue {
     }
   }
 
-  DEFINE_INLINE_VIRTUAL_TRACE() { CSSStyleValue::trace(visitor); }
+  DEFINE_INLINE_VIRTUAL_TRACE() { CSSStyleValue::Trace(visitor); }
 
  protected:
   CSSResourceValue() {}
 
-  virtual Resource::Status status() const = 0;
+  virtual ResourceStatus Status() const = 0;
 };
 
 }  // namespace blink

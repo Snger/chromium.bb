@@ -743,6 +743,14 @@ def GetCQRunTime(change, action_history):
       iter_utils.IntersectIntervals([ready_intervals, testing_intervals]))
 
 
+def GetCQAttemptsCount(change, action_history):
+  """Gets the number of times a CL was picked up by CQ."""
+  actions = ActionsForPatch(change, action_history)
+  return sum(1 for a in actions
+             if (a.build_config == constants.CQ_MASTER and
+                 a.action == constants.CL_ACTION_PICKED_UP))
+
+
 def _CLsForPatches(patches):
   """Get GerritChangeTuples corresponding to the give GerritPatchTuples."""
   return set(p.GetChangeTuple() for p in patches)
@@ -873,7 +881,7 @@ class CLActionHistory(object):
     per_change_final_submit_time = {}
     per_change_first_action_time = {}
     for change in cls_or_patches:
-      actions = self._GetCLOrPatchActions(change)
+      actions = self.GetCLOrPatchActions(change)
       submit_actions = [x for x in actions
                         if x.action == constants.CL_ACTION_SUBMITTED]
       first_action = actions[0]
@@ -1027,12 +1035,12 @@ class CLActionHistory(object):
           candidates[patch].append(action)
     return dict(candidates)
 
-  def _GetCLOrPatchActions(self, cl_or_patch):
+  def GetCLOrPatchActions(self, cl_or_patch):
     """Get cl/patch specific actions."""
     if isinstance(cl_or_patch, GerritChangeTuple):
-      return self._per_cl_actions[cl_or_patch]
+      return self._per_cl_actions.get(cl_or_patch, [])
     else:
-      return self._per_patch_actions[cl_or_patch]
+      return self._per_patch_actions.get(cl_or_patch, [])
 
 
 def RecordSubmissionMetrics(action_history, submitted_change_strategies):
@@ -1053,8 +1061,27 @@ def RecordSubmissionMetrics(action_history, submitted_change_strategies):
       constants.MON_CL_WAIT_TIME)
   cq_run_time_metric = metrics.SecondsDistribution(
       constants.MON_CL_CQRUN_TIME)
+  cq_tries_metric = metrics.CumulativeSmallIntegerDistribution(
+      constants.MON_CL_CQ_TRIES)
+
+  # These 3 false rejection metrics are different in subtle but important ways.
+
+  # false_rejections: distribution of the number of times a CL was rejected,
+  # broken down by what it was rejected by (cq vs. pre-cq). Every CL will emit
+  # two data points to this distribution.
   false_rejection_metric = metrics.CumulativeSmallIntegerDistribution(
       constants.MON_CL_FALSE_REJ)
+
+  # false_rejections_total: distribution of the total number of times a CL
+  # was rejected (not broken down by phase). Note that there is no way to
+  # independently calculate this from |false_rejections| distribution above,
+  # since one cannot reconstruct after the fact which pre-cq and cq data points
+  # (for the same underlying CL) belong together.
+  false_rejection_total_metric = metrics.CumulativeSmallIntegerDistribution(
+      constants.MON_CL_FALSE_REJ_TOTAL)
+
+  # false_rejection_count: counter of the total number of false rejections that
+  # have occurred (broken down by phase)
   false_rejection_count_metric = metrics.Counter(
       constants.MON_CL_FALSE_REJ_COUNT)
 
@@ -1069,6 +1096,7 @@ def RecordSubmissionMetrics(action_history, submitted_change_strategies):
     precq_time = GetPreCQTime(change, action_history)
     wait_time = GetCQWaitTime(change, action_history)
     run_time = GetCQRunTime(change, action_history)
+    pickups = GetCQAttemptsCount(change, action_history)
 
     fields = {'submission_strategy': strategy}
 
@@ -1076,14 +1104,19 @@ def RecordSubmissionMetrics(action_history, submitted_change_strategies):
     precq_time_metric.add(precq_time, fields=fields)
     wait_time_metric.add(wait_time, fields=fields)
     cq_run_time_metric.add(run_time, fields=fields)
+    cq_tries_metric.add(pickups, fields=fields)
 
     rejection_types = (
         (constants.PRE_CQ, precq_false_rejections),
         (constants.CQ, cq_false_rejections),
     )
 
+    total_rejections = 0
     for by, rej in rejection_types:
-      rejections = rej.get(change, [])
+      c = len(rej.get(change, []))
       f = dict(fields, rejected_by=by)
-      false_rejection_metric.add(len(rejections), fields=f)
-      false_rejection_count_metric.increment_by(len(rejections), fields=f)
+      false_rejection_metric.add(c, fields=f)
+      false_rejection_count_metric.increment_by(c, fields=f)
+      total_rejections += c
+
+    false_rejection_total_metric.add(total_rejections, fields=fields)

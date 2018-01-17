@@ -4,7 +4,6 @@
 
 package org.chromium.chrome.browser.payments;
 
-import android.content.Context;
 import android.os.Handler;
 import android.text.TextUtils;
 
@@ -29,22 +28,20 @@ public class AutofillPaymentApp implements PaymentApp {
     /** The method name for any type of credit card. */
     public static final String BASIC_CARD_METHOD_NAME = "basic-card";
 
-    private final Context mContext;
     private final WebContents mWebContents;
 
     /**
      * Builds a payment app backed by autofill cards.
      *
-     * @param context     The context.
      * @param webContents The web contents where PaymentRequest was invoked.
      */
-    public AutofillPaymentApp(Context context, WebContents webContents) {
-        mContext = context;
+    public AutofillPaymentApp(WebContents webContents) {
         mWebContents = webContents;
     }
 
     @Override
     public void getInstruments(Map<String, PaymentMethodData> methodDataMap, String unusedOrigin,
+            String unusedIFRameOrigin, byte[][] unusedCertificateChain,
             final InstrumentsCallback callback) {
         PersonalDataManager pdm = PersonalDataManager.getInstance();
         List<CreditCard> cards = pdm.getCreditCardsToSuggest();
@@ -59,7 +56,8 @@ public class AutofillPaymentApp implements PaymentApp {
                     ? null : pdm.getProfile(card.getBillingAddressId());
 
             if (billingAddress != null
-                    && AutofillAddress.checkAddressCompletionStatus(billingAddress)
+                    && AutofillAddress.checkAddressCompletionStatus(
+                               billingAddress, AutofillAddress.IGNORE_PHONE_COMPLETENESS_CHECK)
                             != AutofillAddress.COMPLETE) {
                 billingAddress = null;
             }
@@ -75,8 +73,8 @@ public class AutofillPaymentApp implements PaymentApp {
             }
 
             if (methodName != null) {
-                instruments.add(new AutofillPaymentInstrument(mContext, mWebContents, card,
-                        billingAddress, methodName));
+                instruments.add(new AutofillPaymentInstrument(
+                        mWebContents, card, billingAddress, methodName));
             }
         }
 

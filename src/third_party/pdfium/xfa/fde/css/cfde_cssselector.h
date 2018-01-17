@@ -15,11 +15,11 @@
 
 class CFDE_CSSSelector {
  public:
-  static std::unique_ptr<CFDE_CSSSelector> FromString(const FX_WCHAR* psz,
-                                                      int32_t iLen);
+  static std::unique_ptr<CFDE_CSSSelector> FromString(
+      const CFX_WideStringC& str);
 
   CFDE_CSSSelector(FDE_CSSSelectorType eType,
-                   const FX_WCHAR* psz,
+                   const wchar_t* psz,
                    int32_t iLen,
                    bool bIgnoreCase);
   ~CFDE_CSSSelector();
@@ -27,7 +27,6 @@ class CFDE_CSSSelector {
   FDE_CSSSelectorType GetType() const;
   uint32_t GetNameHash() const;
   CFDE_CSSSelector* GetNextSelector() const;
-  std::unique_ptr<CFDE_CSSSelector> ReleaseNextSelector();
 
   void SetNext(std::unique_ptr<CFDE_CSSSelector> pNext) {
     m_pNext = std::move(pNext);

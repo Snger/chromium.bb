@@ -46,19 +46,14 @@ void CFX_SystemHandler::InvalidateRect(CPDFSDK_Widget* widget, FX_RECT rect) {
   CFX_Matrix device2page;
   device2page.SetReverse(page2device);
 
-  FX_FLOAT left;
-  FX_FLOAT top;
-  FX_FLOAT right;
-  FX_FLOAT bottom;
-  device2page.Transform(static_cast<FX_FLOAT>(rect.left),
-                        static_cast<FX_FLOAT>(rect.top), left, top);
-  device2page.Transform(static_cast<FX_FLOAT>(rect.right),
-                        static_cast<FX_FLOAT>(rect.bottom), right, bottom);
-  CFX_FloatRect rcPDF(left, bottom, right, top);
-  rcPDF.Normalize();
+  CFX_PointF left_top = device2page.Transform(
+      CFX_PointF(static_cast<float>(rect.left), static_cast<float>(rect.top)));
+  CFX_PointF right_bottom = device2page.Transform(CFX_PointF(
+      static_cast<float>(rect.right), static_cast<float>(rect.bottom)));
 
-  m_pFormFillEnv->Invalidate(pPage, rcPDF.left, rcPDF.top, rcPDF.right,
-                             rcPDF.bottom);
+  CFX_FloatRect rcPDF(left_top.x, right_bottom.y, right_bottom.x, left_top.y);
+  rcPDF.Normalize();
+  m_pFormFillEnv->Invalidate(pPage, rcPDF.ToFxRect());
 }
 
 void CFX_SystemHandler::OutputSelectedRect(CFFL_FormFiller* pFormFiller,
@@ -66,16 +61,15 @@ void CFX_SystemHandler::OutputSelectedRect(CFFL_FormFiller* pFormFiller,
   if (!pFormFiller)
     return;
 
-  CFX_FloatPoint leftbottom = CFX_FloatPoint(rect.left, rect.bottom);
-  CFX_FloatPoint righttop = CFX_FloatPoint(rect.right, rect.top);
-  CFX_FloatPoint ptA = pFormFiller->PWLtoFFL(leftbottom);
-  CFX_FloatPoint ptB = pFormFiller->PWLtoFFL(righttop);
+  CFX_PointF ptA = pFormFiller->PWLtoFFL(CFX_PointF(rect.left, rect.bottom));
+  CFX_PointF ptB = pFormFiller->PWLtoFFL(CFX_PointF(rect.right, rect.top));
 
   CPDFSDK_Annot* pAnnot = pFormFiller->GetSDKAnnot();
   UnderlyingPageType* pPage = pAnnot->GetUnderlyingPage();
   ASSERT(pPage);
 
-  m_pFormFillEnv->OutputSelectedRect(pPage, ptA.x, ptB.y, ptB.x, ptA.y);
+  m_pFormFillEnv->OutputSelectedRect(pPage,
+                                     CFX_FloatRect(ptA.x, ptA.y, ptB.x, ptB.y));
 }
 
 bool CFX_SystemHandler::IsSelectionImplemented() const {
@@ -120,7 +114,7 @@ CPDF_Font* CFX_SystemHandler::AddNativeTrueTypeFontToPDF(
   if (!pDoc)
     return nullptr;
 
-  std::unique_ptr<CFX_Font> pFXFont(new CFX_Font);
+  auto pFXFont = pdfium::MakeUnique<CFX_Font>();
   pFXFont->LoadSubst(sFontFaceName, true, 0, 0, 0, CharSet2CP(nCharset), false);
   return pDoc->AddFont(pFXFont.get(), nCharset, false);
 }

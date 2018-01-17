@@ -118,8 +118,8 @@ void outline_aa::allocate_block()
         if(m_num_blocks >= m_max_blocks) {
             cell_aa** new_cells = FX_Alloc( cell_aa*, m_max_blocks + cell_block_pool);
             if(m_cells) {
-                FXSYS_memcpy(new_cells, m_cells, m_max_blocks * sizeof(cell_aa*));
-                FX_Free(m_cells);
+              memcpy(new_cells, m_cells, m_max_blocks * sizeof(cell_aa*));
+              FX_Free(m_cells);
             }
             m_cells = new_cells;
             m_max_blocks += cell_block_pool;
@@ -283,8 +283,8 @@ void outline_aa::render_line(int x1, int y1, int x2, int y2)
       incr = -1;
       dy = -dy;
     }
-    delta = safeP.ValueOrDie() / dy;
-    mod = safeP.ValueOrDie() % dy;
+    delta = (safeP / dy).ValueOrDie();
+    mod = (safeP % dy).ValueOrDie();
     if(mod < 0) {
         delta--;
         mod += dy;
@@ -298,8 +298,8 @@ void outline_aa::render_line(int x1, int y1, int x2, int y2)
       safeP *= dx;
       if (!safeP.IsValid())
         return;
-      lift = safeP.ValueOrDie() / dy;
-      rem = safeP.ValueOrDie() % dy;
+      lift = (safeP / dy).ValueOrDie();
+      rem = (safeP % dy).ValueOrDie();
       if (rem < 0) {
         lift--;
         rem += dy;

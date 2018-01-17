@@ -9,12 +9,11 @@
 #include "fxjs/cfxjse_arguments.h"
 #include "xfa/fxfa/app/xfa_ffnotify.h"
 #include "xfa/fxfa/cxfa_eventparam.h"
+#include "xfa/fxfa/cxfa_ffwidgethandler.h"
 #include "xfa/fxfa/parser/cxfa_document.h"
+#include "xfa/fxfa/parser/cxfa_localemgr.h"
 #include "xfa/fxfa/parser/cxfa_scriptcontext.h"
-#include "xfa/fxfa/parser/xfa_localemgr.h"
-#include "xfa/fxfa/parser/xfa_object.h"
 #include "xfa/fxfa/parser/xfa_utils.h"
-#include "xfa/fxfa/xfa_ffwidgethandler.h"
 
 namespace {
 
@@ -25,7 +24,7 @@ void StringProperty(CFXJSE_Value* pValue,
     wsValue = pValue->ToWideString();
     return;
   }
-  pValue->SetString(FX_UTF8Encode(wsValue).AsStringC());
+  pValue->SetString(wsValue.UTF8Encode().AsStringC());
 }
 
 void InterProperty(CFXJSE_Value* pValue, int32_t& iValue, bool bSetting) {

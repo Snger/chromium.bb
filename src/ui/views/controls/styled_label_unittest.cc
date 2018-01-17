@@ -489,7 +489,7 @@ TEST_F(StyledLabelTest, SetBaseFontList) {
   std::string font_name("arial");
   gfx::Font font(font_name, 30);
   styled()->SetBaseFontList(gfx::FontList(font));
-  Label label(ASCIIToUTF16(text), gfx::FontList(font));
+  Label label(ASCIIToUTF16(text), Label::CustomFont{gfx::FontList(font)});
 
   styled()->SetBounds(0,
                       0,
@@ -560,6 +560,23 @@ TEST_F(StyledLabelTest, CacheSize) {
   View* first_child_after_text_update = styled()->has_children() ?
       styled()->child_at(0) : nullptr;
   EXPECT_NE(first_child_after_text_update, first_child_after_layout);
+}
+
+TEST_F(StyledLabelTest, Border) {
+  const std::string text("One line");
+  InitStyledLabel(text);
+  Label label(ASCIIToUTF16(text));
+  gfx::Size label_preferred_size = label.GetPreferredSize();
+  styled()->SetBorder(
+      CreateEmptyBorder(5 /*top*/, 10 /*left*/, 6 /*bottom*/, 20 /*right*/));
+  styled()->SetBounds(0, 0, 1000, 0);
+  styled()->Layout();
+  EXPECT_EQ(
+      label_preferred_size.height() + 5 /*top border*/ + 6 /*bottom border*/,
+      styled()->GetPreferredSize().height());
+  EXPECT_EQ(
+      label_preferred_size.width() + 10 /*left border*/ + 20 /*right border*/,
+      styled()->GetPreferredSize().width());
 }
 
 }  // namespace views

@@ -8,6 +8,7 @@
 #include "base/stl_util.h"
 #include "content/browser/indexed_db/indexed_db_class_factory.h"
 #include "content/browser/indexed_db/indexed_db_database_callbacks.h"
+#include "content/browser/indexed_db/indexed_db_database_error.h"
 #include "content/browser/indexed_db/indexed_db_observer.h"
 #include "content/browser/indexed_db/indexed_db_tracing.h"
 #include "content/browser/indexed_db/indexed_db_transaction.h"
@@ -106,7 +107,7 @@ IndexedDBTransaction* IndexedDBConnection::CreateTransaction(
     const std::set<int64_t>& scope,
     blink::WebIDBTransactionMode mode,
     IndexedDBBackingStore::Transaction* backing_store_transaction) {
-  DCHECK_EQ(GetTransaction(id), nullptr) << "Duplicate transaction id." << id;
+  CHECK_EQ(GetTransaction(id), nullptr) << "Duplicate transaction id." << id;
   std::unique_ptr<IndexedDBTransaction> transaction =
       IndexedDBClassFactory::Get()->CreateIndexedDBTransaction(
           id, this, scope, mode, backing_store_transaction);

@@ -12,7 +12,7 @@
 #include "ui/resources/grit/ui_resources.h"
 #include "ui/views/controls/button/label_button.h"
 #import "ui/views/controls/scrollbar/cocoa_scroll_bar.h"
-#include "ui/views/resources/vector_icons/vector_icons.h"
+#include "ui/views/vector_icons.h"
 
 #import <Cocoa/Cocoa.h>
 
@@ -24,8 +24,9 @@ const int PlatformStyle::kMinLabelButtonHeight = 30;
 const bool PlatformStyle::kDefaultLabelButtonHasBoldFont = false;
 const bool PlatformStyle::kDialogDefaultButtonCanBeCancel = false;
 const bool PlatformStyle::kSelectWordOnRightClick = true;
-const bool PlatformStyle::kTreeViewHasFocusRing = true;
+const bool PlatformStyle::kSelectAllOnRightClickWhenUnfocused = true;
 const bool PlatformStyle::kTreeViewSelectionPaintsEntireRow = true;
+const bool PlatformStyle::kTreeViewUsesOpenIcon = false;
 const bool PlatformStyle::kUseRipples = false;
 
 // On Mac, the Cocoa browser window does not flip its UI in RTL (e.g. bookmark

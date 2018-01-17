@@ -17,6 +17,7 @@
 #include "base/process/process_iterator.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "base/threading/thread.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/url_constants.h"
@@ -61,6 +62,7 @@ void CollectProcessDataForChromeProcess(
       base::ProcessMetrics::CreateProcessMetrics(
           pid, content::BrowserChildProcessHost::GetPortProvider());
   metrics->GetCommittedAndWorkingSetKBytes(&info.committed, &info.working_set);
+  info.phys_footprint = metrics->GetPhysicalFootprint();
 
   processes->push_back(info);
 }

@@ -122,13 +122,17 @@ void MediaGpuChannel::OnCreateJpegDecoder(int32_t route_id,
                                           IPC::Message* reply_msg) {
   std::unique_ptr<IPC::Message> msg(reply_msg);
   if (!jpeg_decoder_) {
+    // The lifetime of |jpeg_decoder_| is managed by a gpu::GpuChannel. The
+    // GpuChannels destroy all the GpuJpegDecodeAccelerator that they own when
+    // they are destroyed. Therefore, passing |channel_| as a raw pointer is
+    // safe.
     jpeg_decoder_.reset(
         new GpuJpegDecodeAccelerator(channel_, channel_->io_task_runner()));
   }
   jpeg_decoder_->AddClient(
       route_id, base::Bind(&SendCreateJpegDecoderResult, base::Passed(&msg),
                            channel_->io_task_runner(), channel_->AsWeakPtr(),
-                           make_scoped_refptr(channel_->filter())));
+                           channel_->filter()));
 }
 
 void MediaGpuChannel::OnCreateVideoDecoder(

@@ -70,8 +70,7 @@ tr.exportTo('tr.ui.e.s', function() {
     this.time = 0;
     this.eventsOfInterest = new tr.model.EventSet();
 
-    if (context === undefined)
-      return;
+    if (context === undefined) return;
 
     this.type = context.objectInstance.blameContextType;
     this.contexts.push(context);
@@ -81,8 +80,9 @@ tr.exportTo('tr.ui.e.s', function() {
         this.renderer = context.renderFrame.objectInstance.parent.pid;
       }
     } else if (context instanceof RenderFrameSnapshot) {
-      if (context.frameTreeNode)
+      if (context.frameTreeNode) {
         this.contexts.push(context.frameTreeNode);
+      }
       this.renderer = context.objectInstance.parent.pid;
     } else if (context instanceof TopLevelSnapshot) {
       this.renderer = context.objectInstance.parent.pid;
@@ -117,11 +117,13 @@ tr.exportTo('tr.ui.e.s', function() {
       var getParentRow = function(row) {
         var pivot;
         row.contexts.forEach(function(context) {
-          if (context instanceof tr.e.chrome.FrameTreeNodeSnapshot)
+          if (context instanceof tr.e.chrome.FrameTreeNodeSnapshot) {
             pivot = context;
+          }
         });
-        if (pivot && pivot.parentContext)
+        if (pivot && pivot.parentContext) {
           return rowMap[pivot.parentContext.guid];
+        }
         return undefined;
       };
 
@@ -132,15 +134,17 @@ tr.exportTo('tr.ui.e.s', function() {
           rootRows.push(row);
           return;
         }
-        if (parentRow.subRows === undefined)
+        if (parentRow.subRows === undefined) {
           parentRow.subRows = [];
+        }
         parentRow.subRows.push(row);
       });
 
       var aggregateAllDescendants = function(row) {
         if (!row.subRows) {
-          if (getParentRow(row))
+          if (getParentRow(row)) {
             row.type = 'Subframe';
+          }
           return row;
         }
         var result = new Row();
@@ -170,7 +174,7 @@ tr.exportTo('tr.ui.e.s', function() {
 
     ready: function() {
       this.model_ = undefined;
-      this.rangeOfInterest_ = new tr.b.Range();
+      this.rangeOfInterest_ = new tr.b.math.Range();
 
       this.$.table.showHeader = true;
       this.$.table.selectionMode = tr.ui.b.TableFormat.SelectionMode.ROW;
@@ -224,43 +228,44 @@ tr.exportTo('tr.ui.e.s', function() {
     },
 
     createFrameDataTableRows_: function() {
-      if (!this.model_)
-        return [];
+      if (!this.model_) return [];
 
       // Gather contexts into skeletons of rows.
       var rows = [];
       var rowMap = {};
-      tr.b.iterItems(this.model_.processes, function(pid, process) {
-        process.objects.iterObjectInstances(function(objectInstance) {
-          if (!(objectInstance instanceof BlameContextInstance))
+      for (var proc of Object.values(this.model_.processes)) {
+        proc.objects.iterObjectInstances(function(objectInstance) {
+          if (!(objectInstance instanceof BlameContextInstance)) {
             return;
+          }
           objectInstance.snapshots.forEach(function(snapshot) {
-            if (rowMap[snapshot.guid])
-              return;
+            if (rowMap[snapshot.guid]) return;
+
             var row = new Row(snapshot);
             row.contexts.forEach(context => rowMap[context.guid] = row);
             rows.push(row);
           }, this);
         }, this);
-      }, this);
+      }
 
       // Find slices attributed to each row.
       // TODO(xiaochengh): We should implement a getter
       // BlameContextSnapshot.attributedEvents, instead of process the model in
       // a UI component.
-      tr.b.iterItems(this.model_.processes, function(pid, process) {
-        tr.b.iterItems(process.threads, function(tid, thread) {
+      for (var proc of Object.values(this.model_.processes)) {
+        for (var thread of Object.values(proc.threads)) {
           thread.sliceGroup.iterSlicesInTimeRange(function(topLevelSlice) {
             topLevelSlice.contexts.forEach(function(context) {
-              if (!context.snapshot.guid || !rowMap[context.snapshot.guid])
+              if (!context.snapshot.guid || !rowMap[context.snapshot.guid]) {
                 return;
+              }
               var row = rowMap[context.snapshot.guid];
               row.eventsOfInterest.push(topLevelSlice);
               row.time += topLevelSlice.selfTime || 0;
             });
           }, this.currentRangeOfInterest.min, this.currentRangeOfInterest.max);
-        }, this);
-      }, this);
+        }
+      }
 
       // Apply grouping to rows.
       var select = this.$.select;
@@ -283,23 +288,25 @@ tr.exportTo('tr.ui.e.s', function() {
       }
 
       var ans = {supported: false};
-      tr.b.iterItems(m.processes, function(pid, process) {
-        process.objects.iterObjectInstances(function(instance) {
-          if (instance instanceof BlameContextInstance)
+      for (var proc of Object.values(m.processes)) {
+        proc.objects.iterObjectInstances(function(instance) {
+          if (instance instanceof BlameContextInstance) {
             ans.supported = true;
+          }
         });
-      }, this);
+      }
 
-      if (!ans.supported)
+      if (!ans.supported) {
         ans.reason = 'No frame data available';
+      }
       return ans;
     },
 
     get currentRangeOfInterest() {
-      if (this.rangeOfInterest_.isEmpty)
+      if (this.rangeOfInterest_.isEmpty) {
         return this.model_.bounds;
-      else
-        return this.rangeOfInterest_;
+      }
+      return this.rangeOfInterest_;
     },
 
     get rangeOfInterest() {
@@ -334,7 +341,7 @@ tr.exportTo('tr.ui.e.s', function() {
   });
 
   tr.ui.side_panel.SidePanelRegistry.register(function() {
-     return document.createElement('tr-ui-e-s-frame-data-side-panel');
+    return document.createElement('tr-ui-e-s-frame-data-side-panel');
   });
 });
 </script>

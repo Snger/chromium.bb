@@ -19,7 +19,10 @@
 #include "ir/SkSLSymbolTable.h"
 #include "ir/SkSLUnresolvedFunction.h"
 #include "ir/SkSLVarDeclarations.h"
-#include "SkMutex.h"
+
+#ifdef SK_ENABLE_SPIRV_VALIDATION
+#include "spirv-tools/libspirv.hpp"
+#endif
 
 #define STRINGIFY(x) #x
 
@@ -37,12 +40,16 @@ static const char* SKSL_FRAG_INCLUDE =
 #include "sksl_frag.include"
 ;
 
+static const char* SKSL_GEOM_INCLUDE =
+#include "sksl_geom.include"
+;
+
 namespace SkSL {
 
 Compiler::Compiler()
 : fErrorCount(0) {
-    auto types = std::shared_ptr<SymbolTable>(new SymbolTable(*this));
-    auto symbols = std::shared_ptr<SymbolTable>(new SymbolTable(types, *this));
+    auto types = std::shared_ptr<SymbolTable>(new SymbolTable(this));
+    auto symbols = std::shared_ptr<SymbolTable>(new SymbolTable(types, this));
     fIRGenerator = new IRGenerator(&fContext, symbols, *this);
     fTypes = types;
     #define ADD_TYPE(t) types->addWithoutOwnership(fContext.f ## t ## _Type->fName, \
@@ -69,17 +76,17 @@ Compiler::Compiler()
     ADD_TYPE(BVec3);
     ADD_TYPE(BVec4);
     ADD_TYPE(Mat2x2);
-    types->addWithoutOwnership(SkString("mat2x2"), fContext.fMat2x2_Type.get());
+    types->addWithoutOwnership(String("mat2x2"), fContext.fMat2x2_Type.get());
     ADD_TYPE(Mat2x3);
     ADD_TYPE(Mat2x4);
     ADD_TYPE(Mat3x2);
     ADD_TYPE(Mat3x3);
-    types->addWithoutOwnership(SkString("mat3x3"), fContext.fMat3x3_Type.get());
+    types->addWithoutOwnership(String("mat3x3"), fContext.fMat3x3_Type.get());
     ADD_TYPE(Mat3x4);
     ADD_TYPE(Mat4x2);
     ADD_TYPE(Mat4x3);
     ADD_TYPE(Mat4x4);
-    types->addWithoutOwnership(SkString("mat4x4"), fContext.fMat4x4_Type.get());
+    types->addWithoutOwnership(String("mat4x4"), fContext.fMat4x4_Type.get());
     ADD_TYPE(GenType);
     ADD_TYPE(GenDType);
     ADD_TYPE(GenIType);
@@ -139,14 +146,14 @@ Compiler::Compiler()
     ADD_TYPE(GSampler2DArrayShadow);
     ADD_TYPE(GSamplerCubeArrayShadow);
 
-    SkString skCapsName("sk_Caps");
-    Variable* skCaps = new Variable(Position(), Modifiers(), skCapsName, 
+    String skCapsName("sk_Caps");
+    Variable* skCaps = new Variable(Position(), Modifiers(), skCapsName,
                                     *fContext.fSkCaps_Type, Variable::kGlobal_Storage);
     fIRGenerator->fSymbolTable->add(skCapsName, std::unique_ptr<Symbol>(skCaps));
 
     Modifiers::Flag ignored1;
     std::vector<std::unique_ptr<ProgramElement>> ignored2;
-    this->internalConvertProgram(SkString(SKSL_INCLUDE), &ignored1, &ignored2);
+    this->internalConvertProgram(String(SKSL_INCLUDE), &ignored1, &ignored2);
     fIRGenerator->fSymbolTable->markAllFunctionsBuiltin();
     ASSERT(!fErrorCount);
 }
@@ -156,8 +163,8 @@ Compiler::~Compiler() {
 }
 
 // add the definition created by assigning to the lvalue to the definition set
-void Compiler::addDefinition(const Expression* lvalue, const Expression* expr,
-                           std::unordered_map<const Variable*, const Expression*>* definitions) {
+void Compiler::addDefinition(const Expression* lvalue, std::unique_ptr<Expression>* expr,
+                             DefinitionMap* definitions) {
     switch (lvalue->fKind) {
         case Expression::kVariableReference_Kind: {
             const Variable& var = ((VariableReference*) lvalue)->fVariable;
@@ -174,19 +181,19 @@ void Compiler::addDefinition(const Expression* lvalue, const Expression* expr,
             // but since we pass foo as a whole it is flagged as an error) unless we perform a much
             // more complicated whole-program analysis. This is probably good enough.
             this->addDefinition(((Swizzle*) lvalue)->fBase.get(),
-                                fContext.fDefined_Expression.get(),
+                                (std::unique_ptr<Expression>*) &fContext.fDefined_Expression,
                                 definitions);
             break;
         case Expression::kIndex_Kind:
             // see comments in Swizzle
             this->addDefinition(((IndexExpression*) lvalue)->fBase.get(),
-                                fContext.fDefined_Expression.get(),
+                                (std::unique_ptr<Expression>*) &fContext.fDefined_Expression,
                                 definitions);
             break;
         case Expression::kFieldAccess_Kind:
             // see comments in Swizzle
             this->addDefinition(((FieldAccess*) lvalue)->fBase.get(),
-                                fContext.fDefined_Expression.get(),
+                                (std::unique_ptr<Expression>*) &fContext.fDefined_Expression,
                                 definitions);
             break;
         default:
@@ -197,25 +204,58 @@ void Compiler::addDefinition(const Expression* lvalue, const Expression* expr,
 
 // add local variables defined by this node to the set
 void Compiler::addDefinitions(const BasicBlock::Node& node,
-                              std::unordered_map<const Variable*, const Expression*>* definitions) {
+                              DefinitionMap* definitions) {
     switch (node.fKind) {
         case BasicBlock::Node::kExpression_Kind: {
-            const Expression* expr = (Expression*) node.fNode;
-            if (expr->fKind == Expression::kBinary_Kind) {
-                const BinaryExpression* b = (BinaryExpression*) expr;
-                if (b->fOperator == Token::EQ) {
-                    this->addDefinition(b->fLeft.get(), b->fRight.get(), definitions);
+            ASSERT(node.fExpression);
+            const Expression* expr = (Expression*) node.fExpression->get();
+            switch (expr->fKind) {
+                case Expression::kBinary_Kind: {
+                    BinaryExpression* b = (BinaryExpression*) expr;
+                    if (b->fOperator == Token::EQ) {
+                        this->addDefinition(b->fLeft.get(), &b->fRight, definitions);
+                    } else if (Token::IsAssignment(b->fOperator)) {
+                        this->addDefinition(
+                                       b->fLeft.get(),
+                                       (std::unique_ptr<Expression>*) &fContext.fDefined_Expression,
+                                       definitions);
+
+                    }
+                    break;
                 }
+                case Expression::kPrefix_Kind: {
+                    const PrefixExpression* p = (PrefixExpression*) expr;
+                    if (p->fOperator == Token::MINUSMINUS || p->fOperator == Token::PLUSPLUS) {
+                        this->addDefinition(
+                                       p->fOperand.get(),
+                                       (std::unique_ptr<Expression>*) &fContext.fDefined_Expression,
+                                       definitions);
+                    }
+                    break;
+                }
+                case Expression::kPostfix_Kind: {
+                    const PostfixExpression* p = (PostfixExpression*) expr;
+                    if (p->fOperator == Token::MINUSMINUS || p->fOperator == Token::PLUSPLUS) {
+                        this->addDefinition(
+                                       p->fOperand.get(),
+                                       (std::unique_ptr<Expression>*) &fContext.fDefined_Expression,
+                                       definitions);
+
+                    }
+                    break;
+                }
+                default:
+                    break;
             }
             break;
         }
         case BasicBlock::Node::kStatement_Kind: {
-            const Statement* stmt = (Statement*) node.fNode;
+            const Statement* stmt = (Statement*) node.fStatement;
             if (stmt->fKind == Statement::kVarDeclarations_Kind) {
-                const VarDeclarationsStatement* vd = (VarDeclarationsStatement*) stmt;
-                for (const VarDeclaration& decl : vd->fDeclaration->fVars) {
+                VarDeclarationsStatement* vd = (VarDeclarationsStatement*) stmt;
+                for (VarDeclaration& decl : vd->fDeclaration->fVars) {
                     if (decl.fValue) {
-                        (*definitions)[decl.fVar] = decl.fValue.get();
+                        (*definitions)[decl.fVar] = &decl.fValue;
                     }
                 }
             }
@@ -228,7 +268,7 @@ void Compiler::scanCFG(CFG* cfg, BlockId blockId, std::set<BlockId>* workList) {
     BasicBlock& block = cfg->fBlocks[blockId];
 
     // compute definitions after this block
-    std::unordered_map<const Variable*, const Expression*> after = block.fBefore;
+    DefinitionMap after = block.fBefore;
     for (const BasicBlock::Node& n : block.fNodes) {
         this->addDefinitions(n, &after);
     }
@@ -237,18 +277,23 @@ void Compiler::scanCFG(CFG* cfg, BlockId blockId, std::set<BlockId>* workList) {
     for (BlockId exitId : block.fExits) {
         BasicBlock& exit = cfg->fBlocks[exitId];
         for (const auto& pair : after) {
-            const Expression* e1 = pair.second;
-            if (exit.fBefore.find(pair.first) == exit.fBefore.end()) {
+            std::unique_ptr<Expression>* e1 = pair.second;
+            auto found = exit.fBefore.find(pair.first);
+            if (found == exit.fBefore.end()) {
+                // exit has no definition for it, just copy it
+                workList->insert(exitId);
                 exit.fBefore[pair.first] = e1;
             } else {
-                const Expression* e2 = exit.fBefore[pair.first];
+                // exit has a (possibly different) value already defined
+                std::unique_ptr<Expression>* e2 = exit.fBefore[pair.first];
                 if (e1 != e2) {
                     // definition has changed, merge and add exit block to worklist
                     workList->insert(exitId);
-                    if (!e1 || !e2) {
-                        exit.fBefore[pair.first] = nullptr;
+                    if (e1 && e2) {
+                        exit.fBefore[pair.first] =
+                                       (std::unique_ptr<Expression>*) &fContext.fDefined_Expression;
                     } else {
-                        exit.fBefore[pair.first] = fContext.fDefined_Expression.get();
+                        exit.fBefore[pair.first] = nullptr;
                     }
                 }
             }
@@ -258,12 +303,13 @@ void Compiler::scanCFG(CFG* cfg, BlockId blockId, std::set<BlockId>* workList) {
 
 // returns a map which maps all local variables in the function to null, indicating that their value
 // is initially unknown
-static std::unordered_map<const Variable*, const Expression*> compute_start_state(const CFG& cfg) {
-    std::unordered_map<const Variable*, const Expression*> result;
+static DefinitionMap compute_start_state(const CFG& cfg) {
+    DefinitionMap result;
     for (const auto& block : cfg.fBlocks) {
         for (const auto& node : block.fNodes) {
             if (node.fKind == BasicBlock::Node::kStatement_Kind) {
-                const Statement* s = (Statement*) node.fNode;
+                ASSERT(node.fStatement);
+                const Statement* s = node.fStatement;
                 if (s->fKind == Statement::kVarDeclarations_Kind) {
                     const VarDeclarationsStatement* vd = (const VarDeclarationsStatement*) s;
                     for (const VarDeclaration& decl : vd->fDeclaration->fVars) {
@@ -295,19 +341,37 @@ void Compiler::scanCFG(const FunctionDefinition& f) {
     for (size_t i = 0; i < cfg.fBlocks.size(); i++) {
         if (i != cfg.fStart && !cfg.fBlocks[i].fEntrances.size() &&
             cfg.fBlocks[i].fNodes.size()) {
-            this->error(cfg.fBlocks[i].fNodes[0].fNode->fPosition, SkString("unreachable"));
+            Position p;
+            switch (cfg.fBlocks[i].fNodes[0].fKind) {
+                case BasicBlock::Node::kStatement_Kind:
+                    p = cfg.fBlocks[i].fNodes[0].fStatement->fPosition;
+                    break;
+                case BasicBlock::Node::kExpression_Kind:
+                    p = (*cfg.fBlocks[i].fNodes[0].fExpression)->fPosition;
+                    break;
+            }
+            this->error(p, String("unreachable"));
         }
     }
     if (fErrorCount) {
         return;
     }
 
-    // check for undefined variables
-    for (const BasicBlock& b : cfg.fBlocks) {
-        std::unordered_map<const Variable*, const Expression*> definitions = b.fBefore;
-        for (const BasicBlock::Node& n : b.fNodes) {
+    // check for undefined variables, perform constant propagation
+    for (BasicBlock& b : cfg.fBlocks) {
+        DefinitionMap definitions = b.fBefore;
+        for (BasicBlock::Node& n : b.fNodes) {
             if (n.fKind == BasicBlock::Node::kExpression_Kind) {
-                const Expression* expr = (const Expression*) n.fNode;
+                ASSERT(n.fExpression);
+                Expression* expr = n.fExpression->get();
+                if (n.fConstantPropagation) {
+                    std::unique_ptr<Expression> optimized = expr->constantPropagate(*fIRGenerator,
+                                                                                    definitions);
+                    if (optimized) {
+                        n.fExpression->reset(optimized.release());
+                        expr = n.fExpression->get();
+                    }
+                }
                 if (expr->fKind == Expression::kVariableReference_Kind) {
                     const Variable& var = ((VariableReference*) expr)->fVariable;
                     if (var.fStorage == Variable::kLocal_Storage &&
@@ -324,12 +388,12 @@ void Compiler::scanCFG(const FunctionDefinition& f) {
     // check for missing return
     if (f.fDeclaration.fReturnType != *fContext.fVoid_Type) {
         if (cfg.fBlocks[cfg.fExit].fEntrances.size()) {
-            this->error(f.fPosition, SkString("function can exit without returning a value"));
+            this->error(f.fPosition, String("function can exit without returning a value"));
         }
     }
 }
 
-void Compiler::internalConvertProgram(SkString text,
+void Compiler::internalConvertProgram(String text,
                                       Modifiers::Flag* defaultPrecision,
                                       std::vector<std::unique_ptr<ProgramElement>>* result) {
     Parser parser(text, *fTypes, *this);
@@ -392,7 +456,7 @@ void Compiler::internalConvertProgram(SkString text,
     }
 }
 
-std::unique_ptr<Program> Compiler::convertProgram(Program::Kind kind, SkString text,
+std::unique_ptr<Program> Compiler::convertProgram(Program::Kind kind, String text,
                                                   const Program::Settings& settings) {
     fErrorText = "";
     fErrorCount = 0;
@@ -401,10 +465,13 @@ std::unique_ptr<Program> Compiler::convertProgram(Program::Kind kind, SkString t
     Modifiers::Flag ignored;
     switch (kind) {
         case Program::kVertex_Kind:
-            this->internalConvertProgram(SkString(SKSL_VERT_INCLUDE), &ignored, &elements);
+            this->internalConvertProgram(String(SKSL_VERT_INCLUDE), &ignored, &elements);
             break;
         case Program::kFragment_Kind:
-            this->internalConvertProgram(SkString(SKSL_FRAG_INCLUDE), &ignored, &elements);
+            this->internalConvertProgram(String(SKSL_FRAG_INCLUDE), &ignored, &elements);
+            break;
+        case Program::kGeometry_Kind:
+            this->internalConvertProgram(String(SKSL_GEOM_INCLUDE), &ignored, &elements);
             break;
     }
     fIRGenerator->fSymbolTable->markAllFunctionsBuiltin();
@@ -422,49 +489,64 @@ std::unique_ptr<Program> Compiler::convertProgram(Program::Kind kind, SkString t
     return result;
 }
 
-
-bool Compiler::toSPIRV(const Program& program, SkWStream& out) {
+bool Compiler::toSPIRV(const Program& program, OutputStream& out) {
+#ifdef SK_ENABLE_SPIRV_VALIDATION
+    StringStream buffer;
+    SPIRVCodeGenerator cg(&fContext, &program, this, &buffer);
+    bool result = cg.generateCode();
+    if (result) {
+        spvtools::SpirvTools tools(SPV_ENV_VULKAN_1_0);
+        ASSERT(0 == buffer.size() % 4);
+        auto dumpmsg = [](spv_message_level_t, const char*, const spv_position_t&, const char* m) {
+            SkDebugf("SPIR-V validation error: %s\n", m);
+        };
+        tools.SetMessageConsumer(dumpmsg);
+        // Verify that the SPIR-V we produced is valid. If this assert fails, check the logs prior
+        // to the failure to see the validation errors.
+        ASSERT_RESULT(tools.Validate((const uint32_t*) buffer.data(), buffer.size() / 4));
+        out.write(buffer.data(), buffer.size());
+    }
+#else
     SPIRVCodeGenerator cg(&fContext, &program, this, &out);
     bool result = cg.generateCode();
+#endif
     this->writeErrorCount();
     return result;
 }
 
-bool Compiler::toSPIRV(const Program& program, SkString* out) {
-    SkDynamicMemoryWStream buffer;
+bool Compiler::toSPIRV(const Program& program, String* out) {
+    StringStream buffer;
     bool result = this->toSPIRV(program, buffer);
     if (result) {
-        sk_sp<SkData> data(buffer.detachAsData());
-        *out = SkString((const char*) data->data(), data->size());
+        *out = String(buffer.data(), buffer.size());
     }
     return result;
 }
 
-bool Compiler::toGLSL(const Program& program, SkWStream& out) {
+bool Compiler::toGLSL(const Program& program, OutputStream& out) {
     GLSLCodeGenerator cg(&fContext, &program, this, &out);
     bool result = cg.generateCode();
     this->writeErrorCount();
     return result;
 }
 
-bool Compiler::toGLSL(const Program& program, SkString* out) {
-    SkDynamicMemoryWStream buffer;
+bool Compiler::toGLSL(const Program& program, String* out) {
+    StringStream buffer;
     bool result = this->toGLSL(program, buffer);
     if (result) {
-        sk_sp<SkData> data(buffer.detachAsData());
-        *out = SkString((const char*) data->data(), data->size());
+        *out = String(buffer.data(), buffer.size());
     }
     return result;
 }
 
 
-void Compiler::error(Position position, SkString msg) {
+void Compiler::error(Position position, String msg) {
     fErrorCount++;
     fErrorText += "error: " + position.description() + ": " + msg.c_str() + "\n";
 }
 
-SkString Compiler::errorText() {
-    SkString result = fErrorText;
+String Compiler::errorText() {
+    String result = fErrorText;
     return result;
 }
 

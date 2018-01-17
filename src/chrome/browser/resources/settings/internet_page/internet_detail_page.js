@@ -113,6 +113,12 @@ Polymer({
     /** @private */
     advancedExpanded_: Boolean,
 
+    /** @private */
+    networkExpanded_: Boolean,
+
+    /** @private */
+    proxyExpanded_: Boolean,
+
     /**
      * Object providing network type values for data binding.
      * @const
@@ -139,6 +145,13 @@ Polymer({
   networksChangedListener_: null,
 
   /**
+   * Set to true to once the initial properties have been received. This
+   * prevents setProperties from being called when setting default properties.
+   * @private {boolean}
+   */
+  networkPropertiesReceived_: false,
+
+  /**
    * settings.RouteObserverBehavior
    * @param {!settings.Route} route
    * @protected
@@ -157,12 +170,24 @@ Polymer({
       this.networkingPrivate.onNetworksChanged.addListener(
           this.networksChangedListener_);
     }
-    let queryParams = settings.getQueryParameters();
+    var queryParams = settings.getQueryParameters();
     this.guid = queryParams.get('guid') || '';
     if (!this.guid) {
       console.error('No guid specified for page:' + route);
       this.close_();
     }
+    // Set basic networkProperties until they are loaded.
+    this.networkPropertiesReceived_ = false;
+    var type = /** @type {!chrome.networkingPrivate.NetworkType} */ (
+                   queryParams.get('type')) ||
+        CrOnc.Type.WI_FI;
+    var name = queryParams.get('name') || type;
+    this.networkProperties = {
+      GUID: this.guid,
+      Type: type,
+      ConnectionState: CrOnc.ConnectionState.NOT_CONNECTED,
+      Name: {Active: name},
+    };
     this.getNetworkDetails_();
   },
 
@@ -250,12 +275,25 @@ Polymer({
    * @private
    */
   getPropertiesCallback_: function(properties) {
-    this.networkProperties = properties;
-    if (!properties) {
-      // If |properties| is null, the network is no longer visible, close this.
-      console.error('Network no longer exists: ' + this.guid);
+    if (chrome.runtime.lastError) {
+      var message = chrome.runtime.lastError.message;
+      if (message == 'Error.InvalidNetworkGuid') {
+        console.error('Details page: GUID no longer exists: ' + this.guid);
+      } else {
+        console.error(
+            'Unexpected networkingPrivate.getManagedProperties error: ' +
+            message + ' For: ' + this.guid);
+      }
       this.close_();
+      return;
     }
+    if (!properties) {
+      console.error('No properties for: ' + this.guid);
+      this.close_();
+      return;
+    }
+    this.networkProperties = properties;
+    this.networkPropertiesReceived_ = true;
   },
 
   /**
@@ -276,6 +314,7 @@ Polymer({
       Connectable: state.Connectable,
       ConnectionState: state.ConnectionState,
     };
+    this.networkPropertiesReceived_ = true;
   },
 
   /**
@@ -284,6 +323,9 @@ Polymer({
    * @private
    */
   setNetworkProperties_: function(onc) {
+    if (!this.networkPropertiesReceived_)
+      return;
+
     assert(!!this.guid);
     this.networkingPrivate.setProperties(this.guid, onc, function() {
       if (chrome.runtime.lastError) {
@@ -344,6 +386,16 @@ Polymer({
 
   /**
    * @param {!CrOnc.NetworkProperties} networkProperties
+   * @return {boolean}
+   * @private
+   */
+  isCellular_: function(networkProperties) {
+    return networkProperties.Type == CrOnc.Type.CELLULAR &&
+        !!networkProperties.Cellular;
+  },
+
+  /**
+   * @param {!CrOnc.NetworkProperties} networkProperties
    * @param {!chrome.networkingPrivate.GlobalPolicy} globalPolicy
    * @return {boolean}
    * @private
@@ -397,7 +449,7 @@ Polymer({
    * @private
    */
   showActivate_: function(networkProperties) {
-    if (networkProperties.Type != CrOnc.Type.CELLULAR)
+    if (!this.isCellular_(networkProperties))
       return false;
     var activation = networkProperties.Cellular.ActivationState;
     return activation == CrOnc.ActivationState.NOT_ACTIVATED ||
@@ -414,9 +466,9 @@ Polymer({
     if (this.connectNotAllowed_(networkProperties, globalPolicy))
       return false;
     var type = networkProperties.Type;
-    if (type == CrOnc.Type.CELLULAR || type == CrOnc.Type.WI_MAX)
+    if (type == CrOnc.Type.CELLULAR)
       return false;
-    if (type == CrOnc.Type.WI_FI &&
+    if ((type == CrOnc.Type.WI_FI || type == CrOnc.Type.WI_MAX) &&
         networkProperties.ConnectionState !=
             CrOnc.ConnectionState.NOT_CONNECTED) {
       return false;
@@ -430,12 +482,9 @@ Polymer({
    * @private
    */
   showViewAccount_: function(networkProperties) {
-    // Show either the 'Activate' or the 'View Account' button.
-    if (this.showActivate_(networkProperties))
-      return false;
-
-    if (networkProperties.Type != CrOnc.Type.CELLULAR ||
-        !networkProperties.Cellular) {
+    // Show either the 'Activate' or the 'View Account' button (Cellular only).
+    if (!this.isCellular_(networkProperties) ||
+        this.showActivate_(networkProperties)) {
       return false;
     }
 
@@ -513,14 +562,36 @@ Polymer({
     this.networkingPrivate.startActivate(this.guid);
   },
 
+  /** @const {string} */ CR_EXPAND_BUTTON_TAG: 'CR-EXPAND-BUTTON',
+
   /**
    * @param {Event} event
    * @private
    */
   toggleAdvancedExpanded_: function(event) {
-    if (event.target.id == 'expandButton')
+    if (event.target.tagName == this.CR_EXPAND_BUTTON_TAG)
       return;  // Already handled.
     this.advancedExpanded_ = !this.advancedExpanded_;
+  },
+
+  /**
+   * @param {Event} event
+   * @private
+   */
+  toggleNetworkExpanded_: function(event) {
+    if (event.target.tagName == this.CR_EXPAND_BUTTON_TAG)
+      return;  // Already handled.
+    this.networkExpanded_ = !this.networkExpanded_;
+  },
+
+  /**
+   * @param {Event} event
+   * @private
+   */
+  toggleProxyExpanded_: function(event) {
+    if (event.target.tagName == this.CR_EXPAND_BUTTON_TAG)
+      return;  // Already handled.
+    this.proxyExpanded_ = !this.proxyExpanded_;
   },
 
   /**
@@ -582,8 +653,8 @@ Polymer({
       onc.NameServersConfigType = newNsConfigType;
     } else if (field == 'StaticIPConfig') {
       if (ipConfigType == CrOnc.IPConfigType.STATIC) {
-        let staticIpConfig = this.networkProperties.StaticIPConfig;
-        let ipConfigValue = /** @type {!Object} */ (value);
+        var staticIpConfig = this.networkProperties.StaticIPConfig;
+        var ipConfigValue = /** @type {!Object} */ (value);
         if (staticIpConfig &&
             this.allPropertiesMatch_(staticIpConfig, ipConfigValue)) {
           return;
@@ -594,12 +665,12 @@ Polymer({
         onc.StaticIPConfig =
             /** @type {!chrome.networkingPrivate.IPConfigProperties} */ ({});
       }
-      for (let key in value)
+      for (var key in value)
         onc.StaticIPConfig[key] = value[key];
     } else if (field == 'NameServers') {
       // If a StaticIPConfig property is specified and its NameServers value
       // matches the new value, no need to set anything.
-      let nameServers = /** @type {!Array<string>} */ (value);
+      var nameServers = /** @type {!Array<string>} */ (value);
       if (onc.NameServersConfigType == CrOnc.IPConfigType.STATIC &&
           onc.StaticIPConfig && onc.StaticIPConfig.NameServers == nameServers) {
         return;
@@ -640,12 +711,13 @@ Polymer({
   },
 
   /**
+   * @param {!CrOnc.NetworkProperties} networkProperties
    * @return {boolean} True if the shared message should be shown.
    * @private
    */
-  showShared_: function() {
-    return this.networkProperties.Source == 'Device' ||
-        this.networkProperties.Source == 'DevicePolicy';
+  showShared_: function(networkProperties) {
+    return networkProperties.Source == 'Device' ||
+        networkProperties.Source == 'DevicePolicy';
   },
 
   /**
@@ -654,7 +726,7 @@ Polymer({
    * @private
    */
   showAutoConnect_: function(networkProperties) {
-    return this.networkProperties.Type != CrOnc.Type.ETHERNET &&
+    return networkProperties.Type != CrOnc.Type.ETHERNET &&
         this.isRemembered_(networkProperties);
   },
 
@@ -700,8 +772,8 @@ Polymer({
    * @private
    */
   hasVisibleFields_: function(fields) {
-    for (let key of fields) {
-      let value = this.get(key, this.networkProperties);
+    for (var i = 0; i < fields.length; ++i) {
+      var value = this.get(fields[i], this.networkProperties);
       if (value !== undefined && value !== '')
         return true;
     }
@@ -722,13 +794,13 @@ Polymer({
    */
   getInfoFields_: function() {
     /** @type {!Array<string>} */ var fields = [];
-    if (this.networkProperties.Type == CrOnc.Type.CELLULAR) {
+    var type = this.networkProperties.Type;
+    if (type == CrOnc.Type.CELLULAR && !!this.networkProperties.Cellular) {
       fields.push(
           'Cellular.ActivationState', 'Cellular.RoamingState',
           'RestrictedConnectivity', 'Cellular.ServingOperator.Name');
-    }
-    if (this.networkProperties.Type == CrOnc.Type.VPN) {
-      let vpnType = CrOnc.getActiveValue(this.networkProperties.VPN.Type);
+    } else if (type == CrOnc.Type.VPN && !!this.networkProperties.VPN) {
+      var vpnType = CrOnc.getActiveValue(this.networkProperties.VPN.Type);
       if (vpnType == 'ThirdPartyVPN') {
         fields.push('VPN.ThirdPartyVPN.ProviderName');
       } else {
@@ -738,10 +810,9 @@ Polymer({
         else if (vpnType == 'L2TP-IPsec')
           fields.push('VPN.L2TP.Username');
       }
-    }
-    if (this.networkProperties.Type == CrOnc.Type.WI_FI)
+    } else if (type == CrOnc.Type.WI_FI) {
       fields.push('RestrictedConnectivity');
-    if (this.networkProperties.Type == CrOnc.Type.WI_MAX) {
+    } else if (type == CrOnc.Type.WI_MAX) {
       fields.push('RestrictedConnectivity', 'WiMAX.EAP.Identity');
     }
     return fields;
@@ -754,18 +825,18 @@ Polymer({
   getAdvancedFields_: function() {
     /** @type {!Array<string>} */ var fields = [];
     fields.push('MacAddress');
-    if (this.networkProperties.Type == CrOnc.Type.CELLULAR) {
+    var type = this.networkProperties.Type;
+    if (type == CrOnc.Type.CELLULAR && !!this.networkProperties.Cellular) {
       fields.push(
           'Cellular.Carrier', 'Cellular.Family', 'Cellular.NetworkTechnology',
           'Cellular.ServingOperator.Code');
-    }
-    if (this.networkProperties.Type == CrOnc.Type.WI_FI) {
+    } else if (type == CrOnc.Type.WI_FI) {
       fields.push(
           'WiFi.SSID', 'WiFi.BSSID', 'WiFi.Security', 'WiFi.SignalStrength',
           'WiFi.Frequency');
-    }
-    if (this.networkProperties.Type == CrOnc.Type.WI_MAX)
+    } else if (type == CrOnc.Type.WI_MAX) {
       fields.push('WiFi.SignalStrength');
+    }
     return fields;
   },
 
@@ -823,36 +894,38 @@ Polymer({
 
   /**
    * @param {!CrOnc.NetworkProperties} networkProperties
-   * @return {boolean} True if the network section should be shown.
+   * @return {boolean}
    * @private
    */
   hasNetworkSection_: function(networkProperties) {
-    if (this.networkProperties.Type == CrOnc.Type.VPN)
+    if (networkProperties.Type == CrOnc.Type.VPN)
       return false;
-    if (this.networkProperties.Type == CrOnc.Type.CELLULAR)
+    if (networkProperties.Type == CrOnc.Type.CELLULAR)
       return true;
     return this.isRememberedOrConnected_(networkProperties);
   },
 
   /**
    * @param {string} type The network type.
+   * @param {!CrOnc.NetworkProperties} networkProperties
    * @return {boolean} True if the network type matches 'type'.
    * @private
    */
-  isType_: function(type) {
-    return this.networkProperties.Type == type;
+  isType_: function(type, networkProperties) {
+    return networkProperties.Type == type;
   },
 
   /**
-   * @return {boolean} True if the Cellular SIM section should be shown.
+   * @param {!CrOnc.NetworkProperties} networkProperties
+   * @return {boolean}
    * @private
    */
-  showCellularSim_: function() {
-    if (this.networkProperties.Type != 'Cellular' ||
-        !this.networkProperties.Cellular) {
+  showCellularSim_: function(networkProperties) {
+    if (networkProperties.Type != 'Cellular' ||
+        !networkProperties.Cellular) {
       return false;
     }
-    return this.networkProperties.Cellular.Family == 'GSM';
+    return networkProperties.Cellular.Family == 'GSM';
   },
 
   /**
@@ -865,7 +938,7 @@ Polymer({
    * @private
    */
   allPropertiesMatch_: function(curValue, newValue) {
-    for (let key in newValue) {
+    for (var key in newValue) {
       if (newValue[key] != curValue[key])
         return false;
     }

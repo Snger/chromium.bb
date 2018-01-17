@@ -45,7 +45,8 @@ class WebIDBFactoryImpl::IOThreadHelper {
             const url::Origin& origin);
   void DeleteDatabase(const base::string16& name,
                       std::unique_ptr<IndexedDBCallbacksImpl> callbacks,
-                      const url::Origin& origin);
+                      const url::Origin& origin,
+                      bool force_close);
 
  private:
   scoped_refptr<IPC::SyncMessageFilter> sync_message_filter_;
@@ -64,7 +65,7 @@ WebIDBFactoryImpl::~WebIDBFactoryImpl() {
   io_runner_->DeleteSoon(FROM_HERE, io_helper_);
 }
 
-void WebIDBFactoryImpl::getDatabaseNames(WebIDBCallbacks* callbacks,
+void WebIDBFactoryImpl::GetDatabaseNames(WebIDBCallbacks* callbacks,
                                          const WebSecurityOrigin& origin) {
   auto callbacks_impl = base::MakeUnique<IndexedDBCallbacksImpl>(
       base::WrapUnique(callbacks), IndexedDBCallbacksImpl::kNoTransaction,
@@ -75,7 +76,7 @@ void WebIDBFactoryImpl::getDatabaseNames(WebIDBCallbacks* callbacks,
                                              url::Origin(origin)));
 }
 
-void WebIDBFactoryImpl::open(const WebString& name,
+void WebIDBFactoryImpl::Open(const WebString& name,
                              long long version,
                              long long transaction_id,
                              WebIDBCallbacks* callbacks,
@@ -89,22 +90,23 @@ void WebIDBFactoryImpl::open(const WebString& name,
   io_runner_->PostTask(
       FROM_HERE,
       base::Bind(&IOThreadHelper::Open, base::Unretained(io_helper_),
-                 name.utf16(), version, transaction_id,
+                 name.Utf16(), version, transaction_id,
                  base::Passed(&callbacks_impl),
                  base::Passed(&database_callbacks_impl), url::Origin(origin)));
 }
 
-void WebIDBFactoryImpl::deleteDatabase(const WebString& name,
+void WebIDBFactoryImpl::DeleteDatabase(const WebString& name,
                                        WebIDBCallbacks* callbacks,
-                                       const WebSecurityOrigin& origin) {
+                                       const WebSecurityOrigin& origin,
+                                       bool force_close) {
   auto callbacks_impl = base::MakeUnique<IndexedDBCallbacksImpl>(
       base::WrapUnique(callbacks), IndexedDBCallbacksImpl::kNoTransaction,
       nullptr, io_runner_);
   io_runner_->PostTask(
       FROM_HERE,
       base::Bind(&IOThreadHelper::DeleteDatabase, base::Unretained(io_helper_),
-                 name.utf16(), base::Passed(&callbacks_impl),
-                 url::Origin(origin)));
+                 name.Utf16(), base::Passed(&callbacks_impl),
+                 url::Origin(origin), force_close));
 }
 
 WebIDBFactoryImpl::IOThreadHelper::IOThreadHelper(
@@ -122,9 +124,7 @@ FactoryAssociatedPtr& WebIDBFactoryImpl::IOThreadHelper::GetService() {
 CallbacksAssociatedPtrInfo WebIDBFactoryImpl::IOThreadHelper::GetCallbacksProxy(
     std::unique_ptr<IndexedDBCallbacksImpl> callbacks) {
   CallbacksAssociatedPtrInfo ptr_info;
-  indexed_db::mojom::CallbacksAssociatedRequest request;
-  GetService().associated_group()->CreateAssociatedInterface(
-      mojo::AssociatedGroup::WILL_PASS_PTR, &ptr_info, &request);
+  auto request = mojo::MakeRequest(&ptr_info);
   mojo::MakeStrongAssociatedBinding(std::move(callbacks), std::move(request));
   return ptr_info;
 }
@@ -133,9 +133,7 @@ DatabaseCallbacksAssociatedPtrInfo
 WebIDBFactoryImpl::IOThreadHelper::GetDatabaseCallbacksProxy(
     std::unique_ptr<IndexedDBDatabaseCallbacksImpl> callbacks) {
   DatabaseCallbacksAssociatedPtrInfo ptr_info;
-  indexed_db::mojom::DatabaseCallbacksAssociatedRequest request;
-  GetService().associated_group()->CreateAssociatedInterface(
-      mojo::AssociatedGroup::WILL_PASS_PTR, &ptr_info, &request);
+  auto request = mojo::MakeRequest(&ptr_info);
   mojo::MakeStrongAssociatedBinding(std::move(callbacks), std::move(request));
   return ptr_info;
 }
@@ -162,9 +160,10 @@ void WebIDBFactoryImpl::IOThreadHelper::Open(
 void WebIDBFactoryImpl::IOThreadHelper::DeleteDatabase(
     const base::string16& name,
     std::unique_ptr<IndexedDBCallbacksImpl> callbacks,
-    const url::Origin& origin) {
+    const url::Origin& origin,
+    bool force_close) {
   GetService()->DeleteDatabase(GetCallbacksProxy(std::move(callbacks)), origin,
-                               name);
+                               name, force_close);
 }
 
 }  // namespace content

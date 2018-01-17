@@ -15,33 +15,31 @@
 
 namespace blink {
 
-class LocalFrame;
-
 class MODULES_EXPORT BarcodeDetector final : public ShapeDetector,
                                              public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  static BarcodeDetector* create(Document&);
+  static BarcodeDetector* Create();
 
   DECLARE_VIRTUAL_TRACE();
 
  private:
-  explicit BarcodeDetector(LocalFrame&);
+  BarcodeDetector();
   ~BarcodeDetector() override = default;
 
-  ScriptPromise doDetect(ScriptPromiseResolver*,
+  ScriptPromise DoDetect(ScriptPromiseResolver*,
                          mojo::ScopedSharedBufferHandle,
-                         int imageWidth,
-                         int imageHeight) override;
-  void onDetectBarcodes(
+                         int image_width,
+                         int image_height) override;
+  void OnDetectBarcodes(
       ScriptPromiseResolver*,
       Vector<shape_detection::mojom::blink::BarcodeDetectionResultPtr>);
-  void onBarcodeServiceConnectionError();
+  void OnBarcodeServiceConnectionError();
 
-  shape_detection::mojom::blink::BarcodeDetectionPtr m_barcodeService;
+  shape_detection::mojom::blink::BarcodeDetectionPtr barcode_service_;
 
-  HeapHashSet<Member<ScriptPromiseResolver>> m_barcodeServiceRequests;
+  HeapHashSet<Member<ScriptPromiseResolver>> barcode_service_requests_;
 };
 
 }  // namespace blink

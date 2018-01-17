@@ -34,7 +34,7 @@ const int kCursorSize = 12;
 // monitors. it will stop the mouse at the any edge of the screen. must
 // swtich back on when the screenshot is complete.
 void EnableMouseWarp(bool enable) {
-  Shell::GetInstance()->mouse_cursor_filter()->set_mouse_warp_enabled(enable);
+  Shell::Get()->mouse_cursor_filter()->set_mouse_warp_enabled(enable);
 }
 
 class ScreenshotWindowTargeter : public aura::WindowTargeter {
@@ -54,9 +54,9 @@ class ScreenshotWindowTargeter : public aura::WindowTargeter {
     display::Display display =
         display::Screen::GetScreen()->GetDisplayNearestPoint(location);
 
-    aura::Window* root_window = Shell::GetInstance()
-                                    ->window_tree_host_manager()
-                                    ->GetRootWindowForDisplayId(display.id());
+    aura::Window* root_window =
+        Shell::Get()->window_tree_host_manager()->GetRootWindowForDisplayId(
+            display.id());
 
     position_client->ConvertPointFromScreen(root_window, &location);
 
@@ -160,30 +160,30 @@ class ScreenshotController::ScreenshotLayer : public ui::LayerOwner,
     if (pseudo_cursor_point.y() == region_.y())
       pseudo_cursor_point.Offset(0, -1);
 
-    SkPaint paint;
-    paint.setAntiAlias(false);
-    paint.setStrokeWidth(1);
-    paint.setColor(SK_ColorWHITE);
-    paint.setBlendMode(SkBlendMode::kSrc);
+    cc::PaintFlags flags;
+    flags.setAntiAlias(false);
+    flags.setStrokeWidth(1);
+    flags.setColor(SK_ColorWHITE);
+    flags.setBlendMode(SkBlendMode::kSrc);
     gfx::Vector2d width(kCursorSize / 2, 0);
     gfx::Vector2d height(0, kCursorSize / 2);
     gfx::Vector2d white_x_offset(1, -1);
     gfx::Vector2d white_y_offset(1, -1);
     // Horizontal
     canvas->DrawLine(pseudo_cursor_point - width + white_x_offset,
-                     pseudo_cursor_point + width + white_x_offset, paint);
-    paint.setStrokeWidth(1);
+                     pseudo_cursor_point + width + white_x_offset, flags);
+    flags.setStrokeWidth(1);
     // Vertical
     canvas->DrawLine(pseudo_cursor_point - height + white_y_offset,
-                     pseudo_cursor_point + height + white_y_offset, paint);
+                     pseudo_cursor_point + height + white_y_offset, flags);
 
-    paint.setColor(SK_ColorBLACK);
+    flags.setColor(SK_ColorBLACK);
     // Horizontal
     canvas->DrawLine(pseudo_cursor_point - width, pseudo_cursor_point + width,
-                     paint);
+                     flags);
     // Vertical
     canvas->DrawLine(pseudo_cursor_point - height, pseudo_cursor_point + height,
-                     paint);
+                     flags);
   }
 
   bool draw_inactive_overlay_;
@@ -235,13 +235,13 @@ ScreenshotController::ScreenshotController()
       screenshot_delegate_(nullptr) {
   // Keep this here and don't move it to StartPartialScreenshotSession(), as it
   // needs to be pre-pended by MouseCursorEventFilter in Shell::Init().
-  Shell::GetInstance()->PrependPreTargetHandler(this);
+  Shell::Get()->PrependPreTargetHandler(this);
 }
 
 ScreenshotController::~ScreenshotController() {
   if (screenshot_delegate_)
     CancelScreenshotSession();
-  Shell::GetInstance()->RemovePreTargetHandler(this);
+  Shell::Get()->RemovePreTargetHandler(this);
 }
 
 void ScreenshotController::StartWindowScreenshotSession(
@@ -261,8 +261,8 @@ void ScreenshotController::StartWindowScreenshotSession(
   }
   SetSelectedWindow(wm::GetActiveWindow());
 
-  cursor_setter_.reset(new ScopedCursorSetter(
-      Shell::GetInstance()->cursor_manager(), ui::kCursorCross));
+  cursor_setter_.reset(
+      new ScopedCursorSetter(Shell::Get()->cursor_manager(), ui::kCursorCross));
 
   EnableMouseWarp(true);
 }
@@ -286,8 +286,8 @@ void ScreenshotController::StartPartialScreenshotSession(
   }
 
   if (!pen_events_only_) {
-    cursor_setter_.reset(new ScopedCursorSetter(
-        Shell::GetInstance()->cursor_manager(), ui::kCursorCross));
+    cursor_setter_.reset(new ScopedCursorSetter(Shell::Get()->cursor_manager(),
+                                                ui::kCursorCross));
   }
 
   EnableMouseWarp(false);
@@ -340,7 +340,7 @@ void ScreenshotController::MaybeStart(const ui::LocatedEvent& event) {
       // called before ctor is called.
       cursor_setter_.reset();
       cursor_setter_.reset(new ScopedCursorSetter(
-          Shell::GetInstance()->cursor_manager(), ui::kCursorNone));
+          Shell::Get()->cursor_manager(), ui::kCursorNone));
     }
     Update(event);
   }

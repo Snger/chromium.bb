@@ -6,6 +6,7 @@
  */
 
 #include "gm.h"
+#include "sk_tool_utils.h"
 #include "SkCanvas.h"
 #include "SkImage.h"
 #include "SkRandom.h"
@@ -89,7 +90,7 @@ static void show_mips(SkCanvas* canvas, SkImage* img) {
  */
 DEF_SIMPLE_GM(mipmap_srgb, canvas, 260, 230) {
     sk_sp<SkImage> limg = make(nullptr);
-    sk_sp<SkImage> simg = make(SkColorSpace::MakeNamed(SkColorSpace::kSRGB_Named));
+    sk_sp<SkImage> simg = make(SkColorSpace::MakeSRGB());
 
     canvas->translate(10, 10);
     show_mips(canvas, limg.get());
@@ -135,12 +136,10 @@ static void show_mips_only(SkCanvas* canvas, SkImage* img) {
  *
  *  Ensure that in S32 drawing mode, all images/mips look the same, and look correct (i.e.
  *  the mip levels match the original in brightness).
- *
- *  This test also verifies handling of Gray_8 data in Ganesh, which is not done natively.
  */
 DEF_SIMPLE_GM(mipmap_gray8_srgb, canvas, 260, 230) {
     sk_sp<SkImage> limg = make_g8_gradient(nullptr);
-    sk_sp<SkImage> simg = make_g8_gradient(SkColorSpace::MakeNamed(SkColorSpace::kSRGB_Named));
+    sk_sp<SkImage> simg = make_g8_gradient(SkColorSpace::MakeSRGB());
 
     canvas->translate(10, 10);
     show_mips_only(canvas, limg.get());

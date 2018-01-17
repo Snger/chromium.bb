@@ -271,26 +271,42 @@ void ArcNotificationItem::ButtonClick(int button_index) {
       notification_key_, button_index);
 }
 
+void ArcNotificationItem::OpenSettings() {
+  manager_->OpenNotificationSettings(notification_key_);
+}
+
+bool ArcNotificationItem::IsOpeningSettingsSupported() const {
+  return manager_->IsOpeningSettingsSupported();
+}
+
+void ArcNotificationItem::ToggleExpansion() {
+  manager_->SendNotificationToggleExpansionOnChrome(notification_key_);
+}
+
 // Converts from Android notification priority to Chrome notification priority.
 // On Android, PRIORITY_DEFAULT does not pop up, so this maps PRIORITY_DEFAULT
 // to Chrome's -1 to adapt that behavior. Also, this maps PRIORITY_LOW and _HIGH
 // to -2 and 0 respectively to adjust the value with keeping the order among
 // _LOW, _DEFAULT and _HIGH.
 // static
-int ArcNotificationItem::ConvertAndroidPriority(int android_priority) {
+// TODO(yoshiki): rewrite this conversion as typemap
+int ArcNotificationItem::ConvertAndroidPriority(
+    mojom::ArcNotificationPriority android_priority) {
   switch (android_priority) {
-    case -2:  // PRIORITY_MIN
-    case -1:  // PRIORITY_LOW
-      return -2;
-    case 0:  // PRIORITY_DEFAULT
-      return -1;
-    case 1:  // PRIORITY_HIGH
-      return 0;
-    case 2:  // PRIORITY_MAX
-      return 2;
+    case mojom::ArcNotificationPriority::MIN:
+    case mojom::ArcNotificationPriority::LOW:
+      return message_center::MIN_PRIORITY;
+    case mojom::ArcNotificationPriority::DEFAULT:
+      return message_center::LOW_PRIORITY;
+    case mojom::ArcNotificationPriority::HIGH:
+      return message_center::DEFAULT_PRIORITY;
+    case mojom::ArcNotificationPriority::MAX:
+      return message_center::MAX_PRIORITY;
+
+    // fall-through
     default:
       NOTREACHED() << "Invalid Priority: " << android_priority;
-      return 0;
+      return message_center::DEFAULT_PRIORITY;
   }
 }
 

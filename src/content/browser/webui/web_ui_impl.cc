@@ -39,7 +39,8 @@ class WebUIImpl::MainFrameNavigationObserver : public WebContentsObserver {
   void DidFinishNavigation(NavigationHandle* navigation_handle) override {
     // Only disallow JavaScript on cross-document navigations in the main frame.
     if (!navigation_handle->IsInMainFrame() ||
-        !navigation_handle->HasCommitted() || navigation_handle->IsSamePage()) {
+        !navigation_handle->HasCommitted() ||
+        navigation_handle->IsSameDocument()) {
       return;
     }
 
@@ -55,17 +56,21 @@ const WebUI::TypeID WebUI::kNoWebUI = NULL;
 base::string16 WebUI::GetJavascriptCall(
     const std::string& function_name,
     const std::vector<const base::Value*>& arg_list) {
-  base::string16 parameters;
+  base::string16 result(base::ASCIIToUTF16(function_name));
+  result.push_back('(');
+
   std::string json;
   for (size_t i = 0; i < arg_list.size(); ++i) {
     if (i > 0)
-      parameters += base::char16(',');
+      result.push_back(',');
 
     base::JSONWriter::Write(*arg_list[i], &json);
-    parameters += base::UTF8ToUTF16(json);
+    result.append(base::UTF8ToUTF16(json));
   }
-  return base::ASCIIToUTF16(function_name) +
-      base::char16('(') + parameters + base::char16(')') + base::char16(';');
+
+  result.push_back(')');
+  result.push_back(';');
+  return result;
 }
 
 WebUIImpl::WebUIImpl(WebContents* contents, const std::string& frame_name)

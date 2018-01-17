@@ -6,7 +6,7 @@
 # in the file PATENTS.  All contributing project authors may
 # be found in the AUTHORS file in the root of the source tree.
 
-import("../build/webrtc.gni")
+import("../webrtc.gni")
 
 rtc_static_library("video") {
   sources = [
@@ -58,6 +58,7 @@ rtc_static_library("video") {
   deps = [
     "..:webrtc_common",
     "../api:transport_api",
+    "../api/video_codecs:video_codecs_api",
     "../base:rtc_base_approved",
     "../base:rtc_numerics",
     "../base:rtc_task_queue",
@@ -85,15 +86,14 @@ if (rtc_include_tests) {
       "video_quality_test.h",
     ]
     deps = [
+      "../base:rtc_base_tests_utils",
       "../base:rtc_task_queue",
       "../media:rtc_media_base",
       "../system_wrappers",
       "//testing/gtest",
       "//webrtc/test:test_renderer",
+      "//webrtc/test:video_test_common",
     ]
-    if (!is_android) {
-      deps += [ "../modules/video_capture:video_capture_internal_impl" ]
-    }
     if (!build_with_chromium && is_clang) {
       # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
       suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
@@ -169,6 +169,7 @@ if (rtc_include_tests) {
       "replay.cc",
     ]
     deps = [
+      "../api/video_codecs:video_codecs_api",
       "../system_wrappers:metrics_default",
       "../test:field_trial",
       "../test:run_test",
@@ -176,9 +177,6 @@ if (rtc_include_tests) {
       "../test:test_renderer",
       "//third_party/gflags",
     ]
-    if (!is_android) {
-      deps += [ "../modules/video_capture:video_capture_internal_impl" ]
-    }
     if (!build_with_chromium && is_clang) {
       # Suppress warnings from the Chromium Clang plugin (bugs.webrtc.org/163).
       suppressed_configs += [ "//build/config/clang:find_bad_constructs" ]
@@ -198,10 +196,12 @@ if (rtc_include_tests) {
       "quality_threshold_unittest.cc",
       "receive_statistics_proxy_unittest.cc",
       "report_block_stats_unittest.cc",
+      "rtp_stream_receiver_unittest.cc",
       "send_delay_stats_unittest.cc",
       "send_statistics_proxy_unittest.cc",
       "stats_counter_unittest.cc",
       "stream_synchronization_unittest.cc",
+      "video_receive_stream_unittest.cc",
       "video_send_stream_tests.cc",
       "vie_encoder_unittest.cc",
       "vie_remb_unittest.cc",

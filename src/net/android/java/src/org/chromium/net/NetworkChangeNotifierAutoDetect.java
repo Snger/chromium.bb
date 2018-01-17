@@ -27,14 +27,12 @@ import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
 import android.os.Build;
 import android.telephony.TelephonyManager;
-import android.util.Log;
 
 import org.chromium.base.ApplicationState;
 import org.chromium.base.ApplicationStatus;
 import org.chromium.base.ThreadUtils;
 import org.chromium.base.VisibleForTesting;
 import org.chromium.base.metrics.RecordHistogram;
-import org.chromium.net.ConnectionType.ConnectionTypeEnum;
 
 import java.io.IOException;
 import java.util.Arrays;
@@ -208,7 +206,7 @@ public class NetworkChangeNotifierAutoDetect extends BroadcastReceiver {
          * Only callable on Lollipop and newer releases.
          */
         @TargetApi(Build.VERSION_CODES.LOLLIPOP)
-        @ConnectionTypeEnum
+        @ConnectionType
         int getConnectionType(Network network) {
             NetworkInfo networkInfo = getNetworkInfo(network);
             if (networkInfo != null && networkInfo.getType() == TYPE_VPN) {
@@ -481,7 +479,7 @@ public class NetworkChangeNotifierAutoDetect extends BroadcastReceiver {
                 mVpnInPlace = network;
             }
             final long netId = networkToNetId(network);
-            @ConnectionTypeEnum
+            @ConnectionType
             final int connectionType = mConnectivityManagerDelegate.getConnectionType(network);
             ThreadUtils.postOnUiThread(new Runnable() {
                 @Override
@@ -550,7 +548,7 @@ public class NetworkChangeNotifierAutoDetect extends BroadcastReceiver {
                         getAllNetworksFiltered(mConnectivityManagerDelegate, network)) {
                     onAvailable(newNetwork);
                 }
-                @ConnectionTypeEnum
+                @ConnectionType
                 final int newConnectionType = convertToConnectionType(getCurrentNetworkState());
                 ThreadUtils.postOnUiThread(new Runnable() {
                     @Override
@@ -611,7 +609,7 @@ public class NetworkChangeNotifierAutoDetect extends BroadcastReceiver {
     private final MyNetworkCallback mNetworkCallback;
     private final NetworkRequest mNetworkRequest;
     private boolean mRegistered;
-    @ConnectionTypeEnum
+    @ConnectionType
     private int mConnectionType;
     private String mWifiSSID;
     private double mMaxBandwidthMbps;
@@ -638,7 +636,7 @@ public class NetworkChangeNotifierAutoDetect extends BroadcastReceiver {
         /**
          * Called when default network changes.
          */
-        public void onConnectionTypeChanged(@ConnectionTypeEnum int newConnectionType);
+        public void onConnectionTypeChanged(@ConnectionType int newConnectionType);
         /**
          * Called when maximum bandwidth of default network changes.
          */
@@ -876,7 +874,7 @@ public class NetworkChangeNotifierAutoDetect extends BroadcastReceiver {
     /**
      * Returns the connection type for the given NetworkState.
      */
-    @ConnectionTypeEnum
+    @ConnectionType
     public static int convertToConnectionType(NetworkState networkState) {
         if (!networkState.isConnected()) {
             return ConnectionType.CONNECTION_NONE;
@@ -888,7 +886,7 @@ public class NetworkChangeNotifierAutoDetect extends BroadcastReceiver {
     /**
      * Returns the connection type for the given ConnectivityManager type and subtype.
      */
-    @ConnectionTypeEnum
+    @ConnectionType
     private static int convertToConnectionType(int type, int subtype) {
         switch (type) {
             case ConnectivityManager.TYPE_ETHERNET:
@@ -1009,14 +1007,13 @@ public class NetworkChangeNotifierAutoDetect extends BroadcastReceiver {
     }
 
     private void connectionTypeChanged(NetworkState networkState) {
-        @ConnectionTypeEnum
+        @ConnectionType
         int newConnectionType = convertToConnectionType(networkState);
         String newWifiSSID = networkState.getWifiSsid();
         if (newConnectionType == mConnectionType && newWifiSSID.equals(mWifiSSID)) return;
 
         mConnectionType = newConnectionType;
         mWifiSSID = newWifiSSID;
-        Log.d(TAG, "Network connectivity changed, type is: " + mConnectionType);
         mObserver.onConnectionTypeChanged(newConnectionType);
     }
 

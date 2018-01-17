@@ -27,6 +27,7 @@ const uint64_t kNumMicrosPerSecond = 1000 * 1000;
 
 // Default initial maximum size in bytes of a QUIC packet.
 const QuicByteCount kDefaultMaxPacketSize = 1350;
+// Default initial maximum size in bytes of a QUIC packet for servers.
 const QuicByteCount kDefaultServerMaxPacketSize = 1000;
 // The maximum packet size of any QUIC packet, based on ethernet's max size,
 // minus the IP and UDP headers. IPv6 has a 40 byte header, UDP adds an
@@ -169,11 +170,6 @@ const int kUFloat16MantissaEffectiveBits = kUFloat16MantissaBits + 1;  // 12
 const uint64_t kUFloat16MaxValue =  // 0x3FFC0000000
     ((UINT64_C(1) << kUFloat16MantissaEffectiveBits) - 1)
     << kUFloat16MaxExponent;
-
-// Default path ID.
-const QuicPathId kDefaultPathId = 0;
-// Invalid path ID.
-const QuicPathId kInvalidPathId = 0xff;
 
 // kDiversificationNonceSize is the size, in bytes, of the nonce that a server
 // may set in the packet header to ensure that its INITIAL keys are not

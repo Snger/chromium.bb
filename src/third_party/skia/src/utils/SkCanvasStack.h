@@ -9,6 +9,7 @@
 #define SkCanvasStack_DEFINED
 
 #include "SkNWayCanvas.h"
+#include "SkRegion.h"
 #include "SkTArray.h"
 
 /**
@@ -20,7 +21,7 @@
 class SkCanvasStack : public SkNWayCanvas {
 public:
     SkCanvasStack(int width, int height);
-    virtual ~SkCanvasStack();
+    ~SkCanvasStack() override;
 
     void pushCanvas(std::unique_ptr<SkCanvas>, const SkIPoint& origin);
     void removeAll() override;

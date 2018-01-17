@@ -10,6 +10,7 @@
 #include "base/strings/utf_string_conversions.h"
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/prerender/prerender_manager.h"
+#include "chrome/browser/prerender/prerender_origin.h"
 #include "chrome/browser/ssl/ssl_blocking_page.h"
 #include "chrome/browser/ui/browser.h"
 #include "chrome/browser/ui/browser_commands.h"
@@ -131,7 +132,8 @@ IN_PROC_BROWSER_TEST_F(LoginPromptBrowserTest, PrefetchAuthCancels) {
   class SetPrefetchForTest {
    public:
     explicit SetPrefetchForTest(bool prefetch)
-        : old_prerender_mode_(prerender::PrerenderManager::GetMode()) {
+        : old_prerender_mode_(
+              prerender::PrerenderManager::GetMode(prerender::ORIGIN_NONE)) {
       std::string exp_group = prefetch ? "ExperimentYes" : "ExperimentNo";
       base::FieldTrialList::CreateFieldTrial("Prefetch", exp_group);
       // Disable prerender so this is just a prefetch of the top-level page.
@@ -831,14 +833,15 @@ IN_PROC_BROWSER_TEST_F(LoginPromptBrowserTest, SupplyRedundantAuths) {
   {
     // Open different auth urls in each tab.
     WindowedAuthNeededObserver auth_needed_waiter_1(controller_1);
-    WindowedAuthNeededObserver auth_needed_waiter_2(controller_2);
     contents_1->OpenURL(OpenURLParams(
         embedded_test_server()->GetURL("/auth-basic/1"), content::Referrer(),
         WindowOpenDisposition::CURRENT_TAB, ui::PAGE_TRANSITION_TYPED, false));
+    auth_needed_waiter_1.Wait();
+
+    WindowedAuthNeededObserver auth_needed_waiter_2(controller_2);
     contents_2->OpenURL(OpenURLParams(
         embedded_test_server()->GetURL("/auth-basic/2"), content::Referrer(),
         WindowOpenDisposition::CURRENT_TAB, ui::PAGE_TRANSITION_TYPED, false));
-    auth_needed_waiter_1.Wait();
     auth_needed_waiter_2.Wait();
 
     ASSERT_EQ(2U, observer.handlers().size());
@@ -886,14 +889,15 @@ IN_PROC_BROWSER_TEST_F(LoginPromptBrowserTest, CancelRedundantAuths) {
   {
     // Open different auth urls in each tab.
     WindowedAuthNeededObserver auth_needed_waiter_1(controller_1);
-    WindowedAuthNeededObserver auth_needed_waiter_2(controller_2);
     contents_1->OpenURL(OpenURLParams(
         embedded_test_server()->GetURL("/auth-basic/1"), content::Referrer(),
         WindowOpenDisposition::CURRENT_TAB, ui::PAGE_TRANSITION_TYPED, false));
+    auth_needed_waiter_1.Wait();
+
+    WindowedAuthNeededObserver auth_needed_waiter_2(controller_2);
     contents_2->OpenURL(OpenURLParams(
         embedded_test_server()->GetURL("/auth-basic/2"), content::Referrer(),
         WindowOpenDisposition::CURRENT_TAB, ui::PAGE_TRANSITION_TYPED, false));
-    auth_needed_waiter_1.Wait();
     auth_needed_waiter_2.Wait();
 
     ASSERT_EQ(2U, observer.handlers().size());

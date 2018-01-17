@@ -8,14 +8,12 @@
  *  be found in the AUTHORS file in the root of the source tree.
  */
 
-#if !defined(__has_feature) || !__has_feature(objc_arc)
-#error "This file requires ARC support."
-#endif
-
 #import <AVFoundation/AVFoundation.h>
 #import <Foundation/Foundation.h>
 
 #include "webrtc/modules/audio_device/ios/audio_device_ios.h"
+
+#include <cmath>
 
 #include "webrtc/base/atomicops.h"
 #include "webrtc/base/bind.h"
@@ -328,11 +326,13 @@ int AudioDeviceIOS::GetRecordAudioParameters(AudioParameters* params) const {
 
 void AudioDeviceIOS::OnInterruptionBegin() {
   RTC_DCHECK(thread_);
+  LOGI() << "OnInterruptionBegin";
   thread_->Post(RTC_FROM_HERE, this, kMessageTypeInterruptionBegin);
 }
 
 void AudioDeviceIOS::OnInterruptionEnd() {
   RTC_DCHECK(thread_);
+  LOGI() << "OnInterruptionEnd";
   thread_->Post(RTC_FROM_HERE, this, kMessageTypeInterruptionEnd);
 }
 
@@ -470,6 +470,8 @@ void AudioDeviceIOS::OnMessage(rtc::Message *msg) {
 void AudioDeviceIOS::HandleInterruptionBegin() {
   RTC_DCHECK(thread_checker_.CalledOnValidThread());
 
+  RTCLog(@"Interruption begin. IsInterrupted changed from %d to 1.",
+         is_interrupted_);
   if (audio_unit_ &&
       audio_unit_->GetState() == VoiceProcessingAudioUnit::kStarted) {
     RTCLog(@"Stopping the audio unit due to interruption begin.");
@@ -483,8 +485,9 @@ void AudioDeviceIOS::HandleInterruptionBegin() {
 void AudioDeviceIOS::HandleInterruptionEnd() {
   RTC_DCHECK(thread_checker_.CalledOnValidThread());
 
+  RTCLog(@"Interruption ended. IsInterrupted changed from %d to 0. "
+         "Updating audio unit state.", is_interrupted_);
   is_interrupted_ = false;
-  RTCLog(@"Interruption ended. Updating audio unit state.");
   UpdateAudioUnit([RTCAudioSession sharedInstance].canPlayOrRecord);
 }
 
@@ -631,17 +634,11 @@ void AudioDeviceIOS::SetupAudioBuffersForActiveAudioSession() {
   // or deliver, any number of samples (and not only multiple of 10ms) to match
   // the native audio unit buffer size.
   RTC_DCHECK(audio_device_buffer_);
+  const size_t buffer_size_in_bytes = playout_parameters_.GetBytesPerBuffer();
   fine_audio_buffer_.reset(new FineAudioBuffer(
-      audio_device_buffer_, playout_parameters_.GetBytesPerBuffer(),
+      audio_device_buffer_, buffer_size_in_bytes,
       playout_parameters_.sample_rate()));
-
-  // The extra/temporary playoutbuffer must be of this size to avoid
-  // unnecessary memcpy while caching data between successive callbacks.
-  const int required_playout_buffer_size =
-      fine_audio_buffer_->RequiredPlayoutBufferSizeBytes();
-  LOG(LS_INFO) << " required playout buffer size: "
-               << required_playout_buffer_size;
-  playout_audio_buffer_.reset(new SInt8[required_playout_buffer_size]);
+  playout_audio_buffer_.reset(new SInt8[buffer_size_in_bytes]);
 
   // Allocate AudioBuffers to be used as storage for the received audio.
   // The AudioBufferList structure works as a placeholder for the

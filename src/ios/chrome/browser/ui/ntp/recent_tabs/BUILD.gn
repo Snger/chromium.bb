@@ -3,6 +3,7 @@
 # found in the LICENSE file.
 
 source_set("recent_tabs") {
+  configs += [ "//build/config/compiler:enable_arc" ]
   sources = [
     "recent_tabs_bridges.h",
     "recent_tabs_bridges.mm",
@@ -49,6 +50,7 @@ source_set("recent_tabs") {
 }
 
 source_set("unit_tests") {
+  configs += [ "//build/config/compiler:enable_arc" ]
   testonly = true
   sources = [
     "recent_tabs_panel_controller_unittest.mm",
@@ -73,6 +75,7 @@ source_set("unit_tests") {
 }
 
 source_set("eg_tests") {
+  configs += [ "//build/config/compiler:enable_arc" ]
   testonly = true
   sources = [
     "recent_tabs_panel_controller_egtest.mm",

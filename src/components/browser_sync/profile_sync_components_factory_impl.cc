@@ -11,9 +11,11 @@
 #include "base/memory/ref_counted.h"
 #include "build/build_config.h"
 #include "components/autofill/core/browser/autofill_wallet_data_type_controller.h"
+#include "components/autofill/core/browser/webdata/autocomplete_sync_bridge.h"
 #include "components/autofill/core/browser/webdata/autofill_data_type_controller.h"
 #include "components/autofill/core/browser/webdata/autofill_profile_data_type_controller.h"
 #include "components/autofill/core/browser/webdata/autofill_webdata_service.h"
+#include "components/autofill/core/browser/webdata/web_data_model_type_controller.h"
 #include "components/autofill/core/common/autofill_pref_names.h"
 #include "components/autofill/core/common/autofill_switches.h"
 #include "components/browser_sync/browser_sync_switches.h"
@@ -155,8 +157,10 @@ void ProfileSyncComponentsFactoryImpl::RegisterCommonDataTypes(
   if (!disabled_types.Has(syncer::AUTOFILL)) {
     if (base::FeatureList::IsEnabled(switches::kSyncUSSAutocomplete)) {
       sync_service->RegisterDataTypeController(
-          base::MakeUnique<ModelTypeController>(syncer::AUTOFILL, sync_client_,
-                                                db_thread_));
+          base::MakeUnique<autofill::WebDataModelTypeController>(
+              syncer::AUTOFILL, sync_client_, db_thread_, web_data_service_,
+              base::Bind(
+                  &autofill::AutocompleteSyncBridge::FromWebDataService)));
     } else {
       sync_service->RegisterDataTypeController(
           base::MakeUnique<AutofillDataTypeController>(
@@ -205,9 +209,14 @@ void ProfileSyncComponentsFactoryImpl::RegisterCommonDataTypes(
   // TypedUrl sync is enabled by default.  Register unless explicitly disabled,
   // or if saving history is disabled.
   if (!disabled_types.Has(syncer::TYPED_URLS) && !history_disabled) {
-    sync_service->RegisterDataTypeController(
-        base::MakeUnique<TypedUrlDataTypeController>(
-            error_callback, sync_client_, history_disabled_pref_));
+    if (base::FeatureList::IsEnabled(switches::kSyncUSSTypedURL)) {
+      // TODO(gangwu): Register controller here once typed url controller
+      // implemented.
+    } else {
+      sync_service->RegisterDataTypeController(
+          base::MakeUnique<TypedUrlDataTypeController>(
+              error_callback, sync_client_, history_disabled_pref_));
+    }
   }
 
   // Delete directive sync is enabled by default.  Register unless full history
@@ -282,6 +291,14 @@ void ProfileSyncComponentsFactoryImpl::RegisterCommonDataTypes(
             syncer::ARTICLES, error_callback, sync_client_, syncer::GROUP_UI,
             ui_thread_));
   }
+
+#if defined(OS_CHROMEOS)
+  if (!disabled_types.Has(syncer::PRINTERS)) {
+    sync_service->RegisterDataTypeController(
+        base::MakeUnique<ModelTypeController>(syncer::PRINTERS, sync_client_,
+                                              ui_thread_));
+  }
+#endif
 
   // Reading list sync is enabled by default only on iOS. Register unless
   // Reading List or Reading List Sync is explicitly disabled.

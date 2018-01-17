@@ -11,6 +11,7 @@
 #include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/statistics_recorder.h"
+#include "base/metrics/user_metrics.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -27,14 +28,13 @@
 #include "components/feedback/tracing_manager.h"
 #include "components/signin/core/browser/signin_manager.h"
 #include "components/strings/grit/components_strings.h"
-#include "content/public/browser/user_metrics.h"
 #include "extensions/browser/event_router.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/webui/web_ui_util.h"
 #include "url/url_util.h"
 
 #if defined(OS_CHROMEOS)
-#include "chrome/browser/chromeos/arc/arc_session_manager.h"
+#include "chrome/browser/chromeos/arc/arc_util.h"
 #endif  // defined(OS_CHROMEOS)
 
 #if defined(OS_WIN)
@@ -77,8 +77,8 @@ using feedback_private::FeedbackFlow;
 using SystemInformationList =
     std::vector<api::feedback_private::SystemInformation>;
 
-static base::LazyInstance<BrowserContextKeyedAPIFactory<FeedbackPrivateAPI> >
-    g_factory = LAZY_INSTANCE_INITIALIZER;
+static base::LazyInstance<BrowserContextKeyedAPIFactory<FeedbackPrivateAPI>>::
+    DestructorAtExit g_factory = LAZY_INSTANCE_INITIALIZER;
 
 // static
 BrowserContextKeyedAPIFactory<FeedbackPrivateAPI>*
@@ -135,10 +135,12 @@ void FeedbackPrivateAPI::RequestFeedbackForFlow(
     }
     info.flow = flow;
 #if defined(OS_MACOSX)
-    info.use_system_window_frame = true;
+    const bool use_system_window_frame = true;
 #else
-    info.use_system_window_frame = false;
+    const bool use_system_window_frame = false;
 #endif
+    info.use_system_window_frame =
+        base::MakeUnique<bool>(use_system_window_frame);
 
     std::unique_ptr<base::ListValue> args =
         feedback_private::OnFeedbackRequested::Create(info);
@@ -164,13 +166,15 @@ ExtensionFunction::ResponseAction FeedbackPrivateGetStringsFunction::Run() {
   dict->SetString(id, l10n_util::GetStringUTF16(idr))
   SET_STRING("page-title", IDS_FEEDBACK_REPORT_PAGE_TITLE);
   SET_STRING("additionalInfo", IDS_FEEDBACK_ADDITIONAL_INFO_LABEL);
+  SET_STRING("minimize-btn-label", IDS_FEEDBACK_MINIMIZE_BUTTON_LABEL);
+  SET_STRING("close-btn-label", IDS_FEEDBACK_CLOSE_BUTTON_LABEL);
   SET_STRING("page-url", IDS_FEEDBACK_REPORT_URL_LABEL);
   SET_STRING("screenshot", IDS_FEEDBACK_SCREENSHOT_LABEL);
   SET_STRING("user-email", IDS_FEEDBACK_USER_EMAIL_LABEL);
+  SET_STRING("anonymous-user", IDS_FEEDBACK_ANONYMOUS_EMAIL_OPTION);
 #if defined(OS_CHROMEOS)
-  const arc::ArcSessionManager* arc_session_manager =
-      arc::ArcSessionManager::Get();
-  if (arc_session_manager && arc_session_manager->IsArcEnabled()) {
+  if (arc::IsArcPlayStoreEnabledForProfile(
+          Profile::FromBrowserContext(browser_context()))) {
     SET_STRING("sys-info",
                IDS_FEEDBACK_INCLUDE_SYSTEM_INFORMATION_AND_METRICS_CHKBOX_ARC);
   } else {
@@ -219,7 +223,7 @@ ExtensionFunction::ResponseAction FeedbackPrivateGetStringsFunction::Run() {
 ExtensionFunction::ResponseAction FeedbackPrivateGetUserEmailFunction::Run() {
   SigninManagerBase* signin_manager = SigninManagerFactory::GetForProfile(
       Profile::FromBrowserContext(browser_context()));
-  return RespondNow(OneArgument(base::MakeUnique<base::StringValue>(
+  return RespondNow(OneArgument(base::MakeUnique<base::Value>(
       signin_manager ? signin_manager->GetAuthenticatedAccountInfo().email
                      : std::string())));
 }
@@ -343,16 +347,13 @@ FeedbackPrivateLogSrtPromptResultFunction::Run() {
 
   switch (result) {
     case feedback_private::SRT_PROMPT_RESULT_ACCEPTED:
-      content::RecordAction(
-          base::UserMetricsAction("Feedback.SrtPromptAccepted"));
+      base::RecordAction(base::UserMetricsAction("Feedback.SrtPromptAccepted"));
       break;
     case feedback_private::SRT_PROMPT_RESULT_DECLINED:
-      content::RecordAction(
-          base::UserMetricsAction("Feedback.SrtPromptDeclined"));
+      base::RecordAction(base::UserMetricsAction("Feedback.SrtPromptDeclined"));
       break;
     case feedback_private::SRT_PROMPT_RESULT_CLOSED:
-      content::RecordAction(
-          base::UserMetricsAction("Feedback.SrtPromptClosed"));
+      base::RecordAction(base::UserMetricsAction("Feedback.SrtPromptClosed"));
       break;
     default:
       return RespondNow(Error("Invalid arugment."));

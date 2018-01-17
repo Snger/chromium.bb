@@ -59,11 +59,9 @@ public class FloatingPastePopupMenu implements PastePopupMenu {
 
     @Override
     public void show(int x, int y) {
-        if (isShowing()) {
-            int dx = mRawPositionX - x;
-            int dy = mRawPositionY - y;
-            if (dx * dx + dy * dy < mSlopLengthSquared) return;
-        }
+        int dx = mRawPositionX - x;
+        int dy = mRawPositionY - y;
+        if (dx * dx + dy * dy < mSlopLengthSquared) return;
 
         mRawPositionX = x;
         mRawPositionY = y;
@@ -81,11 +79,6 @@ public class FloatingPastePopupMenu implements PastePopupMenu {
             mActionMode.finish();
             mActionMode = null;
         }
-    }
-
-    @Override
-    public boolean isShowing() {
-        return mActionMode != null;
     }
 
     private void ensureActionMode() {
@@ -114,7 +107,8 @@ public class FloatingPastePopupMenu implements PastePopupMenu {
                     ? mContext.getString(R.string.actionbar_textselection_title) : null);
             mode.setSubtitle(null);
             SelectionPopupController.initializeMenu(mContext, mode, menu);
-            menu.removeItem(R.id.select_action_menu_select_all);
+            if (!mDelegate.canPaste()) menu.removeItem(R.id.select_action_menu_paste);
+            if (!mDelegate.canSelectAll()) menu.removeItem(R.id.select_action_menu_select_all);
             menu.removeItem(R.id.select_action_menu_cut);
             menu.removeItem(R.id.select_action_menu_copy);
             menu.removeItem(R.id.select_action_menu_share);
@@ -130,6 +124,10 @@ public class FloatingPastePopupMenu implements PastePopupMenu {
         public boolean onActionItemClicked(ActionMode mode, MenuItem item) {
             if (item.getItemId() == R.id.select_action_menu_paste) {
                 mDelegate.paste();
+                mode.finish();
+            }
+            if (item.getItemId() == R.id.select_action_menu_select_all) {
+                mDelegate.selectAll();
                 mode.finish();
             }
             return true;

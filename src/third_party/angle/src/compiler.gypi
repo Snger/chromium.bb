@@ -64,8 +64,6 @@
             'compiler/translator/InitializeDll.cpp',
             'compiler/translator/InitializeDll.h',
             'compiler/translator/InitializeGlobals.h',
-            'compiler/translator/InitializeParseContext.cpp',
-            'compiler/translator/InitializeParseContext.h',
             'compiler/translator/InitializeVariables.cpp',
             'compiler/translator/InitializeVariables.h',
             'compiler/translator/IntermNode.h',
@@ -83,6 +81,8 @@
             'compiler/translator/Pragma.h',
             'compiler/translator/PruneEmptyDeclarations.cpp',
             'compiler/translator/PruneEmptyDeclarations.h',
+            'compiler/translator/PrunePureLiteralStatements.cpp',
+            'compiler/translator/PrunePureLiteralStatements.h',
             'compiler/translator/QualifierTypes.h',
             'compiler/translator/QualifierTypes.cpp',
             'compiler/translator/RecordConstantPrecision.cpp',
@@ -214,6 +214,13 @@
             'compiler/translator/UtilsHLSL.cpp',
             'compiler/translator/UtilsHLSL.h',
         ],
+        'angle_translator_lib_vulkan_sources':
+        [
+            'compiler/translator/OutputVulkanGLSL.cpp',
+            'compiler/translator/OutputVulkanGLSL.h',
+            'compiler/translator/TranslatorVulkan.cpp',
+            'compiler/translator/TranslatorVulkan.h',
+        ],
         'angle_preprocessor_sources':
         [
             'compiler/preprocessor/DiagnosticsBase.cpp',
@@ -330,6 +337,24 @@
                     'sources':
                     [
                         '<@(angle_translator_hlsl_sources)',
+                    ],
+                }],
+                ['angle_enable_vulkan==1',
+                {
+                    'defines':
+                    [
+                        'ANGLE_ENABLE_VULKAN',
+                    ],
+                    'direct_dependent_settings':
+                    {
+                        'defines':
+                        [
+                            'ANGLE_ENABLE_VULKAN',
+                        ],
+                    },
+                    'sources':
+                    [
+                        '<@(angle_translator_lib_vulkan_sources)',
                     ],
                 }],
             ],

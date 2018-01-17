@@ -7,12 +7,13 @@
 from __future__ import print_function
 
 import httplib
-import mock
 import tempfile
+import time
 
 from chromite.lib import config_lib
 from chromite.lib import cros_test_lib
 from chromite.lib import gob_util
+from chromite.lib import timeout_util
 
 
 site_config = config_lib.GetConfig()
@@ -66,15 +67,37 @@ class FakeHTTPConnection(object):
 class GobTest(cros_test_lib.MockTestCase):
   """Unittests that use mocks."""
 
+  UTF8_DATA = 'That\xe2\x80\x99s an error. That\xe2\x80\x99s all we know.'
+
+  def setUp(self):
+    self.conn = self.PatchObject(gob_util, 'CreateHttpConn', autospec=False)
+
   def testUtf8Response(self):
     """Handle gerrit responses w/UTF8 in them."""
-    utf8_data = 'That\xe2\x80\x99s an error. That\xe2\x80\x99s all we know.'
-    with mock.patch.object(gob_util, 'CreateHttpConn', autospec=False) as m:
-      m.return_value = FakeHTTPConnection(body=utf8_data)
+    self.conn.return_value = FakeHTTPConnection(body=self.UTF8_DATA)
+    gob_util.FetchUrl('', '')
+
+  def testUtf8Response502(self):
+    self.conn.return_value = FakeHTTPConnection(body=self.UTF8_DATA, status=502)
+
+    with self.assertRaises(gob_util.InternalGOBError):
       gob_util.FetchUrl('', '')
 
-      m.return_value = FakeHTTPConnection(body=utf8_data, status=502)
-      self.assertRaises(gob_util.InternalGOBError, gob_util.FetchUrl, '', '')
+  def testConnectionTimeout(self):
+    """Exercise the timeout process."""
+    # To finish the test quickly, we need to shorten the timeout.
+    self.PatchObject(gob_util, 'REQUEST_TIMEOUT_SECONDS', 1)
+
+    # Setup a 'hanging' network connection.
+    def simulateHang(*_args, **_kwargs):
+      time.sleep(30)
+      self.fail('Would hang forever.')
+
+    self.conn.side_effect = simulateHang
+
+    # Verify that we fail, with expected timeout error.
+    with self.assertRaises(timeout_util.TimeoutError):
+      gob_util.FetchUrl('', '')
 
 
 class GetCookieTests(cros_test_lib.TestCase):
@@ -110,6 +133,17 @@ class NetworkGobTest(cros_test_lib.TestCase):
                             ignore_404=False)
     self.assertEqual(ex.exception.http_status, 404)
 
+  def test409Exception(self):
+    """Test FetchUrlJson raises 409 errors with response body message."""
+    with self.assertRaises(gob_util.GOBError) as ex:
+      gob_util.FetchUrlJson(
+          site_config.params.EXTERNAL_GERRIT_HOST,
+          'changes/422652/revisions/901b4ee349a9395ba23a7a1e8597a35050f741e4/'
+          'review', reqtype='POST', body={'labels': {'Trybot-Ready': '+1'}})
+
+    self.assertEqual(ex.exception.http_status, 409)
+    self.assertEqual(ex.exception.reason,
+                     gob_util.GOB_ERROR_REASON_CLOSED_CHANGE)
 
 def main(_argv):
   gob_util.TRY_LIMIT = 1

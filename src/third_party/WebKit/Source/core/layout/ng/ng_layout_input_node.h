@@ -10,9 +10,12 @@
 
 namespace blink {
 
+class ComputedStyle;
+class LayoutObject;
+class NGBreakToken;
 class NGConstraintSpace;
-class NGFragment;
-class NGLayoutAlgorithm;
+class NGLayoutResult;
+struct MinMaxContentSize;
 
 // Represents the input to a layout algorithm for a given node. The layout
 // engine should use the style, node type to determine which type of layout
@@ -22,22 +25,28 @@ class CORE_EXPORT NGLayoutInputNode
  public:
   enum NGLayoutInputNodeType { kLegacyBlock = 0, kLegacyInline = 1 };
 
+  bool IsInline() const { return type_ == kLegacyInline; }
+
+  bool IsBlock() const { return type_ == kLegacyBlock; }
+
   virtual ~NGLayoutInputNode(){};
 
-  // Returns true when done; when this function returns false, it has to be
-  // called again. The out parameter will only be set when this function
-  // returns true. The same constraint space has to be passed each time.
-  virtual bool Layout(NGConstraintSpace*, NGFragment**) = 0;
+  // Performs layout on this input node, will return the layout result.
+  virtual RefPtr<NGLayoutResult> Layout(NGConstraintSpace*, NGBreakToken*) = 0;
 
   // Returns the next sibling.
   virtual NGLayoutInputNode* NextSibling() = 0;
 
+  // Returns the LayoutObject which is associated with this node.
+  virtual LayoutObject* GetLayoutObject() = 0;
+
+  virtual MinMaxContentSize ComputeMinMaxContentSize() = 0;
+
+  virtual const ComputedStyle& Style() const = 0;
+
   NGLayoutInputNodeType Type() const {
     return static_cast<NGLayoutInputNodeType>(type_);
   }
-
-  static NGLayoutAlgorithm* AlgorithmForInputNode(NGLayoutInputNode*,
-                                                  NGConstraintSpace*);
 
   DEFINE_INLINE_VIRTUAL_TRACE() {}
 

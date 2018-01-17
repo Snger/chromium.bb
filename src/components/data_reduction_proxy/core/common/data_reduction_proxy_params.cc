@@ -41,6 +41,8 @@ const char kAndroidOneIdentifier[] = "sprout";
 const char kQuicFieldTrial[] = "DataReductionProxyUseQuic";
 
 const char kLoFiFieldTrial[] = "DataCompressionProxyLoFi";
+const char kLitePageFallbackFieldTrial[] =
+    "DataCompressionProxyLitePageFallback";
 const char kLoFiFlagFieldTrial[] = "DataCompressionProxyLoFiFlag";
 
 const char kTrustedSpdyProxyFieldTrialName[] = "DataReductionTrustedSpdyProxy";
@@ -104,6 +106,10 @@ const char* GetLoFiFieldTrialName() {
   return kLoFiFieldTrial;
 }
 
+const char* GetLitePageFallbackFieldTrialName() {
+  return kLitePageFallbackFieldTrial;
+}
+
 const char* GetLoFiFlagFieldTrialName() {
   return kLoFiFlagFieldTrial;
 }
@@ -125,6 +131,11 @@ bool IsIncludedInLitePageFieldTrial() {
                           kLitePage, base::CompareCase::SENSITIVE);
 }
 
+bool IsLitePageFallbackEnabled() {
+  return IsIncludedInFieldTrial(GetLitePageFallbackFieldTrialName()) ||
+         (IsLoFiOnViaFlags() && AreLitePagesEnabledViaFlags());
+}
+
 bool IsIncludedInServerExperimentsFieldTrial() {
   return !base::CommandLine::ForCurrentProcess()->HasSwitch(
              data_reduction_proxy::switches::
@@ -142,8 +153,7 @@ bool IsIncludedInTamperDetectionExperiment() {
 bool FetchWarmupURLEnabled() {
   // Fetching of the warmup URL can be enabled only for Enabled* and Control*
   // groups.
-  if (!base::StartsWith(FieldTrialList::FindFullName(kQuicFieldTrial), kEnabled,
-                        base::CompareCase::SENSITIVE) &&
+  if (!IsIncludedInQuicFieldTrial() &&
       !base::StartsWith(FieldTrialList::FindFullName(kQuicFieldTrial), kControl,
                         base::CompareCase::SENSITIVE)) {
     return false;
@@ -215,7 +225,24 @@ bool WarnIfNoDataReductionProxy() {
 }
 
 bool IsIncludedInQuicFieldTrial() {
-  return IsIncludedInFieldTrial(kQuicFieldTrial);
+  if (base::StartsWith(FieldTrialList::FindFullName(kQuicFieldTrial), kControl,
+                       base::CompareCase::SENSITIVE)) {
+    return false;
+  }
+  if (base::StartsWith(FieldTrialList::FindFullName(kQuicFieldTrial), kDisabled,
+                       base::CompareCase::SENSITIVE)) {
+    return false;
+  }
+  // QUIC is enabled by default.
+  return true;
+}
+
+bool IsQuicEnabledForNonCoreProxies() {
+  DCHECK(IsIncludedInQuicFieldTrial());
+  std::map<std::string, std::string> params;
+  variations::GetVariationParams(GetQuicFieldTrialName(), &params);
+  return GetStringValueForVariationParamWithDefaultValue(
+             params, "enable_quic_non_core_proxies", "false") == "true";
 }
 
 const char* GetQuicFieldTrialName() {
@@ -467,7 +494,7 @@ void DataReductionProxyParams::InitWithoutChecks() {
   secure_proxy_check_url_ = GURL(secure_proxy_check_url);
 }
 
-const std::vector<DataReductionProxyServer>
+const std::vector<DataReductionProxyServer>&
 DataReductionProxyParams::proxies_for_http() const {
   if (use_override_proxies_for_http_)
     return override_data_reduction_proxy_servers_;

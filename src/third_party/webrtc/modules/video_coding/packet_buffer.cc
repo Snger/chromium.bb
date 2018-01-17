@@ -148,7 +148,8 @@ void PacketBuffer::Clear() {
 bool PacketBuffer::ExpandBufferSize() {
   if (size_ == max_size_) {
     LOG(LS_WARNING) << "PacketBuffer is already at max size (" << max_size_
-                    << "), failed to increase size.";
+                    << "), failed to increase size. Clearing PacketBuffer.";
+    Clear();
     return false;
   }
 
@@ -196,8 +197,7 @@ bool PacketBuffer::PotentialNewFrame(uint16_t seq_num) const {
 std::vector<std::unique_ptr<RtpFrameObject>> PacketBuffer::FindFrames(
     uint16_t seq_num) {
   std::vector<std::unique_ptr<RtpFrameObject>> found_frames;
-  size_t packets_tested = 0;
-  while (packets_tested < size_ && PotentialNewFrame(seq_num)) {
+  for (size_t i = 0; i < size_ && PotentialNewFrame(seq_num); ++i) {
     size_t index = seq_num % size_;
     sequence_buffer_[index].continuous = true;
 
@@ -211,17 +211,36 @@ std::vector<std::unique_ptr<RtpFrameObject>> PacketBuffer::FindFrames(
       // Find the start index by searching backward until the packet with
       // the |frame_begin| flag is set.
       int start_index = index;
-      while (true) {
+
+      bool is_h264 = data_buffer_[start_index].codec == kVideoCodecH264;
+      int64_t frame_timestamp = data_buffer_[start_index].timestamp;
+
+      // Since packet at |data_buffer_[index]| is already part of the frame
+      // we will have at most |size_ - 1| packets left to check.
+      for (size_t j = 0; j < size_ - 1; ++j) {
         frame_size += data_buffer_[start_index].sizeBytes;
         max_nack_count =
             std::max(max_nack_count, data_buffer_[start_index].timesNacked);
         sequence_buffer_[start_index].frame_created = true;
 
-        if (sequence_buffer_[start_index].frame_begin)
+        if (!is_h264 && sequence_buffer_[start_index].frame_begin)
           break;
 
         start_index = start_index > 0 ? start_index - 1 : size_ - 1;
-        start_seq_num--;
+
+        // In the case of H264 we don't have a frame_begin bit (yes,
+        // |frame_begin| might be set to true but that is a lie). So instead
+        // we traverese backwards as long as we have a previous packet and
+        // the timestamp of that packet is the same as this one. This may cause
+        // the PacketBuffer to hand out incomplete frames.
+        // See: https://bugs.chromium.org/p/webrtc/issues/detail?id=7106
+        if (is_h264 &&
+            (!sequence_buffer_[start_index].used ||
+             data_buffer_[start_index].timestamp != frame_timestamp)) {
+          break;
+        }
+
+        --start_seq_num;
       }
 
       found_frames.emplace_back(
@@ -229,7 +248,6 @@ std::vector<std::unique_ptr<RtpFrameObject>> PacketBuffer::FindFrames(
                              max_nack_count, clock_->TimeInMilliseconds()));
     }
     ++seq_num;
-    ++packets_tested;
   }
   return found_frames;
 }

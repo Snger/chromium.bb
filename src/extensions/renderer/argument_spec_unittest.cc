@@ -5,6 +5,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/values.h"
 #include "extensions/renderer/api_binding_test_util.h"
+#include "extensions/renderer/api_type_reference_map.h"
 #include "extensions/renderer/argument_spec.h"
 #include "gin/converter.h"
 #include "gin/public/isolate_holder.h"
@@ -16,42 +17,51 @@ namespace extensions {
 
 class ArgumentSpecUnitTest : public gin::V8Test {
  protected:
-  ArgumentSpecUnitTest() {}
+  ArgumentSpecUnitTest()
+      : type_refs_(APITypeReferenceMap::InitializeTypeCallback()) {}
   ~ArgumentSpecUnitTest() override {}
   void ExpectSuccess(const ArgumentSpec& spec,
                      const std::string& script_source,
                      const std::string& expected_json_single_quotes) {
     RunTest(spec, script_source, true, TestResult::PASS,
-            ReplaceSingleQuotes(expected_json_single_quotes), std::string());
+            ReplaceSingleQuotes(expected_json_single_quotes), nullptr,
+            std::string());
+  }
+
+  void ExpectSuccess(const ArgumentSpec& spec,
+                     const std::string& script_source,
+                     const base::Value& expected_value) {
+    RunTest(spec, script_source, true, TestResult::PASS, std::string(),
+            &expected_value, std::string());
   }
 
   void ExpectSuccessWithNoConversion(const ArgumentSpec& spec,
                                      const std::string& script_source) {
-    RunTest(spec, script_source, false, TestResult::PASS,
-            std::string(), std::string());
+    RunTest(spec, script_source, false, TestResult::PASS, std::string(),
+            nullptr, std::string());
   }
 
   void ExpectFailure(const ArgumentSpec& spec,
                      const std::string& script_source) {
-    RunTest(spec, script_source, true, TestResult::FAIL, std::string(),
+    RunTest(spec, script_source, true, TestResult::FAIL, std::string(), nullptr,
             std::string());
   }
 
   void ExpectFailureWithNoConversion(const ArgumentSpec& spec,
                                      const std::string& script_source) {
     RunTest(spec, script_source, false, TestResult::FAIL, std::string(),
-            std::string());
+            nullptr, std::string());
   }
 
   void ExpectThrow(const ArgumentSpec& spec,
                    const std::string& script_source,
                    const std::string& expected_thrown_message) {
     RunTest(spec, script_source, true, TestResult::THROW, std::string(),
-            expected_thrown_message);
+            nullptr, expected_thrown_message);
   }
 
   void AddTypeRef(const std::string& id, std::unique_ptr<ArgumentSpec> spec) {
-    type_refs_[id] = std::move(spec);
+    type_refs_.AddSpec(id, std::move(spec));
   }
 
  private:
@@ -62,9 +72,10 @@ class ArgumentSpecUnitTest : public gin::V8Test {
                bool should_convert,
                TestResult expected_result,
                const std::string& expected_json,
+               const base::Value* expected_value,
                const std::string& expected_thrown_message);
 
-  ArgumentSpec::RefMap type_refs_;
+  APITypeReferenceMap type_refs_;
 
   DISALLOW_COPY_AND_ASSIGN(ArgumentSpecUnitTest);
 };
@@ -74,6 +85,7 @@ void ArgumentSpecUnitTest::RunTest(const ArgumentSpec& spec,
                                    bool should_convert,
                                    TestResult expected_result,
                                    const std::string& expected_json,
+                                   const base::Value* expected_value,
                                    const std::string& expected_thrown_message) {
   v8::Isolate* isolate = instance_->isolate();
   v8::HandleScope handle_scope(instance_->isolate());
@@ -96,7 +108,10 @@ void ArgumentSpecUnitTest::RunTest(const ArgumentSpec& spec,
   ASSERT_EQ(should_throw, try_catch.HasCaught()) << script_source;
   if (should_succeed && should_convert) {
     ASSERT_TRUE(out_value);
-    EXPECT_EQ(expected_json, ValueToString(*out_value));
+    if (expected_value)
+      EXPECT_TRUE(expected_value->Equals(out_value.get())) << script_source;
+    else
+      EXPECT_EQ(expected_json, ValueToString(*out_value));
   } else if (should_throw) {
     EXPECT_EQ(expected_thrown_message,
               gin::V8ToString(try_catch.Message()->Get()));
@@ -109,12 +124,30 @@ TEST_F(ArgumentSpecUnitTest, Test) {
     ExpectSuccess(spec, "1", "1");
     ExpectSuccess(spec, "-1", "-1");
     ExpectSuccess(spec, "0", "0");
+    ExpectSuccess(spec, "0.0", "0");
     ExpectFailure(spec, "undefined");
     ExpectFailure(spec, "null");
+    ExpectFailure(spec, "1.1");
     ExpectFailure(spec, "'foo'");
     ExpectFailure(spec, "'1'");
     ExpectFailure(spec, "{}");
     ExpectFailure(spec, "[1]");
+  }
+
+  {
+    ArgumentSpec spec(*ValueFromString("{'type': 'number'}"));
+    ExpectSuccess(spec, "1", "1.0");
+    ExpectSuccess(spec, "-1", "-1.0");
+    ExpectSuccess(spec, "0", "0.0");
+    ExpectSuccess(spec, "1.1", "1.1");
+    ExpectSuccess(spec, "1.", "1.0");
+    ExpectSuccess(spec, ".1", "0.1");
+    ExpectFailure(spec, "undefined");
+    ExpectFailure(spec, "null");
+    ExpectFailure(spec, "'foo'");
+    ExpectFailure(spec, "'1.1'");
+    ExpectFailure(spec, "{}");
+    ExpectFailure(spec, "[1.1]");
   }
 
   {
@@ -177,6 +210,10 @@ TEST_F(ArgumentSpecUnitTest, Test) {
     ExpectFailure(spec, "'foo'");
     ExpectFailure(spec, "[1, 2]");
     ExpectFailure(spec, "['foo', 1]");
+    ExpectFailure(spec,
+                  "var x = ['a', 'b', 'c'];"
+                  "x[4] = 'd';"  // x[3] is undefined, violating the spec.
+                  "x;");
     ExpectThrow(
         spec,
         "var x = [];"
@@ -199,21 +236,26 @@ TEST_F(ArgumentSpecUnitTest, Test) {
     ArgumentSpec spec(*ValueFromString(kObjectSpec));
     ExpectSuccess(spec, "({prop1: 'foo', prop2: 2})",
                   "{'prop1':'foo','prop2':2}");
-    ExpectSuccess(spec, "({prop1: 'foo', prop2: 2, prop3: 'blah'})",
-                  "{'prop1':'foo','prop2':2}");
     ExpectSuccess(spec, "({prop1: 'foo'})", "{'prop1':'foo'}");
     ExpectSuccess(spec, "({prop1: 'foo', prop2: null})", "{'prop1':'foo'}");
     ExpectSuccess(spec, "x = {}; x.prop1 = 'foo'; x;", "{'prop1':'foo'}");
-    ExpectSuccess(
-        spec,
-        "function X() {}\n"
-        "X.prototype = { prop1: 'foo' };\n"
-        "function Y() { this.__proto__ = X.prototype; }\n"
-        "var z = new Y();\n"
-        "z;",
-        "{'prop1':'foo'}");
     ExpectFailure(spec, "({prop1: 'foo', prop2: 'bar'})");
     ExpectFailure(spec, "({prop2: 2})");
+    // Unknown properties are not allowed.
+    ExpectFailure(spec, "({prop1: 'foo', prop2: 2, prop3: 'blah'})");
+    // We only consider properties on the object itself, not its prototype
+    // chain.
+    ExpectFailure(spec,
+                  "function X() {}\n"
+                  "X.prototype = { prop1: 'foo' };\n"
+                  "var x = new X();\n"
+                  "x;");
+    ExpectFailure(spec,
+                  "function X() {}\n"
+                  "X.prototype = { prop1: 'foo' };\n"
+                  "function Y() { this.__proto__ = X.prototype; }\n"
+                  "var z = new Y();\n"
+                  "z;");
     // Self-referential fun. Currently we don't have to worry about these much
     // because the spec won't match at some point (and V8ValueConverter has
     // cycle detection and will fail).
@@ -222,25 +264,95 @@ TEST_F(ArgumentSpecUnitTest, Test) {
         spec,
         "({ get prop1() { throw new Error('Badness'); }});",
         "Uncaught Error: Badness");
-    ExpectThrow(
-        spec,
-        "x = {prop1: 'foo'};\n"
-        "Object.defineProperty(\n"
-        "    x, 'prop2',\n"
-        "    { get: () => { throw new Error('Badness'); } });\n"
-        "x;",
-        "Uncaught Error: Badness");
+    ExpectThrow(spec,
+                "x = {prop1: 'foo'};\n"
+                "Object.defineProperty(\n"
+                "    x, 'prop2',\n"
+                "    {\n"
+                "      get: () => { throw new Error('Badness'); },\n"
+                "      enumerable: true,\n"
+                "});\n"
+                "x;",
+                "Uncaught Error: Badness");
+    // By default, properties from Object.defineProperty() aren't enumerable,
+    // so they will be ignored in our matching.
+    ExpectSuccess(spec,
+                  "x = {prop1: 'foo'};\n"
+                  "Object.defineProperty(\n"
+                  "    x, 'prop2',\n"
+                  "    { get: () => { throw new Error('Badness'); } });\n"
+                  "x;",
+                  "{'prop1':'foo'}");
   }
 
   {
     const char kFunctionSpec[] = "{ 'type': 'function' }";
     ArgumentSpec spec(*ValueFromString(kFunctionSpec));
+    // Functions are serialized as empty dictionaries.
+    ExpectSuccess(spec, "(function() {})", "{}");
     ExpectSuccessWithNoConversion(spec, "(function() {})");
     ExpectSuccessWithNoConversion(spec, "(function(a, b) { a(); b(); })");
     ExpectSuccessWithNoConversion(spec, "(function(a, b) { a(); b(); })");
     ExpectFailureWithNoConversion(spec, "({a: function() {}})");
     ExpectFailureWithNoConversion(spec, "([function() {}])");
     ExpectFailureWithNoConversion(spec, "1");
+  }
+
+  {
+    const char kBinarySpec[] = "{ 'type': 'binary' }";
+    ArgumentSpec spec(*ValueFromString(kBinarySpec));
+    // Simple case: empty ArrayBuffer -> empty BinaryValue.
+    ExpectSuccess(spec, "(new ArrayBuffer())",
+                  base::Value(base::Value::Type::BINARY));
+    {
+      // A non-empty (but zero-filled) ArrayBufferView.
+      const char kBuffer[] = {0, 0, 0, 0};
+      std::unique_ptr<base::Value> expected_value =
+          base::Value::CreateWithCopiedBuffer(kBuffer, arraysize(kBuffer));
+      ASSERT_TRUE(expected_value);
+      ExpectSuccessWithNoConversion(spec, "(new Int32Array(2))");
+    }
+    {
+      // Actual data.
+      const char kBuffer[] = {'p', 'i', 'n', 'g'};
+      std::unique_ptr<base::Value> expected_value =
+          base::Value::CreateWithCopiedBuffer(kBuffer, arraysize(kBuffer));
+      ASSERT_TRUE(expected_value);
+      ExpectSuccess(spec,
+                    "var b = new ArrayBuffer(4);\n"
+                    "var v = new Uint8Array(b);\n"
+                    "var s = 'ping';\n"
+                    "for (var i = 0; i < s.length; ++i)\n"
+                    "  v[i] = s.charCodeAt(i);\n"
+                    "b;",
+                    *expected_value);
+    }
+    ExpectFailure(spec, "1");
+  }
+  {
+    const char kAnySpec[] = "{ 'type': 'any' }";
+    ArgumentSpec spec(*ValueFromString(kAnySpec));
+    ExpectSuccess(spec, "42", "42");
+    ExpectSuccess(spec, "'foo'", "'foo'");
+    ExpectSuccess(spec, "({prop1:'bar'})", "{'prop1':'bar'}");
+    ExpectSuccess(spec, "[1, 2, 3]", "[1,2,3]");
+    ExpectSuccess(spec, "[1, 'a']", "[1,'a']");
+    ExpectSuccess(spec, "null", base::Value());
+    ExpectSuccess(spec, "({prop1: 'alpha', prop2: null})",
+                  "{'prop1':'alpha','prop2':null}");
+    ExpectSuccess(spec,
+                  "x = {alpha: 'alpha'};\n"
+                  "y = {beta: 'beta', x: x};\n"
+                  "y;",
+                  "{'beta':'beta','x':{'alpha':'alpha'}}");
+    // We don't serialize undefined.
+    // TODO(devlin): This matches current behavior, but should it? Part of the
+    // problem is that base::Values don't differentiate between undefined and
+    // null, which is a potentially important distinction. However, this means
+    // that in serialization of an object {a: 1, foo:undefined}, we lose the
+    // 'foo' property.
+    ExpectFailure(spec, "undefined");
+    ExpectSuccess(spec, "({prop1: 1, prop2: undefined})", "{'prop1':1}");
   }
 }
 
@@ -330,6 +442,203 @@ TEST_F(ArgumentSpecUnitTest, TypeChoicesTest) {
     ExpectFailure(spec, "({prop1: 1})");
     ExpectFailure(spec, "'alpha'");
     ExpectFailure(spec, "42");
+  }
+}
+
+TEST_F(ArgumentSpecUnitTest, AdditionalPropertiesTest) {
+  {
+    const char kOnlyAnyAdditionalProperties[] =
+        "{"
+        "  'type': 'object',"
+        "  'additionalProperties': {'type': 'any'}"
+        "}";
+    ArgumentSpec spec(*ValueFromString(kOnlyAnyAdditionalProperties));
+    ExpectSuccess(spec, "({prop1: 'alpha', prop2: 42, prop3: {foo: 'bar'}})",
+                  "{'prop1':'alpha','prop2':42,'prop3':{'foo':'bar'}}");
+    ExpectSuccess(spec, "({})", "{}");
+    // Test some crazy keys.
+    ExpectSuccess(spec,
+                  "var x = {};\n"
+                  "var y = {prop1: 'alpha'};\n"
+                  "y[42] = 'beta';\n"
+                  "y[x] = 'gamma';\n"
+                  "y[undefined] = 'delta';\n"
+                  "y;",
+                  "{'42':'beta','[object Object]':'gamma','prop1':'alpha',"
+                  "'undefined':'delta'}");
+    // We (typically*, see "Fun case" below) don't serialize properties on an
+    // object prototype.
+    ExpectSuccess(spec,
+                  "({\n"
+                  "  __proto__: {protoProp: 'proto'},\n"
+                  "  instanceProp: 'instance'\n"
+                  "})",
+                  "{'instanceProp':'instance'}");
+    // Fun case: Remove a property as a result of getting another. Currently,
+    // we don't check each property with HasOwnProperty() during iteration, so
+    // Fun case: Remove a property as a result of getting another. Currently,
+    // we don't check each property with HasOwnProperty() during iteration, so
+    // we still try to serialize it. But we don't serialize undefined, so in the
+    // case of the property not being defined on the prototype, this works as
+    // expected.
+    ExpectSuccess(spec,
+                  "var x = {};\n"
+                  "Object.defineProperty(\n"
+                  "    x, 'alpha',\n"
+                  "    {\n"
+                  "      enumerable: true,\n"
+                  "      get: () => { delete x.omega; return 'alpha'; }\n"
+                  "    });\n"
+                  "x.omega = 'omega';\n"
+                  "x;",
+                  "{'alpha':'alpha'}");
+    // Fun case continued: If an object removes the property, and the property
+    // *is* present on the prototype, then we serialize the value from the
+    // prototype. This is inconsistent, but only manifests scripts are doing
+    // crazy things (and is still safe).
+    // TODO(devlin): We *could* add a HasOwnProperty() check, in which case
+    // the result of this call should be {'alpha':'alpha'}.
+    ExpectSuccess(spec,
+                  "var x = {\n"
+                  "  __proto__: { omega: 'different omega' }\n"
+                  "};\n"
+                  "Object.defineProperty(\n"
+                  "    x, 'alpha',\n"
+                  "    {\n"
+                  "      enumerable: true,\n"
+                  "      get: () => { delete x.omega; return 'alpha'; }\n"
+                  "    });\n"
+                  "x.omega = 'omega';\n"
+                  "x;",
+                  "{'alpha':'alpha','omega':'different omega'}");
+  }
+  {
+    const char kPropertiesAndAnyAdditionalProperties[] =
+        "{"
+        "  'type': 'object',"
+        "  'properties': {"
+        "    'prop1': {'type': 'string'}"
+        "  },"
+        "  'additionalProperties': {'type': 'any'}"
+        "}";
+    ArgumentSpec spec(*ValueFromString(kPropertiesAndAnyAdditionalProperties));
+    ExpectSuccess(spec, "({prop1: 'alpha', prop2: 42, prop3: {foo: 'bar'}})",
+                  "{'prop1':'alpha','prop2':42,'prop3':{'foo':'bar'}}");
+    // Additional properties are optional.
+    ExpectSuccess(spec, "({prop1: 'foo'})", "{'prop1':'foo'}");
+    ExpectFailure(spec, "({prop2: 42, prop3: {foo: 'bar'}})");
+    ExpectFailure(spec, "({prop1: 42})");
+  }
+  {
+    const char kTypedAdditionalProperties[] =
+        "{"
+        "  'type': 'object',"
+        "  'additionalProperties': {'type': 'string'}"
+        "}";
+    ArgumentSpec spec(*ValueFromString(kTypedAdditionalProperties));
+    ExpectSuccess(spec, "({prop1: 'alpha', prop2: 'beta', prop3: 'gamma'})",
+                  "{'prop1':'alpha','prop2':'beta','prop3':'gamma'}");
+    ExpectFailure(spec, "({prop1: 'alpha', prop2: 42})");
+  }
+}
+
+TEST_F(ArgumentSpecUnitTest, InstanceOfTest) {
+  {
+    const char kInstanceOfRegExp[] =
+        "{"
+        "  'type': 'object',"
+        "  'isInstanceOf': 'RegExp'"
+        "}";
+    ArgumentSpec spec(*ValueFromString(kInstanceOfRegExp));
+    ExpectSuccess(spec, "(new RegExp())", "{}");
+    ExpectSuccess(spec, "({ __proto__: RegExp.prototype })", "{}");
+    ExpectSuccess(spec,
+                  "(function() {\n"
+                  "  function subRegExp() {}\n"
+                  "  subRegExp.prototype = { __proto__: RegExp.prototype };\n"
+                  "  return new subRegExp();\n"
+                  "})()",
+                  "{}");
+    ExpectSuccess(spec,
+                  "(function() {\n"
+                  "  function RegExp() {}\n"
+                  "  return new RegExp();\n"
+                  "})()",
+                  "{}");
+    ExpectFailure(spec, "({})");
+    ExpectFailure(spec, "('')");
+    ExpectFailure(spec, "('.*')");
+    ExpectFailure(spec, "({ __proto__: Date.prototype })");
+  }
+
+  {
+    const char kInstanceOfCustomClass[] =
+        "{"
+        "  'type': 'object',"
+        "  'isInstanceOf': 'customClass'"
+        "}";
+    ArgumentSpec spec(*ValueFromString(kInstanceOfCustomClass));
+    ExpectSuccess(spec,
+                  "(function() {\n"
+                  "  function customClass() {}\n"
+                  "  return new customClass();\n"
+                  "})()",
+                  "{}");
+    ExpectSuccess(spec,
+                  "(function() {\n"
+                  "  function customClass() {}\n"
+                  "  function otherClass() {}\n"
+                  "  otherClass.prototype = \n"
+                  "      { __proto__: customClass.prototype };\n"
+                  "  return new otherClass();\n"
+                  "})()",
+                  "{}");
+    ExpectFailure(spec, "({})");
+    ExpectFailure(spec,
+                  "(function() {\n"
+                  "  function otherClass() {}\n"
+                  "  return new otherClass();\n"
+                  "})()");
+  }
+}
+
+TEST_F(ArgumentSpecUnitTest, MinAndMaxLengths) {
+  {
+    const char kMinLengthString[] = "{'type': 'string', 'minLength': 3}";
+    ArgumentSpec spec(*ValueFromString(kMinLengthString));
+    ExpectSuccess(spec, "'aaa'", "'aaa'");
+    ExpectSuccess(spec, "'aaaa'", "'aaaa'");
+    ExpectFailure(spec, "'aa'");
+    ExpectFailure(spec, "''");
+  }
+
+  {
+    const char kMaxLengthString[] = "{'type': 'string', 'maxLength': 3}";
+    ArgumentSpec spec(*ValueFromString(kMaxLengthString));
+    ExpectSuccess(spec, "'aaa'", "'aaa'");
+    ExpectSuccess(spec, "'aa'", "'aa'");
+    ExpectSuccess(spec, "''", "''");
+    ExpectFailure(spec, "'aaaa'");
+  }
+
+  {
+    const char kMinLengthArray[] =
+        "{'type': 'array', 'items': {'type': 'integer'}, 'minItems': 3}";
+    ArgumentSpec spec(*ValueFromString(kMinLengthArray));
+    ExpectSuccess(spec, "[1, 2, 3]", "[1,2,3]");
+    ExpectSuccess(spec, "[1, 2, 3, 4]", "[1,2,3,4]");
+    ExpectFailure(spec, "[1, 2]");
+    ExpectFailure(spec, "[]");
+  }
+
+  {
+    const char kMaxLengthArray[] =
+        "{'type': 'array', 'items': {'type': 'integer'}, 'maxItems': 3}";
+    ArgumentSpec spec(*ValueFromString(kMaxLengthArray));
+    ExpectSuccess(spec, "[1, 2, 3]", "[1,2,3]");
+    ExpectSuccess(spec, "[1, 2]", "[1,2]");
+    ExpectSuccess(spec, "[]", "[]");
+    ExpectFailure(spec, "[1, 2, 3, 4]");
   }
 }
 

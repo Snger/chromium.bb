@@ -14,11 +14,8 @@
 #include "base/android/scoped_java_ref.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
-#include "content/browser/frame_host/frame_tree.h"
-#include "content/browser/frame_host/frame_tree_node.h"
 #include "content/browser/frame_host/render_frame_host_impl.h"
 #include "content/browser/renderer_host/render_view_host_delegate.h"
-#include "content/browser/renderer_host/render_view_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_view_android.h"
 #include "content/common/input_messages.h"
@@ -49,7 +46,7 @@ NativeWebKeyboardEvent NativeWebKeyboardEventFromKeyEvent(
     const base::android::JavaRef<jobject>& java_key_event,
     int type,
     int modifiers,
-    long time_ms,
+    jlong time_ms,
     int key_code,
     int scan_code,
     bool is_system_key,
@@ -110,6 +107,7 @@ void AppendUnderlineSpan(JNIEnv*,
 
 ImeAdapterAndroid::ImeAdapterAndroid(RenderWidgetHostViewAndroid* rwhva)
     : rwhva_(rwhva) {
+  DCHECK(rwhva_);
 }
 
 ImeAdapterAndroid::~ImeAdapterAndroid() {
@@ -125,14 +123,14 @@ bool ImeAdapterAndroid::SendKeyEvent(
     const JavaParamRef<jobject>& original_key_event,
     int type,
     int modifiers,
-    long time_ms,
+    jlong time_ms,
     int key_code,
     int scan_code,
     bool is_system_key,
     int unicode_char) {
   NativeWebKeyboardEvent event = NativeWebKeyboardEventFromKeyEvent(
-          env, original_key_event, type, modifiers,
-          time_ms / 1000.0, key_code, scan_code, is_system_key, unicode_char);
+      env, original_key_event, type, modifiers, time_ms, key_code, scan_code,
+      is_system_key, unicode_char);
   rwhva_->SendKeyEvent(event);
   return true;
 }
@@ -142,7 +140,7 @@ void ImeAdapterAndroid::SetComposingText(JNIEnv* env,
                                          const JavaParamRef<jobject>& text,
                                          const JavaParamRef<jstring>& text_str,
                                          int relative_cursor_pos) {
-  RenderWidgetHostImpl* rwhi = GetRenderWidgetHostImpl();
+  RenderWidgetHostImpl* rwhi = GetFocusedWidget();
   if (!rwhi)
     return;
 
@@ -172,7 +170,7 @@ void ImeAdapterAndroid::CommitText(JNIEnv* env,
                                    const JavaParamRef<jobject>& text,
                                    const JavaParamRef<jstring>& text_str,
                                    int relative_cursor_pos) {
-  RenderWidgetHostImpl* rwhi = GetRenderWidgetHostImpl();
+  RenderWidgetHostImpl* rwhi = GetFocusedWidget();
   if (!rwhi)
     return;
 
@@ -195,7 +193,7 @@ void ImeAdapterAndroid::CommitText(JNIEnv* env,
 
 void ImeAdapterAndroid::FinishComposingText(JNIEnv* env,
                                             const JavaParamRef<jobject>&) {
-  RenderWidgetHostImpl* rwhi = GetRenderWidgetHostImpl();
+  RenderWidgetHostImpl* rwhi = GetFocusedWidget();
   if (!rwhi)
     return;
 
@@ -285,10 +283,21 @@ void ImeAdapterAndroid::DeleteSurroundingText(JNIEnv*,
     rfh->DeleteSurroundingText(before, after);
 }
 
+void ImeAdapterAndroid::DeleteSurroundingTextInCodePoints(
+    JNIEnv*,
+    const JavaParamRef<jobject>&,
+    int before,
+    int after) {
+  RenderFrameHostImpl* rfh =
+      static_cast<RenderFrameHostImpl*>(GetFocusedFrame());
+  if (rfh)
+    rfh->DeleteSurroundingTextInCodePoints(before, after);
+}
+
 bool ImeAdapterAndroid::RequestTextInputStateUpdate(
     JNIEnv* env,
     const JavaParamRef<jobject>&) {
-  RenderWidgetHostImpl* rwhi = GetRenderWidgetHostImpl();
+  RenderWidgetHostImpl* rwhi = GetFocusedWidget();
   if (!rwhi)
     return false;
   rwhi->Send(new InputMsg_RequestTextInputStateUpdate(rwhi->GetRoutingID()));
@@ -300,10 +309,10 @@ void ImeAdapterAndroid::RequestCursorUpdate(
     const base::android::JavaParamRef<jobject>& obj,
     bool immediate_request,
     bool monitor_request) {
-  RenderWidgetHostImpl* rwhi = GetRenderWidgetHostImpl();
+  RenderWidgetHostImpl* rwhi = GetFocusedWidget();
   if (!rwhi)
     return;
-  rwhi->Send(new InputMsg_RequestCompositionUpdate(
+  rwhi->Send(new InputMsg_RequestCompositionUpdates(
       rwhi->GetRoutingID(), immediate_request, monitor_request));
 }
 
@@ -312,36 +321,25 @@ void ImeAdapterAndroid::ResetImeAdapter(JNIEnv* env,
   java_ime_adapter_.reset();
 }
 
-RenderWidgetHostImpl* ImeAdapterAndroid::GetRenderWidgetHostImpl() {
+RenderWidgetHostImpl* ImeAdapterAndroid::GetFocusedWidget() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  DCHECK(rwhva_);
-  RenderWidgetHost* rwh = rwhva_->GetRenderWidgetHost();
-  if (!rwh)
-    return nullptr;
-
-  return RenderWidgetHostImpl::From(rwh);
+  return rwhva_->GetFocusedWidget();
 }
 
 RenderFrameHost* ImeAdapterAndroid::GetFocusedFrame() {
-  RenderWidgetHostImpl* rwh = GetRenderWidgetHostImpl();
-  if (!rwh)
-    return nullptr;
-  RenderViewHost* rvh = RenderViewHost::From(rwh);
-  if (!rvh)
-    return nullptr;
-  FrameTreeNode* focused_frame =
-      rvh->GetDelegate()->GetFrameTree()->GetFocusedFrame();
-  if (!focused_frame)
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  // We get the focused frame from the WebContents of the page. Although
+  // |rwhva_->GetFocusedWidget()| does a similar thing, there is no direct way
+  // to get a RenderFrameHost from its RWH.
+  RenderWidgetHostImpl* rwh =
+      RenderWidgetHostImpl::From(rwhva_->GetRenderWidgetHost());
+  if (!rwh || !rwh->delegate())
     return nullptr;
 
-  return focused_frame->current_frame_host();
-}
+  if (auto* contents = rwh->delegate()->GetAsWebContents())
+    return contents->GetFocusedFrame();
 
-WebContents* ImeAdapterAndroid::GetWebContents() {
-  RenderWidgetHostImpl* rwh = GetRenderWidgetHostImpl();
-  if (!rwh)
-    return nullptr;
-  return WebContents::FromRenderViewHost(RenderViewHost::From(rwh));
+  return nullptr;
 }
 
 std::vector<blink::WebCompositionUnderline>

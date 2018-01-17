@@ -15,6 +15,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "chrome/browser/loader/chrome_resource_dispatcher_host_delegate.h"
 #include "chrome/browser/prerender/prerender_manager.h"
 #include "chrome/browser/prerender/prerender_manager_factory.h"
@@ -176,12 +177,10 @@ class HangingURLRequestJob : public net::URLRequestJob {
 
 class HangingFirstRequestInterceptor : public net::URLRequestInterceptor {
  public:
-  HangingFirstRequestInterceptor(const base::FilePath& file,
-                                 base::Closure callback)
-      : file_(file),
-        callback_(callback),
-        first_run_(true) {
-  }
+  HangingFirstRequestInterceptor(
+      const base::FilePath& file,
+      base::Callback<void(net::URLRequest*)> callback)
+      : file_(file), callback_(callback), first_run_(true) {}
   ~HangingFirstRequestInterceptor() override {}
 
   net::URLRequestJob* MaybeInterceptRequest(
@@ -189,10 +188,8 @@ class HangingFirstRequestInterceptor : public net::URLRequestInterceptor {
       net::NetworkDelegate* network_delegate) const override {
     if (first_run_) {
       first_run_ = false;
-      if (!callback_.is_null()) {
-        BrowserThread::PostTask(
-            BrowserThread::UI, FROM_HERE, callback_);
-      }
+      if (!callback_.is_null())
+        callback_.Run(request);
       return new HangingURLRequestJob(request, network_delegate);
     }
     return new net::URLRequestMockHTTPJob(
@@ -205,7 +202,7 @@ class HangingFirstRequestInterceptor : public net::URLRequestInterceptor {
 
  private:
   base::FilePath file_;
-  base::Closure callback_;
+  base::Callback<void(net::URLRequest*)> callback_;
   mutable bool first_run_;
 };
 
@@ -249,6 +246,17 @@ class NeverRunsExternalProtocolHandlerDelegate
 
   void FinishedProcessingCheck() override { NOTREACHED(); }
 };
+
+void CreateHangingFirstRequestInterceptorOnIO(
+    const GURL& url,
+    const base::FilePath& file,
+    base::Callback<void(net::URLRequest*)> callback_io) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::IO));
+  std::unique_ptr<net::URLRequestInterceptor> interceptor(
+      new HangingFirstRequestInterceptor(file, callback_io));
+  net::URLRequestFilter::GetInstance()->AddUrlInterceptor(
+      url, std::move(interceptor));
+}
 
 }  // namespace
 
@@ -540,7 +548,7 @@ void TestPrerender::OnPrerenderStop(PrerenderContents* contents) {
 FirstContentfulPaintManagerWaiter* FirstContentfulPaintManagerWaiter::Create(
     PrerenderManager* manager) {
   auto fcp_waiter = base::WrapUnique(new FirstContentfulPaintManagerWaiter());
-  auto fcp_waiter_ptr = fcp_waiter.get();
+  auto* fcp_waiter_ptr = fcp_waiter.get();
   manager->AddObserver(std::move(fcp_waiter));
   return fcp_waiter_ptr;
 }
@@ -800,13 +808,15 @@ void CreateMockInterceptorOnIO(const GURL& url, const base::FilePath& file) {
                file, content::BrowserThread::GetBlockingPool()));
 }
 
-void CreateHangingFirstRequestInterceptorOnIO(
-    const GURL& url, const base::FilePath& file, base::Closure callback) {
-  CHECK(BrowserThread::CurrentlyOn(BrowserThread::IO));
-  std::unique_ptr<net::URLRequestInterceptor> interceptor(
-      new HangingFirstRequestInterceptor(file, callback));
-  net::URLRequestFilter::GetInstance()->AddUrlInterceptor(
-      url, std::move(interceptor));
+void CreateHangingFirstRequestInterceptor(
+    const GURL& url,
+    const base::FilePath& file,
+    base::Callback<void(net::URLRequest*)> callback_io) {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
+  content::BrowserThread::PostTask(
+      content::BrowserThread::IO, FROM_HERE,
+      base::Bind(&CreateHangingFirstRequestInterceptorOnIO, url, file,
+                 callback_io));
 }
 
 }  // namespace test_utils

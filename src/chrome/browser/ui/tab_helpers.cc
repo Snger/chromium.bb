@@ -11,6 +11,7 @@
 #include "build/build_config.h"
 #include "chrome/browser/bookmarks/bookmark_model_factory.h"
 #include "chrome/browser/browser_process.h"
+#include "chrome/browser/content_settings/mixed_content_settings_tab_helper.h"
 #include "chrome/browser/content_settings/tab_specific_content_settings.h"
 #include "chrome/browser/data_use_measurement/data_use_web_contents_observer.h"
 #include "chrome/browser/engagement/site_engagement_helper.h"
@@ -21,6 +22,7 @@
 #include "chrome/browser/history/top_sites_factory.h"
 #include "chrome/browser/infobars/infobar_service.h"
 #include "chrome/browser/metrics/desktop_session_duration/desktop_session_duration_observer.h"
+#include "chrome/browser/metrics/renderer_uptime_web_contents_observer.h"
 #include "chrome/browser/net/net_error_tab_helper.h"
 #include "chrome/browser/net/predictor_tab_helper.h"
 #include "chrome/browser/ntp_snippets/bookmark_last_visit_updater.h"
@@ -35,6 +37,8 @@
 #include "chrome/browser/sessions/session_tab_helper.h"
 #include "chrome/browser/ssl/security_state_tab_helper.h"
 #include "chrome/browser/subresource_filter/chrome_subresource_filter_client.h"
+#include "chrome/browser/sync/sessions/sync_sessions_router_tab_helper.h"
+#include "chrome/browser/sync/sessions/sync_sessions_web_contents_router_factory.h"
 #include "chrome/browser/tab_contents/navigation_metrics_recorder.h"
 #include "chrome/browser/tracing/navigation_tracing.h"
 #include "chrome/browser/translate/chrome_translate_client.h"
@@ -61,6 +65,7 @@
 #include "components/subresource_filter/content/browser/content_subresource_filter_driver_factory.h"
 #include "components/tracing/common/tracing_switches.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/common/browser_side_navigation_policy.h"
 #include "extensions/features/features.h"
 #include "printing/features/features.h"
 
@@ -145,6 +150,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
   // SessionTabHelper comes first because it sets up the tab ID, and other
   // helpers may rely on that.
   SessionTabHelper::CreateForWebContents(web_contents);
+
 #if !defined(OS_ANDROID)
   // ZoomController comes before common tab helpers since ChromeAutofillClient
   // may want to register as a ZoomObserver with it.
@@ -180,6 +186,10 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
                             web_contents->GetBrowserContext())).get());
   HistoryTabHelper::CreateForWebContents(web_contents);
   InfoBarService::CreateForWebContents(web_contents);
+  metrics::RendererUptimeWebContentsObserver::CreateForWebContents(
+      web_contents);
+  if (content::IsBrowserSideNavigationEnabled())
+    MixedContentSettingsTabHelper::CreateForWebContents(web_contents);
   NavigationCorrectionTabObserver::CreateForWebContents(web_contents);
   NavigationMetricsRecorder::CreateForWebContents(web_contents);
   chrome::InitializePageLoadMetricsForWebContents(web_contents);
@@ -197,9 +207,16 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
       new ChromeSubresourceFilterClient(web_contents));
   subresource_filter::ContentSubresourceFilterDriverFactory::
       CreateForWebContents(web_contents, std::move(subresource_filter_client));
+  sync_sessions::SyncSessionsRouterTabHelper::CreateForWebContents(
+      web_contents,
+      sync_sessions::SyncSessionsWebContentsRouterFactory::GetForProfile(
+          Profile::FromBrowserContext(web_contents->GetBrowserContext())));
   // TODO(vabr): Remove TabSpecificContentSettings from here once their function
   // is taken over by ChromeContentSettingsClient. http://crbug.com/387075
   TabSpecificContentSettings::CreateForWebContents(web_contents);
+
+  // NO! Do not just add your tab helper here. This is a large alphabetized
+  // block; please insert your tab helper above in alphabetical order.
 
   // --- Platform-specific tab helpers ---
 
@@ -244,6 +261,7 @@ void TabHelpers::AttachTabHelpers(WebContents* web_contents) {
     (defined(OS_LINUX) && !defined(OS_CHROMEOS))
   metrics::DesktopSessionDurationObserver::CreateForWebContents(web_contents);
 #endif
+
 // --- Feature tab helpers behind flags ---
 
 #if BUILDFLAG(ENABLE_CAPTIVE_PORTAL_DETECTION)

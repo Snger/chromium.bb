@@ -26,8 +26,8 @@
 #include "ui/aura/window.h"
 #include "ui/aura/window_event_dispatcher.h"
 #include "ui/aura/window_observer.h"
-#include "ui/aura/window_property.h"
 #include "ui/aura/window_tree_host.h"
+#include "ui/base/class_property.h"
 #include "ui/base/dragdrop/os_exchange_data.h"
 #include "ui/base/ui_base_types.h"
 #include "ui/compositor/layer.h"
@@ -71,13 +71,13 @@
 #include "ui/views/widget/desktop_aura/desktop_window_tree_host.h"
 #endif
 
-DECLARE_WINDOW_PROPERTY_TYPE(views::internal::NativeWidgetPrivate*)
+DECLARE_UI_CLASS_PROPERTY_TYPE(views::internal::NativeWidgetPrivate*)
 
 namespace views {
 
 namespace {
 
-DEFINE_WINDOW_PROPERTY_KEY(internal::NativeWidgetPrivate*,
+DEFINE_UI_CLASS_PROPERTY_KEY(internal::NativeWidgetPrivate*,
                            kNativeWidgetPrivateKey,
                            nullptr);
 
@@ -108,7 +108,6 @@ NativeWidgetAura::NativeWidgetAura(internal::NativeWidgetDelegate* delegate,
       ownership_(Widget::InitParams::NATIVE_WIDGET_OWNS_WIDGET),
       destroying_(false),
       cursor_(gfx::kNullCursor),
-      saved_window_state_(ui::SHOW_STATE_DEFAULT),
       close_widget_factory_(this) {
   aura::client::SetFocusChangeObserver(window_, this);
   aura::client::SetActivationChangeObserver(window_, this);
@@ -128,6 +127,18 @@ void NativeWidgetAura::AssignIconToAuraWindow(aura::Window* window,
   if (window) {
     SetIcon(window, aura::client::kWindowIconKey, window_icon);
     SetIcon(window, aura::client::kAppIconKey, app_icon);
+  }
+}
+
+// static
+void NativeWidgetAura::SetShadowElevationFromInitParams(
+    aura::Window* window,
+    const Widget::InitParams& params) {
+  if (params.shadow_type == Widget::InitParams::SHADOW_TYPE_NONE) {
+    SetShadowElevation(window, wm::ShadowElevation::NONE);
+  } else if (params.shadow_type == Widget::InitParams::SHADOW_TYPE_DROP &&
+             params.shadow_elevation) {
+    SetShadowElevation(window, *params.shadow_elevation);
   }
 }
 
@@ -153,12 +164,7 @@ void NativeWidgetAura::InitNativeWidget(const Widget::InitParams& params) {
   window_->Init(params.layer_type);
   // Set name after layer init so it propagates to layer.
   window_->SetName(params.name);
-  if (params.shadow_type == Widget::InitParams::SHADOW_TYPE_NONE) {
-    SetShadowElevation(window_, wm::ShadowElevation::NONE);
-  } else if (params.shadow_type == Widget::InitParams::SHADOW_TYPE_DROP &&
-             params.shadow_elevation) {
-    SetShadowElevation(window_, *params.shadow_elevation);
-  }
+  SetShadowElevationFromInitParams(window_, params);
   if (params.type == Widget::InitParams::TYPE_CONTROL)
     window_->Show();
 
@@ -424,7 +430,7 @@ gfx::Rect NativeWidgetAura::GetRestoredBounds() const {
     return gfx::Rect();
 
   // Restored bounds should only be relevant if the window is minimized,
-  // maximized, fullscreen or docked. However, in some places the code expects
+  // maximized, or fullscreen. However, in some places the code expects
   // GetRestoredBounds() to return the current window bounds if the window is
   // not in either state.
   if (IsMinimized() || IsMaximized() || IsFullscreen()) {
@@ -434,20 +440,7 @@ gfx::Rect NativeWidgetAura::GetRestoredBounds() const {
     if (restore_bounds)
       return *restore_bounds;
   }
-  gfx::Rect bounds = window_->GetBoundsInScreen();
-  if (IsDocked()) {
-    // Restore bounds are in screen coordinates, no need to convert.
-    gfx::Rect* restore_bounds =
-        window_->GetProperty(aura::client::kRestoreBoundsKey);
-    // Use current window horizontal offset origin in order to preserve docked
-    // alignment but preserve restored size and vertical offset for the time
-    // when the |window_| gets undocked.
-    if (restore_bounds) {
-      bounds.set_size(restore_bounds->size());
-      bounds.set_y(restore_bounds->y());
-    }
-  }
-  return bounds;
+  return window_->GetBoundsInScreen();
 }
 
 std::string NativeWidgetAura::GetWorkspace() const {
@@ -535,11 +528,8 @@ void NativeWidgetAura::ShowWithWindowState(ui::WindowShowState state) {
   if (!window_)
     return;
 
-  // TODO(afakhry): Remove Docked Windows in M58.
-  if (state == ui::SHOW_STATE_MAXIMIZED || state == ui::SHOW_STATE_FULLSCREEN ||
-      state == ui::SHOW_STATE_DOCKED) {
+  if (state == ui::SHOW_STATE_MAXIMIZED || state == ui::SHOW_STATE_FULLSCREEN)
     window_->SetProperty(aura::client::kShowStateKey, state);
-  }
   window_->Show();
   if (delegate_->CanActivate()) {
     if (state != ui::SHOW_STATE_INACTIVE)
@@ -634,14 +624,7 @@ void NativeWidgetAura::SetFullscreen(bool fullscreen) {
   if (!window_ || IsFullscreen() == fullscreen)
     return;  // Nothing to do.
 
-  // Save window state before entering full screen so that it could restored
-  // when exiting full screen.
-  if (fullscreen)
-    saved_window_state_ = window_->GetProperty(aura::client::kShowStateKey);
-
-  window_->SetProperty(
-      aura::client::kShowStateKey,
-      fullscreen ? ui::SHOW_STATE_FULLSCREEN : saved_window_state_);
+  wm::SetWindowFullscreen(window_, fullscreen);
 }
 
 bool NativeWidgetAura::IsFullscreen() const {
@@ -828,36 +811,8 @@ int NativeWidgetAura::GetNonClientComponent(const gfx::Point& point) const {
 bool NativeWidgetAura::ShouldDescendIntoChildForEventHandling(
       aura::Window* child,
       const gfx::Point& location) {
-  views::WidgetDelegate* widget_delegate = GetWidget()->widget_delegate();
-  if (widget_delegate &&
-      !widget_delegate->ShouldDescendIntoChildForEventHandling(child, location))
-    return false;
-
-  // Don't descend into |child| if there is a view with a Layer that contains
-  // the point and is stacked above |child|s layer.
-  typedef std::vector<ui::Layer*> Layers;
-  const Layers& root_layers(delegate_->GetRootLayers());
-  if (root_layers.empty())
-    return true;
-
-  Layers::const_iterator child_layer_iter(
-      std::find(window_->layer()->children().begin(),
-                window_->layer()->children().end(), child->layer()));
-  if (child_layer_iter == window_->layer()->children().end())
-    return true;
-
-  for (std::vector<ui::Layer*>::const_reverse_iterator i = root_layers.rbegin();
-       i != root_layers.rend(); ++i) {
-    ui::Layer* layer = *i;
-    if (layer->visible() && layer->bounds().Contains(location)) {
-      Layers::const_iterator root_layer_iter(
-          std::find(window_->layer()->children().begin(),
-                    window_->layer()->children().end(), layer));
-      if (root_layer_iter > child_layer_iter)
-        return false;
-    }
-  }
-  return true;
+  return delegate_->ShouldDescendIntoChildForEventHandling(
+      window_->layer(), child, child->layer(), location);
 }
 
 bool NativeWidgetAura::CanFocus() {
@@ -1028,13 +983,6 @@ NativeWidgetAura::~NativeWidgetAura() {
 
 ////////////////////////////////////////////////////////////////////////////////
 // NativeWidgetAura, private:
-
-// TODO(afakhry): Remove Docked Windows in M58.
-bool NativeWidgetAura::IsDocked() const {
-  return window_ &&
-         window_->GetProperty(aura::client::kShowStateKey) ==
-             ui::SHOW_STATE_DOCKED;
-}
 
 void NativeWidgetAura::SetInitialFocus(ui::WindowShowState show_state) {
   // The window does not get keyboard messages unless we focus it.

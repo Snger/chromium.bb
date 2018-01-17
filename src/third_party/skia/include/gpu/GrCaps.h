@@ -17,7 +17,7 @@
 #include "SkString.h"
 
 struct GrContextOptions;
-
+class GrRenderTargetProxy;
 
 /**
  * Represents the capabilities of a GrContext.
@@ -82,6 +82,8 @@ public:
     InstancedSupport instancedSupport() const { return fInstancedSupport; }
 
     bool avoidInstancedDrawsToFPTargets() const { return fAvoidInstancedDrawsToFPTargets; }
+
+    bool avoidStencilBuffers() const { return fAvoidStencilBuffers; }
 
     /**
      * Indicates the capabilities of the fixed function blend unit.
@@ -183,6 +185,18 @@ public:
     bool sampleShadingSupport() const { return fSampleShadingSupport; }
 
     bool fenceSyncSupport() const { return fFenceSyncSupport; }
+    bool crossContextTextureSupport() const { return fCrossContextTextureSupport; }
+
+    /**
+     * This is can be called before allocating a texture to be a dst for copySurface. This is only
+     * used for doing dst copies needed in blends, thus the src is always a GrRenderTargetProxy. It
+     * will populate the origin, config, and flags fields of the desc such that copySurface can
+     * efficiently succeed. rectsMustMatch will be set to true if the copy operation must ensure
+     * that the src and dest rects are identical. disallowSubrect will be set to true if copy rect
+     * must equal src's bounds.
+     */
+    virtual bool initDescForDstCopy(const GrRenderTargetProxy* src, GrSurfaceDesc* desc,
+                                    bool* rectsMustMatch, bool* disallowSubrect) const = 0;
 
 protected:
     /** Subclasses must call this at the end of their constructors in order to apply caps
@@ -217,6 +231,7 @@ protected:
     bool fUseDrawInsteadOfPartialRenderTargetWrite   : 1;
     bool fUseDrawInsteadOfAllRenderTargetWrites      : 1;
     bool fAvoidInstancedDrawsToFPTargets             : 1;
+    bool fAvoidStencilBuffers                        : 1;
 
     // ANGLE workaround
     bool fPreferVRAMUseOverFlushes                   : 1;
@@ -224,6 +239,9 @@ protected:
     bool fSampleShadingSupport                       : 1;
     // TODO: this may need to be an enum to support different fence types
     bool fFenceSyncSupport                           : 1;
+
+    // Vulkan doesn't support this (yet) and some drivers have issues, too
+    bool fCrossContextTextureSupport                 : 1;
 
     InstancedSupport fInstancedSupport;
 

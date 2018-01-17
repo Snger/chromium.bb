@@ -6,6 +6,7 @@
 
 #include "base/mac/objc_property_releaser.h"
 #import "base/mac/scoped_nsobject.h"
+#include "base/strings/sys_string_conversions.h"
 #include "ios/chrome/browser/application_context.h"
 #include "ios/chrome/browser/browser_state/chrome_browser_state.h"
 #import "ios/chrome/browser/browsing_data/browsing_data_removal_controller.h"
@@ -13,8 +14,8 @@
 #include "ios/chrome/browser/crash_report/crash_report_helper.h"
 #import "ios/chrome/browser/device_sharing/device_sharing_manager.h"
 #import "ios/chrome/browser/physical_web/start_physical_web_discovery.h"
-#import "ios/chrome/browser/sessions/session_service.h"
-#import "ios/chrome/browser/sessions/session_window.h"
+#import "ios/chrome/browser/sessions/session_service_ios.h"
+#import "ios/chrome/browser/sessions/session_window_ios.h"
 #import "ios/chrome/browser/tabs/tab.h"
 #import "ios/chrome/browser/tabs/tab_model.h"
 #import "ios/chrome/browser/tabs/tab_model_observer.h"
@@ -212,21 +213,12 @@
   [self updateDeviceSharingManager];
 }
 
-// Called when the number of tabs changes. Updates the switcher button
-// visibility in the various modes on tablet.
-- (void)tabModelDidChangeTabCount:(TabModel*)notifiedTabModel {
-  // If in tablet, update the mode switcher icon based on the number of tabs
-  // in the incognito tab strip. Doing this all the time simplifies a lot
-  // of the state transition logic and setting the property to the same value
-  // incurs no re-layout penalty.
-  [self updateModeToggle];
-}
-
 #pragma mark - Other public methods
 
 - (void)updateDeviceSharingManager {
   if (!self.deviceSharingManager) {
-    self.deviceSharingManager = [[DeviceSharingManager alloc] init];
+    self.deviceSharingManager =
+        [[[DeviceSharingManager alloc] init] autorelease];
   }
   [self.deviceSharingManager updateBrowserState:_browserState];
 
@@ -290,13 +282,6 @@
   }
 }
 
-- (void)updateModeToggle {
-  if (IsIPadIdiom()) {
-    self.mainBVC.hasModeToggleSwitch = self.otrTabModel.count ? YES : NO;
-    self.otrBVC.hasModeToggleSwitch = YES;
-  }
-}
-
 #pragma mark - Internal methods
 
 - (TabModel*)buildOtrTabModel:(BOOL)empty {
@@ -313,8 +298,10 @@
   SessionWindowIOS* sessionWindow = nil;
   if (!empty) {
     // Load existing saved tab model state.
+    NSString* statePath =
+        base::SysUTF8ToNSString(browserState->GetStatePath().AsUTF8Unsafe());
     sessionWindow = [[SessionServiceIOS sharedService]
-        loadWindowForBrowserState:browserState];
+        loadSessionWindowFromDirectory:statePath];
   }
 
   // Create tab model from saved session (nil is ok).

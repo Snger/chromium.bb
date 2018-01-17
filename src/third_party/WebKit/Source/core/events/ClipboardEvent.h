@@ -26,6 +26,7 @@
 #define ClipboardEvent_h
 
 #include "core/clipboard/DataTransfer.h"
+#include "core/events/ClipboardEventInit.h"
 #include "core/events/Event.h"
 
 namespace blink {
@@ -36,27 +37,33 @@ class ClipboardEvent final : public Event {
  public:
   ~ClipboardEvent() override;
 
-  static ClipboardEvent* create(const AtomicString& type,
-                                bool canBubble,
+  static ClipboardEvent* Create(const AtomicString& type,
+                                bool can_bubble,
                                 bool cancelable,
-                                DataTransfer* dataTransfer) {
-    return new ClipboardEvent(type, canBubble, cancelable, dataTransfer);
+                                DataTransfer* data_transfer) {
+    return new ClipboardEvent(type, can_bubble, cancelable, data_transfer);
   }
 
-  DataTransfer* clipboardData() const { return m_clipboardData.get(); }
+  static ClipboardEvent* Create(const AtomicString& type,
+                                const ClipboardEventInit& initializer) {
+    return new ClipboardEvent(type, initializer);
+  }
+
+  DataTransfer* clipboardData() const { return clipboard_data_.Get(); }
 
   DECLARE_VIRTUAL_TRACE();
 
  private:
   ClipboardEvent(const AtomicString& type,
-                 bool canBubble,
+                 bool can_bubble,
                  bool cancelable,
-                 DataTransfer* clipboardData);
+                 DataTransfer* clipboard_data);
+  ClipboardEvent(const AtomicString& type, const ClipboardEventInit&);
 
-  const AtomicString& interfaceName() const override;
-  bool isClipboardEvent() const override;
+  const AtomicString& InterfaceName() const override;
+  bool IsClipboardEvent() const override;
 
-  Member<DataTransfer> m_clipboardData;
+  Member<DataTransfer> clipboard_data_;
 };
 
 }  // namespace blink

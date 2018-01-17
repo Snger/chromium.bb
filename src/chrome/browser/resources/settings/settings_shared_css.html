@@ -1,5 +1,5 @@
 <link rel="import" href="chrome://resources/cr_elements/shared_style_css.html">
-<link rel="import" href="/settings_vars_css.html">
+<link rel="import" href="settings_vars_css.html">
 
 <!-- Common styles for Material Design settings. -->
 <dom-module id="settings-shared">
@@ -28,8 +28,8 @@
         font-size: inherit;
         font-weight: 500;
         margin: 0;
-        padding-top: 24px;
         padding-bottom: 12px;
+        padding-top: 24px;
       }
 
       iron-icon[icon='cr:check'],
@@ -38,7 +38,7 @@
       }
 
       paper-button {
-        height: 32px;
+        height: 36px;
         margin: 0;
       }
 
@@ -52,36 +52,10 @@
         width: 31px;
       }
 
-      iron-dropdown .dropdown-content {
-        min-width: 128px;
-        padding: 8px 0;
-      }
-
-      iron-dropdown .dropdown-item:focus {
-        @apply(--cr-selectable-focus);
-      }
-
-      iron-dropdown .dropdown-content {
-        background-color: white;
-        box-shadow: 0 2px 6px var(--paper-grey-500);
-      }
-
-      iron-dropdown .dropdown-content paper-item {
-        @apply(--settings-actionable);
-      }
-
-      iron-dropdown .dropdown-content .dropdown-item[disabled] {
-        opacity: var(--settings-disabled-opacity);
-      }
-
       span ~ a {
         -webkit-margin-start: 4px;
       }
 
-      [is='action-link'],
-      [is='action-link']:active,
-      [is='action-link']:hover,
-      [is='action-link']:visited,
       .primary-button,
       .tertiary-button,
       a[href] {
@@ -95,8 +69,7 @@
         };
       }
 
-      a[href],
-      [is='action-link']:hover {
+      a[href] {
         text-decoration: none;
       }
 
@@ -110,6 +83,15 @@
           font-weight: 500;
           text-align: start;
         };
+      }
+
+      .primary-toggle {
+        color: var(--paper-grey-600);
+        font-weight: 500;
+      }
+
+      .primary-toggle[checked] {
+        color: var(--google-blue-500);
       }
 
       /* See notes in .primary-button. */
@@ -136,23 +118,27 @@
       .settings-box .primary-button,
       .settings-box .secondary-button,
       .settings-box .secondary-button {
-        margin-left: -12px;
-        margin-right: -12px;
-        padding-left: 12px;
-        padding-right: 12px;
+        -webkit-margin-end: -12px;
+        -webkit-margin-start: -12px;
+        -webkit-padding-end: 12px;
+        -webkit-padding-start: 12px;
       }
 
       paper-checkbox {
         --paper-checkbox-checked-color: var(--google-blue-500);
-        --paper-checkbox-label-spacing: var(--checkbox-spacing);
+        --paper-checkbox-label-spacing: var(--settings-control-spacing);
         --paper-checkbox-size: var(--checkbox-size);
         --paper-checkbox-unchecked-color: var(--paper-grey-600);
         -webkit-margin-start: var(--checkbox-margin-start);
       }
 
+      controlled-radio-button,
       paper-radio-button {
         --paper-radio-button-checked-color: var(--google-blue-500);
-        --paper-radio-button-label-spacing: 18px;
+        --paper-radio-button-label-spacing: 22px;
+        --paper-radio-button-radio-container: {
+          flex-shrink: 0;
+        };
         --paper-radio-button-unchecked-color: var(--paper-grey-600);
         -webkit-margin-start: 2px;
         align-items: center;
@@ -164,14 +150,26 @@
         width: 100%;
       }
 
+      /* See also: .no-min-width below. */
       .text-elide {
-        overflow: hidden;
-        text-overflow: ellipsis;
-        white-space: nowrap;
+        @apply(--settings-text-elide);
+      }
+
+      /* By default, flexbox children have min-width calculated to be the width
+       * of the content. However, in some cases we might want to allow the
+       * width to be smaller than the content (i.e. for long text to ellipsis).
+       * In such cases this class should be applied.
+       * (See: https://bugzilla.mozilla.org/show_bug.cgi?id=1108514#c5) */
+      .no-min-width {
+        min-width: 0;
       }
 
       .button-strip {
         text-align: end;
+      }
+
+      .header-aligned-button {
+        margin-top: 12px;  /* Align paper-button with <h2>. */
       }
 
       /* A list-frame is an outer container for list-items. It is intended to be
@@ -184,7 +182,7 @@
       }
 
       /* A list-item is intended to be contained within a list-frame. The list
-       * frame will setup the initial start margin. */
+       * frame will set up the initial start margin. */
       .list-item {
         align-items: center;
         display: flex;
@@ -221,11 +219,18 @@
       }
 
       /* This button has no ink ripple. */
-      .list-item.list-button {
-        @apply(--settings-actionable);
+      .list-button[is='action-link'] {
         align-items: center;
-        color: var(--google-blue-500);
+        display: flex;
+        flex: 1;
         font-weight: 500;
+        min-height: inherit;
+      }
+
+      .fixed-height-list {
+        max-height: calc((var(--settings-row-min-height) +
+                          var(--settings-separator-height)) * 6);
+        overflow-y: auto;
       }
 
       /* A row with two lines of text. Often the lower line will be .secondary.
@@ -246,6 +251,10 @@
 
       .settings-box.two-line {
         min-height: var(--settings-box-two-line-min-height);
+      }
+
+      .settings-box.three-line {
+        min-height: var(--settings-box-three-line-min-height);
       }
 
       /* We use an explicit tag to remove the top border, rather than a
@@ -304,6 +313,12 @@
         flex: auto;
       }
 
+      .no-outline,
+      [scrollable] .no-outline {
+        background: none;
+        outline: none;
+      }
+
       /* The secondary-action wraps a clickable sub-area of a .settings-box.
        * An example is the |sign out| button on the People settings.
        * Here is an example with and without a secondary action box:
@@ -313,7 +328,7 @@
        *  +-------------------------------------------------------+
        *  | Another setting-box without a secondary-action        |
        *  +-------------------------------------------------------+ */
-      .settings-box .secondary-action {
+      :-webkit-any(.settings-box, .list-item) .secondary-action {
         -webkit-border-start: var(--settings-separator-line);
         -webkit-margin-start: 20px;
         -webkit-padding-start: 20px;
@@ -321,10 +336,6 @@
         display: flex;
         flex-shrink: 0;
         height: var(--settings-row-min-height);
-      }
-
-      .settings-box paper-item iron-icon {
-        padding: var(--cr-icon-padding);
       }
 
       /* Helper for a list frame to automatically avoid the separator line. */
@@ -336,7 +347,7 @@
         -webkit-margin-start: calc(
             var(--checkbox-margin-start) +
             var(--checkbox-size) +
-            var(--checkbox-spacing));
+            var(--settings-control-spacing));
       }
 
       .favicon-image {
@@ -362,13 +373,13 @@
 
       /* Provides the arrow which points at the anchor element. */
       .search-bubble-innards::after {
-        -webkit-transform: rotate(-45deg);
         background-color: var(--paper-yellow-500);
         content: '';
         height: 10px;
         left: 55px;
         position: absolute;
         top: -5px;
+        transform: rotate(-45deg);
         width: 10px;
         z-index: -1;
       }
@@ -376,9 +387,14 @@
       /* Turns the arrow direction downwards, when the bubble is placed above
        * the anchor element */
       .search-bubble-innards.above::after {
-        -webkit-transform: rotate(-135deg);
         bottom: -5px;
         top: auto;
+        transform: rotate(-135deg);
+      }
+
+      .column-header {
+        color: var(--paper-grey-600);
+        font-weight: 500;
       }
     </style>
   </template>

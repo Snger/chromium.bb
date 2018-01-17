@@ -13,7 +13,6 @@
 #include "GrDefaultGeoProcFactory.h"
 #include "GrDrawOpTest.h"
 #include "GrGeometryProcessor.h"
-#include "GrInvariantOutput.h"
 #include "GrOpFlushState.h"
 #include "GrPathUtils.h"
 #include "GrPipelineBuilder.h"
@@ -184,7 +183,7 @@ struct DegenerateTestData {
 };
 
 static const SkScalar kClose = (SK_Scalar1 / 16);
-static const SkScalar kCloseSqd = SkScalarMul(kClose, kClose);
+static const SkScalar kCloseSqd = kClose * kClose;
 
 static void update_degenerate_test(DegenerateTestData* data, const SkPoint& pt) {
     switch (data->fStage) {
@@ -219,8 +218,8 @@ static inline bool get_direction(const SkPath& path, const SkMatrix& m,
     }
     // check whether m reverses the orientation
     SkASSERT(!m.hasPerspective());
-    SkScalar det2x2 = SkScalarMul(m.get(SkMatrix::kMScaleX), m.get(SkMatrix::kMScaleY)) -
-                      SkScalarMul(m.get(SkMatrix::kMSkewX), m.get(SkMatrix::kMSkewY));
+    SkScalar det2x2 = m.get(SkMatrix::kMScaleX) * m.get(SkMatrix::kMScaleY) -
+                      m.get(SkMatrix::kMSkewX)  * m.get(SkMatrix::kMSkewY);
     if (det2x2 < 0) {
         *dir = SkPathPriv::OppositeFirstDirection(*dir);
     }
@@ -282,7 +281,7 @@ static bool get_segments(const SkPath& path,
 
     for (;;) {
         SkPoint pts[4];
-        SkPath::Verb verb = iter.next(pts);
+        SkPath::Verb verb = iter.next(pts, true, true);
         switch (verb) {
             case SkPath::kMove_Verb:
                 m.mapPoints(pts, 1);
@@ -531,7 +530,7 @@ public:
         return sk_sp<GrGeometryProcessor>(new QuadEdgeEffect(color, localMatrix, usesLocalCoords));
     }
 
-    virtual ~QuadEdgeEffect() {}
+    ~QuadEdgeEffect() override {}
 
     const char* name() const override { return "QuadEdge"; }
 
@@ -654,20 +653,23 @@ private:
 
 GR_DEFINE_GEOMETRY_PROCESSOR_TEST(QuadEdgeEffect);
 
+#if GR_TEST_UTILS
 sk_sp<GrGeometryProcessor> QuadEdgeEffect::TestCreate(GrProcessorTestData* d) {
     // Doesn't work without derivative instructions.
-    return d->fCaps->shaderCaps()->shaderDerivativeSupport() ?
-           QuadEdgeEffect::Make(GrRandomColor(d->fRandom),
-                                GrTest::TestMatrix(d->fRandom),
-                                d->fRandom->nextBool()) : nullptr;
+    return d->caps()->shaderCaps()->shaderDerivativeSupport()
+                   ? QuadEdgeEffect::Make(GrRandomColor(d->fRandom),
+                                          GrTest::TestMatrix(d->fRandom),
+                                          d->fRandom->nextBool())
+                   : nullptr;
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 
 bool GrAAConvexPathRenderer::onCanDrawPath(const CanDrawPathArgs& args) const {
-    return (args.fShaderCaps->shaderDerivativeSupport() && (GrAAType::kCoverage == args.fAAType) &&
-            args.fShape->style().isSimpleFill() && !args.fShape->inverseFilled() &&
-            args.fShape->knownToBeConvex());
+    return (args.fCaps->shaderCaps()->shaderDerivativeSupport() &&
+            (GrAAType::kCoverage == args.fAAType) && args.fShape->style().isSimpleFill() &&
+            !args.fShape->inverseFilled() && args.fShape->knownToBeConvex());
 }
 
 // extract the result vertices and indices from the GrAAConvexTessellator
@@ -716,15 +718,16 @@ static sk_sp<GrGeometryProcessor> create_fill_gp(bool tweakAlphaForCoverage,
     }
     LocalCoords::Type localCoordsType =
             usesLocalCoords ? LocalCoords::kUsePosition_Type : LocalCoords::kUnused_Type;
-    return MakeForDeviceSpace(Color::kAttribute_Type, coverageType, localCoordsType, viewMatrix);
+    return MakeForDeviceSpace(Color::kPremulGrColorAttribute_Type, coverageType, localCoordsType,
+                              viewMatrix);
 }
 
-class AAConvexPathOp final : public GrMeshDrawOp {
+class AAConvexPathOp final : public GrLegacyMeshDrawOp {
 public:
     DEFINE_OP_CLASS_ID
-    static std::unique_ptr<GrDrawOp> Make(GrColor color, const SkMatrix& viewMatrix,
-                                          const SkPath& path) {
-        return std::unique_ptr<GrDrawOp>(new AAConvexPathOp(color, viewMatrix, path));
+    static std::unique_ptr<GrLegacyMeshDrawOp> Make(GrColor color, const SkMatrix& viewMatrix,
+                                                    const SkPath& path) {
+        return std::unique_ptr<GrLegacyMeshDrawOp>(new AAConvexPathOp(color, viewMatrix, path));
     }
 
     const char* name() const override { return "AAConvexPathOp"; }
@@ -744,12 +747,13 @@ private:
         this->setTransformedBounds(path.getBounds(), viewMatrix, HasAABloat::kYes, IsZeroArea::kNo);
     }
 
-    void getPipelineAnalysisInput(GrPipelineAnalysisDrawOpInput* input) const override {
-        input->pipelineColorInput()->setKnownFourComponents(fColor);
-        input->pipelineCoverageInput()->setUnknownSingleComponent();
+    void getProcessorAnalysisInputs(GrProcessorAnalysisColor* color,
+                                    GrProcessorAnalysisCoverage* coverage) const override {
+        color->setToConstant(fColor);
+        *coverage = GrProcessorAnalysisCoverage::kSingleChannel;
     }
 
-    void applyPipelineOptimizations(const GrPipelineOptimizations& optimizations) override {
+    void applyPipelineOptimizations(const PipelineOptimizations& optimizations) override {
         optimizations.getOverrideColorIfSet(&fColor);
 
         fUsesLocalCoords = optimizations.readsLocalCoords();
@@ -813,7 +817,7 @@ private:
                              vertexBuffer, indexBuffer,
                              firstVertex, firstIndex,
                              tess.numPts(), tess.numIndices());
-            target->draw(gp.get(), mesh);
+            target->draw(gp.get(), this->pipeline(), mesh);
         }
     }
 
@@ -901,7 +905,7 @@ private:
                 const Draw& draw = draws[j];
                 mesh.initIndexed(kTriangles_GrPrimitiveType, vertexBuffer, indexBuffer,
                                  firstVertex, firstIndex, draw.fVertexCnt, draw.fIndexCnt);
-                target->draw(quadProcessor.get(), mesh);
+                target->draw(quadProcessor.get(), this->pipeline(), mesh);
                 firstVertex += draw.fVertexCnt;
                 firstIndex += draw.fIndexCnt;
             }
@@ -957,7 +961,7 @@ private:
 
     SkSTArray<1, PathData, true> fPaths;
 
-    typedef GrMeshDrawOp INHERITED;
+    typedef GrLegacyMeshDrawOp INHERITED;
 };
 
 bool GrAAConvexPathRenderer::onDrawPath(const DrawPathArgs& args) {
@@ -969,13 +973,14 @@ bool GrAAConvexPathRenderer::onDrawPath(const DrawPathArgs& args) {
     SkPath path;
     args.fShape->asPath(&path);
 
-    std::unique_ptr<GrDrawOp> op =
+    std::unique_ptr<GrLegacyMeshDrawOp> op =
             AAConvexPathOp::Make(args.fPaint.getColor(), *args.fViewMatrix, path);
 
     GrPipelineBuilder pipelineBuilder(std::move(args.fPaint), args.fAAType);
     pipelineBuilder.setUserStencil(args.fUserStencilSettings);
 
-    args.fRenderTargetContext->addDrawOp(pipelineBuilder, *args.fClip, std::move(op));
+    args.fRenderTargetContext->addLegacyMeshDrawOp(std::move(pipelineBuilder), *args.fClip,
+                                                   std::move(op));
 
     return true;
 
@@ -983,7 +988,7 @@ bool GrAAConvexPathRenderer::onDrawPath(const DrawPathArgs& args) {
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef GR_TEST_UTILS
+#if GR_TEST_UTILS
 
 DRAW_OP_TEST_DEFINE(AAConvexPathOp) {
     GrColor color = GrRandomColor(random);

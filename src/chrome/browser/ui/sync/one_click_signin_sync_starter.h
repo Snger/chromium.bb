@@ -97,7 +97,7 @@ class OneClickSigninSyncStarter : public SigninTracker::Observer,
     SYNC_SETUP_FAILURE
   };
 
-  typedef base::Callback<void(SyncSetupResult)> Callback;
+  using Callback = base::Callback<void(SyncSetupResult)>;
 
   // |profile| must not be NULL, however |browser| can be. When using the
   // OneClickSigninSyncStarter from a browser, provide both.
@@ -132,13 +132,17 @@ class OneClickSigninSyncStarter : public SigninTracker::Observer,
   // desktop, adds an empty tab and makes sure the browser is visible.
   static Browser* EnsureBrowser(Browser* browser, Profile* profile);
 
+ protected:
+  ~OneClickSigninSyncStarter() override;
+
+  // Overridden from tests.
+  virtual void ShowSyncSetupSettingsSubpage();
+
  private:
   friend class OneClickSigninSyncStarterTest;
   FRIEND_TEST_ALL_PREFIXES(OneClickSigninSyncStarterTest, CallbackSigninFailed);
   FRIEND_TEST_ALL_PREFIXES(OneClickSigninSyncStarterTest, CallbackNull);
   FRIEND_TEST_ALL_PREFIXES(OneClickSigninSyncStarterTest, LoadContinueUrl);
-
-  ~OneClickSigninSyncStarter() override;
 
   // Initializes the internals of the OneClickSigninSyncStarter object. Can also
   // be used to re-initialize the object to refer to a newly created profile.

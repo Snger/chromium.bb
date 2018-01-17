@@ -4,6 +4,8 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
+#ifndef SkGifCodec_DEFINED
+#define SkGifCodec_DEFINED
 
 #include "SkCodec.h"
 #include "SkCodecAnimation.h"
@@ -48,7 +50,8 @@ protected:
 
     uint64_t onGetFillValue(const SkImageInfo&) const override;
 
-    std::vector<FrameInfo> onGetFrameInfo() override;
+    size_t onGetFrameCount() override;
+    bool onGetFrameInfo(size_t, FrameInfo*) const override;
     int onGetRepetitionCount() override;
 
     Result onStartIncrementalDecode(const SkImageInfo& /*dstInfo*/, void*, size_t,
@@ -152,3 +155,4 @@ private:
 
     typedef SkCodec INHERITED;
 };
+#endif  // SkGifCodec_DEFINED

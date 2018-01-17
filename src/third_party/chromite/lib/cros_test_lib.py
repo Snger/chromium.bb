@@ -66,6 +66,7 @@ class GlobalTestConfig(object):
 
   # By default, disable all network tests.
   RUN_NETWORK_TESTS = False
+  UPDATE_GENERATED_FILES = False
   NETWORK_TESTS_SKIPPED = 0
 
 
@@ -1710,6 +1711,10 @@ class TestProgram(unittest.TestProgram):
                         help='Stop on first failure')
     parser.add_argument('tests', nargs='*',
                         help='specific test classes or methods to run')
+    parser.add_argument('-c', '--catch', default=False, action='store_true',
+                        help='Catch control-C and display results')
+    parser.add_argument('-b', '--buffer', default=False, action='store_true',
+                        help='Buffer stdout and stderr during test runs')
 
     # These are custom options we added.
     parser.add_argument('-l', '--list', default=False, action='store_true',
@@ -1721,6 +1726,8 @@ class TestProgram(unittest.TestProgram):
                         dest='wipe',
                         help='Do not wipe the temporary working directory '
                              '(default is to always wipe)')
+    parser.add_argument('-u', '--update', default=False, action='store_true',
+                        help='Update generated test files as needed.')
 
     # Note: The tracer module includes coverage options ...
     group = parser.add_argument_group('Tracing options')
@@ -1757,9 +1764,18 @@ class TestProgram(unittest.TestProgram):
     if opts.failfast:
       self.failfast = True
 
+    if opts.catch:
+      self.catchbreak = True
+
+    if opts.buffer:
+      self.buffer = True
+
     # Then handle the chromite extensions.
     if opts.network:
       GlobalTestConfig.RUN_NETWORK_TESTS = True
+
+    if opts.update:
+      GlobalTestConfig.UPDATE_GENERATED_FILES = True
 
     # We allow --list because it's nice to be able to throw --list onto an
     # existing command line to quickly get the output.  It's clear to users

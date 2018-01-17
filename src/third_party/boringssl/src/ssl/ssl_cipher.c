@@ -193,6 +193,7 @@ static const SSL_CIPHER kCiphers[] = {
      SSL_HANDSHAKE_MAC_DEFAULT,
     },
 
+#ifdef BORINGSSL_ENABLE_DHE_TLS
     /* Cipher 33 */
     {
      TLS1_TXT_DHE_RSA_WITH_AES_128_SHA,
@@ -203,6 +204,7 @@ static const SSL_CIPHER kCiphers[] = {
      SSL_SHA1,
      SSL_HANDSHAKE_MAC_DEFAULT,
     },
+#endif
 
     /* Cipher 35 */
     {
@@ -215,6 +217,7 @@ static const SSL_CIPHER kCiphers[] = {
      SSL_HANDSHAKE_MAC_DEFAULT,
     },
 
+#ifdef BORINGSSL_ENABLE_DHE_TLS
     /* Cipher 39 */
     {
      TLS1_TXT_DHE_RSA_WITH_AES_256_SHA,
@@ -225,6 +228,7 @@ static const SSL_CIPHER kCiphers[] = {
      SSL_SHA1,
      SSL_HANDSHAKE_MAC_DEFAULT,
     },
+#endif
 
 
     /* TLS v1.2 ciphersuites */
@@ -251,6 +255,7 @@ static const SSL_CIPHER kCiphers[] = {
      SSL_HANDSHAKE_MAC_SHA256,
     },
 
+#ifdef BORINGSSL_ENABLE_DHE_TLS
     /* Cipher 67 */
     {
      TLS1_TXT_DHE_RSA_WITH_AES_128_SHA256,
@@ -272,6 +277,7 @@ static const SSL_CIPHER kCiphers[] = {
      SSL_SHA256,
      SSL_HANDSHAKE_MAC_SHA256,
     },
+#endif
 
     /* PSK cipher suites. */
 
@@ -321,6 +327,7 @@ static const SSL_CIPHER kCiphers[] = {
      SSL_HANDSHAKE_MAC_SHA384,
     },
 
+#ifdef BORINGSSL_ENABLE_DHE_TLS
     /* Cipher 9E */
     {
      TLS1_TXT_DHE_RSA_WITH_AES_128_GCM_SHA256,
@@ -342,6 +349,7 @@ static const SSL_CIPHER kCiphers[] = {
      SSL_AEAD,
      SSL_HANDSHAKE_MAC_SHA384,
     },
+#endif
 
     /* TLS 1.3 suites. */
 
@@ -542,28 +550,6 @@ static const SSL_CIPHER kCiphers[] = {
 
     /* ChaCha20-Poly1305 cipher suites. */
 
-#if !defined(BORINGSSL_ANDROID_SYSTEM)
-    {
-     TLS1_TXT_ECDHE_RSA_WITH_CHACHA20_POLY1305_OLD,
-     TLS1_CK_ECDHE_RSA_CHACHA20_POLY1305_OLD,
-     SSL_kECDHE,
-     SSL_aRSA,
-     SSL_CHACHA20POLY1305_OLD,
-     SSL_AEAD,
-     SSL_HANDSHAKE_MAC_SHA256,
-    },
-
-    {
-     TLS1_TXT_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_OLD,
-     TLS1_CK_ECDHE_ECDSA_CHACHA20_POLY1305_OLD,
-     SSL_kECDHE,
-     SSL_aECDSA,
-     SSL_CHACHA20POLY1305_OLD,
-     SSL_AEAD,
-     SSL_HANDSHAKE_MAC_SHA256,
-    },
-#endif
-
     /* Cipher CCA8 */
     {
      TLS1_TXT_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256,
@@ -644,9 +630,11 @@ static const CIPHER_ALIAS kCipherAliases[] = {
      * e.g. kEDH combines DHE_DSS and DHE_RSA) */
     {"kRSA", SSL_kRSA, ~0u, ~0u, ~0u, 0},
 
+#ifdef BORINGSSL_ENABLE_DHE_TLS
     {"kDHE", SSL_kDHE, ~0u, ~0u, ~0u, 0},
     {"kEDH", SSL_kDHE, ~0u, ~0u, ~0u, 0},
     {"DH", SSL_kDHE, ~0u, ~0u, ~0u, 0},
+#endif
 
     {"kECDHE", SSL_kECDHE, ~0u, ~0u, ~0u, 0},
     {"kEECDH", SSL_kECDHE, ~0u, ~0u, ~0u, 0},
@@ -661,8 +649,10 @@ static const CIPHER_ALIAS kCipherAliases[] = {
     {"aPSK", ~0u, SSL_aPSK, ~0u, ~0u, 0},
 
     /* aliases combining key exchange and server authentication */
+#ifdef BORINGSSL_ENABLE_DHE_TLS
     {"DHE", SSL_kDHE, ~0u, ~0u, ~0u, 0},
     {"EDH", SSL_kDHE, ~0u, ~0u, ~0u, 0},
+#endif
     {"ECDHE", SSL_kECDHE, ~0u, ~0u, ~0u, 0},
     {"EECDH", SSL_kECDHE, ~0u, ~0u, ~0u, 0},
     {"RSA", SSL_kRSA, SSL_aRSA, ~SSL_eNULL, ~0u, 0},
@@ -674,8 +664,7 @@ static const CIPHER_ALIAS kCipherAliases[] = {
     {"AES256", ~0u, ~0u, SSL_AES256 | SSL_AES256GCM, ~0u, 0},
     {"AES", ~0u, ~0u, SSL_AES, ~0u, 0},
     {"AESGCM", ~0u, ~0u, SSL_AES128GCM | SSL_AES256GCM, ~0u, 0},
-    {"CHACHA20", ~0u, ~0u, SSL_CHACHA20POLY1305 | SSL_CHACHA20POLY1305_OLD, ~0u,
-     0},
+    {"CHACHA20", ~0u, ~0u, SSL_CHACHA20POLY1305, ~0u, 0},
 
     /* MAC aliases */
     {"SHA1", ~0u, ~0u, ~SSL_eNULL, SSL_SHA1, 0},
@@ -732,11 +721,6 @@ int ssl_cipher_get_evp_aead(const EVP_AEAD **out_aead,
     } else if (cipher->algorithm_enc == SSL_AES256GCM) {
       *out_aead = EVP_aead_aes_256_gcm();
       *out_fixed_iv_len = 4;
-#if !defined(BORINGSSL_ANDROID_SYSTEM)
-    } else if (cipher->algorithm_enc == SSL_CHACHA20POLY1305_OLD) {
-      *out_aead = EVP_aead_chacha20_poly1305_old();
-      *out_fixed_iv_len = 0;
-#endif
     } else if (cipher->algorithm_enc == SSL_CHACHA20POLY1305) {
       *out_aead = EVP_aead_chacha20_poly1305();
       *out_fixed_iv_len = 12;
@@ -815,10 +799,11 @@ int ssl_cipher_get_evp_aead(const EVP_AEAD **out_aead,
   return 1;
 }
 
-const EVP_MD *ssl_get_handshake_digest(uint32_t algorithm_prf) {
+const EVP_MD *ssl_get_handshake_digest(uint32_t algorithm_prf,
+                                       uint16_t version) {
   switch (algorithm_prf) {
     case SSL_HANDSHAKE_MAC_DEFAULT:
-      return EVP_sha1();
+      return version >= TLS1_2_VERSION ? EVP_sha256() : EVP_md5_sha1();
     case SSL_HANDSHAKE_MAC_SHA256:
       return EVP_sha256();
     case SSL_HANDSHAKE_MAC_SHA384:
@@ -1097,7 +1082,7 @@ static int ssl_cipher_strength_sort(CIPHER_ORDER **head_p,
 static int ssl_cipher_process_rulestr(const SSL_PROTOCOL_METHOD *ssl_method,
                                       const char *rule_str,
                                       CIPHER_ORDER **head_p,
-                                      CIPHER_ORDER **tail_p) {
+                                      CIPHER_ORDER **tail_p, int strict) {
   uint32_t alg_mkey, alg_auth, alg_enc, alg_mac;
   uint16_t min_version;
   const char *l, *buf;
@@ -1233,6 +1218,10 @@ static int ssl_cipher_process_rulestr(const SSL_PROTOCOL_METHOD *ssl_method,
         }
         if (j == kCipherAliasesLen) {
           skip_rule = 1;
+          if (strict) {
+            OPENSSL_PUT_ERROR(SSL, SSL_R_INVALID_COMMAND);
+            return 0;
+          }
         }
       }
 
@@ -1242,29 +1231,6 @@ static int ssl_cipher_process_rulestr(const SSL_PROTOCOL_METHOD *ssl_method,
       }
       l++;
       multi = 1;
-    }
-
-    /* If one of the CHACHA20_POLY1305 variants is selected, include the other
-     * as well. They have the same name to avoid requiring changes in
-     * configuration. Apply this transformation late so that the cipher name
-     * still behaves as an exact name and not an alias in multipart rules.
-     *
-     * This is temporary and will be removed when the pre-standard construction
-     * is removed. */
-    if (cipher_id == TLS1_CK_ECDHE_RSA_CHACHA20_POLY1305_OLD ||
-        cipher_id == TLS1_CK_ECDHE_RSA_WITH_CHACHA20_POLY1305_SHA256) {
-      cipher_id = 0;
-      alg_mkey = SSL_kECDHE;
-      alg_auth = SSL_aRSA;
-      alg_enc = SSL_CHACHA20POLY1305|SSL_CHACHA20POLY1305_OLD;
-      alg_mac = SSL_AEAD;
-    } else if (cipher_id == TLS1_CK_ECDHE_ECDSA_CHACHA20_POLY1305_OLD ||
-               cipher_id == TLS1_CK_ECDHE_ECDSA_WITH_CHACHA20_POLY1305_SHA256) {
-      cipher_id = 0;
-      alg_mkey = SSL_kECDHE;
-      alg_auth = SSL_aECDSA;
-      alg_enc = SSL_CHACHA20POLY1305|SSL_CHACHA20POLY1305_OLD;
-      alg_mac = SSL_AEAD;
     }
 
     /* Ok, we have the rule, now apply it. */
@@ -1300,10 +1266,10 @@ static int ssl_cipher_process_rulestr(const SSL_PROTOCOL_METHOD *ssl_method,
   return 1;
 }
 
-STACK_OF(SSL_CIPHER) *
-ssl_create_cipher_list(const SSL_PROTOCOL_METHOD *ssl_method,
-                       struct ssl_cipher_preference_list_st **out_cipher_list,
-                       const char *rule_str) {
+int ssl_create_cipher_list(
+    const SSL_PROTOCOL_METHOD *ssl_method,
+    struct ssl_cipher_preference_list_st **out_cipher_list,
+    const char *rule_str, int strict) {
   STACK_OF(SSL_CIPHER) *cipherstack = NULL;
   CIPHER_ORDER *co_list = NULL, *head = NULL, *tail = NULL, *curr;
   uint8_t *in_group_flags = NULL;
@@ -1312,7 +1278,7 @@ ssl_create_cipher_list(const SSL_PROTOCOL_METHOD *ssl_method,
 
   /* Return with error if nothing to do. */
   if (rule_str == NULL || out_cipher_list == NULL) {
-    return NULL;
+    return 0;
   }
 
   /* Now we have to collect the available ciphers from the compiled in ciphers.
@@ -1321,7 +1287,7 @@ ssl_create_cipher_list(const SSL_PROTOCOL_METHOD *ssl_method,
   co_list = OPENSSL_malloc(sizeof(CIPHER_ORDER) * kCiphersLen);
   if (co_list == NULL) {
     OPENSSL_PUT_ERROR(SSL, ERR_R_MALLOC_FAILURE);
-    return NULL;
+    return 0;
   }
 
   ssl_cipher_collect_ciphers(ssl_method, co_list, &head, &tail);
@@ -1349,13 +1315,9 @@ ssl_create_cipher_list(const SSL_PROTOCOL_METHOD *ssl_method,
                           &head, &tail);
     ssl_cipher_apply_rule(0, ~0u, ~0u, SSL_CHACHA20POLY1305, ~0u, 0, CIPHER_ADD,
                           -1, 0, &head, &tail);
-    ssl_cipher_apply_rule(0, ~0u, ~0u, SSL_CHACHA20POLY1305_OLD, ~0u, 0,
-                          CIPHER_ADD, -1, 0, &head, &tail);
   } else {
     ssl_cipher_apply_rule(0, ~0u, ~0u, SSL_CHACHA20POLY1305, ~0u, 0, CIPHER_ADD,
                           -1, 0, &head, &tail);
-    ssl_cipher_apply_rule(0, ~0u, ~0u, SSL_CHACHA20POLY1305_OLD, ~0u, 0,
-                          CIPHER_ADD, -1, 0, &head, &tail);
     ssl_cipher_apply_rule(0, ~0u, ~0u, SSL_AES128GCM, ~0u, 0, CIPHER_ADD, -1, 0,
                           &head, &tail);
     ssl_cipher_apply_rule(0, ~0u, ~0u, SSL_AES256GCM, ~0u, 0, CIPHER_ADD, -1, 0,
@@ -1388,7 +1350,7 @@ ssl_create_cipher_list(const SSL_PROTOCOL_METHOD *ssl_method,
   const char *rule_p = rule_str;
   if (strncmp(rule_str, "DEFAULT", 7) == 0) {
     if (!ssl_cipher_process_rulestr(ssl_method, SSL_DEFAULT_CIPHER_LIST, &head,
-                                    &tail)) {
+                                    &tail, strict)) {
       goto err;
     }
     rule_p += 7;
@@ -1398,7 +1360,7 @@ ssl_create_cipher_list(const SSL_PROTOCOL_METHOD *ssl_method,
   }
 
   if (*rule_p != '\0' &&
-      !ssl_cipher_process_rulestr(ssl_method, rule_p, &head, &tail)) {
+      !ssl_cipher_process_rulestr(ssl_method, rule_p, &head, &tail, strict)) {
     goto err;
   }
 
@@ -1445,7 +1407,14 @@ ssl_create_cipher_list(const SSL_PROTOCOL_METHOD *ssl_method,
   *out_cipher_list = pref_list;
   pref_list = NULL;
 
-  return cipherstack;
+  /* Configuring an empty cipher list is an error but still updates the
+   * output. */
+  if (sk_SSL_CIPHER_num((*out_cipher_list)->ciphers) == 0) {
+    OPENSSL_PUT_ERROR(SSL, SSL_R_NO_CIPHER_MATCH);
+    return 0;
+  }
+
+  return 1;
 
 err:
   OPENSSL_free(co_list);
@@ -1455,7 +1424,7 @@ err:
     OPENSSL_free(pref_list->in_group_flags);
   }
   OPENSSL_free(pref_list);
-  return NULL;
+  return 0;
 }
 
 uint32_t SSL_CIPHER_get_id(const SSL_CIPHER *cipher) { return cipher->id; }
@@ -1469,10 +1438,6 @@ uint16_t ssl_cipher_get_value(const SSL_CIPHER *cipher) {
 
 int SSL_CIPHER_is_AES(const SSL_CIPHER *cipher) {
   return (cipher->algorithm_enc & SSL_AES) != 0;
-}
-
-int SSL_CIPHER_has_MD5_HMAC(const SSL_CIPHER *cipher) {
-  return 0;
 }
 
 int SSL_CIPHER_has_SHA1_HMAC(const SSL_CIPHER *cipher) {
@@ -1504,8 +1469,7 @@ int SSL_CIPHER_is_AES256CBC(const SSL_CIPHER *cipher) {
 }
 
 int SSL_CIPHER_is_CHACHA20POLY1305(const SSL_CIPHER *cipher) {
-  return (cipher->algorithm_enc &
-          (SSL_CHACHA20POLY1305 | SSL_CHACHA20POLY1305_OLD)) != 0;
+  return (cipher->algorithm_enc & SSL_CHACHA20POLY1305) != 0;
 }
 
 int SSL_CIPHER_is_NULL(const SSL_CIPHER *cipher) {
@@ -1622,7 +1586,6 @@ static const char *ssl_cipher_get_enc_name(const SSL_CIPHER *cipher) {
     case SSL_AES256GCM:
       return "AES_256_GCM";
     case SSL_CHACHA20POLY1305:
-    case SSL_CHACHA20POLY1305_OLD:
       return "CHACHA20_POLY1305";
       break;
     default:
@@ -1700,9 +1663,6 @@ int SSL_CIPHER_get_bits(const SSL_CIPHER *cipher, int *out_alg_bits) {
 
     case SSL_AES256:
     case SSL_AES256GCM:
-#if !defined(BORINGSSL_ANDROID_SYSTEM)
-    case SSL_CHACHA20POLY1305_OLD:
-#endif
     case SSL_CHACHA20POLY1305:
       alg_bits = 256;
       strength_bits = 256;
@@ -1806,10 +1766,6 @@ const char *SSL_CIPHER_description(const SSL_CIPHER *cipher, char *buf,
 
     case SSL_AES256GCM:
       enc = "AESGCM(256)";
-      break;
-
-    case SSL_CHACHA20POLY1305_OLD:
-      enc = "ChaCha20-Poly1305-Old";
       break;
 
     case SSL_CHACHA20POLY1305:

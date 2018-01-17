@@ -5,19 +5,19 @@
 #ifndef LinkFetchResource_h
 #define LinkFetchResource_h
 
-#include "core/fetch/Resource.h"
-#include "core/fetch/ResourceClient.h"
+#include "platform/loader/fetch/Resource.h"
+#include "platform/loader/fetch/ResourceClient.h"
 
 namespace blink {
 
-class FetchRequest;
+class FetchParameters;
 class ResourceFetcher;
 
 class LinkFetchResource final : public Resource {
  public:
   using ClientType = ResourceClient;
 
-  static Resource* fetch(Resource::Type, FetchRequest&, ResourceFetcher*);
+  static Resource* Fetch(Resource::Type, FetchParameters&, ResourceFetcher*);
   ~LinkFetchResource() override;
 
  private:
@@ -25,10 +25,10 @@ class LinkFetchResource final : public Resource {
    public:
     explicit LinkResourceFactory(Resource::Type type) : ResourceFactory(type) {}
 
-    Resource* create(const ResourceRequest& request,
+    Resource* Create(const ResourceRequest& request,
                      const ResourceLoaderOptions& options,
                      const String& charset) const override {
-      return new LinkFetchResource(request, type(), options);
+      return new LinkFetchResource(request, GetType(), options);
     }
   };
   LinkFetchResource(const ResourceRequest&, Type, const ResourceLoaderOptions&);

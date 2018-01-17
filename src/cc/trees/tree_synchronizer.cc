@@ -13,7 +13,6 @@
 #include "cc/layers/layer.h"
 #include "cc/layers/layer_collections.h"
 #include "cc/layers/layer_impl.h"
-#include "cc/trees/layer_tree.h"
 #include "cc/trees/layer_tree_host.h"
 #include "cc/trees/layer_tree_impl.h"
 
@@ -29,8 +28,10 @@ void SynchronizeTreesInternal(LayerTreeType* source_tree,
   std::unique_ptr<OwnedLayerImplList> old_layers(tree_impl->DetachLayers());
 
   OwnedLayerImplMap old_layer_map;
-  for (auto& it : *old_layers)
+  for (auto& it : *old_layers) {
+    DCHECK(it);
     old_layer_map[it->id()] = std::move(it);
+  }
 
   PushLayerList(&old_layer_map, source_tree, tree_impl);
 
@@ -46,8 +47,8 @@ void TreeSynchronizer::SynchronizeTrees(Layer* layer_root,
   if (!layer_root) {
     tree_impl->DetachLayers();
   } else {
-    SynchronizeTreesInternal(layer_root->GetLayerTree(), tree_impl,
-                             layer_root->GetLayerTree()->property_trees());
+    SynchronizeTreesInternal(layer_root->layer_tree_host(), tree_impl,
+                             layer_root->layer_tree_host()->property_trees());
   }
 }
 
@@ -105,7 +106,7 @@ void TreeSynchronizer::PushLayerProperties(LayerTreeImpl* pending_tree,
                               active_tree);
 }
 
-void TreeSynchronizer::PushLayerProperties(LayerTree* host_tree,
+void TreeSynchronizer::PushLayerProperties(LayerTreeHost* host_tree,
                                            LayerTreeImpl* impl_tree) {
   PushLayerPropertiesInternal(host_tree->LayersThatShouldPushProperties(),
                               impl_tree);

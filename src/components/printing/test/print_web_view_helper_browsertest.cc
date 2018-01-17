@@ -24,6 +24,7 @@
 #include "ipc/ipc_listener.h"
 #include "printing/features/features.h"
 #include "printing/print_job_constants.h"
+#include "printing/units.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/WebKit/public/platform/WebMouseEvent.h"
 #include "third_party/WebKit/public/platform/WebString.h"
@@ -210,6 +211,20 @@ class PrintWebViewHelperTestBase : public content::RenderViewTest {
   }
 #endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
+#if defined(OS_WIN)
+  // Verifies that the correct page size was returned.
+  void VerifyPrintedPageSize(const gfx::Size& page_size) {
+    const IPC::Message* print_msg =
+        render_thread_->sink().GetUniqueMessageMatching(
+            PrintHostMsg_DidPrintPage::ID);
+    PrintHostMsg_DidPrintPage::Param post_did_print_page_param;
+    PrintHostMsg_DidPrintPage::Read(print_msg, &post_did_print_page_param);
+    gfx::Size page_size_received =
+        std::get<0>(post_did_print_page_param).page_size;
+    EXPECT_EQ(page_size, page_size_received);
+  }
+#endif
+
   // Verifies whether the pages printed or not.
   void VerifyPagesPrinted(bool printed) {
     const IPC::Message* print_msg =
@@ -340,15 +355,15 @@ TEST_F(MAYBE_PrintWebViewHelperTest, AllowUserOriginatedPrinting) {
 
   gfx::Rect bounds = GetElementBounds("print");
   EXPECT_FALSE(bounds.IsEmpty());
-  blink::WebMouseEvent mouse_event(blink::WebInputEvent::MouseDown,
-                                   blink::WebInputEvent::NoModifiers,
-                                   blink::WebInputEvent::TimeStampForTesting);
-  mouse_event.button = blink::WebMouseEvent::Button::Left;
-  mouse_event.x = bounds.CenterPoint().x();
-  mouse_event.y = bounds.CenterPoint().y();
-  mouse_event.clickCount = 1;
+  blink::WebMouseEvent mouse_event(blink::WebInputEvent::kMouseDown,
+                                   blink::WebInputEvent::kNoModifiers,
+                                   blink::WebInputEvent::kTimeStampForTesting);
+  mouse_event.button = blink::WebMouseEvent::Button::kLeft;
+  mouse_event.SetPositionInWidget(bounds.CenterPoint().x(),
+                                  bounds.CenterPoint().y());
+  mouse_event.click_count = 1;
   SendWebMouseEvent(mouse_event);
-  mouse_event.setType(blink::WebInputEvent::MouseUp);
+  mouse_event.SetType(blink::WebInputEvent::kMouseUp);
   SendWebMouseEvent(mouse_event);
   ProcessPendingMessages();
 
@@ -398,10 +413,10 @@ TEST_F(MAYBE_PrintWebViewHelperTest, PrintWithIframe) {
   // Find the frame and set it as the focused one.  This should mean that that
   // the printout should only contain the contents of that frame.
   auto* web_view = view_->GetWebView();
-  WebFrame* sub1_frame = web_view->findFrameByName(WebString::fromUTF8("sub1"));
+  WebFrame* sub1_frame = web_view->FindFrameByName(WebString::FromUTF8("sub1"));
   ASSERT_TRUE(sub1_frame);
-  web_view->setFocusedFrame(sub1_frame);
-  ASSERT_NE(web_view->focusedFrame(), web_view->mainFrame());
+  web_view->SetFocusedFrame(sub1_frame);
+  ASSERT_NE(web_view->FocusedFrame(), web_view->MainFrame());
 
   // Initiate printing.
   OnPrintPages();
@@ -647,15 +662,15 @@ TEST_F(MAYBE_PrintWebViewHelperPreviewTest, PrintWithJavaScript) {
 
   gfx::Rect bounds = GetElementBounds("print");
   EXPECT_FALSE(bounds.IsEmpty());
-  blink::WebMouseEvent mouse_event(blink::WebInputEvent::MouseDown,
-                                   blink::WebInputEvent::NoModifiers,
-                                   blink::WebInputEvent::TimeStampForTesting);
-  mouse_event.button = blink::WebMouseEvent::Button::Left;
-  mouse_event.x = bounds.CenterPoint().x();
-  mouse_event.y = bounds.CenterPoint().y();
-  mouse_event.clickCount = 1;
+  blink::WebMouseEvent mouse_event(blink::WebInputEvent::kMouseDown,
+                                   blink::WebInputEvent::kNoModifiers,
+                                   blink::WebInputEvent::kTimeStampForTesting);
+  mouse_event.button = blink::WebMouseEvent::Button::kLeft;
+  mouse_event.SetPositionInWidget(bounds.CenterPoint().x(),
+                                  bounds.CenterPoint().y());
+  mouse_event.click_count = 1;
   SendWebMouseEvent(mouse_event);
-  mouse_event.setType(blink::WebInputEvent::MouseUp);
+  mouse_event.SetType(blink::WebInputEvent::kMouseUp);
   SendWebMouseEvent(mouse_event);
 
   VerifyPreviewRequest(true);
@@ -906,7 +921,7 @@ TEST_F(MAYBE_PrintWebViewHelperPreviewTest, OnPrintPreviewForSelectedPages) {
 // Test to verify that preview generated only for one page.
 TEST_F(MAYBE_PrintWebViewHelperPreviewTest, OnPrintPreviewForSelectedText) {
   LoadHTML(kMultipageHTML);
-  GetMainFrame()->selectRange(blink::WebRange(1, 3));
+  GetMainFrame()->SelectRange(blink::WebRange(1, 3));
 
   // Fill in some dummy values.
   base::DictionaryValue dict;
@@ -969,6 +984,41 @@ TEST_F(MAYBE_PrintWebViewHelperPreviewTest, OnPrintForPrintPreview) {
 
   VerifyPrintFailed(false);
   VerifyPagesPrinted(true);
+}
+
+// Tests that when printing non-default scaling values, the page size returned
+// by PrintWebViewHelper is still the real physical page size. See
+// crbug.com/686384
+TEST_F(MAYBE_PrintWebViewHelperPreviewTest, OnPrintForPrintPreviewWithScaling) {
+  LoadHTML(kPrintPreviewHTML);
+
+  // Fill in some dummy values.
+  base::DictionaryValue dict;
+  CreatePrintSettingsDictionary(&dict);
+
+  // Media size
+  gfx::Size page_size_in = gfx::Size(240, 480);
+  float device_microns_per_unit =
+      (printing::kHundrethsMMPerInch * 10.0f) / printing::kDefaultPdfDpi;
+  int height_microns =
+      static_cast<int>(page_size_in.height() * device_microns_per_unit);
+  int width_microns =
+      static_cast<int>(page_size_in.width() * device_microns_per_unit);
+  auto media_size = base::MakeUnique<base::DictionaryValue>();
+  media_size->SetInteger(kSettingMediaSizeHeightMicrons, height_microns);
+  media_size->SetInteger(kSettingMediaSizeWidthMicrons, width_microns);
+
+  // Non default scaling value
+  dict.SetInteger(kSettingScaleFactor, 80);
+  dict.Set(kSettingMediaSize, media_size.release());
+
+  OnPrintForPrintPreview(dict);
+
+  VerifyPrintFailed(false);
+  VerifyPagesPrinted(true);
+#if defined(OS_WIN)
+  VerifyPrintedPageSize(page_size_in);
+#endif
 }
 
 // Tests that printing from print preview fails and receiving error messages

@@ -199,6 +199,13 @@ egl::Error ValidateConfigAttribute(const egl::Display *display, EGLAttrib attrib
             }
             break;
 
+        case EGL_COLOR_COMPONENT_TYPE_EXT:
+            if (!display->getExtensions().pixelFormatFloat)
+            {
+                return egl::Error(EGL_BAD_ATTRIBUTE, "EGL_EXT_pixel_format_float is not enabled.");
+            }
+            break;
+
         default:
             return egl::Error(EGL_BAD_ATTRIBUTE, "Unknown attribute.");
     }
@@ -420,8 +427,60 @@ Error ValidateCreateContext(Display *display, Config *configuration, gl::Context
               }
               break;
 
+          case EGL_DISPLAY_TEXTURE_SHARE_GROUP_ANGLE:
+              if (!display->getExtensions().displayTextureShareGroup)
+              {
+                  return Error(EGL_BAD_ATTRIBUTE,
+                               "Attribute EGL_DISPLAY_TEXTURE_SHARE_GROUP_ANGLE requires "
+                               "EGL_ANGLE_display_texture_share_group.");
+              }
+              if (value != EGL_TRUE && value != EGL_FALSE)
+              {
+                  return Error(
+                      EGL_BAD_ATTRIBUTE,
+                      "EGL_DISPLAY_TEXTURE_SHARE_GROUP_ANGLE must be EGL_TRUE or EGL_FALSE.");
+              }
+              if (shareContext &&
+                  (shareContext->usingDisplayTextureShareGroup() != (value == EGL_TRUE)))
+              {
+                  return Error(EGL_BAD_ATTRIBUTE,
+                               "All contexts within a share group must be created with the same "
+                               "value of EGL_DISPLAY_TEXTURE_SHARE_GROUP_ANGLE.");
+              }
+              break;
+
+          case EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE:
+              if (!display->getExtensions().createContextClientArrays)
+              {
+                  return Error(EGL_BAD_ATTRIBUTE,
+                               "Attribute EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE requires "
+                               "EGL_ANGLE_create_context_client_arrays.");
+              }
+              if (value != EGL_TRUE && value != EGL_FALSE)
+              {
+                  return Error(EGL_BAD_ATTRIBUTE,
+                               "EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE must be EGL_TRUE or "
+                               "EGL_FALSE.");
+              }
+              break;
+
+          case EGL_CONTEXT_ROBUST_RESOURCE_INITIALIZATION_ANGLE:
+              if (!display->getExtensions().createContextRobustResourceInitialization)
+              {
+                  return Error(EGL_BAD_ATTRIBUTE,
+                               "Attribute EGL_CONTEXT_ROBUST_RESOURCE_INITIALIZATION_ANGLE "
+                               "requires EGL_ANGLE_create_context_robust_resource_initialization.");
+              }
+              if (value != EGL_TRUE && value != EGL_FALSE)
+              {
+                  return Error(EGL_BAD_ATTRIBUTE,
+                               "EGL_CONTEXT_ROBUST_RESOURCE_INITIALIZATION_ANGLE must be "
+                               "either EGL_TRUE or EGL_FALSE.");
+              }
+              break;
+
           default:
-            return Error(EGL_BAD_ATTRIBUTE);
+              return Error(EGL_BAD_ATTRIBUTE, "Unknown attribute.");
         }
     }
 
@@ -821,6 +880,94 @@ Error ValidateCreatePbufferFromClientBuffer(Display *display, EGLenum buftype, E
     return Error(EGL_SUCCESS);
 }
 
+Error ValidateMakeCurrent(Display *display, EGLSurface draw, EGLSurface read, gl::Context *context)
+{
+    if (context == EGL_NO_CONTEXT && (draw != EGL_NO_SURFACE || read != EGL_NO_SURFACE))
+    {
+        return Error(EGL_BAD_MATCH, "If ctx is EGL_NO_CONTEXT, surfaces must be EGL_NO_SURFACE");
+    }
+
+    // If ctx is EGL_NO_CONTEXT and either draw or read are not EGL_NO_SURFACE, an EGL_BAD_MATCH
+    // error is generated. EGL_KHR_surfaceless_context allows both surfaces to be EGL_NO_SURFACE.
+    if (context != EGL_NO_CONTEXT && (draw == EGL_NO_SURFACE || read == EGL_NO_SURFACE))
+    {
+        if (display->getExtensions().surfacelessContext)
+        {
+            if ((draw == EGL_NO_SURFACE) != (read == EGL_NO_SURFACE))
+            {
+                return Error(EGL_BAD_MATCH,
+                             "If ctx is not EGL_NOT_CONTEXT, draw or read must both be "
+                             "EGL_NO_SURFACE, or both not");
+            }
+        }
+        else
+        {
+            return Error(EGL_BAD_MATCH,
+                         "If ctx is not EGL_NO_CONTEXT, surfaces must not be EGL_NO_SURFACE");
+        }
+    }
+
+    // If either of draw or read is a valid surface and the other is EGL_NO_SURFACE, an
+    // EGL_BAD_MATCH error is generated.
+    if ((read == EGL_NO_SURFACE) != (draw == EGL_NO_SURFACE))
+    {
+        return Error(EGL_BAD_MATCH,
+                     "read and draw must both be valid surfaces, or both be EGL_NO_SURFACE");
+    }
+
+    if (display == EGL_NO_DISPLAY || !Display::isValidDisplay(display))
+    {
+        return Error(EGL_BAD_DISPLAY, "'dpy' not a valid EGLDisplay handle");
+    }
+
+    // EGL 1.5 spec: dpy can be uninitialized if all other parameters are null
+    if (!display->isInitialized() &&
+        (context != EGL_NO_CONTEXT || draw != EGL_NO_SURFACE || read != EGL_NO_SURFACE))
+    {
+        return Error(EGL_NOT_INITIALIZED, "'dpy' not initialized");
+    }
+
+    if (context != EGL_NO_CONTEXT)
+    {
+        ANGLE_TRY(ValidateContext(display, context));
+    }
+
+    if (display->isInitialized() && display->testDeviceLost())
+    {
+        return Error(EGL_CONTEXT_LOST);
+    }
+
+    Surface *drawSurface = static_cast<Surface *>(draw);
+    if (draw != EGL_NO_SURFACE)
+    {
+        ANGLE_TRY(ValidateSurface(display, drawSurface));
+    }
+
+    Surface *readSurface = static_cast<Surface *>(read);
+    if (read != EGL_NO_SURFACE)
+    {
+        ANGLE_TRY(ValidateSurface(display, readSurface));
+    }
+
+    if (readSurface)
+    {
+        ANGLE_TRY(ValidateCompatibleConfigs(display, readSurface->getConfig(), readSurface,
+                                            context->getConfig(), readSurface->getType()));
+    }
+
+    if (draw != read)
+    {
+        UNIMPLEMENTED();  // FIXME
+
+        if (drawSurface)
+        {
+            ANGLE_TRY(ValidateCompatibleConfigs(display, drawSurface->getConfig(), drawSurface,
+                                                context->getConfig(), drawSurface->getType()));
+        }
+    }
+    return egl::NoError();
+}
+
 Error ValidateCompatibleConfigs(const Display *display,
                                 const Config *config1,
                                 const Surface *surface,
@@ -845,6 +992,12 @@ Error ValidateCompatibleConfigs(const Display *display,
         if (!colorCompat)
         {
             return Error(EGL_BAD_MATCH, "Color buffer sizes are not compatible.");
+        }
+
+        bool componentTypeCompat = config1->colorComponentType == config2->colorComponentType;
+        if (!componentTypeCompat)
+        {
+            return Error(EGL_BAD_MATCH, "Color buffer component types are not compatible.");
         }
 
         bool dsCompat = config1->depthSize == config2->depthSize &&
@@ -1640,6 +1793,54 @@ Error ValidateStreamPostD3DTextureNV12ANGLE(const Display *display,
     }
 
     return stream->validateD3D11NV12Texture(texture);
+}
+
+Error ValidateGetSyncValuesCHROMIUM(const Display *display,
+                                    const Surface *surface,
+                                    const EGLuint64KHR *ust,
+                                    const EGLuint64KHR *msc,
+                                    const EGLuint64KHR *sbc)
+{
+    ANGLE_TRY(ValidateDisplay(display));
+
+    const DisplayExtensions &displayExtensions = display->getExtensions();
+    if (!displayExtensions.getSyncValues)
+    {
+        return Error(EGL_BAD_ACCESS, "getSyncValues extension not active");
+    }
+
+    if (display->isDeviceLost())
+    {
+        return Error(EGL_CONTEXT_LOST, "Context is lost.");
+    }
+
+    if (surface == EGL_NO_SURFACE)
+    {
+        return Error(EGL_BAD_SURFACE, "getSyncValues surface cannot be EGL_NO_SURFACE");
+    }
+
+    if (!surface->directComposition())
+    {
+        return Error(EGL_BAD_SURFACE,
+                     "getSyncValues surface requires Direct Composition to be enabled");
+    }
+
+    if (ust == nullptr)
+    {
+        return egl::Error(EGL_BAD_PARAMETER, "ust is null");
+    }
+
+    if (msc == nullptr)
+    {
+        return egl::Error(EGL_BAD_PARAMETER, "msc is null");
+    }
+
+    if (sbc == nullptr)
+    {
+        return egl::Error(EGL_BAD_PARAMETER, "sbc is null");
+    }
+
+    return Error(EGL_SUCCESS);
 }
 
 Error ValidateSwapBuffersWithDamageEXT(const Display *display,

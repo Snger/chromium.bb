@@ -95,7 +95,7 @@ void SetupOnUI(
                 service_worker_version_id, url, scope),
             is_installed);
     if (request.is_pending())
-      rph->GetRemoteInterfaces()->GetInterface(std::move(request));
+      BindInterface(rph, std::move(request));
   }
   BrowserThread::PostTask(
       BrowserThread::IO,
@@ -515,7 +515,7 @@ void EmbeddedWorkerInstance::StopIfIdle() {
       // Check ShouldNotifyWorkerStopIgnored not to show the same message
       // multiple times in DevTools.
       if (devtools_proxy_->ShouldNotifyWorkerStopIgnored()) {
-        AddMessageToConsole(blink::WebConsoleMessage::LevelDebug,
+        AddMessageToConsole(blink::WebConsoleMessage::kLevelVerbose,
                             kServiceWorkerTerminationCanceledMesage);
         devtools_proxy_->WorkerStopIgnoredNotified();
       }
@@ -817,17 +817,18 @@ int EmbeddedWorkerInstance::worker_devtools_agent_route_id() const {
   return MSG_ROUTING_NONE;
 }
 
-MessagePortMessageFilter* EmbeddedWorkerInstance::message_port_message_filter()
-    const {
-  return registry_->MessagePortMessageFilterForProcess(process_id());
-}
-
 void EmbeddedWorkerInstance::AddListener(Listener* listener) {
   listener_list_.AddObserver(listener);
 }
 
 void EmbeddedWorkerInstance::RemoveListener(Listener* listener) {
   listener_list_.RemoveObserver(listener);
+}
+
+void EmbeddedWorkerInstance::SetDevToolsAttached(bool attached) {
+  devtools_attached_ = attached;
+  if (attached)
+    registry_->OnDevToolsAttached(embedded_worker_id_);
 }
 
 void EmbeddedWorkerInstance::OnNetworkAccessedForScriptLoad() {
@@ -871,10 +872,8 @@ base::TimeDelta EmbeddedWorkerInstance::UpdateStepTime() {
 void EmbeddedWorkerInstance::AddMessageToConsole(
     blink::WebConsoleMessage::Level level,
     const std::string& message) {
-  if (status_ != EmbeddedWorkerStatus::RUNNING &&
-      status_ != EmbeddedWorkerStatus::STARTING) {
+  if (process_id() == ChildProcessHost::kInvalidUniqueID)
     return;
-  }
   DCHECK(client_.is_bound());
   client_->AddMessageToConsole(level, message);
 }

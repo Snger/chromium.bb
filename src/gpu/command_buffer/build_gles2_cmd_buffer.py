@@ -1372,6 +1372,7 @@ _NAMED_TYPE_INFO = {
     'type': 'GLenum',
     'is_complete': True,
     'valid': [
+      'GL_SAMPLES_PASSED_ARB',
       'GL_ANY_SAMPLES_PASSED_EXT',
       'GL_ANY_SAMPLES_PASSED_CONSERVATIVE_EXT',
       'GL_COMMANDS_ISSUED_CHROMIUM',
@@ -2145,12 +2146,6 @@ _NAMED_TYPE_INFO = {
       'GL_RGBA',
     ],
   },
-  'ImageUsage': {
-    'type': 'GLenum',
-    'valid': [
-      'GL_READ_WRITE_CHROMIUM',
-    ],
-  },
   'UniformParameter': {
     'type': 'GLenum',
     'is_complete': True,
@@ -2667,14 +2662,6 @@ _FUNCTION_INFO = {
   'DestroyImageCHROMIUM': {
     'type': 'NoCommand',
     'extension': "CHROMIUM_image",
-    'trace_level': 1,
-  },
-  'CreateGpuMemoryBufferImageCHROMIUM': {
-    'type': 'NoCommand',
-    'cmd_args':
-        'GLsizei width, GLsizei height, GLenum internalformat, GLenum usage',
-    'result': ['GLuint'],
-    'extension': "CHROMIUM_gpu_memory_buffer_image",
     'trace_level': 1,
   },
   'DescheduleUntilFinishedCHROMIUM': {
@@ -3372,7 +3359,6 @@ _FUNCTION_INFO = {
     'type': 'PUTn',
     'count': 1,
     'decoder_func': 'DoInvalidateFramebuffer',
-    'client_test': False,
     'unit_test': False,
     'es3': True,
   },
@@ -3380,7 +3366,6 @@ _FUNCTION_INFO = {
     'type': 'PUTn',
     'count': 1,
     'decoder_func': 'DoInvalidateSubFramebuffer',
-    'client_test': False,
     'unit_test': False,
     'es3': True,
   },
@@ -3653,8 +3638,10 @@ _FUNCTION_INFO = {
     'extension': True,
     'trace_level': 1,
   },
-  'SwapBuffersWithDamageCHROMIUM': {
-    'type': 'Custom',
+  'SwapBuffersWithBoundsCHROMIUM': {
+    'type': 'PUTn',
+    'count': 4,
+    'decoder_func': 'DoSwapBuffersWithBoundsCHROMIUM',
     'impl_func': False,
     'client_test': False,
     'extension': True,
@@ -4018,6 +4005,7 @@ _FUNCTION_INFO = {
   'Scissor': {
     'type': 'StateSet',
     'state': 'Scissor',
+    'decoder_func': 'DoScissor',
   },
   'Viewport': {
     'impl_func': False,
@@ -4080,7 +4068,6 @@ _FUNCTION_INFO = {
     'type': 'PUTn',
     'decoder_func': 'DoDrawBuffersEXT',
     'count': 1,
-    'client_test': False,
     'unit_test': False,
     # could use 'extension_flag': 'ext_draw_buffers' but currently expected to
     # work without.
@@ -4327,7 +4314,6 @@ _FUNCTION_INFO = {
     'count': 1,
     'decoder_func': 'DoDiscardFramebufferEXT',
     'unit_test': False,
-    'client_test': False,
     'extension': 'EXT_discard_framebuffer',
     'extension_flag': 'ext_discard_framebuffer',
     'trace_level': 2,
@@ -4400,6 +4386,23 @@ _FUNCTION_INFO = {
     'cmd_args': 'GLsizei count, const GLuint* textures',
     'extension': 'CHROMIUM_schedule_ca_layer',
     'unit_test': False,
+  },
+  'ScheduleDCLayerSharedStateCHROMIUM': {
+    'type': 'Custom',
+    'impl_func': False,
+    'client_test': False,
+    'cmd_args': 'GLfloat opacity, GLboolean is_clipped, '
+                'GLint z_order, GLuint shm_id, GLuint shm_offset',
+    'extension': 'CHROMIUM_schedule_ca_layer',
+  },
+  'ScheduleDCLayerCHROMIUM': {
+    'type': 'Custom',
+    'impl_func': False,
+    'client_test': False,
+    'cmd_args': 'GLuint contents_texture_id, GLuint background_color, '
+                'GLuint edge_aa_mask, GLuint filter, GLuint shm_id, '
+                'GLuint shm_offset',
+    'extension': 'CHROMIUM_schedule_ca_layer',
   },
   'CommitOverlayPlanesCHROMIUM': {
     'impl_func': False,
@@ -4540,6 +4543,14 @@ _FUNCTION_INFO = {
     'data_transfer_methods': ['shm'],
     'extension': 'CHROMIUM_path_rendering',
     'extension_flag': 'chromium_path_rendering',
+  },
+  'SetDrawRectangleCHROMIUM': {
+    'decoder_func': 'DoSetDrawRectangleCHROMIUM',
+    'extension': 'CHROMIUM_set_draw_rectangle',
+  },
+  'SetEnableDCLayersCHROMIUM': {
+    'decoder_func': 'DoSetEnableDCLayersCHROMIUM',
+    'extension': 'CHROMIUM_dc_layers',
   },
 }
 
@@ -5011,6 +5022,7 @@ static_assert(offsetof(%(cmd_name)s::Result, %(field_name)s) == %(offset)d,
     """Writes the service implementation for a command."""
     self.WritePassthroughServiceFunctionHeader(func, f)
     self.WriteServiceHandlerArgGetCode(func, f)
+    func.WritePassthroughHandlerValidation(f)
     self.WritePassthroughServiceFunctionDoerCall(func, f)
     f.write("  return error::kNoError;\n")
     f.write("}\n")
@@ -5020,6 +5032,7 @@ static_assert(offsetof(%(cmd_name)s::Result, %(field_name)s) == %(offset)d,
     """Writes the service implementation for a command."""
     self.WritePassthroughServiceFunctionHeader(func, f)
     self.WriteImmediateServiceHandlerArgGetCode(func, f)
+    func.WritePassthroughHandlerValidation(f)
     self.WritePassthroughServiceFunctionDoerCall(func, f)
     f.write("  return error::kNoError;\n")
     f.write("}\n")
@@ -5029,6 +5042,7 @@ static_assert(offsetof(%(cmd_name)s::Result, %(field_name)s) == %(offset)d,
     """Writes the service implementation for a command."""
     self.WritePassthroughServiceFunctionHeader(func, f)
     self.WriteBucketServiceHandlerArgGetCode(func, f)
+    func.WritePassthroughHandlerValidation(f)
     self.WritePassthroughServiceFunctionDoerCall(func, f)
     f.write("  return error::kNoError;\n")
     f.write("}\n")
@@ -6689,7 +6703,7 @@ class GETnHandler(TypeHandler):
   typedef cmds::%(func_name)s::Result Result;
   Result* result = GetSharedMemoryAndSizeAs<Result*>(
       c.%(last_arg_name)s_shm_id, c.%(last_arg_name)s_shm_offset,
-      &buffer_size);
+      sizeof(Result), &buffer_size);
   %(last_arg_type)s %(last_arg_name)s = result ? result->GetData() : NULL;
   if (%(last_arg_name)s == NULL) {
     return error::kOutOfBounds;
@@ -7334,6 +7348,9 @@ TEST_P(%(test_name)s, %(name)sInvalidArgs%(arg_index)d_%(value_index)d) {
 
   def WriteGLES2Implementation(self, func, f):
     """Overrriden from TypeHandler."""
+    impl_func = func.GetInfo('impl_func')
+    if (impl_func != None and impl_func != True):
+      return;
     f.write("%s GLES2Implementation::%s(%s) {\n" %
                (func.return_type, func.original_name,
                 func.MakeTypedOriginalArgString("")))
@@ -7360,6 +7377,10 @@ TEST_P(%(test_name)s, %(name)sInvalidArgs%(arg_index)d_%(value_index)d) {
 
   def WriteGLES2ImplementationUnitTest(self, func, f):
     """Writes the GLES2 Implemention unit test."""
+    client_test = func.GetInfo('client_test', True)
+    if not client_test:
+      return;
+
     code = """
 TEST_F(GLES2ImplementationTest, %(name)s) {
   %(type)s data[%(count_param)d][%(count)d] = {{0}};
@@ -8594,6 +8615,10 @@ class Argument(object):
     """Writes the validation code for an argument."""
     pass
 
+  def WritePassthroughValidationCode(self, f, func):
+    """Writes the passthrough validation code for an argument."""
+    pass
+
   def WriteClientSideValidationCode(self, f, func):
     """Writes the validation code for an argument."""
     pass
@@ -8878,6 +8903,14 @@ class ImmediatePointerArgument(Argument):
     if self.optional:
       return
     f.write("  if (%s == NULL) {\n" % self.name)
+    f.write("    return error::kOutOfBounds;\n")
+    f.write("  }\n")
+
+  def WritePassthroughValidationCode(self, f, func):
+    """Overridden from Argument."""
+    if self.optional:
+      return
+    f.write("  if (%s == nullptr) {\n" % self.name)
     f.write("    return error::kOutOfBounds;\n")
     f.write("  }\n")
 
@@ -9509,6 +9542,11 @@ class Function(object):
     for arg in self.GetOriginalArgs():
       arg.WriteValidationCode(f, self)
     self.WriteValidationCode(f)
+
+  def WritePassthroughHandlerValidation(self, f):
+    """Writes validation code for the function."""
+    for arg in self.GetOriginalArgs():
+      arg.WritePassthroughValidationCode(f, self)
 
   def WriteHandlerImplementation(self, f):
     """Writes the handler implementation for this command."""

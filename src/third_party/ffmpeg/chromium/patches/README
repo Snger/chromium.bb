@@ -1,16 +1,9 @@
-Upstream cherry-picks, most recent cherry-picks at end of list:
-
-
 Autorename:
   autorename_* files are renamed copies of various files that would cause
     base name collisions from mac libtool. These files are generated
     by generate_gn.py. https://chromium-review.googlesource.com/#/c/274543/
 
 Current patches:
-  Changes to libavcodec/flac_parser.c crbug.com/665305
-    Started decrementing buffered header count during flac parsing, to prevent
-    a clusterfuzz hang.
-
   .gitignore has a "Chromium stuff" section.
 
   Changes to configure
@@ -41,6 +34,7 @@ Current patches:
     4fe9bb85b83fffe4c3640493ef6655b0992a822c re-adds an "undef strod" and
     new strtod decl to fix Windows compilation issues to strtod.c .
 
+  !!!SECURITY SENSITIVE ISSUE PLEASE VERIFY AFTER EACH FFMPEG ROLL!!!
   Remove UNCHECKED_BITSTREAM_READER defines in libavcodec/
     Remove "#define UNCHECKED_BITSTREAM_READER 1" from all codecs.
     In Chromium, all codecs should use the safe bitstream reader.
@@ -70,16 +64,6 @@ Current patches:
     commit e4decbe7 includes a downstream declaration of |ret| in
     mov_seek_stream in mov.c.
 
-  Other changes to libavformat/mov.c:
-    Avoid heap allocation wrap when allocating title_str in mov_read_hdlr().
-    TODO: push upstream.
-
-    Avoid heap allocation wraps when allocating buffers in mov_read_uuid().
-    TODO: push upstream.
-
-    Avoid heap allocation wraps and OOB in mov_read_{senc,saiz,udta_string}().
-    TODO: push upstream.
-
   Changes to libavformat/matroskadec.c
     Add CONFIG_LZO and CONFIG_SIPR_DECODER (and other CONFIG_*) checks to remove
     code that may be a security risk. Discuss with cevans@ before removing.
@@ -91,7 +75,17 @@ Current patches:
     Revert upstream 7a9db61da39fbfaa910c10c0719be595a7d06f3d to fix seeking with
     text tracks.  crbug.com/681886 .
 
+  Changes to libavformat/id2v2.c
+    Change to 'return' in read_chapter to 'goto end' to fix a minor memory leak.
+    crbug.com/689339
+
   Changes to libavformat/mp3dec.c
+    Change to mp3_read_header: check for the custom "skip_id3v1_tag" metadata
+    flag we set in Chromium code, to avoid the costly reads of id3v1 tags.
+    Also av_dict_free the dictionary before overwriting it to prevent leaks.
+    See crbug.com/703965 (upstream patch discussion:
+    http://ffmpeg.org/pipermail/ffmpeg-devel/2017-April/209953.html).
+
     Other changes: TODO(chcunningham/dalecurtis): https://crbug.com/504623 -
     Determine whether these changes are still necessary and either remove or
     document them.
@@ -110,10 +104,6 @@ Current patches:
   Changes to libavutil/arm/intmath.h
     Remove static av_always_inline av_const unsigned av_clip_uintp2_arm() and
     av_clip_intp2_arm() due to compilation failure.
-
-  Changes to libavutil/cpu.c
-    Switch to compat/atomics/win32/stdatomic.h for win32, since it doesn't
-    provide stdatomic.h .
 
   Changes to libavutil/mem.c
     Enable av_max_alloc(0) to remove alloc size bound.

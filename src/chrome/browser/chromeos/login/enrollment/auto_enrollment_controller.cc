@@ -13,6 +13,9 @@
 #include "chrome/browser/chromeos/policy/browser_policy_connector_chromeos.h"
 #include "chrome/browser/chromeos/policy/server_backed_state_keys_broker.h"
 #include "chromeos/chromeos_switches.h"
+#include "chromeos/dbus/cryptohome/rpc.pb.h"
+#include "chromeos/dbus/cryptohome_client.h"
+#include "chromeos/dbus/dbus_thread_manager.h"
 #include "chromeos/system/statistics_provider.h"
 #include "components/policy/core/common/cloud/device_management_service.h"
 #include "net/url_request/url_request_context_getter.h"
@@ -132,10 +135,7 @@ AutoEnrollmentController::Mode AutoEnrollmentController::GetMode() {
   return MODE_NONE;
 }
 
-AutoEnrollmentController::AutoEnrollmentController()
-    : state_(policy::AUTO_ENROLLMENT_STATE_IDLE),
-      safeguard_timer_(false, false),
-      client_start_weak_factory_(this) {}
+AutoEnrollmentController::AutoEnrollmentController() {}
 
 AutoEnrollmentController::~AutoEnrollmentController() {}
 
@@ -178,9 +178,10 @@ void AutoEnrollmentController::Start() {
   }
 
   // Arm the belts-and-suspenders timer to avoid hangs.
-  safeguard_timer_.Start(
-      FROM_HERE, base::TimeDelta::FromSeconds(kSafeguardTimeoutSeconds),
-      base::Bind(&AutoEnrollmentController::Timeout, base::Unretained(this)));
+  safeguard_timer_.Start(FROM_HERE,
+                         base::TimeDelta::FromSeconds(kSafeguardTimeoutSeconds),
+                         base::Bind(&AutoEnrollmentController::Timeout,
+                                    weak_ptr_factory_.GetWeakPtr()));
 
   // Start by checking if the device has already been owned.
   UpdateState(policy::AUTO_ENROLLMENT_STATE_PENDING);
@@ -217,26 +218,31 @@ AutoEnrollmentController::RegisterProgressCallback(
 
 void AutoEnrollmentController::OnOwnershipStatusCheckDone(
     DeviceSettingsService::OwnershipStatus status) {
-  switch (status) {
-    case DeviceSettingsService::OWNERSHIP_NONE: {
+  policy::ServerBackedStateKeysBroker* state_keys_broker =
       g_browser_process->platform_part()
           ->browser_policy_connector_chromeos()
-          ->GetStateKeysBroker()
-          ->RequestStateKeys(
-              base::Bind(&AutoEnrollmentController::StartClient,
-                         client_start_weak_factory_.GetWeakPtr()));
-      break;
-    }
-    case DeviceSettingsService::OWNERSHIP_TAKEN: {
+          ->GetStateKeysBroker();
+  switch (status) {
+    case DeviceSettingsService::OWNERSHIP_NONE:
+      // TODO(tnagel): Prevent missing state keys broker in the first place.
+      // https://crbug.com/703658
+      if (!state_keys_broker) {
+        LOG(ERROR) << "State keys broker missing.";
+        UpdateState(policy::AUTO_ENROLLMENT_STATE_NO_ENROLLMENT);
+        return;
+      }
+      state_keys_broker->RequestStateKeys(
+          base::Bind(&AutoEnrollmentController::StartClient,
+                     client_start_weak_factory_.GetWeakPtr()));
+      return;
+    case DeviceSettingsService::OWNERSHIP_TAKEN:
       VLOG(1) << "Device already owned, skipping auto-enrollment check.";
       UpdateState(policy::AUTO_ENROLLMENT_STATE_NO_ENROLLMENT);
-      break;
-    }
-    case DeviceSettingsService::OWNERSHIP_UNKNOWN: {
+      return;
+    case DeviceSettingsService::OWNERSHIP_UNKNOWN:
       LOG(ERROR) << "Ownership unknown, skipping auto-enrollment check.";
       UpdateState(policy::AUTO_ENROLLMENT_STATE_NO_ENROLLMENT);
-      break;
-    }
+      return;
   }
 }
 
@@ -264,15 +270,12 @@ void AutoEnrollmentController::StartClient(
     power_initial = power_limit;
   }
 
-  client_.reset(new policy::AutoEnrollmentClient(
+  client_ = base::MakeUnique<policy::AutoEnrollmentClient>(
       base::Bind(&AutoEnrollmentController::UpdateState,
-                 base::Unretained(this)),
-      service,
-      g_browser_process->local_state(),
-      g_browser_process->system_request_context(),
-      state_keys.front(),
-      power_initial,
-      power_limit));
+                 weak_ptr_factory_.GetWeakPtr()),
+      service, g_browser_process->local_state(),
+      g_browser_process->system_request_context(), state_keys.front(),
+      power_initial, power_limit);
 
   VLOG(1) << "Starting auto-enrollment client.";
   client_->Start();
@@ -294,6 +297,35 @@ void AutoEnrollmentController::UpdateState(
     case policy::AUTO_ENROLLMENT_STATE_NO_ENROLLMENT:
       safeguard_timer_.Stop();
       break;
+  }
+
+  if (state_ == policy::AUTO_ENROLLMENT_STATE_NO_ENROLLMENT) {
+    StartRemoveFirmwareManagementParameters();
+  } else {
+    progress_callbacks_.Notify(state_);
+  }
+}
+
+void AutoEnrollmentController::StartRemoveFirmwareManagementParameters() {
+  DCHECK_EQ(policy::AUTO_ENROLLMENT_STATE_NO_ENROLLMENT, state_);
+
+  cryptohome::RemoveFirmwareManagementParametersRequest request;
+  chromeos::DBusThreadManager::Get()
+      ->GetCryptohomeClient()
+      ->RemoveFirmwareManagementParametersFromTpm(
+          request,
+          base::Bind(
+              &AutoEnrollmentController::OnFirmwareManagementParametersRemoved,
+              weak_ptr_factory_.GetWeakPtr()));
+}
+
+void AutoEnrollmentController::OnFirmwareManagementParametersRemoved(
+    chromeos::DBusMethodCallStatus call_status,
+    bool result,
+    const cryptohome::BaseReply& reply) {
+  if (!result) {
+    LOG(ERROR) << "Failed to remove firmware management parameters, error: "
+               << reply.error();
   }
 
   progress_callbacks_.Notify(state_);

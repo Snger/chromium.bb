@@ -10,6 +10,7 @@ import android.text.TextUtils;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
+import android.view.WindowManager;
 import android.widget.AdapterView;
 import android.widget.ArrayAdapter;
 import android.widget.Button;
@@ -17,6 +18,7 @@ import android.widget.EditText;
 import android.widget.Spinner;
 
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.ChromeVersionInfo;
 import org.chromium.chrome.browser.autofill.PersonalDataManager;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.AutofillProfile;
 import org.chromium.chrome.browser.autofill.PersonalDataManager.CreditCard;
@@ -43,6 +45,13 @@ public class AutofillLocalCardEditor extends AutofillCreditCardEditor {
     @Override
     public View onCreateView(LayoutInflater inflater, ViewGroup container,
             Bundle savedInstanceState) {
+        // Allow screenshots of the credit card number in Canary, Dev, and developer builds.
+        if (ChromeVersionInfo.isBetaBuild() || ChromeVersionInfo.isStableBuild()) {
+            WindowManager.LayoutParams attributes = getActivity().getWindow().getAttributes();
+            attributes.flags |= WindowManager.LayoutParams.FLAG_SECURE;
+            getActivity().getWindow().setAttributes(attributes);
+        }
+
         View v = super.onCreateView(inflater, container, savedInstanceState);
 
         mNameLabel = (CompatibilityTextInputLayout) v.findViewById(R.id.credit_card_name_label);
@@ -170,7 +179,7 @@ public class AutofillLocalCardEditor extends AutofillCreditCardEditor {
                     R.string.payments_card_number_invalid_validation_message));
             return false;
         }
-        CreditCard card = new CreditCard(mGUID, AutofillPreferences.SETTINGS_ORIGIN,
+        CreditCard card = new CreditCard(mGUID, AutofillAndPaymentsPreferences.SETTINGS_ORIGIN,
                 true /* isLocal */, false /* isCached */, mNameText.getText().toString().trim(),
                 cardNumber, "" /* obfuscatedNumber */,
                 String.valueOf(mExpirationMonth.getSelectedItemPosition() + 1),

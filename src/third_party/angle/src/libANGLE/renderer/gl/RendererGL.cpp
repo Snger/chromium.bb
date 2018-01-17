@@ -93,8 +93,25 @@ static void INTERNAL_GL_APIENTRY LogGLDebugMessage(GLenum source, GLenum type, G
       default:                             severityText = "UNKNOWN";      break;
     }
 
-    ERR("\n\tSource: %s\n\tType: %s\n\tID: %d\n\tSeverity: %s\n\tMessage: %s", sourceText.c_str(), typeText.c_str(), id,
-        severityText.c_str(), message);
+    if (type == GL_DEBUG_TYPE_ERROR)
+    {
+        ERR() << std::endl
+              << "\tSource: " << sourceText << std::endl
+              << "\tType: " << typeText << std::endl
+              << "\tID: " << gl::Error(id) << std::endl
+              << "\tSeverity: " << severityText << std::endl
+              << "\tMessage: " << message;
+    }
+    else
+    {
+        // TODO(ynovikov): filter into WARN and INFO if INFO is ever implemented
+        WARN() << std::endl
+               << "\tSource: " << sourceText << std::endl
+               << "\tType: " << typeText << std::endl
+               << "\tID: " << gl::Error(id) << std::endl
+               << "\tSeverity: " << severityText << std::endl
+               << "\tMessage: " << message;
+    }
 }
 #endif
 
@@ -111,8 +128,8 @@ RendererGL::RendererGL(const FunctionsGL *functions, const egl::AttributeMap &at
       mCapsInitialized(false)
 {
     ASSERT(mFunctions);
-    mStateManager = new StateManagerGL(mFunctions, getNativeCaps());
     nativegl_gl::GenerateWorkarounds(mFunctions, &mWorkarounds);
+    mStateManager = new StateManagerGL(mFunctions, getNativeCaps());
     mBlitter = new BlitGL(functions, mWorkarounds, mStateManager);
 
     mHasDebugOutput = mFunctions->isAtLeastGL(gl::Version(4, 3)) ||
@@ -536,7 +553,8 @@ void RendererGL::generateCaps(gl::Caps *outCaps, gl::TextureCapsMap* outTextureC
                               gl::Extensions *outExtensions,
                               gl::Limitations * /* outLimitations */) const
 {
-    nativegl_gl::GenerateCaps(mFunctions, outCaps, outTextureCaps, outExtensions, &mMaxSupportedESVersion);
+    nativegl_gl::GenerateCaps(mFunctions, mWorkarounds, outCaps, outTextureCaps, outExtensions,
+                              &mMaxSupportedESVersion);
 }
 
 GLint RendererGL::getGPUDisjoint()
@@ -583,6 +601,16 @@ const gl::Limitations &RendererGL::getNativeLimitations() const
 {
     ensureCapsInitialized();
     return mNativeLimitations;
+}
+
+gl::Error RendererGL::dispatchCompute(const gl::ContextState &data,
+                                      GLuint numGroupsX,
+                                      GLuint numGroupsY,
+                                      GLuint numGroupsZ)
+{
+    ANGLE_TRY(mStateManager->setDispatchComputeState(data));
+    mFunctions->dispatchCompute(numGroupsX, numGroupsY, numGroupsZ);
+    return gl::NoError();
 }
 
 }  // namespace rx

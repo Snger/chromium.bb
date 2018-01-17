@@ -39,6 +39,7 @@
 #include "extensions/test/result_catcher.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
+#include "net/test/test_data_directory.h"
 #include "third_party/WebKit/public/platform/WebInputEvent.h"
 
 using content::WebContents;
@@ -273,15 +274,14 @@ IN_PROC_BROWSER_TEST_F(ExtensionWebRequestApiTest, MAYBE_WebRequestNewTab) {
 
   // There's a link on a.html with target=_blank. Click on it to open it in a
   // new tab.
-  blink::WebMouseEvent mouse_event(blink::WebInputEvent::MouseDown,
-                                   blink::WebInputEvent::NoModifiers,
-                                   blink::WebInputEvent::TimeStampForTesting);
-  mouse_event.button = blink::WebMouseEvent::Button::Left;
-  mouse_event.x = 7;
-  mouse_event.y = 7;
-  mouse_event.clickCount = 1;
+  blink::WebMouseEvent mouse_event(blink::WebInputEvent::kMouseDown,
+                                   blink::WebInputEvent::kNoModifiers,
+                                   blink::WebInputEvent::kTimeStampForTesting);
+  mouse_event.button = blink::WebMouseEvent::Button::kLeft;
+  mouse_event.SetPositionInWidget(7, 7);
+  mouse_event.click_count = 1;
   tab->GetRenderViewHost()->GetWidget()->ForwardMouseEvent(mouse_event);
-  mouse_event.setType(blink::WebInputEvent::MouseUp);
+  mouse_event.SetType(blink::WebInputEvent::kMouseUp);
   tab->GetRenderViewHost()->GetWidget()->ForwardMouseEvent(mouse_event);
 
   ASSERT_TRUE(catcher.GetNextResult()) << catcher.message();
@@ -651,6 +651,25 @@ IN_PROC_BROWSER_TEST_F(ExtensionWebRequestApiTest,
   EXPECT_EQ(xhr_count,
             GetWebRequestCountFromBackgroundPage(extension, profile()));
   EXPECT_EQ(BLOCKED_ACTION_WEB_REQUEST, runner->GetBlockedActions(extension));
+}
+
+// Test that the webRequest events are dispatched for the WebSocket handshake
+// requests.
+IN_PROC_BROWSER_TEST_F(ExtensionWebRequestApiTest, WebSocketRequest) {
+  ASSERT_TRUE(StartEmbeddedTestServer());
+  ASSERT_TRUE(StartWebSocketServer(net::GetWebSocketTestDataDirectory()));
+  ASSERT_TRUE(RunExtensionSubtest("webrequest", "test_websocket.html"))
+      << message_;
+}
+
+// Test that the webRequest events are dispatched for the WebSocket handshake
+// requests when authenrication is requested by server.
+IN_PROC_BROWSER_TEST_F(ExtensionWebRequestApiTest,
+                       WebSocketRequestAuthRequired) {
+  ASSERT_TRUE(StartEmbeddedTestServer());
+  ASSERT_TRUE(StartWebSocketServer(net::GetWebSocketTestDataDirectory(), true));
+  ASSERT_TRUE(RunExtensionSubtest("webrequest", "test_websocket_auth.html"))
+      << message_;
 }
 
 }  // namespace extensions

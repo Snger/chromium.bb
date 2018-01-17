@@ -153,7 +153,7 @@ static void generate_aa_fill_rect_geometry(intptr_t verts,
     }
 }
 
-class AAFillRectOp final: public GrMeshDrawOp {
+class AAFillRectOp final : public GrLegacyMeshDrawOp {
 public:
     DEFINE_OP_CLASS_ID
 
@@ -193,7 +193,7 @@ public:
         return str;
     }
 
-    void applyPipelineOptimizations(const GrPipelineOptimizations& optimizations) override {
+    void applyPipelineOptimizations(const PipelineOptimizations& optimizations) override {
         GrColor color;
         if (optimizations.getOverrideColorIfSet(&color)) {
             this->first()->setColor(color);
@@ -203,15 +203,16 @@ public:
     }
 
 private:
-    void getPipelineAnalysisInput(GrPipelineAnalysisDrawOpInput* input) const override {
-        input->pipelineColorInput()->setKnownFourComponents(this->first()->color());
-        input->pipelineCoverageInput()->setUnknownSingleComponent();
+    void getProcessorAnalysisInputs(GrProcessorAnalysisColor* color,
+                                    GrProcessorAnalysisCoverage* coverage) const override {
+        color->setToConstant(this->first()->color());
+        *coverage = GrProcessorAnalysisCoverage::kSingleChannel;
     }
 
     void onPrepareDraws(Target* target) const override {
         using namespace GrDefaultGeoProcFactory;
 
-        Color color(Color::kAttribute_Type);
+        Color color(Color::kPremulGrColorAttribute_Type);
         Coverage::Type coverageType;
         if (fCanTweakAlphaForCoverage) {
             coverageType = Coverage::kSolid_Type;
@@ -256,7 +257,7 @@ private:
                                            localMatrix);
             info = this->next(info);
         }
-        helper.recordDraw(target, gp.get());
+        helper.recordDraw(target, gp.get(), this->pipeline());
     }
 
     bool onCombineIfPossible(GrOp* t, const GrCaps& caps) override {
@@ -337,40 +338,41 @@ private:
     SkSTArray<4 * sizeof(RectWithLocalMatrixInfo), uint8_t, true> fRectData;
     int fRectCnt;
 
-    typedef GrMeshDrawOp INHERITED;
+    typedef GrLegacyMeshDrawOp INHERITED;
 };
 
 namespace GrAAFillRectOp {
 
-std::unique_ptr<GrDrawOp> Make(GrColor color,
-                               const SkMatrix& viewMatrix,
-                               const SkRect& rect,
-                               const SkRect& devRect) {
-    return std::unique_ptr<GrDrawOp>(new AAFillRectOp(color, viewMatrix, rect, devRect, nullptr));
+std::unique_ptr<GrLegacyMeshDrawOp> Make(GrColor color,
+                                         const SkMatrix& viewMatrix,
+                                         const SkRect& rect,
+                                         const SkRect& devRect) {
+    return std::unique_ptr<GrLegacyMeshDrawOp>(
+            new AAFillRectOp(color, viewMatrix, rect, devRect, nullptr));
 }
 
-std::unique_ptr<GrDrawOp> Make(GrColor color,
-                               const SkMatrix& viewMatrix,
-                               const SkMatrix& localMatrix,
-                               const SkRect& rect,
-                               const SkRect& devRect) {
-    return std::unique_ptr<GrDrawOp>(
+std::unique_ptr<GrLegacyMeshDrawOp> Make(GrColor color,
+                                         const SkMatrix& viewMatrix,
+                                         const SkMatrix& localMatrix,
+                                         const SkRect& rect,
+                                         const SkRect& devRect) {
+    return std::unique_ptr<GrLegacyMeshDrawOp>(
             new AAFillRectOp(color, viewMatrix, rect, devRect, &localMatrix));
 }
 
-std::unique_ptr<GrDrawOp> Make(GrColor color,
-                               const SkMatrix& viewMatrix,
-                               const SkMatrix& localMatrix,
-                               const SkRect& rect) {
+std::unique_ptr<GrLegacyMeshDrawOp> Make(GrColor color,
+                                         const SkMatrix& viewMatrix,
+                                         const SkMatrix& localMatrix,
+                                         const SkRect& rect) {
     SkRect devRect;
     viewMatrix.mapRect(&devRect, rect);
     return Make(color, viewMatrix, localMatrix, rect, devRect);
 }
 
-std::unique_ptr<GrDrawOp> MakeWithLocalRect(GrColor color,
-                                            const SkMatrix& viewMatrix,
-                                            const SkRect& rect,
-                                            const SkRect& localRect) {
+std::unique_ptr<GrLegacyMeshDrawOp> MakeWithLocalRect(GrColor color,
+                                                      const SkMatrix& viewMatrix,
+                                                      const SkRect& rect,
+                                                      const SkRect& localRect) {
     SkRect devRect;
     viewMatrix.mapRect(&devRect, rect);
     SkMatrix localMatrix;
@@ -383,7 +385,7 @@ std::unique_ptr<GrDrawOp> MakeWithLocalRect(GrColor color,
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef GR_TEST_UTILS
+#if GR_TEST_UTILS
 
 #include "GrDrawOpTest.h"
 

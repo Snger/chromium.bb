@@ -21,6 +21,7 @@
 #include "base/values.h"
 #include "build/build_config.h"
 #include "content/browser/frame_host/frame_tree.h"
+#include "content/browser/frame_host/frame_tree_node.h"
 #include "content/browser/frame_host/navigation_controller_delegate.h"
 #include "content/browser/frame_host/navigation_controller_impl.h"
 #include "content/browser/frame_host/navigator_delegate.h"
@@ -30,17 +31,20 @@
 #include "content/browser/renderer_host/render_view_host_delegate.h"
 #include "content/browser/renderer_host/render_view_host_impl.h"
 #include "content/browser/renderer_host/render_widget_host_delegate.h"
-#include "content/common/accessibility_mode_enums.h"
+#include "content/browser/wake_lock/wake_lock_context_host.h"
+#include "content/common/accessibility_mode.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/color_chooser.h"
 #include "content/public/browser/notification_observer.h"
 #include "content/public/browser/notification_registrar.h"
 #include "content/public/browser/web_contents.h"
+#include "content/public/browser/web_contents_binding_set.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/common/page_importance_signals.h"
 #include "content/public/common/renderer_preferences.h"
 #include "content/public/common/resource_type.h"
 #include "content/public/common/three_d_api_types.h"
+#include "device/wake_lock/public/interfaces/wake_lock_context.mojom.h"
 #include "net/base/load_states.h"
 #include "net/http/http_response_headers.h"
 #include "ppapi/features/features.h"
@@ -72,14 +76,11 @@ class RenderViewHostDelegateView;
 class RenderWidgetHostImpl;
 class RenderWidgetHostInputEventRouter;
 class SavePackage;
-class ScreenOrientation;
 class ScreenOrientationProvider;
 class SiteInstance;
 class TestWebContents;
 class TextInputManager;
-class WakeLockServiceContext;
 class WebContentsAudioMuter;
-class WebContentsBindingSet;
 class WebContentsDelegate;
 class WebContentsImpl;
 class WebContentsView;
@@ -121,7 +122,7 @@ class CONTENT_EXPORT WebContentsImpl
       public NON_EXPORTED_BASE(NavigationControllerDelegate),
       public NON_EXPORTED_BASE(NavigatorDelegate) {
  public:
-  class FriendZone;
+  class FriendWrapper;
 
   ~WebContentsImpl() override;
 
@@ -210,6 +211,12 @@ class CONTENT_EXPORT WebContentsImpl
 
   WebContentsView* GetView() const;
 
+  void OnScreenOrientationChange();
+
+  ScreenOrientationProvider* GetScreenOrientationProviderForTesting() const {
+    return screen_orientation_provider_.get();
+  }
+
   bool should_normally_be_visible() { return should_normally_be_visible_; }
 
   // Indicate if the window has been occluded, and pass this to the views, only
@@ -255,6 +262,11 @@ class CONTENT_EXPORT WebContentsImpl
   // explicitly removed before being destroyed.
   base::Closure AddBindingSet(const std::string& interface_name,
                               WebContentsBindingSet* binding_set);
+
+  // Accesses a WebContentsBindingSet for a specific interface on this
+  // WebContents. Returns null of there is no registered binder for the
+  // interface.
+  WebContentsBindingSet* GetBindingSet(const std::string& interface_name);
 
   // WebContents ------------------------------------------------------
   WebContentsDelegate* GetDelegate() override;
@@ -340,7 +352,7 @@ class CONTENT_EXPORT WebContentsImpl
   void PasteAndMatchStyle() override;
   void Delete() override;
   void SelectAll() override;
-  void Unselect() override;
+  void CollapseSelection() override;
   void Replace(const base::string16& word) override;
   void ReplaceMisspelling(const base::string16& word) override;
   void NotifyContextMenuClosed(
@@ -412,6 +424,8 @@ class CONTENT_EXPORT WebContentsImpl
   void OnAllPasswordInputsHiddenOnHttp() override;
   void OnCreditCardInputShownOnHttp() override;
   void SetIsOverlayContent(bool is_overlay_content) override;
+  bool IsFocusedElementEditable() override;
+  void ClearFocusedElement() override;
 
 #if defined(OS_ANDROID)
   base::android::ScopedJavaLocalRef<jobject> GetJavaWebContents() override;
@@ -442,12 +456,12 @@ class CONTENT_EXPORT WebContentsImpl
   void RenderFrameDeleted(RenderFrameHost* render_frame_host) override;
   void ShowContextMenu(RenderFrameHost* render_frame_host,
                        const ContextMenuParams& params) override;
-  void RunJavaScriptMessage(RenderFrameHost* render_frame_host,
-                            const base::string16& message,
-                            const base::string16& default_prompt,
-                            const GURL& frame_url,
-                            JavaScriptMessageType type,
-                            IPC::Message* reply_msg) override;
+  void RunJavaScriptDialog(RenderFrameHost* render_frame_host,
+                           const base::string16& message,
+                           const base::string16& default_prompt,
+                           const GURL& frame_url,
+                           JavaScriptDialogType dialog_type,
+                           IPC::Message* reply_msg) override;
   void RunBeforeUnloadConfirm(RenderFrameHost* render_frame_host,
                               bool is_reload,
                               IPC::Message* reply_msg) override;
@@ -475,8 +489,7 @@ class CONTENT_EXPORT WebContentsImpl
       RenderFrameHost* render_frame_host,
       int browser_plugin_instance_id) override;
   device::GeolocationServiceContext* GetGeolocationServiceContext() override;
-  device::WakeLockServiceContext* GetWakeLockServiceContext() override;
-  ScreenOrientationProvider* GetScreenOrientationProvider() override;
+  device::mojom::WakeLockContext* GetWakeLockServiceContext() override;
   void EnterFullscreenMode(const GURL& origin) override;
   void ExitFullscreenMode(bool will_cause_resize) override;
   bool ShouldRouteMessageEvent(
@@ -501,6 +514,18 @@ class CONTENT_EXPORT WebContentsImpl
                          WindowOpenDisposition disposition,
                          const gfx::Rect& initial_rect,
                          bool user_gesture) override;
+  void DidDisplayInsecureContent() override;
+  void DidRunInsecureContent(const GURL& security_origin,
+                             const GURL& target_url) override;
+  void PassiveInsecureContentFound(const GURL& resource_url) override;
+  bool ShouldAllowRunningInsecureContent(content::WebContents* web_contents,
+                                         bool allowed_per_prefs,
+                                         const url::Origin& origin,
+                                         const GURL& resource_url) override;
+#if defined(OS_ANDROID)
+  base::android::ScopedJavaLocalRef<jobject> GetJavaRenderFrameHostDelegate()
+      override;
+#endif
 
   // RenderViewHostDelegate ----------------------------------------------------
   RenderViewHostDelegateView* GetDelegateView() override;
@@ -515,8 +540,6 @@ class CONTENT_EXPORT WebContentsImpl
                             base::TerminationStatus status,
                             int error_code) override;
   void RenderViewDeleted(RenderViewHost* render_view_host) override;
-  void UpdateState(RenderViewHost* render_view_host,
-                   const PageState& page_state) override;
   void UpdateTargetURL(RenderViewHost* render_view_host,
                        const GURL& url) override;
   void Close(RenderViewHost* render_view_host) override;
@@ -549,6 +572,7 @@ class CONTENT_EXPORT WebContentsImpl
       const MediaResponseCallback& callback) override;
   bool CheckMediaAccessPermission(const GURL& security_origin,
                                   MediaStreamType type) override;
+  std::string GetDefaultMediaDeviceID(MediaStreamType type) override;
   SessionStorageNamespace* GetSessionStorageNamespace(
       SiteInstance* instance) override;
   SessionStorageNamespaceMap GetSessionStorageNamespaceMap() override;
@@ -558,9 +582,9 @@ class CONTENT_EXPORT WebContentsImpl
   bool IsVirtualKeyboardRequested() override;
   bool IsOverridingUserAgent() override;
   bool IsJavaScriptDialogShowing() const override;
+  bool ShouldIgnoreUnresponsiveRenderer() override;
   bool HideDownloadUI() const override;
-  bool IsFocusedElementEditable() override;
-  void ClearFocusedElement() override;
+  bool HasPersistentVideo() const override;
 
   // NavigatorDelegate ---------------------------------------------------------
 
@@ -568,22 +592,11 @@ class CONTENT_EXPORT WebContentsImpl
   void DidRedirectNavigation(NavigationHandle* navigation_handle) override;
   void ReadyToCommitNavigation(NavigationHandle* navigation_handle) override;
   void DidFinishNavigation(NavigationHandle* navigation_handle) override;
-  void DidStartProvisionalLoad(RenderFrameHostImpl* render_frame_host,
-                               const GURL& validated_url,
-                               bool is_error_page) override;
-  void DidFailProvisionalLoadWithError(RenderFrameHostImpl* render_frame_host,
-                                       const GURL& validated_url,
-                                       int error_code,
-                                       const base::string16& error_description,
-                                       bool was_ignored_by_handler) override;
   void DidFailLoadWithError(RenderFrameHostImpl* render_frame_host,
                             const GURL& url,
                             int error_code,
                             const base::string16& error_description,
                             bool was_ignored_by_handler) override;
-  void DidCommitProvisionalLoad(RenderFrameHostImpl* render_frame_host,
-                                const GURL& url,
-                                ui::PageTransition transition_type) override;
   void DidNavigateMainFramePreCommit(bool navigation_is_within_page) override;
   void DidNavigateMainFramePostCommit(
       RenderFrameHostImpl* render_frame_host,
@@ -598,8 +611,6 @@ class CONTENT_EXPORT WebContentsImpl
   void NotifyChangedNavigationState(InvalidateTypes changed_flags) override;
   void DidStartNavigationToPendingEntry(const GURL& url,
                                         ReloadType reload_type) override;
-  void RequestOpenURL(RenderFrameHostImpl* render_frame_host,
-                      const OpenURLParams& params) override;
   bool ShouldTransferNavigation(bool is_main_frame_navigation) override;
   bool ShouldPreserveAbortedURLs() override;
   void DidStartLoading(FrameTreeNode* frame_tree_node,
@@ -623,8 +634,8 @@ class CONTENT_EXPORT WebContentsImpl
   void ScreenInfoChanged() override;
   void UpdateDeviceScaleFactor(double device_scale_factor) override;
   void GetScreenInfo(ScreenInfo* screen_info) override;
-  bool PreHandleKeyboardEvent(const NativeWebKeyboardEvent& event,
-                              bool* is_keyboard_shortcut) override;
+  KeyboardEventProcessingResult PreHandleKeyboardEvent(
+      const NativeWebKeyboardEvent& event) override;
   void HandleKeyboardEvent(const NativeWebKeyboardEvent& event) override;
   bool HandleWheelEvent(const blink::WebMouseWheelEvent& event) override;
   bool PreHandleGestureEvent(const blink::WebGestureEvent& event) override;
@@ -647,8 +658,7 @@ class CONTENT_EXPORT WebContentsImpl
   RenderWidgetHostImpl* GetRenderWidgetHostWithPageFocus() override;
   void FocusOwningWebContents(
       RenderWidgetHostImpl* render_widget_host) override;
-  void RendererUnresponsive(RenderWidgetHostImpl* render_widget_host,
-                            RendererUnresponsiveType type) override;
+  void RendererUnresponsive(RenderWidgetHostImpl* render_widget_host) override;
   void RendererResponsive(RenderWidgetHostImpl* render_widget_host) override;
   void RequestToLockMouse(RenderWidgetHostImpl* render_widget_host,
                           bool user_gesture,
@@ -660,13 +670,15 @@ class CONTENT_EXPORT WebContentsImpl
   void LostCapture(RenderWidgetHostImpl* render_widget_host) override;
   void LostMouseLock(RenderWidgetHostImpl* render_widget_host) override;
   bool HasMouseLock(RenderWidgetHostImpl* render_widget_host) override;
+  RenderWidgetHostImpl* GetMouseLockWidget() override;
   void OnRenderFrameProxyVisibilityChanged(bool visible) override;
   void SendScreenRects() override;
-  void OnFirstPaintAfterLoad(RenderWidgetHostImpl* render_widget_host) override;
   TextInputManager* GetTextInputManager() override;
   bool OnUpdateDragCursor() override;
+  bool IsWidgetForMainFrame(RenderWidgetHostImpl* render_widget_host) override;
   bool AddDomainInfoToRapporSample(rappor::Sample* sample) override;
   void FocusedNodeTouched(bool editable) override;
+  void DidReceiveCompositorFrame() override;
 
   // RenderFrameHostManager::Delegate ------------------------------------------
 
@@ -790,6 +802,24 @@ class CONTENT_EXPORT WebContentsImpl
   void IncrementBluetoothConnectedDeviceCount();
   void DecrementBluetoothConnectedDeviceCount();
 
+  // Called when the WebContents gains or loses a persistent video.
+  void SetHasPersistentVideo(bool has_persistent_video);
+
+  // Whether the WebContents has an active player is effectively fullscreen.
+  // That means that the video is either fullscreen or it is the content of
+  // a fullscreen page (in other words, a fullscreen video with custom
+  // controls).
+  // |IsFullscreen| must return |true| when this method is called.
+  bool HasActiveEffectivelyFullscreenVideo() const;
+
+  // When inner or outer WebContents are present, become the focused
+  // WebContentsImpl. This will activate this content's main frame RenderWidget
+  // and indirectly all its subframe widgets.  GetFocusedRenderWidgetHost will
+  // search this WebContentsImpl for a focused RenderWidgetHost. The previously
+  // focused WebContentsImpl, if any, will have its RenderWidgetHosts
+  // deactivated.
+  void SetAsFocusedWebContentsIfNecessary();
+
 #if defined(OS_ANDROID)
   // Called by FindRequestManager when all of the find match rects are in.
   void NotifyFindMatchRectsReply(int version,
@@ -828,6 +858,8 @@ class CONTENT_EXPORT WebContentsImpl
                            CrossSiteIframeAccessibility);
   FRIEND_TEST_ALL_PREFIXES(WebContentsImplBrowserTest,
                            JavaScriptDialogsInMainAndSubframes);
+  FRIEND_TEST_ALL_PREFIXES(RenderFrameHostImplBrowserTest,
+                           IframeBeforeUnloadParentHang);
 
   // So |find_request_manager_| can be accessed for testing.
   friend class FindRequestManagerTest;
@@ -846,31 +878,38 @@ class CONTENT_EXPORT WebContentsImpl
   // referred to as "inner WebContents".
   // For each inner WebContents, the outer WebContents will have a
   // corresponding FrameTreeNode.
-  struct WebContentsTreeNode {
+  class WebContentsTreeNode final : public FrameTreeNode::Observer {
    public:
-    WebContentsTreeNode();
-    ~WebContentsTreeNode();
-
-    typedef std::set<WebContentsTreeNode*> ChildrenSet;
+    explicit WebContentsTreeNode(WebContentsImpl* current_web_contents);
+    ~WebContentsTreeNode() final;
 
     void ConnectToOuterWebContents(WebContentsImpl* outer_web_contents,
                                    RenderFrameHostImpl* outer_contents_frame);
 
-    WebContentsImpl* outer_web_contents() { return outer_web_contents_; }
+    WebContentsImpl* outer_web_contents() const { return outer_web_contents_; }
     int outer_contents_frame_tree_node_id() const {
       return outer_contents_frame_tree_node_id_;
     }
+    FrameTreeNode* OuterContentsFrameTreeNode() const;
 
     WebContentsImpl* focused_web_contents() { return focused_web_contents_; }
     void SetFocusedWebContents(WebContentsImpl* web_contents);
 
    private:
-    // The outer WebContents.
+    // FrameTreeNode::Observer implementation.
+    void OnFrameTreeNodeDestroyed(FrameTreeNode* node) final;
+
+    // The WebContents that owns this WebContentsTreeNode.
+    WebContentsImpl* const current_web_contents_;
+
+    // The outer WebContents of |current_web_contents_|, or nullptr if
+    // |current_web_contents_| is the outermost WebContents.
     WebContentsImpl* outer_web_contents_;
-    // The ID of the FrameTreeNode in outer WebContents that is hosting us.
+
+    // The ID of the FrameTreeNode in the |outer_web_contents_| that hosts
+    // |current_web_contents_| as an inner WebContents.
     int outer_contents_frame_tree_node_id_;
-    // List of inner WebContents that we host.
-    ChildrenSet inner_web_contents_tree_nodes_;
+
     // Only the root node should have this set. This indicates the WebContents
     // whose frame tree has the focused frame. The WebContents tree could be
     // arbitrarily deep.
@@ -927,6 +966,7 @@ class CONTENT_EXPORT WebContentsImpl
                                         const std::string& mime_type,
                                         ResourceType resource_type);
   void OnDidDisplayInsecureContent(RenderFrameHostImpl* source);
+  void OnDidContainInsecureFormAction(RenderFrameHostImpl* source);
   void OnDidRunInsecureContent(RenderFrameHostImpl* source,
                                const GURL& security_origin,
                                const GURL& target_url);
@@ -1057,14 +1097,6 @@ class CONTENT_EXPORT WebContentsImpl
   // focused WebContents.
   bool ContainsOrIsFocusedWebContents();
 
-  // When inner or outer WebContents are present, become the focused
-  // WebContentsImpl. This will activate this content's main frame RenderWidget
-  // and indirectly all its subframe widgets.  GetFocusedRenderWidgetHost will
-  // search this WebContentsImpl for a focused RenderWidgetHost. The previously
-  // focused WebContentsImpl, if any, will have its RenderWidgetHosts
-  // deactivated.
-  void SetAsFocusedWebContentsIfNecessary();
-
   // Returns the root of the WebContents tree.
   WebContentsImpl* GetOutermostWebContents();
 
@@ -1171,6 +1203,10 @@ class CONTENT_EXPORT WebContentsImpl
   // certificate via --allow-insecure-localhost.
   void ShowInsecureLocalhostWarningIfNeeded();
 
+  // Notify this WebContents that the preferences have changed. This will send
+  // an IPC to all the renderer process associated with this WebContents.
+  void NotifyPreferencesChanged();
+
   // Data for core operation ---------------------------------------------------
 
   // Delegate for notifying our owner about stuff. Not owned by us.
@@ -1217,9 +1253,8 @@ class CONTENT_EXPORT WebContentsImpl
   // Manages the frame tree of the page and process swaps in each node.
   FrameTree frame_tree_;
 
-  // If this WebContents is part of a "tree of WebContents", then this contains
-  // information about the structure.
-  std::unique_ptr<WebContentsTreeNode> node_;
+  // Contains information about the WebContents tree structure.
+  WebContentsTreeNode node_;
 
   // SavePackage, lazily created.
   scoped_refptr<SavePackage> save_package_;
@@ -1305,6 +1340,10 @@ class CONTENT_EXPORT WebContentsImpl
 
   // See getter above.
   bool is_being_destroyed_;
+
+  // Keep track of whether this WebContents is currently iterating over its list
+  // of observers, during which time it should not be deleted.
+  bool is_notifying_observers_;
 
   // Indicates whether we should notify about disconnection of this
   // WebContentsImpl. This is used to ensure disconnection notifications only
@@ -1437,9 +1476,9 @@ class CONTENT_EXPORT WebContentsImpl
   std::unique_ptr<device::GeolocationServiceContext>
       geolocation_service_context_;
 
-  std::unique_ptr<device::WakeLockServiceContext> wake_lock_service_context_;
+  std::unique_ptr<WakeLockContextHost> wake_lock_context_host_;
 
-  std::unique_ptr<ScreenOrientation> screen_orientation_;
+  std::unique_ptr<ScreenOrientationProvider> screen_orientation_provider_;
 
   std::unique_ptr<ManifestManagerHost> manifest_manager_host_;
 
@@ -1497,6 +1536,8 @@ class CONTENT_EXPORT WebContentsImpl
 
   int currently_playing_video_count_ = 0;
 
+  bool has_persistent_video_ = false;
+
   base::WeakPtrFactory<WebContentsImpl> loading_weak_factory_;
   base::WeakPtrFactory<WebContentsImpl> weak_factory_;
 
@@ -1505,19 +1546,19 @@ class CONTENT_EXPORT WebContentsImpl
 
 // Dangerous methods which should never be made part of the public API, so we
 // grant their use only to an explicit friend list (c++ attorney/client idiom).
-class CONTENT_EXPORT WebContentsImpl::FriendZone {
+class CONTENT_EXPORT WebContentsImpl::FriendWrapper {
  private:
   friend class TestNavigationObserver;
   friend class WebContentsAddedObserver;
   friend class ContentBrowserSanityChecker;
 
-  FriendZone();  // Not instantiable.
+  FriendWrapper();  // Not instantiable.
 
   // Adds/removes a callback called on creation of each new WebContents.
   static void AddCreatedCallbackForTesting(const CreatedCallback& callback);
   static void RemoveCreatedCallbackForTesting(const CreatedCallback& callback);
 
-  DISALLOW_COPY_AND_ASSIGN(FriendZone);
+  DISALLOW_COPY_AND_ASSIGN(FriendWrapper);
 };
 
 }  // namespace content

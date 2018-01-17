@@ -108,6 +108,11 @@ void OffscreenBrowserCompositorOutputSurface::DiscardBackbuffer() {
   }
 }
 
+void OffscreenBrowserCompositorOutputSurface::SetDrawRectangle(
+    const gfx::Rect& draw_rectangle) {
+  NOTREACHED();
+}
+
 void OffscreenBrowserCompositorOutputSurface::Reshape(
     const gfx::Size& size,
     float scale_factor,
@@ -136,13 +141,12 @@ void OffscreenBrowserCompositorOutputSurface::SwapBuffers(
     cc::OutputSurfaceFrame frame) {
   gfx::Size surface_size = frame.size;
   DCHECK(surface_size == reshape_size_);
-  gfx::Rect swap_rect = frame.sub_buffer_rect;
 
   if (reflector_) {
-    if (swap_rect == gfx::Rect(surface_size))
-      reflector_->OnSourceSwapBuffers(surface_size);
+    if (frame.sub_buffer_rect)
+      reflector_->OnSourcePostSubBuffer(*frame.sub_buffer_rect, surface_size);
     else
-      reflector_->OnSourcePostSubBuffer(swap_rect, surface_size);
+      reflector_->OnSourceSwapBuffers(surface_size);
   }
 
   // TODO(oshima): sync with the reflector's SwapBuffersComplete
@@ -189,7 +193,7 @@ void OffscreenBrowserCompositorOutputSurface::OnReflectorChanged() {
 
 void OffscreenBrowserCompositorOutputSurface::OnSwapBuffersComplete(
     const std::vector<ui::LatencyInfo>& latency_info) {
-  RenderWidgetHostImpl::CompositorFrameDrawn(latency_info);
+  RenderWidgetHostImpl::OnGpuSwapBuffersCompleted(latency_info);
   client_->DidReceiveSwapBuffersAck();
 }
 

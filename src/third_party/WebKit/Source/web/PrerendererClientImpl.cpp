@@ -38,18 +38,19 @@
 
 namespace blink {
 
-PrerendererClientImpl::PrerendererClientImpl(WebPrerendererClient* client)
-    : m_client(client) {}
+PrerendererClientImpl::PrerendererClientImpl(Page& page,
+                                             WebPrerendererClient* client)
+    : PrerendererClient(page), client_(client) {}
 
-void PrerendererClientImpl::willAddPrerender(Prerender* prerender) {
-  if (!m_client)
+void PrerendererClientImpl::WillAddPrerender(Prerender* prerender) {
+  if (!client_)
     return;
-  WebPrerender webPrerender(prerender);
-  m_client->willAddPrerender(&webPrerender);
+  WebPrerender web_prerender(prerender);
+  client_->WillAddPrerender(&web_prerender);
 }
 
-bool PrerendererClientImpl::isPrefetchOnly() {
-  return m_client && m_client->isPrefetchOnly();
+bool PrerendererClientImpl::IsPrefetchOnly() {
+  return client_ && client_->IsPrefetchOnly();
 }
 
 }  // namespace blink

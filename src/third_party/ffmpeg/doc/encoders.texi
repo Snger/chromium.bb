@@ -488,6 +488,10 @@ is an optional AC-3 feature that increases quality by selectively encoding
 the left/right channels as mid/side. This option is enabled by default, and it
 is highly recommended that it be left as enabled except for testing purposes.
 
+@item cutoff @var{frequency}
+Set lowpass cutoff frequency. If unspecified, the encoder selects a default
+determined by various other encoding parameters.
+
 @end table
 
 @subsection Floating-Point-Only AC-3 Encoding Options
@@ -545,7 +549,8 @@ The following options are supported by FFmpeg's flac encoder.
 @table @option
 @item compression_level
 Sets the compression level, which chooses defaults for many other options
-if they are not set explicitly.
+if they are not set explicitly. Valid values are from 0 to 12, 5 is the
+default.
 
 @item frame_size
 Sets the size of the frames in samples per channel.
@@ -610,6 +615,27 @@ Multi Dimensional Quantization. If set to 1 then a 2nd stage LPC algorithm is
 applied after the first stage to finetune the coefficients. This is quite slow
 and slightly improves compression.
 
+@end table
+
+@anchor{opusenc}
+@section opus
+
+Opus encoder.
+
+This is a native FFmpeg encoder for the Opus format. Currently its in development and
+only implements the CELT part of the codec. Its quality is usually worse and at best
+is equal to the libopus encoder.
+
+@subsection Options
+
+@table @option
+@item b
+Set bit rate in bits/s. If unspecified it uses the number of channels and the layout
+to make a good guess.
+
+@item opus_delay
+Sets the maximum delay in milliseconds. Lower delays than 20ms will very quickly
+decrease quality.
 @end table
 
 @anchor{libfdk-aac-enc}
@@ -816,6 +842,10 @@ users, use @option{global_quality}.
 Set algorithm quality. Valid arguments are integers in the 0-9 range,
 with 0 meaning highest quality but slowest, and 9 meaning fastest
 while producing the worst quality.
+
+@item cutoff (@emph{--lowpass})
+Set lowpass cutoff frequency. If unspecified, the encoder dynamically
+adjusts the cutoff.
 
 @item reservoir
 Enable use of bit reservoir when set to 1. Default value is 1. LAME
@@ -1188,6 +1218,27 @@ Very high quality.
 Same as @samp{3}, but with extra processing enabled.
 
 @samp{4} is the same as @option{-x2} and @samp{8} is the same as @option{-x6}.
+
+@end table
+@end table
+
+@anchor{mjpegenc}
+@section mjpeg
+
+Motion JPEG encoder.
+
+@subsection Options
+
+@table @option
+@item huffman
+Set the huffman encoding strategy. Possible values:
+
+@table @samp
+@item default
+Use the default huffman tables. This is the default strategy.
+
+@item optimal
+Compute and use optimal huffman tables.
 
 @end table
 @end table

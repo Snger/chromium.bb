@@ -6,12 +6,14 @@ package org.chromium.chrome.browser.ntp.snippets;
 import android.graphics.Bitmap;
 import android.support.annotation.Nullable;
 
+import org.chromium.chrome.browser.suggestions.OfflinableSuggestion;
+
 import java.io.File;
 
 /**
  * Represents the data for an article card on the NTP.
  */
-public class SnippetArticle {
+public class SnippetArticle implements OfflinableSuggestion {
     /** The category of this article. */
     public final int mCategory;
 
@@ -36,6 +38,12 @@ public class SnippetArticle {
     /** The score expressing relative quality of the article for the user. */
     public final float mScore;
 
+    /**
+     * The time when the article was fetched from the server. This field is only used for remote
+     * suggestions.
+     */
+    public final long mFetchTimestampMilliseconds;
+
     /** The rank of this article within its section. */
     private int mPerSectionRank = -1;
 
@@ -49,7 +57,10 @@ public class SnippetArticle {
     private boolean mImpressionTracked;
 
     /** Whether the linked article represents an asset download. */
-    public boolean mIsAssetDownload;
+    private boolean mIsAssetDownload;
+
+    /** The GUID of the asset download (only for asset download articles). */
+    private String mAssetDownloadGuid;
 
     /** The path to the asset download (only for asset download articles). */
     private File mAssetDownloadFile;
@@ -58,7 +69,7 @@ public class SnippetArticle {
     private String mAssetDownloadMimeType;
 
     /** The tab id of the corresponding tab (only for recent tab articles). */
-    private String mRecentTabId;
+    private int mRecentTabId;
 
     /** The offline id of the corresponding offline page, if any. */
     private Long mOfflinePageOfflineId;
@@ -67,15 +78,17 @@ public class SnippetArticle {
      * Creates a SnippetArticleListItem object that will hold the data.
      */
     public SnippetArticle(int category, String idWithinCategory, String title, String publisher,
-            String previewText, String url, long timestamp, float score) {
+            String previewText, String url, long publishTimestamp, float score,
+            long fetchTimestamp) {
         mCategory = category;
         mIdWithinCategory = idWithinCategory;
         mTitle = title;
         mPublisher = publisher;
         mPreviewText = previewText;
         mUrl = url;
-        mPublishTimestampMilliseconds = timestamp;
+        mPublishTimestampMilliseconds = publishTimestamp;
         mScore = score;
+        mFetchTimestampMilliseconds = fetchTimestamp;
     }
 
     @Override
@@ -111,9 +124,29 @@ public class SnippetArticle {
         return true;
     }
 
+    /** @return whether a snippet is a remote suggestion. */
+    public boolean isArticle() {
+        return mCategory == KnownCategories.ARTICLES;
+    }
+
     /** @return whether a snippet is either offline page or asset download. */
     public boolean isDownload() {
         return mCategory == KnownCategories.DOWNLOADS;
+    }
+
+    /** @return whether a snippet is asset download. */
+    public boolean isAssetDownload() {
+        return mIsAssetDownload;
+    }
+
+    /**
+     * @return the GUID of the asset download. May only be called if {@link #mIsAssetDownload} is
+     * {@code true} (which implies that this snippet belongs to the DOWNLOADS category).
+     */
+    public String getAssetDownloadGuid() {
+        assert isDownload();
+        assert mIsAssetDownload;
+        return mAssetDownloadGuid;
     }
 
     /**
@@ -140,9 +173,10 @@ public class SnippetArticle {
      * Marks the article suggestion as an asset download with the given path and mime type. May only
      * be called if this snippet belongs to DOWNLOADS category.
      */
-    public void setAssetDownloadData(String filePath, String mimeType) {
+    public void setAssetDownloadData(String downloadGuid, String filePath, String mimeType) {
         assert isDownload();
         mIsAssetDownload = true;
+        mAssetDownloadGuid = downloadGuid;
         mAssetDownloadFile = new File(filePath);
         mAssetDownloadMimeType = mimeType;
     }
@@ -157,10 +191,7 @@ public class SnippetArticle {
         setOfflinePageOfflineId(offlinePageId);
     }
 
-    /**
-    * @return whether a snippet has to be matched with the exact offline page or with the most
-    * recent offline page found by the snippet's URL.
-    */
+    @Override
     public boolean requiresExactOfflinePage() {
         return isDownload() || isRecentTab();
     }
@@ -173,7 +204,7 @@ public class SnippetArticle {
      * @return the corresponding recent tab id. May only be called if this snippet is a recent tab
      * article.
      */
-    public String getRecentTabId() {
+    public int getRecentTabId() {
         assert isRecentTab();
         return mRecentTabId;
     }
@@ -182,21 +213,23 @@ public class SnippetArticle {
      * Sets tab id and offline page id for recent tab articles. May only be called if this snippet
      * is a recent tab article.
      */
-    public void setRecentTabData(String tabId, long offlinePageId) {
+    public void setRecentTabData(int tabId, long offlinePageId) {
         assert isRecentTab();
         mRecentTabId = tabId;
         setOfflinePageOfflineId(offlinePageId);
     }
 
-    /** Sets offline id of the corresponding to the snippet offline page. Null to clear.*/
+    @Override
+    public String getUrl() {
+        return mUrl;
+    }
+
+    @Override
     public void setOfflinePageOfflineId(@Nullable Long offlineId) {
         mOfflinePageOfflineId = offlineId;
     }
 
-    /**
-     * Gets offline id of the corresponding to the snippet offline page.
-     * Null if there is no corresponding offline page.
-     */
+    @Override
     @Nullable
     public Long getOfflinePageOfflineId() {
         return mOfflinePageOfflineId;

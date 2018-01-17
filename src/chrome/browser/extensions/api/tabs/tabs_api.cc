@@ -17,6 +17,7 @@
 #include "base/logging.h"
 #include "base/memory/ptr_util.h"
 #include "base/memory/ref_counted_memory.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/single_thread_task_runner.h"
 #include "base/stl_util.h"
 #include "base/strings/pattern.h"
@@ -197,6 +198,11 @@ void AssignOptionalValue(const std::unique_ptr<T>& source,
   if (source.get()) {
     destination.reset(new T(*source));
   }
+}
+
+void ReportRequestedWindowState(windows::WindowState state) {
+  UMA_HISTOGRAM_ENUMERATION("TabsApi.RequestedWindowState", state,
+                            windows::WINDOW_STATE_LAST + 1);
 }
 
 ui::WindowShowState ConvertToWindowShowState(windows::WindowState state) {
@@ -489,6 +495,10 @@ ExtensionFunction::ResponseAction WindowsCreateFunction::Run() {
   std::string extension_id;
 
   if (create_data) {
+    // Report UMA stats to decide when to remove the deprecated "docked" windows
+    // state (crbug.com/703733).
+    ReportRequestedWindowState(create_data->state);
+
     // Figure out window type before figuring out bounds so that default
     // bounds can be set according to the window type.
     switch (create_data->type) {
@@ -589,13 +599,15 @@ ExtensionFunction::ResponseAction WindowsCreateFunction::Run() {
 #endif  // defined(USE_ASH)
 
   // Create a new BrowserWindow.
-  Browser::CreateParams create_params(window_type, window_profile);
+  Browser::CreateParams create_params(window_type, window_profile,
+                                      user_gesture());
   if (extension_id.empty()) {
     create_params.initial_bounds = window_bounds;
   } else {
     create_params = Browser::CreateParams::CreateForApp(
         web_app::GenerateApplicationNameFromExtensionId(extension_id),
-        false /* trusted_source */, window_bounds, window_profile);
+        false /* trusted_source */, window_bounds, window_profile,
+        user_gesture());
   }
   create_params.initial_show_state = ui::SHOW_STATE_NORMAL;
   if (create_data && create_data->state) {
@@ -646,7 +658,7 @@ ExtensionFunction::ResponseAction WindowsCreateFunction::Run() {
       !browser_context()->IsOffTheRecord() && !include_incognito()) {
     // Don't expose incognito windows if extension itself works in non-incognito
     // profile and CanCrossIncognito isn't allowed.
-    result = base::Value::CreateNullValue();
+    result = base::MakeUnique<base::Value>();
   } else {
     result = controller->CreateWindowValueWithTabs(extension());
   }
@@ -666,6 +678,10 @@ ExtensionFunction::ResponseAction WindowsUpdateFunction::Run() {
           &controller, &error)) {
     return RespondNow(Error(error));
   }
+
+  // Report UMA stats to decide when to remove the deprecated "docked" windows
+  // state (crbug.com/703733).
+  ReportRequestedWindowState(params->update_info.state);
 
   ui::WindowShowState show_state =
       ConvertToWindowShowState(params->update_info.state);
@@ -1004,7 +1020,7 @@ ExtensionFunction::ResponseAction TabsCreateFunction::Run() {
 
   std::string error;
   std::unique_ptr<base::DictionaryValue> result(
-      ExtensionTabUtil::OpenTab(this, options, &error));
+      ExtensionTabUtil::OpenTab(this, options, user_gesture(), &error));
   if (!result)
     return RespondNow(Error(error));
 
@@ -1666,7 +1682,7 @@ bool TabsCaptureVisibleTabFunction::RunAsync() {
 
   return CaptureAsync(
       contents, image_details.get(),
-      base::Bind(&TabsCaptureVisibleTabFunction::CopyFromBackingStoreComplete,
+      base::Bind(&TabsCaptureVisibleTabFunction::CopyFromSurfaceComplete,
                  this));
 }
 
@@ -1677,7 +1693,7 @@ void TabsCaptureVisibleTabFunction::OnCaptureSuccess(const SkBitmap& bitmap) {
     return;
   }
 
-  SetResult(base::MakeUnique<base::StringValue>(base64_result));
+  SetResult(base::MakeUnique<base::Value>(base64_result));
   SendResponse(true);
 }
 
@@ -1787,7 +1803,7 @@ void TabsDetectLanguageFunction::Observe(
 }
 
 void TabsDetectLanguageFunction::GotLanguage(const std::string& language) {
-  SetResult(base::MakeUnique<base::StringValue>(language.c_str()));
+  SetResult(base::MakeUnique<base::Value>(language));
   SendResponse(true);
 
   Release();  // Balanced in Run()
@@ -1800,7 +1816,10 @@ ExecuteCodeInTabFunction::ExecuteCodeInTabFunction()
 ExecuteCodeInTabFunction::~ExecuteCodeInTabFunction() {}
 
 bool ExecuteCodeInTabFunction::HasPermission() {
-  if (Init() &&
+  if (Init() == SUCCESS &&
+      // TODO(devlin/lazyboy): Consider removing the following check as it isn't
+      // doing anything. The fallback to ExtensionFunction::HasPermission()
+      // below dictates what this function returns.
       extension_->permissions_data()->HasAPIPermissionForTab(
           execute_tab_id_, APIPermission::kTab)) {
     return true;
@@ -1808,38 +1827,40 @@ bool ExecuteCodeInTabFunction::HasPermission() {
   return ExtensionFunction::HasPermission();
 }
 
-bool ExecuteCodeInTabFunction::Init() {
-  if (details_.get())
-    return true;
+ExecuteCodeFunction::InitResult ExecuteCodeInTabFunction::Init() {
+  if (init_result_)
+    return init_result_.value();
 
   // |tab_id| is optional so it's ok if it's not there.
   int tab_id = -1;
-  if (args_->GetInteger(0, &tab_id))
-    EXTENSION_FUNCTION_VALIDATE(tab_id >= 0);
+  if (args_->GetInteger(0, &tab_id) && tab_id < 0)
+    return set_init_result(VALIDATION_FAILURE);
 
   // |details| are not optional.
   base::DictionaryValue* details_value = NULL;
   if (!args_->GetDictionary(1, &details_value))
-    return false;
+    return set_init_result(VALIDATION_FAILURE);
   std::unique_ptr<InjectDetails> details(new InjectDetails());
   if (!InjectDetails::Populate(*details_value, details.get()))
-    return false;
+    return set_init_result(VALIDATION_FAILURE);
 
   // If the tab ID wasn't given then it needs to be converted to the
   // currently active tab's ID.
   if (tab_id == -1) {
     Browser* browser = chrome_details_.GetCurrentBrowser();
+    // Can happen during shutdown.
     if (!browser)
-      return false;
+      return set_init_result_error(keys::kNoCurrentWindowError);
     content::WebContents* web_contents = NULL;
+    // Can happen during shutdown.
     if (!ExtensionTabUtil::GetDefaultTab(browser, &web_contents, &tab_id))
-      return false;
+      return set_init_result_error(keys::kNoTabInBrowserWindowError);
   }
 
   execute_tab_id_ = tab_id;
   details_ = std::move(details);
   set_host_id(HostID(HostID::EXTENSIONS, extension()->id()));
-  return true;
+  return set_init_result(SUCCESS);
 }
 
 bool ExecuteCodeInTabFunction::CanExecuteScriptOnPage() {

@@ -22,7 +22,6 @@
 #include "base/path_service.h"
 #include "base/single_thread_task_runner.h"
 #include "base/synchronization/waitable_event.h"
-#include "base/sys_info.h"
 #include "base/task_scheduler/task_scheduler.h"
 #include "base/threading/worker_pool.h"
 #include "components/cronet/histogram_manager.h"
@@ -119,8 +118,7 @@ void CronetEnvironment::Initialize() {
   if (!g_at_exit_)
     g_at_exit_ = new base::AtExitManager;
 
-  base::TaskScheduler::CreateAndSetSimpleTaskScheduler(
-      base::SysInfo::NumberOfProcessors());
+  base::TaskScheduler::CreateAndSetSimpleTaskScheduler("CronetIos");
 
   url::Initialize();
   base::CommandLine::Init(0, nullptr);
@@ -311,9 +309,14 @@ void CronetEnvironment::InitializeOnNetworkThread() {
 
   context_builder.set_host_resolver(std::move(mapped_host_resolver));
 
-  std::unique_ptr<net::CookieStore> cookie_store(
-      net::CookieStoreIOS::CreateCookieStore(
-          [NSHTTPCookieStorage sharedHTTPCookieStorage]));
+  // TODO(690969): This behavior matches previous behavior of CookieStoreIOS in
+  // CrNet, but should change to adhere to App's Cookie Accept Policy instead
+  // of changing it.
+  [[NSHTTPCookieStorage sharedHTTPCookieStorage]
+      setCookieAcceptPolicy:NSHTTPCookieAcceptPolicyAlways];
+  std::unique_ptr<net::CookieStore> cookie_store =
+      base::MakeUnique<net::CookieStoreIOS>(
+          [NSHTTPCookieStorage sharedHTTPCookieStorage]);
   context_builder.SetCookieAndChannelIdStores(std::move(cookie_store), nullptr);
 
   std::unordered_set<std::string> quic_host_whitelist;

@@ -61,9 +61,6 @@ const bool kHostedApp = true;
 #if !defined(DISABLE_NACL)
 const char kExtensionUrl[] = "chrome-extension://extension_id/background.html";
 
-const char kPhotosAppURL[] = "https://foo.plus.google.com";
-const char kPhotosManifestURL[] = "https://ssl.gstatic.com/photos/nacl/foo";
-
 const char kChatManifestFS[] = "filesystem:https://talkgadget.google.com/foo";
 #endif
 
@@ -71,8 +68,8 @@ const char kChatAppURL[] = "https://talkgadget.google.com/hangouts/foo";
 
 #if !defined(DISABLE_NACL)
 bool AllowsDevInterfaces(const WebPluginParams& params) {
-  for (size_t i = 0; i < params.attributeNames.size(); ++i) {
-    if (params.attributeNames[i] == "@dev")
+  for (size_t i = 0; i < params.attribute_names.size(); ++i) {
+    if (params.attribute_names[i] == "@dev")
       return true;
   }
   return false;
@@ -81,10 +78,10 @@ bool AllowsDevInterfaces(const WebPluginParams& params) {
 void AddFakeDevAttribute(WebPluginParams* params) {
   WebVector<WebString> names(static_cast<size_t>(1));
   WebVector<WebString> values(static_cast<size_t>(1));
-  names[0] = WebString::fromUTF8("@dev");
+  names[0] = WebString::FromUTF8("@dev");
   values[0] = WebString();
-  params->attributeNames.swap(names);
-  params->attributeValues.swap(values);
+  params->attribute_names.Swap(names);
+  params->attribute_values.Swap(values);
 }
 #endif
 
@@ -277,15 +274,6 @@ TEST_F(ChromeContentRendererClientTest, NaClRestriction) {
   // interfaces. There is a whitelist for the app URL and the manifest URL.
   {
     WebPluginParams params;
-    // Whitelisted Photos app is allowed (two app URLs, two manifest URLs)
-    EXPECT_TRUE(ChromeContentRendererClient::IsNaClAllowed(
-        GURL(kPhotosManifestURL),
-        GURL(kPhotosAppURL),
-        kNaClRestricted,
-        nullptr,
-        &params));
-    EXPECT_FALSE(AllowsDevInterfaces(params));
-
     // Whitelisted Chat app is allowed.
     EXPECT_TRUE(ChromeContentRendererClient::IsNaClAllowed(
         GURL(kChatManifestFS),
@@ -296,51 +284,33 @@ TEST_F(ChromeContentRendererClientTest, NaClRestriction) {
 
     // Whitelisted manifest URL, bad app URLs, NOT allowed.
     EXPECT_FALSE(ChromeContentRendererClient::IsNaClAllowed(
-        GURL(kPhotosManifestURL),
+        GURL(kChatManifestFS),
         GURL("http://plus.google.com/foo"),  // http scheme
-        kNaClRestricted,
-        nullptr,
-        &params));
+        kNaClRestricted, nullptr, &params));
     EXPECT_FALSE(ChromeContentRendererClient::IsNaClAllowed(
-        GURL(kPhotosManifestURL),
+        GURL(kChatManifestFS),
         GURL("http://plus.sandbox.google.com/foo"),  // http scheme
-        kNaClRestricted,
-        nullptr,
-        &params));
+        kNaClRestricted, nullptr, &params));
     EXPECT_FALSE(ChromeContentRendererClient::IsNaClAllowed(
-        GURL(kPhotosManifestURL),
+        GURL(kChatManifestFS),
         GURL("https://plus.google.evil.com/foo"),  // bad host
-        kNaClRestricted,
-        nullptr,
-        &params));
+        kNaClRestricted, nullptr, &params));
     // Whitelisted app URL, bad manifest URL, NOT allowed.
     EXPECT_FALSE(ChromeContentRendererClient::IsNaClAllowed(
         GURL("http://ssl.gstatic.com/s2/oz/nacl/foo"),  // http scheme
-        GURL(kPhotosAppURL),
-        kNaClRestricted,
-        nullptr,
-        &params));
+        GURL(kChatAppURL), kNaClRestricted, nullptr, &params));
     EXPECT_FALSE(ChromeContentRendererClient::IsNaClAllowed(
         GURL("https://ssl.gstatic.evil.com/s2/oz/nacl/foo"),  // bad host
-        GURL(kPhotosAppURL),
-        kNaClRestricted,
-        nullptr,
-        &params));
+        GURL(kChatAppURL), kNaClRestricted, nullptr, &params));
     EXPECT_FALSE(ChromeContentRendererClient::IsNaClAllowed(
         GURL("https://ssl.gstatic.com/wrong/s2/oz/nacl/foo"),  // bad path
-        GURL(kPhotosAppURL),
-        kNaClRestricted,
-        nullptr,
-        &params));
+        GURL(kChatAppURL), kNaClRestricted, nullptr, &params));
   }
   // Whitelisted URLs can't get 'dev' interfaces with --enable-nacl.
   {
     WebPluginParams params;
     EXPECT_TRUE(ChromeContentRendererClient::IsNaClAllowed(
-        GURL(kPhotosManifestURL),
-        GURL(kPhotosAppURL),
-        kNaClUnrestricted,
-        nullptr,
+        GURL(kChatManifestFS), GURL(kChatAppURL), kNaClUnrestricted, nullptr,
         &params));
     EXPECT_FALSE(AllowsDevInterfaces(params));
   }
@@ -350,10 +320,7 @@ TEST_F(ChromeContentRendererClientTest, NaClRestriction) {
     WebPluginParams params;
     AddFakeDevAttribute(&params);
     EXPECT_TRUE(ChromeContentRendererClient::IsNaClAllowed(
-        GURL(kPhotosManifestURL),
-        GURL(kPhotosAppURL),
-        kNaClRestricted,
-        nullptr,
+        GURL(kChatManifestFS), GURL(kChatAppURL), kNaClRestricted, nullptr,
         &params));
     EXPECT_FALSE(AllowsDevInterfaces(params));
   }
@@ -420,10 +387,10 @@ TEST_F(ChromeContentRendererClientTest, ShouldSuppressErrorPage) {
 TEST_F(ChromeContentRendererClientTest, AddImageContextMenuProperties) {
   ChromeContentRendererClient client;
   blink::WebURLResponse web_url_response;
-  web_url_response.addHTTPHeaderField(
-      blink::WebString::fromUTF8(
+  web_url_response.AddHTTPHeaderField(
+      blink::WebString::FromUTF8(
           data_reduction_proxy::chrome_proxy_content_transform_header()),
-      blink::WebString::fromUTF8(
+      blink::WebString::FromUTF8(
           data_reduction_proxy::empty_image_directive()));
   std::map<std::string, std::string> properties;
   client.AddImageContextMenuProperties(web_url_response, &properties);

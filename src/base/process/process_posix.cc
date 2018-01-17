@@ -225,7 +225,6 @@ Process::Process(Process&& other) : process_(other.process_) {
 }
 
 Process& Process::operator=(Process&& other) {
-  DCHECK_NE(this, &other);
   process_ = other.process_;
   other.Close();
   return *this;
@@ -263,6 +262,11 @@ bool Process::CanBackgroundProcesses() {
   return false;
 }
 #endif  // !defined(OS_LINUX) && !defined(OS_MACOSX)
+
+// static
+void Process::TerminateCurrentProcessImmediately(int exit_code) {
+  _exit(exit_code);
+}
 
 bool Process::IsValid() const {
   return process_ != kNullProcessHandle;

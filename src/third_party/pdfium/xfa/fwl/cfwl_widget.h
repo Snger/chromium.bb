@@ -60,7 +60,7 @@ class CFWL_Widget : public IFWL_WidgetDelegate {
   virtual void SetStates(uint32_t dwStates);
   virtual void RemoveStates(uint32_t dwStates);
   virtual void Update() = 0;
-  virtual FWL_WidgetHit HitTest(FX_FLOAT fx, FX_FLOAT fy);
+  virtual FWL_WidgetHit HitTest(const CFX_PointF& point);
   virtual void DrawWidget(CFX_Graphics* pGraphics,
                           const CFX_Matrix* pMatrix) = 0;
   virtual void SetThemeProvider(IFWL_ThemeProvider* pThemeProvider);
@@ -90,7 +90,7 @@ class CFWL_Widget : public IFWL_WidgetDelegate {
       m_iLock--;
   }
 
-  void TransformTo(CFWL_Widget* pWidget, FX_FLOAT& fx, FX_FLOAT& fy);
+  CFX_PointF TransformTo(CFWL_Widget* pWidget, const CFX_PointF& point);
   CFX_Matrix GetMatrix();
   IFWL_ThemeProvider* GetThemeProvider() const;
 
@@ -122,7 +122,7 @@ class CFWL_Widget : public IFWL_WidgetDelegate {
   bool IsLocked() const { return m_iLock > 0; }
   bool HasBorder() const;
   CFX_RectF GetEdgeRect();
-  FX_FLOAT GetBorderSize(bool bCX);
+  float GetBorderSize(bool bCX);
   CFX_RectF GetRelativeRect();
   IFWL_ThemeProvider* GetAvailableTheme();
   CFX_SizeF CalcTextSize(const CFX_WideString& wsText,
@@ -134,8 +134,8 @@ class CFWL_Widget : public IFWL_WidgetDelegate {
                     int32_t iTTOAlign,
                     CFX_RectF& rect);
   void SetGrab(bool bSet);
-  void GetPopupPos(FX_FLOAT fMinHeight,
-                   FX_FLOAT fMaxHeight,
+  void GetPopupPos(float fMinHeight,
+                   float fMaxHeight,
                    const CFX_RectF& rtAnchor,
                    CFX_RectF& rtPopup);
   void RegisterEventTarget(CFWL_Widget* pEventSource);
@@ -161,19 +161,18 @@ class CFWL_Widget : public IFWL_WidgetDelegate {
   bool IsPopup() const;
   bool IsChild() const;
   CFWL_Widget* GetRootOuter();
-  bool GetPopupPosMenu(FX_FLOAT fMinHeight,
-                       FX_FLOAT fMaxHeight,
+  bool GetPopupPosMenu(float fMinHeight,
+                       float fMaxHeight,
                        const CFX_RectF& rtAnchor,
                        CFX_RectF& rtPopup);
-  bool GetPopupPosComboBox(FX_FLOAT fMinHeight,
-                           FX_FLOAT fMaxHeight,
+  bool GetPopupPosComboBox(float fMinHeight,
+                           float fMaxHeight,
                            const CFX_RectF& rtAnchor,
                            CFX_RectF& rtPopup);
-  bool GetPopupPosGeneral(FX_FLOAT fMinHeight,
-                          FX_FLOAT fMaxHeight,
+  bool GetPopupPosGeneral(float fMinHeight,
+                          float fMaxHeight,
                           const CFX_RectF& rtAnchor,
                           CFX_RectF& rtPopup);
-  bool GetScreenSize(FX_FLOAT& fx, FX_FLOAT& fy);
   void DrawBackground(CFX_Graphics* pGraphics,
                       CFWL_Part iPartBk,
                       IFWL_ThemeProvider* pTheme,

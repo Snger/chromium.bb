@@ -9,7 +9,9 @@
 // order.
 
 #include "compiler/translator/CallDAG.h"
+
 #include "compiler/translator/Diagnostics.h"
+#include "compiler/translator/SymbolTable.h"
 
 namespace sh
 {
@@ -78,7 +80,7 @@ class CallDAG::CallDAGCreator : public TIntermTraverser
                 record.callees.push_back(static_cast<int>(callee->index));
             }
 
-            (*idToIndex)[data.node->getFunctionSymbolInfo()->getId()] =
+            (*idToIndex)[data.node->getFunctionSymbolInfo()->getId().get()] =
                 static_cast<int>(data.index);
         }
     }
@@ -101,19 +103,20 @@ class CallDAG::CallDAGCreator : public TIntermTraverser
         // Create the record if need be and remember the node.
         if (visit == PreVisit)
         {
-            auto it = mFunctions.find(node->getFunctionSymbolInfo()->getName());
+            auto it = mFunctions.find(node->getFunctionSymbolInfo()->getId().get());
 
             if (it == mFunctions.end())
             {
-                mCurrentFunction = &mFunctions[node->getFunctionSymbolInfo()->getName()];
+                mCurrentFunction       = &mFunctions[node->getFunctionSymbolInfo()->getId().get()];
+                mCurrentFunction->name = node->getFunctionSymbolInfo()->getName();
             }
             else
             {
                 mCurrentFunction = &it->second;
+                ASSERT(mCurrentFunction->name == node->getFunctionSymbolInfo()->getName());
             }
 
             mCurrentFunction->node = node;
-            mCurrentFunction->name = node->getFunctionSymbolInfo()->getName();
         }
         else if (visit == PostVisit)
         {
@@ -125,8 +128,13 @@ class CallDAG::CallDAGCreator : public TIntermTraverser
     bool visitFunctionPrototype(Visit visit, TIntermFunctionPrototype *node) override
     {
         ASSERT(visit == PreVisit);
+        if (mCurrentFunction != nullptr)
+        {
+            return false;
+        }
+
         // Function declaration, create an empty record.
-        auto &record = mFunctions[node->getFunctionSymbolInfo()->getName()];
+        auto &record = mFunctions[node->getFunctionSymbolInfo()->getId().get()];
         record.name  = node->getFunctionSymbolInfo()->getName();
 
         // No need to traverse the parameters.
@@ -136,30 +144,19 @@ class CallDAG::CallDAGCreator : public TIntermTraverser
     // Aggregates the AST node for each function as well as the name of the functions called by it
     bool visitAggregate(Visit visit, TIntermAggregate *node) override
     {
-        switch (node->getOp())
+        if (visit == PreVisit && node->getOp() == EOpCallFunctionInAST)
         {
-            case EOpFunctionCall:
-            {
-                // Function call, add the callees
-                if (visit == PreVisit)
-                {
-                    // Do not handle calls to builtin functions
-                    if (node->isUserDefined())
-                    {
-                        auto it = mFunctions.find(node->getFunctionSymbolInfo()->getName());
-                        ASSERT(it != mFunctions.end());
+            // Function call, add the callees
+            auto it = mFunctions.find(node->getFunctionSymbolInfo()->getId().get());
+            ASSERT(it != mFunctions.end());
 
-                        // We might be in a top-level function call to set a global variable
-                        if (mCurrentFunction)
-                        {
-                            mCurrentFunction->callees.insert(&it->second);
-                        }
-                    }
-                }
-                break;
+            // We might be traversing the initializer of a global variable. Even though function
+            // calls in global scope are forbidden by the parser, some subsequent AST
+            // transformations can add them to emulate particular features.
+            if (mCurrentFunction)
+            {
+                mCurrentFunction->callees.insert(&it->second);
             }
-            default:
-                break;
         }
         return true;
     }
@@ -272,7 +269,7 @@ class CallDAG::CallDAGCreator : public TIntermTraverser
 
     TDiagnostics *mDiagnostics;
 
-    std::map<TString, CreatorFunctionData> mFunctions;
+    std::map<int, CreatorFunctionData> mFunctions;
     CreatorFunctionData *mCurrentFunction;
     size_t mCurrentIndex;
 };
@@ -291,7 +288,7 @@ const size_t CallDAG::InvalidIndex = std::numeric_limits<size_t>::max();
 
 size_t CallDAG::findIndex(const TFunctionSymbolInfo *functionInfo) const
 {
-    auto it = mFunctionIdToIndex.find(functionInfo->getId());
+    auto it = mFunctionIdToIndex.find(functionInfo->getId().get());
 
     if (it == mFunctionIdToIndex.end())
     {

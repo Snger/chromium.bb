@@ -14,7 +14,6 @@ found in the LICENSE file.
  * Utility functions for dealing with URIs.
  */
 var uri = (function() {
-
   /**
    * URI controller.
    * @param {function()} pageStateCallback callback for getting the page state.
@@ -176,21 +175,20 @@ var uri = (function() {
 
     this.firePageStateRequestEvent_('loading');
     var request = new XMLHttpRequest();
-    var self = this;
-    request.onload = function() {
+    request.onload = () => {
       var response = JSON.parse(request.responseText);
       var stateId = response['sid'];
       state['params'] = state['params'] || {};
       state['params']['sid'] = stateId;
-      self.updateUri_(state);
-      self.firePageStateRequestEvent_('complete');
+      this.updateUri_(state);
+      this.firePageStateRequestEvent_('complete');
     };
-    request.onerror = function() {
-      self.firePageStateRequestEvent_('failed');
+    request.onerror = () => {
+      this.firePageStateRequestEvent_('failed');
     };
     request.open('post', '/short_uri', true);
     request.setRequestHeader('Content-type',
-                             'application/x-www-form-urlencoded');
+        'application/x-www-form-urlencoded');
     request.send(postData);
     this.stateRequest_ = request;
   };
@@ -264,12 +262,22 @@ var uri = (function() {
     return window.location.pathname + '?' + pairs.join('&');
   };
 
+  /**
+   * Gets the second argument after the .com/.
+   * @return {string} second path element.
+   */
+  var getPathName = function() {
+    return window.location.pathname.split('/')[2];
+  };
+
+
   return {
     Controller: Controller,
     getParameter: getParameter,
     getAllParameters: getAllParameters,
     getCurrentPathWithParams: getCurrentPathWithParams,
-    getQueryString: getQueryString
+    getQueryString: getQueryString,
+    getPathName: getPathName,
   };
 })();
 

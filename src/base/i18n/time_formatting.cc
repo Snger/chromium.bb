@@ -8,11 +8,13 @@
 
 #include <memory>
 
+#include "base/i18n/unicodestring.h"
 #include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/time/time.h"
 #include "third_party/icu/source/common/unicode/utypes.h"
 #include "third_party/icu/source/i18n/unicode/datefmt.h"
+#include "third_party/icu/source/i18n/unicode/dtitvfmt.h"
 #include "third_party/icu/source/i18n/unicode/dtptngen.h"
 #include "third_party/icu/source/i18n/unicode/fmtable.h"
 #include "third_party/icu/source/i18n/unicode/measfmt.h"
@@ -27,8 +29,7 @@ string16 TimeFormat(const icu::DateFormat* formatter,
   icu::UnicodeString date_string;
 
   formatter->format(static_cast<UDate>(time.ToDoubleT() * 1000), date_string);
-  return string16(date_string.getBuffer(),
-                  static_cast<size_t>(date_string.length()));
+  return i18n::UnicodeStringToString16(date_string);
 }
 
 string16 TimeFormatWithoutAmPm(const icu::DateFormat* formatter,
@@ -47,8 +48,7 @@ string16 TimeFormatWithoutAmPm(const icu::DateFormat* formatter,
       begin--;
     time_string.removeBetween(begin, ampm_field.getEndIndex());
   }
-  return string16(time_string.getBuffer(),
-                  static_cast<size_t>(time_string.length()));
+  return i18n::UnicodeStringToString16(time_string);
 }
 
 icu::SimpleDateFormat CreateSimpleDateFormatter(const char* pattern) {
@@ -80,6 +80,17 @@ UMeasureFormatWidth DurationWidthToMeasureWidth(DurationFormatWidth width) {
   }
   NOTREACHED();
   return UMEASFMT_WIDTH_COUNT;
+}
+
+const char* DateFormatToString(DateFormat format) {
+  switch (format) {
+    case DATE_FORMAT_YEAR_MONTH:
+      return UDAT_YEAR_MONTH;
+    case DATE_FORMAT_MONTH_WEEKDAY_DAY:
+      return UDAT_MONTH_WEEKDAY_DAY;
+  }
+  NOTREACHED();
+  return UDAT_YEAR_MONTH_DAY;
 }
 
 }  // namespace
@@ -142,6 +153,12 @@ string16 TimeFormatShortDateAndTimeWithTimeZone(const Time& time) {
   return TimeFormat(formatter.get(), time);
 }
 
+string16 TimeFormatMonthAndYear(const Time& time) {
+  icu::SimpleDateFormat formatter =
+      CreateSimpleDateFormatter(DateFormatToString(DATE_FORMAT_YEAR_MONTH));
+  return TimeFormat(&formatter, time);
+}
+
 string16 TimeFormatFriendlyDateAndTime(const Time& time) {
   std::unique_ptr<icu::DateFormat> formatter(
       icu::DateFormat::createDateTimeInstance(icu::DateFormat::kFull));
@@ -152,6 +169,11 @@ string16 TimeFormatFriendlyDate(const Time& time) {
   std::unique_ptr<icu::DateFormat> formatter(
       icu::DateFormat::createDateInstance(icu::DateFormat::kFull));
   return TimeFormat(formatter.get(), time);
+}
+
+string16 TimeFormatWithPattern(const Time& time, const char* pattern) {
+  icu::SimpleDateFormat formatter = CreateSimpleDateFormatter(pattern);
+  return TimeFormat(&formatter, time);
 }
 
 bool TimeDurationFormat(const TimeDelta time,
@@ -191,7 +213,7 @@ bool TimeDurationFormat(const TimeDelta time,
     return false;
   }
 
-  *out = base::string16(formatted.getBuffer(), formatted.length());
+  *out = i18n::UnicodeStringToString16(formatted);
   return true;
 }
 
@@ -214,8 +236,26 @@ bool TimeDurationFormatWithSeconds(const TimeDelta time,
   icu::UnicodeString formatted;
   icu::FieldPosition ignore(icu::FieldPosition::DONT_CARE);
   measure_format.formatMeasures(measures, 3, formatted, ignore, status);
-  *out = base::string16(formatted.getBuffer(), formatted.length());
+  *out = i18n::UnicodeStringToString16(formatted);
   return U_SUCCESS(status) == TRUE;
+}
+
+string16 DateIntervalFormat(const Time& begin_time,
+                            const Time& end_time,
+                            DateFormat format) {
+  UErrorCode status = U_ZERO_ERROR;
+
+  std::unique_ptr<icu::DateIntervalFormat> formatter(
+      icu::DateIntervalFormat::createInstance(DateFormatToString(format),
+                                              status));
+
+  icu::FieldPosition pos = 0;
+  UDate start_date = static_cast<UDate>(begin_time.ToDoubleT() * 1000);
+  UDate end_date = static_cast<UDate>(end_time.ToDoubleT() * 1000);
+  icu::DateInterval interval(start_date, end_date);
+  icu::UnicodeString formatted;
+  formatter->format(&interval, formatted, pos, status);
+  return i18n::UnicodeStringToString16(formatted);
 }
 
 HourClockType GetHourClockType() {

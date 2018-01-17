@@ -15,10 +15,12 @@ tr.exportTo('tr.b', function() {
   var Base64 = tr.b.Base64;
 
   function computeUserTimingMarkName(groupName, functionName, opt_args) {
-    if (groupName === undefined)
+    if (groupName === undefined) {
       throw new Error('getMeasureString should have group name');
-    if (functionName === undefined)
+    }
+    if (functionName === undefined) {
       throw new Error('getMeasureString should have function name');
+    }
     var userTimingMarkName = groupName + ':' + functionName;
     if (opt_args !== undefined) {
       userTimingMarkName += '/';
@@ -39,7 +41,7 @@ tr.exportTo('tr.b', function() {
       };
     }
     var userTimingMarkName = computeUserTimingMarkName(
-      groupName, functionName, opt_args);
+        groupName, functionName, opt_args);
     var markBeginName = 'tvcm.mark' + Timing.nextMarkNumber++;
     var markEndName = 'tvcm.mark' + Timing.nextMarkNumber++;
     window.performance.mark(markBeginName);
@@ -47,23 +49,25 @@ tr.exportTo('tr.b', function() {
       end: function() {
         window.performance.mark(markEndName);
         window.performance.measure(userTimingMarkName,
-                                   markBeginName,
-                                   markEndName);
+            markBeginName,
+            markEndName);
       }
     };
   };
 
   Timing.wrap = function(groupName, callback, opt_args) {
-    if (groupName === undefined)
+    if (groupName === undefined) {
       throw new Error('Timing.wrap should have group name');
-    if (callback.name === '')
+    }
+    if (callback.name === '') {
       throw new Error('Anonymous function is not allowed');
+    }
     return Timing.wrapNamedFunction(
-      groupName, callback.name, callback, opt_args);
+        groupName, callback.name, callback, opt_args);
   };
 
   Timing.wrapNamedFunction = function(groupName, functionName, callback,
-                                      opt_args) {
+      opt_args) {
     function timedNamedFunction() {
       var markedTime = Timing.mark(groupName, functionName, opt_args);
       try {

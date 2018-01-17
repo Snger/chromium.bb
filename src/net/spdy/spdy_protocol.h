@@ -12,18 +12,19 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <iosfwd>
 #include <limits>
 #include <map>
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "base/compiler_specific.h"
 #include "base/logging.h"
 #include "base/macros.h"
-#include "base/strings/string_piece.h"
 #include "base/sys_byteorder.h"
 #include "net/base/net_export.h"
+#include "net/spdy/platform/api/spdy_string.h"
+#include "net/spdy/platform/api/spdy_string_piece.h"
 #include "net/spdy/spdy_alt_svc_wire_format.h"
 #include "net/spdy/spdy_bitmasks.h"
 #include "net/spdy/spdy_bug_tracker.h"
@@ -58,24 +59,18 @@ const int32_t kSpdyMaximumWindowSize = 0x7FFFFFFF;  // Max signed 32bit int
 // Maximum padding size in octets for one DATA or HEADERS or PUSH_PROMISE frame.
 const int32_t kPaddingSizePerFrame = 256;
 
-// The HTTP/2 connection header prefix, which must be the first bytes
-// sent by the client upon starting an HTTP/2 connection, and which
-// must be followed by a SETTINGS frame.
-//
-// Equivalent to the string "PRI * HTTP/2.0\r\n\r\nSM\r\n\r\n"
-// (without the null terminator).
-const char kHttp2ConnectionHeaderPrefix[] = {
-  0x50, 0x52, 0x49, 0x20, 0x2a, 0x20, 0x48, 0x54,  // PRI * HT
-  0x54, 0x50, 0x2f, 0x32, 0x2e, 0x30, 0x0d, 0x0a,  // TP/2.0..
-  0x0d, 0x0a, 0x53, 0x4d, 0x0d, 0x0a, 0x0d, 0x0a   // ..SM....
-};
-const int kHttp2ConnectionHeaderPrefixSize =
-    arraysize(kHttp2ConnectionHeaderPrefix);
+// The HTTP/2 connection preface, which must be the first bytes sent by the
+// client upon starting an HTTP/2 connection, and which must be followed by a
+// SETTINGS frame.  Note that even though |kHttp2ConnectionHeaderPrefix| is
+// defined as a string literal with a null terminator, the actual connection
+// preface is only the first |kHttp2ConnectionHeaderPrefixSize| bytes, which
+// excludes the null terminator.
+NET_EXPORT_PRIVATE extern const char* const kHttp2ConnectionHeaderPrefix;
+const int kHttp2ConnectionHeaderPrefixSize = 24;
 
-// Types of HTTP2 frames.
-enum SpdyFrameType {
+// Wire values for HTTP2 frame types.
+enum class SpdyFrameType : uint8_t {
   DATA = 0x00,
-  MIN_FRAME_TYPE = DATA,
   HEADERS = 0x01,
   PRIORITY = 0x02,
   RST_STREAM = 0x03,
@@ -85,10 +80,13 @@ enum SpdyFrameType {
   GOAWAY = 0x07,
   WINDOW_UPDATE = 0x08,
   CONTINUATION = 0x09,
-  // ALTSVC and BLOCKED are recognized extensions.
+  // ALTSVC is a public extension.
   ALTSVC = 0x0a,
-  BLOCKED = 0x0b,
-  MAX_FRAME_TYPE = BLOCKED
+  MAX_FRAME_TYPE = ALTSVC,
+  // The specific value of EXTENSION is meaningless; it is a placeholder used
+  // within SpdyFramer's state machine when handling unknown frames via an
+  // extension API.
+  EXTENSION = 0xff
 };
 
 // Flags on data packets.
@@ -130,7 +128,8 @@ enum Http2SettingsControlFlags {
   SETTINGS_FLAG_ACK = 0x01,
 };
 
-enum SpdySettingsIds {
+// Wire values of HTTP/2 setting identifiers.
+enum SpdySettingsIds : uint16_t {
   // HPACK header table maximum size.
   SETTINGS_HEADER_TABLE_SIZE = 0x1,
   SETTINGS_MIN = SETTINGS_HEADER_TABLE_SIZE,
@@ -147,43 +146,35 @@ enum SpdySettingsIds {
   SETTINGS_MAX = SETTINGS_MAX_HEADER_LIST_SIZE
 };
 
+// This explicit operator is needed, otherwise compiler finds
+// overloaded operator to be ambiguous.
+NET_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& out,
+                                            SpdySettingsIds id);
+
+// This operator is needed, because SpdyFrameType is an enum class,
+// therefore implicit conversion to underlying integer type is not allowed.
+NET_EXPORT_PRIVATE std::ostream& operator<<(std::ostream& out,
+                                            SpdyFrameType frame_type);
+
 using SettingsMap = std::map<SpdySettingsIds, uint32_t>;
 
-// Status codes for RST_STREAM frames.
-enum SpdyRstStreamStatus {
-  RST_STREAM_NO_ERROR = 0,
-  RST_STREAM_PROTOCOL_ERROR = 1,
-  RST_STREAM_INTERNAL_ERROR = 2,
-  RST_STREAM_FLOW_CONTROL_ERROR = 3,
-  RST_STREAM_SETTINGS_TIMEOUT = 4,
-  RST_STREAM_STREAM_CLOSED = 5,
-  RST_STREAM_FRAME_SIZE_ERROR = 6,
-  RST_STREAM_REFUSED_STREAM = 7,
-  RST_STREAM_CANCEL = 8,
-  RST_STREAM_COMPRESSION_ERROR = 9,
-  RST_STREAM_CONNECT_ERROR = 10,
-  RST_STREAM_ENHANCE_YOUR_CALM = 11,
-  RST_STREAM_INADEQUATE_SECURITY = 12,
-  RST_STREAM_HTTP_1_1_REQUIRED = 13,
-  RST_STREAM_NUM_STATUS_CODES = 14
-};
-
-// Status codes for GOAWAY frames.
-enum SpdyGoAwayStatus {
-  GOAWAY_NO_ERROR = 0,
-  GOAWAY_PROTOCOL_ERROR = 1,
-  GOAWAY_INTERNAL_ERROR = 2,
-  GOAWAY_FLOW_CONTROL_ERROR = 3,
-  GOAWAY_SETTINGS_TIMEOUT = 4,
-  GOAWAY_STREAM_CLOSED = 5,
-  GOAWAY_FRAME_SIZE_ERROR = 6,
-  GOAWAY_REFUSED_STREAM = 7,
-  GOAWAY_CANCEL = 8,
-  GOAWAY_COMPRESSION_ERROR = 9,
-  GOAWAY_CONNECT_ERROR = 10,
-  GOAWAY_ENHANCE_YOUR_CALM = 11,
-  GOAWAY_INADEQUATE_SECURITY = 12,
-  GOAWAY_HTTP_1_1_REQUIRED = 13
+// HTTP/2 error codes, RFC 7540 Section 7.
+enum SpdyErrorCode : uint32_t {
+  ERROR_CODE_NO_ERROR = 0x0,
+  ERROR_CODE_PROTOCOL_ERROR = 0x1,
+  ERROR_CODE_INTERNAL_ERROR = 0x2,
+  ERROR_CODE_FLOW_CONTROL_ERROR = 0x3,
+  ERROR_CODE_SETTINGS_TIMEOUT = 0x4,
+  ERROR_CODE_STREAM_CLOSED = 0x5,
+  ERROR_CODE_FRAME_SIZE_ERROR = 0x6,
+  ERROR_CODE_REFUSED_STREAM = 0x7,
+  ERROR_CODE_CANCEL = 0x8,
+  ERROR_CODE_COMPRESSION_ERROR = 0x9,
+  ERROR_CODE_CONNECT_ERROR = 0xa,
+  ERROR_CODE_ENHANCE_YOUR_CALM = 0xb,
+  ERROR_CODE_INADEQUATE_SECURITY = 0xc,
+  ERROR_CODE_HTTP_1_1_REQUIRED = 0xd,
+  ERROR_CODE_MAX = ERROR_CODE_HTTP_1_1_REQUIRED
 };
 
 // A SPDY priority is a number between 0 and 7 (inclusive).
@@ -225,18 +216,17 @@ const unsigned int kHttp2RootStreamId = 0;
 
 typedef uint64_t SpdyPingId;
 
-// Returns true if a given on-the-wire enumeration of a frame type is valid
-// for a given protocol version, false otherwise.
-NET_EXPORT_PRIVATE bool IsValidFrameType(int frame_type_field);
+// Returns true if a given on-the-wire enumeration of a frame type is defined
+// in a standardized HTTP/2 specification, false otherwise.
+NET_EXPORT_PRIVATE bool IsDefinedFrameType(uint8_t frame_type_field);
 
 // Parses a frame type from an on-the-wire enumeration.
 // Behavior is undefined for invalid frame type fields; consumers should first
 // use IsValidFrameType() to verify validity of frame type fields.
-NET_EXPORT_PRIVATE SpdyFrameType ParseFrameType(int frame_type_field);
+NET_EXPORT_PRIVATE SpdyFrameType ParseFrameType(uint8_t frame_type_field);
 
-// Serializes a given frame type to the on-the-wire enumeration value.
-// Returns -1 on failure (I.E. Invalid frame type).
-NET_EXPORT_PRIVATE int SerializeFrameType(SpdyFrameType frame_type);
+// Serializes a frame type to the on-the-wire value.
+NET_EXPORT_PRIVATE uint8_t SerializeFrameType(SpdyFrameType frame_type);
 
 // (HTTP/2) All standard frame types except WINDOW_UPDATE are
 // (stream-specific xor connection-level). Returns false iff we know
@@ -245,9 +235,12 @@ NET_EXPORT_PRIVATE bool IsValidHTTP2FrameStreamId(
     SpdyStreamId current_frame_stream_id,
     SpdyFrameType frame_type_field);
 
+// Serialize |frame_type| to string for logging/debugging.
+const char* FrameTypeToString(SpdyFrameType frame_type);
+
 // If |wire_setting_id| is the on-the-wire representation of a defined SETTINGS
 // parameter, parse it to |*setting_id| and return true.
-NET_EXPORT_PRIVATE bool ParseSettingsId(int wire_setting_id,
+NET_EXPORT_PRIVATE bool ParseSettingsId(uint16_t wire_setting_id,
                                         SpdySettingsIds* setting_id);
 
 // Return if |id| corresponds to a defined setting;
@@ -255,38 +248,15 @@ NET_EXPORT_PRIVATE bool ParseSettingsId(int wire_setting_id,
 NET_EXPORT_PRIVATE bool SettingsIdToString(SpdySettingsIds id,
                                            const char** settings_id_string);
 
-// Returns true if a given on-the-wire enumeration of a RST_STREAM status code
-// is valid, false otherwise.
-NET_EXPORT_PRIVATE bool IsValidRstStreamStatus(int rst_stream_status_field);
+// Parse |wire_error_code| to a SpdyErrorCode.
+// Treat unrecognized error codes as INTERNAL_ERROR
+// as recommended by the HTTP/2 specification.
+NET_EXPORT_PRIVATE SpdyErrorCode ParseErrorCode(uint32_t wire_error_code);
 
-// Parses a RST_STREAM status code from an on-the-wire enumeration.
-// Behavior is undefined for invalid RST_STREAM status code fields; consumers
-// should first use IsValidRstStreamStatus() to verify validity of RST_STREAM
-// status code fields..
-NET_EXPORT_PRIVATE SpdyRstStreamStatus
-ParseRstStreamStatus(int rst_stream_status_field);
+// Serialize RST_STREAM or GOAWAY frame error code to string
+// for logging/debugging.
+const char* ErrorCodeToString(SpdyErrorCode error_code);
 
-// Serializes a given RST_STREAM status code to the on-the-wire enumeration
-// value.  Returns -1 on failure (I.E. Invalid RST_STREAM status code for the
-// given version).
-NET_EXPORT_PRIVATE int SerializeRstStreamStatus(
-    SpdyRstStreamStatus rst_stream_status);
-
-// Returns true if a given on-the-wire enumeration of a GOAWAY status code is
-// valid, false otherwise.
-NET_EXPORT_PRIVATE bool IsValidGoAwayStatus(int goaway_status_field);
-
-// Parses a GOAWAY status from an on-the-wire enumeration.
-// Behavior is undefined for invalid GOAWAY status fields; consumers should
-// first use IsValidGoAwayStatus() to verify validity of GOAWAY status fields.
-NET_EXPORT_PRIVATE SpdyGoAwayStatus ParseGoAwayStatus(int goaway_status_field);
-
-// Serializes a given GOAWAY status to the on-the-wire enumeration value.
-// Returns -1 on failure (I.E. Invalid GOAWAY status for the given version).
-NET_EXPORT_PRIVATE int SerializeGoAwayStatus(SpdyGoAwayStatus status);
-
-// Frame type for non-control (i.e. data) frames.
-const int kDataFrameType = 0;
 // Number of octets in the frame header.
 const size_t kFrameHeaderSize = 9;
 // Size, in bytes, of the data frame header.
@@ -408,6 +378,7 @@ class NET_EXPORT_PRIVATE SpdyFrameIR {
   virtual ~SpdyFrameIR() {}
 
   virtual void Visit(SpdyFrameVisitor* visitor) const = 0;
+  virtual SpdyFrameType frame_type() const = 0;
 
  protected:
   SpdyFrameIR() {}
@@ -469,7 +440,7 @@ class NET_EXPORT_PRIVATE SpdyFrameWithHeaderBlockIR
     // Deep copy.
     header_block_ = std::move(header_block);
   }
-  void SetHeader(base::StringPiece name, base::StringPiece value) {
+  void SetHeader(SpdyStringPiece name, SpdyStringPiece value) {
     header_block_[name] = value;
   }
 
@@ -487,13 +458,13 @@ class NET_EXPORT_PRIVATE SpdyDataIR
     : public NON_EXPORTED_BASE(SpdyFrameWithFinIR) {
  public:
   // Performs a deep copy on data.
-  SpdyDataIR(SpdyStreamId stream_id, base::StringPiece data);
+  SpdyDataIR(SpdyStreamId stream_id, SpdyStringPiece data);
 
   // Performs a deep copy on data.
   SpdyDataIR(SpdyStreamId stream_id, const char* data);
 
   // Moves data into data_store_. Makes a copy if passed a non-movable string.
-  SpdyDataIR(SpdyStreamId stream_id, std::string data);
+  SpdyDataIR(SpdyStreamId stream_id, SpdyString data);
 
   // Use in conjunction with SetDataShallow() for shallow-copy on data.
   explicit SpdyDataIR(SpdyStreamId stream_id);
@@ -516,14 +487,14 @@ class NET_EXPORT_PRIVATE SpdyDataIR
   }
 
   // Deep-copy of data (keep private copy).
-  void SetDataDeep(base::StringPiece data) {
-    data_store_.reset(new std::string(data.data(), data.size()));
+  void SetDataDeep(SpdyStringPiece data) {
+    data_store_.reset(new SpdyString(data.data(), data.size()));
     data_ = data_store_->data();
     data_len_ = data.size();
   }
 
   // Shallow-copy of data (do not keep private copy).
-  void SetDataShallow(base::StringPiece data) {
+  void SetDataShallow(SpdyStringPiece data) {
     data_store_.reset();
     data_ = data.data();
     data_len_ = data.size();
@@ -539,9 +510,11 @@ class NET_EXPORT_PRIVATE SpdyDataIR
 
   void Visit(SpdyFrameVisitor* visitor) const override;
 
+  SpdyFrameType frame_type() const override;
+
  private:
   // Used to store data that this SpdyDataIR should own.
-  std::unique_ptr<std::string> data_store_;
+  std::unique_ptr<SpdyString> data_store_;
   const char* data_;
   size_t data_len_;
 
@@ -554,21 +527,19 @@ class NET_EXPORT_PRIVATE SpdyDataIR
 
 class NET_EXPORT_PRIVATE SpdyRstStreamIR : public SpdyFrameWithStreamIdIR {
  public:
-  SpdyRstStreamIR(SpdyStreamId stream_id, SpdyRstStreamStatus status);
+  SpdyRstStreamIR(SpdyStreamId stream_id, SpdyErrorCode error_code);
 
   ~SpdyRstStreamIR() override;
 
-  SpdyRstStreamStatus status() const {
-    return status_;
-  }
-  void set_status(SpdyRstStreamStatus status) {
-    status_ = status;
-  }
+  SpdyErrorCode error_code() const { return error_code_; }
+  void set_error_code(SpdyErrorCode error_code) { error_code_ = error_code; }
 
   void Visit(SpdyFrameVisitor* visitor) const override;
 
+  SpdyFrameType frame_type() const override;
+
  private:
-  SpdyRstStreamStatus status_;
+  SpdyErrorCode error_code_;
 
   DISALLOW_COPY_AND_ASSIGN(SpdyRstStreamIR);
 };
@@ -589,6 +560,8 @@ class NET_EXPORT_PRIVATE SpdySettingsIR : public SpdyFrameIR {
 
   void Visit(SpdyFrameVisitor* visitor) const override;
 
+  SpdyFrameType frame_type() const override;
+
  private:
   SettingsMap values_;
   bool is_ack_;
@@ -606,6 +579,8 @@ class NET_EXPORT_PRIVATE SpdyPingIR : public SpdyFrameIR {
 
   void Visit(SpdyFrameVisitor* visitor) const override;
 
+  SpdyFrameType frame_type() const override;
+
  private:
   SpdyPingId id_;
   bool is_ack_;
@@ -618,43 +593,44 @@ class NET_EXPORT_PRIVATE SpdyGoAwayIR : public SpdyFrameIR {
   // References description, doesn't copy it, so description must outlast
   // this SpdyGoAwayIR.
   SpdyGoAwayIR(SpdyStreamId last_good_stream_id,
-               SpdyGoAwayStatus status,
-               base::StringPiece description);
+               SpdyErrorCode error_code,
+               SpdyStringPiece description);
 
   // References description, doesn't copy it, so description must outlast
   // this SpdyGoAwayIR.
   SpdyGoAwayIR(SpdyStreamId last_good_stream_id,
-               SpdyGoAwayStatus status,
+               SpdyErrorCode error_code,
                const char* description);
 
   // Moves description into description_store_, so caller doesn't need to
   // keep description live after constructing this SpdyGoAwayIR.
   SpdyGoAwayIR(SpdyStreamId last_good_stream_id,
-               SpdyGoAwayStatus status,
-               std::string description);
+               SpdyErrorCode error_code,
+               SpdyString description);
 
   ~SpdyGoAwayIR() override;
   SpdyStreamId last_good_stream_id() const { return last_good_stream_id_; }
   void set_last_good_stream_id(SpdyStreamId last_good_stream_id) {
-    DCHECK_LE(0u, last_good_stream_id);
     DCHECK_EQ(0u, last_good_stream_id & ~kStreamIdMask);
     last_good_stream_id_ = last_good_stream_id;
   }
-  SpdyGoAwayStatus status() const { return status_; }
-  void set_status(SpdyGoAwayStatus status) {
-    // TODO(hkhalil): Check valid ranges of status?
-    status_ = status;
+  SpdyErrorCode error_code() const { return error_code_; }
+  void set_error_code(SpdyErrorCode error_code) {
+    // TODO(hkhalil): Check valid ranges of error_code?
+    error_code_ = error_code;
   }
 
-  const base::StringPiece& description() const { return description_; }
+  const SpdyStringPiece& description() const { return description_; }
 
   void Visit(SpdyFrameVisitor* visitor) const override;
 
+  SpdyFrameType frame_type() const override;
+
  private:
   SpdyStreamId last_good_stream_id_;
-  SpdyGoAwayStatus status_;
-  const std::string description_store_;
-  const base::StringPiece description_;
+  SpdyErrorCode error_code_;
+  const SpdyString description_store_;
+  const SpdyStringPiece description_;
 
   DISALLOW_COPY_AND_ASSIGN(SpdyGoAwayIR);
 };
@@ -667,6 +643,8 @@ class NET_EXPORT_PRIVATE SpdyHeadersIR : public SpdyFrameWithHeaderBlockIR {
       : SpdyFrameWithHeaderBlockIR(stream_id, std::move(header_block)) {}
 
   void Visit(SpdyFrameVisitor* visitor) const override;
+
+  SpdyFrameType frame_type() const override;
 
   bool has_priority() const { return has_priority_; }
   void set_has_priority(bool has_priority) { has_priority_ = has_priority; }
@@ -715,22 +693,12 @@ class NET_EXPORT_PRIVATE SpdyWindowUpdateIR : public SpdyFrameWithStreamIdIR {
 
   void Visit(SpdyFrameVisitor* visitor) const override;
 
+  SpdyFrameType frame_type() const override;
+
  private:
   int32_t delta_;
 
   DISALLOW_COPY_AND_ASSIGN(SpdyWindowUpdateIR);
-};
-
-class NET_EXPORT_PRIVATE SpdyBlockedIR
-    : public NON_EXPORTED_BASE(SpdyFrameWithStreamIdIR) {
- public:
-  explicit SpdyBlockedIR(SpdyStreamId stream_id)
-      : SpdyFrameWithStreamIdIR(stream_id) {}
-
-  void Visit(SpdyFrameVisitor* visitor) const override;
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(SpdyBlockedIR);
 };
 
 class NET_EXPORT_PRIVATE SpdyPushPromiseIR : public SpdyFrameWithHeaderBlockIR {
@@ -747,6 +715,8 @@ class NET_EXPORT_PRIVATE SpdyPushPromiseIR : public SpdyFrameWithHeaderBlockIR {
   SpdyStreamId promised_stream_id() const { return promised_stream_id_; }
 
   void Visit(SpdyFrameVisitor* visitor) const override;
+
+  SpdyFrameType frame_type() const override;
 
   bool padded() const { return padded_; }
   int padding_payload_len() const { return padding_payload_len_; }
@@ -774,15 +744,17 @@ class NET_EXPORT_PRIVATE SpdyContinuationIR : public SpdyFrameWithStreamIdIR {
 
   void Visit(SpdyFrameVisitor* visitor) const override;
 
+  SpdyFrameType frame_type() const override;
+
   bool end_headers() const { return end_headers_; }
   void set_end_headers(bool end_headers) {end_headers_ = end_headers;}
-  const std::string& encoding() const { return *encoding_; }
-  void take_encoding(std::unique_ptr<std::string> encoding) {
+  const SpdyString& encoding() const { return *encoding_; }
+  void take_encoding(std::unique_ptr<SpdyString> encoding) {
     encoding_ = std::move(encoding);
   }
 
  private:
-  std::unique_ptr<std::string> encoding_;
+  std::unique_ptr<SpdyString> encoding_;
   bool end_headers_;
   DISALLOW_COPY_AND_ASSIGN(SpdyContinuationIR);
 };
@@ -792,20 +764,22 @@ class NET_EXPORT_PRIVATE SpdyAltSvcIR : public SpdyFrameWithStreamIdIR {
   explicit SpdyAltSvcIR(SpdyStreamId stream_id);
   ~SpdyAltSvcIR() override;
 
-  std::string origin() const { return origin_; }
+  SpdyString origin() const { return origin_; }
   const SpdyAltSvcWireFormat::AlternativeServiceVector& altsvc_vector() const {
     return altsvc_vector_;
   }
 
-  void set_origin(std::string origin) { origin_ = std::move(origin); }
+  void set_origin(SpdyString origin) { origin_ = std::move(origin); }
   void add_altsvc(const SpdyAltSvcWireFormat::AlternativeService& altsvc) {
     altsvc_vector_.push_back(altsvc);
   }
 
   void Visit(SpdyFrameVisitor* visitor) const override;
 
+  SpdyFrameType frame_type() const override;
+
  private:
-  std::string origin_;
+  SpdyString origin_;
   SpdyAltSvcWireFormat::AlternativeServiceVector altsvc_vector_;
   DISALLOW_COPY_AND_ASSIGN(SpdyAltSvcIR);
 };
@@ -833,6 +807,8 @@ class NET_EXPORT_PRIVATE SpdyPriorityIR : public SpdyFrameWithStreamIdIR {
   void set_exclusive(bool exclusive) { exclusive_ = exclusive; }
 
   void Visit(SpdyFrameVisitor* visitor) const override;
+
+  SpdyFrameType frame_type() const override;
 
  private:
   SpdyStreamId parent_stream_id_;
@@ -907,6 +883,9 @@ class SpdySerializedFrame {
     return buffer;
   }
 
+  // Returns the estimate of dynamically allocated memory in bytes.
+  size_t EstimateMemoryUsage() const { return owns_buffer_ ? size_ : 0; }
+
  protected:
   char* frame_;
 
@@ -928,7 +907,6 @@ class SpdyFrameVisitor {
   virtual void VisitGoAway(const SpdyGoAwayIR& goaway) = 0;
   virtual void VisitHeaders(const SpdyHeadersIR& headers) = 0;
   virtual void VisitWindowUpdate(const SpdyWindowUpdateIR& window_update) = 0;
-  virtual void VisitBlocked(const SpdyBlockedIR& blocked) = 0;
   virtual void VisitPushPromise(const SpdyPushPromiseIR& push_promise) = 0;
   virtual void VisitContinuation(const SpdyContinuationIR& continuation) = 0;
   virtual void VisitAltSvc(const SpdyAltSvcIR& altsvc) = 0;

@@ -26,8 +26,8 @@
 #include "clang/Basic/SourceManager.h"
 #include "clang/Frontend/CompilerInstance.h"
 #include "clang/Frontend/FrontendActions.h"
-#include "clang/Lex/MacroArgs.h"
 #include "clang/Lex/Lexer.h"
+#include "clang/Lex/MacroArgs.h"
 #include "clang/Lex/PPCallbacks.h"
 #include "clang/Lex/Preprocessor.h"
 #include "clang/Tooling/CommonOptionsParser.h"
@@ -37,6 +37,7 @@
 #include "llvm/Support/ErrorOr.h"
 #include "llvm/Support/LineIterator.h"
 #include "llvm/Support/MemoryBuffer.h"
+#include "llvm/Support/Path.h"
 #include "llvm/Support/TargetSelect.h"
 
 #include "EditTracker.h"
@@ -50,7 +51,6 @@ namespace {
 
 const char kBlinkFieldPrefix[] = "m_";
 const char kBlinkStaticMemberPrefix[] = "s_";
-const char kGeneratedFileRegex[] = "^gen/|/gen/";
 const char kGMockMethodNamePrefix[] = "gmock_";
 const char kMethodBlocklistParamName[] = "method-blocklist";
 
@@ -88,6 +88,13 @@ AST_MATCHER_P(clang::FunctionTemplateDecl,
   return InnerMatcher.matches(*Node.getTemplatedDecl(), Finder, Builder);
 }
 
+AST_MATCHER_P(clang::Decl,
+              hasCanonicalDecl,
+              clang::ast_matchers::internal::Matcher<clang::Decl>,
+              InnerMatcher) {
+  return InnerMatcher.matches(*Node.getCanonicalDecl(), Finder, Builder);
+}
+
 // Matches a CXXMethodDecl of a method declared via MOCK_METHODx macro if such
 // method mocks a method matched by the InnerMatcher.  For example if "foo"
 // matcher matches "interfaceMethod", then mocksMethod(foo()) will match
@@ -106,9 +113,6 @@ AST_MATCHER_P(clang::CXXMethodDecl,
   llvm::StringRef mocked_method_name =
       method_name.substr(strlen(kGMockMethodNamePrefix));
   for (const auto& potentially_mocked_method : Node.getParent()->methods()) {
-    if (!potentially_mocked_method->isVirtual())
-      continue;
-
     clang::DeclarationName decl_name = potentially_mocked_method->getDeclName();
     if (!decl_name.isIdentifier() ||
         potentially_mocked_method->getName() != mocked_method_name)
@@ -131,8 +135,11 @@ class MethodBlocklist {
   }
 
   bool Contains(const clang::FunctionDecl& method) const {
-    auto it = method_to_class_to_args_.find(method.getName());
-    if (it == method_to_class_to_args_.end())
+    if (!method.getDeclName().isIdentifier())
+      return false;
+
+    auto it = method_to_classes_.find(method.getName());
+    if (it == method_to_classes_.end())
       return false;
 
     // |method_context| is either
@@ -142,33 +149,22 @@ class MethodBlocklist {
         clang::dyn_cast<clang::NamedDecl>(method.getDeclContext());
     if (!method_context)
       return false;
-
-    const llvm::StringMap<std::set<unsigned>>& class_to_args = it->second;
-    auto it2 = class_to_args.find(method_context->getName());
-    if (it2 == class_to_args.end())
+    if (!method_context->getDeclName().isIdentifier())
       return false;
 
-    const std::set<unsigned>& arg_counts = it2->second;
-    unsigned method_param_count = method.param_size();
-    unsigned method_non_optional_param_count = method_param_count;
-    for (const clang::ParmVarDecl* param : method.parameters()) {
-      if (param->hasInit())
-        method_non_optional_param_count--;
-    }
-    bool found_matching_arg_count =
-        std::any_of(arg_counts.begin(), arg_counts.end(),
-                    [method_param_count,
-                     method_non_optional_param_count](unsigned arg_count) {
-                      return (method_non_optional_param_count <= arg_count) &&
-                             (arg_count <= method_param_count);
-                    });
+    const llvm::StringSet<>& classes = it->second;
+    auto it2 = classes.find(method_context->getName());
+    if (it2 == classes.end())
+      return false;
 
     // No need to verify here that |actual_class| is in the |blink| namespace -
     // this will be done by other matchers elsewhere.
 
     // TODO(lukasza): Do we need to consider return type and/or param types?
 
-    return found_matching_arg_count;
+    // TODO(lukasza): Do we need to consider param count?
+
+    return true;
   }
 
  private:
@@ -207,24 +203,16 @@ class MethodBlocklist {
       // Parse individual parts.
       llvm::StringRef class_name = parts[0];
       llvm::StringRef method_name = parts[1];
-      unsigned number_of_method_args;
-      if (parts[2].getAsInteger(0, number_of_method_args)) {
-        llvm::errs() << "ERROR: Parsing error - '" << parts[2] << "' "
-                     << "is not an unsigned integer: " << filepath << ":"
-                     << it.line_number() << ": " << line << "\n";
-        assert(false);
-        continue;
-      }
+      // ignoring parts[2] - the (not so trustworthy) number of parameters.
 
       // Store the new entry.
-      method_to_class_to_args_[method_name][class_name].insert(
-          number_of_method_args);
+      method_to_classes_[method_name].insert(class_name);
     }
   }
 
   // Stores methods to blacklist in a map:
   // method name -> class name -> set of all allowed numbers of arguments.
-  llvm::StringMap<llvm::StringMap<std::set<unsigned>>> method_to_class_to_args_;
+  llvm::StringMap<llvm::StringSet<>> method_to_classes_;
 };
 
 AST_MATCHER_P(clang::FunctionDecl,
@@ -435,7 +423,7 @@ bool IsBlacklistedInstanceMethodName(llvm::StringRef name) {
 
       // https://crbug.com/672902: Should not rewrite names that mimick methods
       // from std library.
-      "back", "empty", "erase", "front", "insert",
+      "at", "back", "empty", "erase", "front", "insert", "length", "size",
   };
   for (const auto& b : kBlacklistedNames) {
     if (name == b)
@@ -450,11 +438,17 @@ bool IsBlacklistedMethodName(llvm::StringRef name) {
 }
 
 bool IsBlacklistedFunction(const clang::FunctionDecl& decl) {
+  if (!decl.getDeclName().isIdentifier())
+    return false;
+
   clang::StringRef name = decl.getName();
   return IsBlacklistedFunctionName(name) || IsBlacklistedFreeFunctionName(name);
 }
 
 bool IsBlacklistedMethod(const clang::CXXMethodDecl& decl) {
+  if (!decl.getDeclName().isIdentifier())
+    return false;
+
   clang::StringRef name = decl.getName();
   if (IsBlacklistedFunctionName(name))
     return true;
@@ -482,6 +476,60 @@ AST_MATCHER(clang::FunctionDecl, isBlacklistedFunction) {
 
 AST_MATCHER(clang::CXXMethodDecl, isBlacklistedMethod) {
   return IsBlacklistedMethod(Node);
+}
+
+bool IsKnownTraitName(clang::StringRef name) {
+  // This set of names is globally a type trait throughout chromium.
+  return name == "safeToCompareToEmptyOrDeleted";
+}
+
+AST_MATCHER(clang::VarDecl, isKnownTraitName) {
+  return Node.getDeclName().isIdentifier() && IsKnownTraitName(Node.getName());
+}
+
+AST_MATCHER(clang::Decl, isDeclInGeneratedFile) {
+  // This matcher mimics the built-in isExpansionInFileMatching matcher from
+  // llvm/tools/clang/include/clang/ASTMatchers/ASTMatchers.h, except:
+  // - It special cases some files (e.g. doesn't skip renaming of identifiers
+  //   from gen/blink/core/ComputedStyleBase.h)
+
+  const clang::SourceManager& source_manager =
+      Node.getASTContext().getSourceManager();
+
+  // TODO(lukasza): Consider using getSpellingLoc below.
+  // The built-in isExpansionInFileMatching matcher uses getExpansionLoc below.
+  // We could consider using getSpellingLoc (which properly handles things like
+  // SETTINGS_GETTERS_AND_SETTERS macro which is defined in generated code
+  // (gen/blink/core/SettingsMacros.h), but expanded in non-generated code
+  // (third_party/WebKit/Source/core/frame/Settings.h).
+  clang::SourceLocation loc =
+      source_manager.getExpansionLoc(Node.getLocStart());
+
+  // TODO(lukasza): jump out of scratch space if token concatenation was used.
+  if (loc.isInvalid())
+    return false;
+
+  const clang::FileEntry* file_entry =
+      source_manager.getFileEntryForID(source_manager.getFileID(loc));
+  if (!file_entry)
+    return false;
+
+  bool is_generated_file = false;
+  bool is_computed_style_base_cpp =
+      llvm::sys::path::filename(file_entry->getName())
+          .equals("ComputedStyleBase.h");
+  for (auto it = llvm::sys::path::begin(file_entry->getName());
+       it != llvm::sys::path::end(file_entry->getName()); ++it) {
+    if (it->equals("gen")) {
+      is_generated_file = true;
+      break;
+    }
+  }
+  // ComputedStyleBase is intentionally not treated as a generated file, since
+  // style definitions are split between generated and non-generated code. It's
+  // easier to have the tool just automatically rewrite references to generated
+  // code as well, with a small manual patch to fix the code generators.
+  return is_generated_file && !is_computed_style_base_cpp;
 }
 
 // Helper to convert from a camelCaseName to camel_case_name. It uses some
@@ -617,83 +665,118 @@ AST_MATCHER_P(clang::QualType, hasString, std::string, ExpectedString) {
 bool ShouldPrefixFunctionName(const std::string& old_method_name) {
   // Functions that are named similarily to a type - they should be prefixed
   // with a "Get" prefix.
-  static const char* kConflictingMethods[] = {
-      "animationWorklet",
-      "audioWorklet",
-      "binaryType",
-      "blob",
-      "channelCountMode",
-      "color",
-      "compositorElementId",
-      "counterDirectives",
-      "document",
-      "element",
-      "emptyChromeClient",
-      "emptyEditorClient",
-      "emptySpellCheckerClient",
-      "entryType",
-      "error",
-      "fileUtilities",
-      "font",
-      "frame",
-      "frameBlameContext",
-      "frontend",
-      "hash",
-      "heapObjectHeader",
-      "iconURL",
-      "image",
-      "inputMethodController",
-      "inputType",
-      "layout",
-      "layoutBlock",
-      "layoutObject",
-      "layoutSize",
-      "length",
-      "lineCap",
-      "lineEndings",
-      "lineJoin",
-      "listItems",
-      "matchedProperties",
-      "midpointState",
-      "modifiers",
-      "mouseEvent",
-      "name",
-      "navigationType",
-      "node",
-      "outcome",
-      "pagePopup",
-      "paintWorklet",
-      "path",
-      "processingInstruction",
-      "readyState",
-      "relList",
-      "resource",
-      "response",
-      "sandboxSupport",
-      "screenInfo",
-      "screenOrientationController",
-      "scrollAnimator",
-      "selectionInFlatTree",
-      "settings",
-      "signalingState",
-      "state",
-      "string",
-      "styleSheet",
-      "supplementable",
-      "text",
-      "textAlign",
-      "textBaseline",
-      "theme",
-      "thread",
-      "timing",
-      "topLevelBlameContext",
-      "vector",
-      "visibleSelection",
-      "webFrame",
-      "widget",
-      "wordBoundaries",
-      "wrapperTypeInfo",
-  };
+  static const char* kConflictingMethods[] = {"accumulatorMap",
+                                              "animationWorklet",
+                                              "attrNodeList",
+                                              "audioWorklet",
+                                              "binaryType",
+                                              "blob",
+                                              "channelCountMode",
+                                              "color",
+                                              "compositorElementId",
+                                              "constructionStack",
+                                              "controlSize",
+                                              "counterDirectives",
+                                              "counterMaps",
+                                              "document",
+                                              "dragOperation",
+                                              "element",
+                                              "emptyChromeClient",
+                                              "emptyEditorClient",
+                                              "emptySpellCheckerClient",
+                                              "entryType",
+                                              "error",
+                                              "eventTargetDataMap",
+                                              "fileUtilities",
+                                              "font",
+                                              "frame",
+                                              "frameBlameContext",
+                                              "frontend",
+                                              "gridCell",
+                                              "harfBuzzFontCache",
+                                              "hash",
+                                              "heapObjectHeader",
+                                              "heapObjectSet",
+                                              "iconURL",
+                                              "image",
+                                              "infoMap",
+                                              "inputMethodController",
+                                              "inputType",
+                                              "interpolationTypes",
+                                              "intervalArena",
+                                              "layout",
+                                              "layoutBlock",
+                                              "layoutObject",
+                                              "layoutSize",
+                                              "lineCap",
+                                              "lineEndings",
+                                              "lineJoin",
+                                              "listItems",
+                                              "locationInBackingMap",
+                                              "matchedProperties",
+                                              "midpointState",
+                                              "modifiers",
+                                              "mouseEvent",
+                                              "name",
+                                              "navigationType",
+                                              "node",
+                                              "notificationManager",
+                                              "originAccessMap",
+                                              "outcome",
+                                              "pagePopup",
+                                              "paintWorklet",
+                                              "path",
+                                              "position",
+                                              "presentationAttributeCache",
+                                              "processingInstruction",
+                                              "qualifiedNameCache",
+                                              "readyState",
+                                              "referrer",
+                                              "referrerPolicy",
+                                              "relList",
+                                              "resource",
+                                              "response",
+                                              "restrictedKeyMap",
+                                              "sandboxSupport",
+                                              "screenInfo",
+                                              "screenOrientationController",
+                                              "scrollAnimator",
+                                              "scrollbarPainterMap",
+                                              "scrollbarSet",
+                                              "selectionInDOMTree",
+                                              "selectionInFlatTree",
+                                              "selectionVisualRectMap",
+                                              "selectorTextCache",
+                                              "settings",
+                                              "shadowRootType",
+                                              "signalingState",
+                                              "snapshotById",
+                                              "state",
+                                              "stickyConstraintsMap",
+                                              "string",
+                                              "styleSharingList",
+                                              "styleSheet",
+                                              "supplementable",
+                                              "text",
+                                              "textAlign",
+                                              "textBaseline",
+                                              "textDirection",
+                                              "theme",
+                                              "thread",
+                                              "timing",
+                                              "topLevelBlameContext",
+                                              "type",
+                                              "vector",
+                                              "visibleSelection",
+                                              "visibleSelectionInFlatTree",
+                                              "weakHeapObjectSet",
+                                              "webFrame",
+                                              "widget",
+                                              "wordBoundaries",
+                                              "workerThread",
+                                              "worldId",
+                                              "worldMap",
+                                              "wrapperTypeInfo"};
   for (const auto& conflicting_method : kConflictingMethods) {
     if (old_method_name == conflicting_method)
       return true;
@@ -703,7 +786,8 @@ bool ShouldPrefixFunctionName(const std::string& old_method_name) {
 }
 
 AST_MATCHER(clang::FunctionDecl, shouldPrefixFunctionName) {
-  return ShouldPrefixFunctionName(Node.getName().str());
+  return Node.getDeclName().isIdentifier() &&
+      ShouldPrefixFunctionName(Node.getName().str());
 }
 
 bool GetNameForDecl(const clang::FunctionDecl& decl,
@@ -826,6 +910,13 @@ bool GetNameForDecl(const clang::VarDecl& decl,
         });
     if (!is_child_location_within_parent_source_range)
       return false;
+  }
+
+  // This is a type trait that appears in consumers of WTF as well as inside
+  // WTF. We want it to be named in this_style_of_case accordingly.
+  if (IsKnownTraitName(original_name)) {
+    name = CamelCaseToUnderscoreCase(original_name);
+    return true;
   }
 
   // static class members match against VarDecls. Blink style dictates that
@@ -998,8 +1089,9 @@ struct TargetNodeTraits<clang::UnresolvedUsingValueDecl> {
 template <typename TargetNode>
 class RewriterBase : public MatchFinder::MatchCallback {
  public:
-  explicit RewriterBase(std::set<Replacement>* replacements)
-      : replacements_(replacements) {}
+  explicit RewriterBase(std::set<Replacement>* replacements,
+                        RenameCategory category)
+      : replacements_(replacements), edit_tracker_(category) {}
 
   const TargetNode& GetTargetNode(const MatchFinder::MatchResult& result) {
     const TargetNode* target_node = result.Nodes.getNodeAs<TargetNode>(
@@ -1085,12 +1177,43 @@ class RewriterBase : public MatchFinder::MatchCallback {
     edit_tracker_.Add(*result.SourceManager, loc, old_name, new_name);
   }
 
-  const EditTracker& edit_tracker() const { return edit_tracker_; }
+  const EditTracker* edit_tracker() const { return &edit_tracker_; }
 
  private:
   std::set<Replacement>* const replacements_;
   EditTracker edit_tracker_;
 };
+
+template <typename DeclNode>
+RenameCategory GetCategory();
+template <>
+RenameCategory GetCategory<clang::FieldDecl>() {
+  return RenameCategory::kField;
+}
+template <>
+RenameCategory GetCategory<clang::VarDecl>() {
+  return RenameCategory::kVariable;
+}
+template <>
+RenameCategory GetCategory<clang::FunctionDecl>() {
+  return RenameCategory::kFunction;
+}
+template <>
+RenameCategory GetCategory<clang::CXXMethodDecl>() {
+  return RenameCategory::kFunction;
+}
+template <>
+RenameCategory GetCategory<clang::EnumConstantDecl>() {
+  return RenameCategory::kEnumValue;
+}
+template <>
+RenameCategory GetCategory<clang::NamedDecl>() {
+  return RenameCategory::kUnresolved;
+}
+template <>
+RenameCategory GetCategory<clang::UsingDecl>() {
+  return RenameCategory::kUnresolved;
+}
 
 template <typename DeclNode, typename TargetNode>
 class DeclRewriterBase : public RewriterBase<TargetNode> {
@@ -1098,10 +1221,13 @@ class DeclRewriterBase : public RewriterBase<TargetNode> {
   using Base = RewriterBase<TargetNode>;
 
   explicit DeclRewriterBase(std::set<Replacement>* replacements)
-      : Base(replacements) {}
+      : Base(replacements, GetCategory<DeclNode>()) {}
 
   void run(const MatchFinder::MatchResult& result) override {
     const DeclNode* decl = result.Nodes.getNodeAs<DeclNode>("decl");
+    if (!decl->getDeclName().isIdentifier())
+      return;
+
     assert(decl);
     llvm::StringRef old_name = decl->getName();
 
@@ -1175,28 +1301,29 @@ class GMockMemberRewriter
     // Find location of the gmock_##MockedMethod identifier.
     clang::SourceLocation target_loc = Base::GetTargetLoc(result);
 
-    // Find location of EXPECT_CALL macro invocation.
+    // Find location of EXPECT_CALL or ON_CALL macro invocation.
     clang::SourceLocation macro_call_loc =
         result.SourceManager->getExpansionLoc(target_loc);
 
     // Map |macro_call_loc| to argument location (location of the method name
     // that needs renaming).
-    auto it = expect_call_to_2nd_arg.find(macro_call_loc);
-    if (it == expect_call_to_2nd_arg.end())
+    auto it = gmock_macro_call_to_2nd_arg.find(macro_call_loc);
+    if (it == gmock_macro_call_to_2nd_arg.end())
       return clang::SourceLocation();
     return it->second;
   }
 
  private:
-  std::map<clang::SourceLocation, clang::SourceLocation> expect_call_to_2nd_arg;
+  std::map<clang::SourceLocation, clang::SourceLocation>
+      gmock_macro_call_to_2nd_arg;
 
-  // Called from PPCallbacks with the locations of EXPECT_CALL macro invocation:
-  // Example:
+  // Called from PPCallbacks with the locations of EXPECT_CALL and ON_CALL macro
+  // invocation.  Example:
   //   EXPECT_CALL(my_mock, myMethod(123, 456));
   //   ^- expansion_loc     ^- actual_arg_loc
-  void RecordExpectCallMacroInvocation(clang::SourceLocation expansion_loc,
-                                       clang::SourceLocation second_arg_loc) {
-    expect_call_to_2nd_arg[expansion_loc] = second_arg_loc;
+  void RecordGMockMacroInvocation(clang::SourceLocation expansion_loc,
+                                  clang::SourceLocation second_arg_loc) {
+    gmock_macro_call_to_2nd_arg[expansion_loc] = second_arg_loc;
   }
 
   class PPCallbacks : public clang::PPCallbacks {
@@ -1211,7 +1338,7 @@ class GMockMemberRewriter
       if (!id)
         return;
 
-      if (id->getName() != "EXPECT_CALL")
+      if (id->getName() != "EXPECT_CALL" && id->getName() != "ON_CALL")
         return;
 
       if (def.getMacroInfo()->getNumArgs() != 2)
@@ -1221,7 +1348,7 @@ class GMockMemberRewriter
       // is in testing/gmock/include/gmock/gmock-spec-builders.h but I don't
       // know how to get clang::SourceManager to call getFileName.
 
-      rewriter_->RecordExpectCallMacroInvocation(
+      rewriter_->RecordGMockMacroInvocation(
           name.getLocation(), args->getUnexpArgument(1)->getLocation());
     }
 
@@ -1281,7 +1408,7 @@ class UnresolvedRewriterBase : public RewriterBase<TargetNode> {
   using Base = RewriterBase<TargetNode>;
 
   explicit UnresolvedRewriterBase(std::set<Replacement>* replacements)
-      : RewriterBase<TargetNode>(replacements) {}
+      : RewriterBase<TargetNode>(replacements, RenameCategory::kUnresolved) {}
 
   void run(const MatchFinder::MatchResult& result) override {
     const TargetNode& node = Base::GetTargetNode(result);
@@ -1439,7 +1566,7 @@ int main(int argc, const char* argv[]) {
   auto in_blink_namespace = decl(
       anyOf(decl_under_blink_namespace, decl_has_qualifier_to_blink_namespace,
             hasAncestor(decl_has_qualifier_to_blink_namespace)),
-      unless(isExpansionInFileMatching(kGeneratedFileRegex)));
+      unless(hasCanonicalDecl(isDeclInGeneratedFile())));
 
   // Field, variable, and enum declarations ========
   // Given
@@ -1458,6 +1585,8 @@ int main(int argc, const char* argv[]) {
                   has(cxxMethodDecl(isUserProvided(), isInstanceMethod()))))));
   auto var_decl_matcher =
       id("decl", varDecl(in_blink_namespace, unless(is_type_trait_value)));
+  // For known trait names, rename every instance anywhere in the codebase.
+  auto type_trait_decl_matcher = id("decl", varDecl(isKnownTraitName()));
   auto enum_member_decl_matcher =
       id("decl", enumConstantDecl(in_blink_namespace));
 
@@ -1466,6 +1595,7 @@ int main(int argc, const char* argv[]) {
 
   VarDeclRewriter var_decl_rewriter(&replacements);
   match_finder.addMatcher(var_decl_matcher, &var_decl_rewriter);
+  match_finder.addMatcher(type_trait_decl_matcher, &var_decl_rewriter);
 
   EnumConstantDeclRewriter enum_member_decl_rewriter(&replacements);
   match_finder.addMatcher(enum_member_decl_matcher, &enum_member_decl_rewriter);
@@ -1488,6 +1618,8 @@ int main(int argc, const char* argv[]) {
           // there's nothing interesting to rewrite in those either.
           unless(hasAncestor(functionDecl(isDefaulted())))));
   auto decl_ref_matcher = id("expr", declRefExpr(to(var_decl_matcher)));
+  auto type_trait_ref_matcher =
+      id("expr", declRefExpr(to(type_trait_decl_matcher)));
   auto enum_member_ref_matcher =
       id("expr", declRefExpr(to(enum_member_decl_matcher)));
 
@@ -1496,6 +1628,7 @@ int main(int argc, const char* argv[]) {
 
   DeclRefRewriter decl_ref_rewriter(&replacements);
   match_finder.addMatcher(decl_ref_matcher, &decl_ref_rewriter);
+  match_finder.addMatcher(type_trait_ref_matcher, &decl_ref_rewriter);
 
   EnumConstantDeclRefRewriter enum_member_ref_rewriter(&replacements);
   match_finder.addMatcher(enum_member_ref_matcher, &enum_member_ref_rewriter);
@@ -1773,7 +1906,9 @@ int main(int argc, const char* argv[]) {
   // GMock calls lookup ========
   // Given
   //   EXPECT_CALL(obj, myMethod(...))
-  // will match obj.gmock_myMethod(...) call generated by the macro
+  // or
+  //   ON_CALL(obj, myMethod(...))
+  // will match obj.gmock_myMethod(...) call generated by the macros
   // (but only if it mocks a Blink method).
   auto gmock_member_matcher =
       id("expr", memberExpr(hasDeclaration(
@@ -1791,13 +1926,32 @@ int main(int argc, const char* argv[]) {
     return result;
 
   // Supplemental data for the Blink rename rebase helper.
-  // TODO(dcheng): There's a lot of match rewriters missing from this list.
+  std::vector<const EditTracker*> all_edit_trackers{
+      field_decl_rewriter.edit_tracker(),
+      var_decl_rewriter.edit_tracker(),
+      enum_member_decl_rewriter.edit_tracker(),
+      member_rewriter.edit_tracker(),
+      decl_ref_rewriter.edit_tracker(),
+      enum_member_ref_rewriter.edit_tracker(),
+      member_ref_rewriter.edit_tracker(),
+      function_decl_rewriter.edit_tracker(),
+      function_ref_rewriter.edit_tracker(),
+      method_decl_rewriter.edit_tracker(),
+      method_ref_rewriter.edit_tracker(),
+      method_member_rewriter.edit_tracker(),
+      constructor_initializer_rewriter.edit_tracker(),
+      unresolved_lookup_rewriter.edit_tracker(),
+      unresolved_member_rewriter.edit_tracker(),
+      unresolved_dependent_member_rewriter.edit_tracker(),
+      unresolved_using_value_decl_rewriter.edit_tracker(),
+      using_decl_rewriter.edit_tracker(),
+      dependent_scope_decl_ref_expr_rewriter.edit_tracker(),
+      cxx_dependent_scope_member_expr_rewriter.edit_tracker(),
+      gmock_member_rewriter.edit_tracker(),
+  };
   llvm::outs() << "==== BEGIN TRACKED EDITS ====\n";
-  field_decl_rewriter.edit_tracker().SerializeTo("var", llvm::outs());
-  var_decl_rewriter.edit_tracker().SerializeTo("var", llvm::outs());
-  enum_member_decl_rewriter.edit_tracker().SerializeTo("enu", llvm::outs());
-  function_decl_rewriter.edit_tracker().SerializeTo("fun", llvm::outs());
-  method_decl_rewriter.edit_tracker().SerializeTo("fun", llvm::outs());
+  for (const EditTracker* edit_tracker : all_edit_trackers)
+    edit_tracker->SerializeTo(llvm::outs());
   llvm::outs() << "==== END TRACKED EDITS ====\n";
 
   // Serialization format is documented in tools/clang/scripts/run_tool.py

@@ -24,7 +24,6 @@
 #include "webrtc/p2p/base/turnport.h"
 #include "webrtc/p2p/base/udpport.h"
 #include "webrtc/base/checks.h"
-#include "webrtc/base/common.h"
 #include "webrtc/base/helpers.h"
 #include "webrtc/base/logging.h"
 
@@ -170,6 +169,9 @@ void BasicPortAllocator::OnIceRegathering(PortAllocatorSession* session,
 }
 
 BasicPortAllocator::~BasicPortAllocator() {
+  // Our created port allocator sessions depend on us, so destroy our remaining
+  // pooled sessions before anything else.
+  DiscardCandidatePool();
 }
 
 PortAllocatorSession* BasicPortAllocator::CreateSessionInternal(
@@ -608,6 +610,13 @@ void BasicPortAllocatorSession::DoAllocate() {
       if (!(sequence_flags & PORTALLOCATOR_ENABLE_IPV6) &&
           networks[i]->GetBestIP().family() == AF_INET6) {
         // Skip IPv6 networks unless the flag's been set.
+        continue;
+      }
+
+      if (!(sequence_flags & PORTALLOCATOR_ENABLE_IPV6_ON_WIFI) &&
+          networks[i]->GetBestIP().family() == AF_INET6 &&
+          networks[i]->type() == rtc::ADAPTER_TYPE_WIFI) {
+        // Skip IPv6 Wi-Fi networks unless the flag's been set.
         continue;
       }
 

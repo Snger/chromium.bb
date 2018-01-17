@@ -25,27 +25,25 @@ tr.exportTo('tr.b', function() {
 
   function deepCopy(value) {
     if (!(value instanceof Object)) {
-      if (value === undefined || value === null)
-        return value;
-      if (typeof value === 'string')
-        return value.substring();
-      if (typeof value === 'boolean')
-        return value;
-      if (typeof value === 'number')
-        return value;
+      if (value === undefined || value === null) return value;
+      if (typeof value === 'string') return value.substring();
+      if (typeof value === 'boolean') return value;
+      if (typeof value === 'number') return value;
       throw new Error('Unrecognized: ' + typeof value);
     }
 
     var object = value;
     if (object instanceof Array) {
       var res = new Array(object.length);
-      for (var i = 0; i < object.length; i++)
+      for (var i = 0; i < object.length; i++) {
         res[i] = deepCopy(object[i]);
+      }
       return res;
     }
 
-    if (object.__proto__ !== Object.prototype)
+    if (object.__proto__ !== Object.prototype) {
       throw new Error('Can only clone simple types');
+    }
     var res = {};
     for (var key in object) {
       res[key] = deepCopy(object[key]);
@@ -128,6 +126,58 @@ tr.exportTo('tr.b', function() {
     return date.toISOString().replace('T', ' ').slice(0, 19);
   }
 
+  /**
+   * Infinity and NaN are left out of JSON for security reasons that do not
+   * apply to our use cases. This helper function allows serializing them
+   * independently of null.
+   *
+   * @param {!number} n
+   * @return {!(number|string)}
+   */
+  function numberToJson(n) {
+    if (isNaN(n)) return 'NaN';
+    if (n === Infinity) return 'Infinity';
+    if (n === -Infinity) return '-Infinity';
+    return n;
+  }
+
+  /**
+   * Infinity and NaN are left out of JSON for security reasons that do not
+   * apply to our use cases. This helper function allows deserializing them
+   * independently of null.
+   *
+   * @param {!(number|string)} n
+   * @return {!number}
+   */
+  function numberFromJson(n) {
+    if (n === 'NaN' || n === null) return NaN;
+    if (n === 'Infinity') return Infinity;
+    if (n === '-Infinity') return -Infinity;
+    return n;
+  }
+
+  /**
+   * @param {Array.<T>} ary
+   * @returns {Array.<Object.<T, number>>} The run length encoding of the array
+   * as an array of {value, count} objects.
+   * @template T
+   */
+  function runLengthEncoding(ary) {
+    let encodedArray = [];
+    for (let element of ary) {
+      if (encodedArray.length === 0 ||
+          encodedArray[encodedArray.length - 1].value !== element) {
+        encodedArray.push({
+          value: element,
+          count: 1,
+        });
+      } else {
+        encodedArray[encodedArray.length - 1].count += 1;
+      }
+    }
+    return encodedArray;
+  }
+
   return {
     addSingletonGetter,
 
@@ -137,8 +187,12 @@ tr.exportTo('tr.b', function() {
     stackTrace,
     stackTraceAsString,
     formatDate,
+    numberToJson,
+    numberFromJson,
 
     getUsingPath,
+
+    runLengthEncoding,
   };
 });
 </script>

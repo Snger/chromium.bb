@@ -16,14 +16,14 @@
             '<(vulkan_layers_path)/loader/debug_report.c',
             '<(vulkan_layers_path)/loader/debug_report.h',
             '<(vulkan_layers_path)/loader/dev_ext_trampoline.c',
-            '<(vulkan_layers_path)/loader/extensions.c',
-            '<(vulkan_layers_path)/loader/extensions.h',
+            '<(vulkan_layers_path)/loader/extension_manual.c',
+            '<(vulkan_layers_path)/loader/extension_manual.h',
             '<(vulkan_layers_path)/loader/gpa_helper.h',
             '<(vulkan_layers_path)/loader/loader.c',
             '<(vulkan_layers_path)/loader/loader.h',
             '<(vulkan_layers_path)/loader/murmurhash.c',
             '<(vulkan_layers_path)/loader/murmurhash.h',
-            '<(vulkan_layers_path)/loader/table_ops.h',
+            '<(vulkan_layers_path)/loader/phys_dev_ext.c',
             '<(vulkan_layers_path)/loader/trampoline.c',
             '<(vulkan_layers_path)/loader/vk_loader_platform.h',
             '<(vulkan_layers_path)/loader/wsi.c',
@@ -48,8 +48,118 @@
             '/wd4201', # Nonstandard extension used: nameless struct/union
             '/wd4214', # Nonstandard extension used: bit field types other than int
             '/wd4232', # Nonstandard extension used: address of dllimport is not static
+            '/wd4305', # Type cast truncation
             '/wd4706', # Assignment within conditional expression
             '/wd4996', # Unsafe stdlib function
+        ],
+        'glslang_sources':
+        [
+            '<(glslang_path)/glslang/GenericCodeGen/CodeGen.cpp',
+            '<(glslang_path)/glslang/GenericCodeGen/Link.cpp',
+            '<(glslang_path)/glslang/Include/arrays.h',
+            '<(glslang_path)/glslang/Include/BaseTypes.h',
+            '<(glslang_path)/glslang/Include/Common.h',
+            '<(glslang_path)/glslang/Include/ConstantUnion.h',
+            '<(glslang_path)/glslang/Include/InfoSink.h',
+            '<(glslang_path)/glslang/Include/InitializeGlobals.h',
+            '<(glslang_path)/glslang/Include/intermediate.h',
+            '<(glslang_path)/glslang/Include/PoolAlloc.h',
+            '<(glslang_path)/glslang/Include/ResourceLimits.h',
+            '<(glslang_path)/glslang/Include/revision.h',
+            '<(glslang_path)/glslang/Include/ShHandle.h',
+            '<(glslang_path)/glslang/Include/Types.h',
+            '<(glslang_path)/glslang/MachineIndependent/Constant.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/gl_types.h',
+            '<(glslang_path)/glslang/MachineIndependent/glslang.y',
+            '<(glslang_path)/glslang/MachineIndependent/glslang_tab.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/glslang_tab.cpp.h',
+            '<(glslang_path)/glslang/MachineIndependent/InfoSink.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/Initialize.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/Initialize.h',
+            '<(glslang_path)/glslang/MachineIndependent/Intermediate.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/intermOut.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/IntermTraverse.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/iomapper.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/iomapper.h',
+            '<(glslang_path)/glslang/MachineIndependent/limits.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/linkValidate.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/LiveTraverser.h',
+            '<(glslang_path)/glslang/MachineIndependent/localintermediate.h',
+            '<(glslang_path)/glslang/MachineIndependent/parseConst.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/ParseContextBase.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/ParseHelper.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/ParseHelper.h',
+            '<(glslang_path)/glslang/MachineIndependent/parseVersions.h',
+            '<(glslang_path)/glslang/MachineIndependent/PoolAlloc.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/preprocessor/Pp.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/preprocessor/PpAtom.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/preprocessor/PpContext.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/preprocessor/PpContext.h',
+            '<(glslang_path)/glslang/MachineIndependent/preprocessor/PpMemory.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/preprocessor/PpScanner.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/preprocessor/PpSymbols.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/preprocessor/PpTokens.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/preprocessor/PpTokens.h',
+            '<(glslang_path)/glslang/MachineIndependent/propagateNoContraction.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/propagateNoContraction.h',
+            '<(glslang_path)/glslang/MachineIndependent/reflection.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/reflection.h',
+            '<(glslang_path)/glslang/MachineIndependent/RemoveTree.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/RemoveTree.h',
+            '<(glslang_path)/glslang/MachineIndependent/Scan.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/Scan.h',
+            '<(glslang_path)/glslang/MachineIndependent/ScanContext.h',
+            '<(glslang_path)/glslang/MachineIndependent/ShaderLang.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/SymbolTable.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/SymbolTable.h',
+            '<(glslang_path)/glslang/MachineIndependent/Versions.cpp',
+            '<(glslang_path)/glslang/MachineIndependent/Versions.h',
+            '<(glslang_path)/glslang/OSDependent/osinclude.h',
+            '<(glslang_path)/glslang/Public/ShaderLang.h',
+            '<(glslang_path)/hlsl/hlslAttributes.cpp',
+            '<(glslang_path)/hlsl/hlslAttributes.h',
+            '<(glslang_path)/hlsl/hlslGrammar.cpp',
+            '<(glslang_path)/hlsl/hlslGrammar.h',
+            '<(glslang_path)/hlsl/hlslOpMap.cpp',
+            '<(glslang_path)/hlsl/hlslOpMap.h',
+            '<(glslang_path)/hlsl/hlslParseables.cpp',
+            '<(glslang_path)/hlsl/hlslParseables.h',
+            '<(glslang_path)/hlsl/hlslParseHelper.cpp',
+            '<(glslang_path)/hlsl/hlslParseHelper.h',
+            '<(glslang_path)/hlsl/hlslScanContext.cpp',
+            '<(glslang_path)/hlsl/hlslScanContext.h',
+            '<(glslang_path)/hlsl/hlslTokens.h',
+            '<(glslang_path)/hlsl/hlslTokenStream.cpp',
+            '<(glslang_path)/hlsl/hlslTokenStream.h',
+            '<(glslang_path)/OGLCompilersDLL/InitializeDll.cpp',
+            '<(glslang_path)/OGLCompilersDLL/InitializeDll.h',
+            '<(glslang_path)/SPIRV/bitutils.h',
+            '<(glslang_path)/SPIRV/disassemble.cpp',
+            '<(glslang_path)/SPIRV/disassemble.h',
+            '<(glslang_path)/SPIRV/doc.cpp',
+            '<(glslang_path)/SPIRV/doc.h',
+            '<(glslang_path)/SPIRV/GLSL.ext.KHR.h',
+            '<(glslang_path)/SPIRV/GLSL.std.450.h',
+            '<(glslang_path)/SPIRV/GlslangToSpv.cpp',
+            '<(glslang_path)/SPIRV/GlslangToSpv.h',
+            '<(glslang_path)/SPIRV/hex_float.h',
+            '<(glslang_path)/SPIRV/InReadableOrder.cpp',
+            '<(glslang_path)/SPIRV/Logger.cpp',
+            '<(glslang_path)/SPIRV/Logger.h',
+            '<(glslang_path)/SPIRV/spirv.hpp',
+            '<(glslang_path)/SPIRV/SpvBuilder.cpp',
+            '<(glslang_path)/SPIRV/SpvBuilder.h',
+            '<(glslang_path)/SPIRV/spvIR.h',
+            '<(glslang_path)/StandAlone/ResourceLimits.cpp',
+            '<(glslang_path)/StandAlone/ResourceLimits.h',
+        ],
+        'glslang_win_sources':
+        [
+            '<(glslang_path)/glslang/OSDependent/Windows/ossource.cpp',
+        ],
+        'glslang_unix_sources':
+        [
+            '<(glslang_path)/glslang/OSDependent/Unix/ossource.cpp',
         ],
         'spirv_tools_sources':
         [
@@ -138,15 +248,12 @@
             # This file is manually included in the layer
             # '<(angle_gen_path)/vulkan/vk_safe_struct.cpp',
             '<(angle_gen_path)/vulkan/vk_safe_struct.h',
+            '<(vulkan_layers_path)/layers/buffer_validation.cpp',
+            '<(vulkan_layers_path)/layers/buffer_validation.h',
             '<(vulkan_layers_path)/layers/core_validation.cpp',
             '<(vulkan_layers_path)/layers/core_validation.h',
             '<(vulkan_layers_path)/layers/descriptor_sets.cpp',
             '<(vulkan_layers_path)/layers/descriptor_sets.h',
-        ],
-        'VkLayer_image_sources':
-        [
-            '<(vulkan_layers_path)/layers/image.cpp',
-            '<(vulkan_layers_path)/layers/image.h',
         ],
         'VkLayer_swapchain_sources':
         [
@@ -181,7 +288,6 @@
         'vulkan_gen_json_files_sources_win':
         [
             '<(vulkan_layers_path)/layers/windows/VkLayer_core_validation.json',
-            '<(vulkan_layers_path)/layers/windows/VkLayer_image.json',
             '<(vulkan_layers_path)/layers/windows/VkLayer_object_tracker.json',
             '<(vulkan_layers_path)/layers/windows/VkLayer_parameter_validation.json',
             '<(vulkan_layers_path)/layers/windows/VkLayer_swapchain.json',
@@ -191,7 +297,6 @@
         'vulkan_gen_json_files_outputs':
         [
             '<(angle_gen_path)/vulkan/json/VkLayer_core_validation.json',
-            '<(angle_gen_path)/vulkan/json/VkLayer_image.json',
             '<(angle_gen_path)/vulkan/json/VkLayer_object_tracker.json',
             '<(angle_gen_path)/vulkan/json/VkLayer_parameter_validation.json',
             '<(angle_gen_path)/vulkan/json/VkLayer_swapchain.json',
@@ -206,37 +311,32 @@
             'targets':
             [
                 {
-                    'target_name': 'vulkan_loader',
+                    'target_name': 'glslang',
                     'type': 'static_library',
                     'sources':
                     [
-                        '<@(vulkan_loader_sources)',
+                        '<@(glslang_sources)',
                     ],
                     'include_dirs':
                     [
-                        '<@(vulkan_loader_include_dirs)',
-                        '<(angle_gen_path)',
-                    ],
-                    'defines':
-                    [
-                        'API_NAME="Vulkan"',
+                        '<(glslang_path)',
                     ],
                     'msvs_settings':
                     {
                         'VCCLCompilerTool':
                         {
+                            'PreprocessorDefinitions':
+                            [
+                                '_HAS_EXCEPTIONS=0',
+                            ],
                             'AdditionalOptions':
                             [
-                                # TODO(jmadill): Force include header on other platforms.
-                                '<@(vulkan_loader_cflags_win)',
-                                '/FIvulkan/angle_loader.h'
-                            ],
-                        },
-                        'VCLinkerTool':
-                        {
-                            'AdditionalDependencies':
-                            [
-                                'shlwapi.lib',
+                                '/wd4100', # Unreferenced formal parameter
+                                '/wd4456', # Declaration hides previous local declaration
+                                '/wd4457', # Declaration hides function parameter
+                                '/wd4458', # Declaration hides class member
+                                '/wd4702', # Unreachable code (from glslang_tab.cpp)
+                                '/wd4718', # Recursive call has no side effects (from PpContext.cpp)
                             ],
                         },
                     },
@@ -244,27 +344,8 @@
                     {
                         'include_dirs':
                         [
-                            '<@(vulkan_loader_include_dirs)',
-                        ],
-                        'msvs_settings':
-                        {
-                            'VCLinkerTool':
-                            {
-                                'AdditionalDependencies':
-                                [
-                                    'shlwapi.lib',
-                                ],
-                            },
-                        },
-                        'conditions':
-                        [
-                            ['OS=="win"',
-                            {
-                                'defines':
-                                [
-                                    'VK_USE_PLATFORM_WIN32_KHR',
-                                ],
-                            }],
+                            '<(glslang_path)/glslang/Public',
+                            '<(glslang_path)',
                         ],
                     },
                     'conditions':
@@ -273,39 +354,9 @@
                         {
                             'sources':
                             [
-                                '<(angle_gen_path)/vulkan/angle_loader.h',
-                                '<@(vulkan_loader_win_sources)',
-                            ],
-                            'defines':
-                            [
-                                'VK_USE_PLATFORM_WIN32_KHR',
+                                '<@(glslang_win_sources)',
                             ],
                         }],
-                    ],
-                    'actions':
-                    [
-                        {
-                            # The loader header is force included into the loader and layers. Because
-                            # of issues with GYP, we can't use a normal header file, we hav to force
-                            # inclue this using compiler-specific flags.
-                            'action_name': 'vulkan_loader_gen_angle_header',
-                            'message': 'generating Vulkan loader ANGLE header',
-                            'msvs_cygwin_shell': 0,
-                            'inputs':
-                            [
-                                '<(angle_path)/scripts/generate_vulkan_header.py',
-                            ],
-                            'outputs':
-                            [
-                                '<(angle_gen_path)/vulkan/angle_loader.h',
-                            ],
-                            'action':
-                            [
-                                # TODO(jmadill): Use correct platform path
-                                'python', '<(angle_path)/scripts/generate_vulkan_header.py', '<(angle_gen_path)/vulkan/json',
-                                '<(angle_gen_path)/vulkan/angle_loader.h', '<(PRODUCT_DIR)',
-                            ],
-                        },
                     ],
                 },
 
@@ -430,12 +481,14 @@
                 {
                     'target_name': 'vulkan_layer_utils_static',
                     'type': 'static_library',
+                    'msvs_cygwin_shell': 0,
                     'sources':
                     [
                         '<@(vulkan_layer_utils_sources)',
                     ],
                     'include_dirs':
                     [
+                        '<(angle_gen_path)/vulkan',
                         '<@(vulkan_loader_include_dirs)',
                     ],
                     'msvs_settings':
@@ -464,6 +517,7 @@
                                 'WIN32',
                                 'WIN32_LEAN_AND_MEAN',
                                 'VK_USE_PLATFORM_WIN32_KHR',
+                                'VK_USE_PLATFORM_WIN32_KHX',
                             ],
                         }],
                     ],
@@ -493,6 +547,7 @@
                                 'AdditionalOptions':
                                 [
                                     '/wd4100', # Unreferenced local parameter
+                                    '/wd4201', # Nonstandard extension used: nameless struct/union
                                     '/wd4456', # declaration hides previous local declaration
                                     '/wd4505', # Unreferenced local function has been removed
                                     '/wd4996', # Unsafe stdlib function
@@ -507,6 +562,7 @@
                                 [
                                     'WIN32_LEAN_AND_MEAN',
                                     'VK_USE_PLATFORM_WIN32_KHR',
+                                    'VK_USE_PLATFORM_WIN32_KHX',
                                 ],
                                 'configurations':
                                 {
@@ -527,11 +583,6 @@
                             }],
                         ],
                     },
-                },
-                {
-                    'target_name': 'vulkan_generate_layer_helpers',
-                    'type': 'none',
-                    'msvs_cygwin_shell': 0,
 
                     'actions':
                     [
@@ -657,11 +708,33 @@
                         },
 
                         {
-                            'action_name': 'vulkan_generate_dispatch_table_helper',
+                            'action_name': 'vulkan_run_vk_xml_generate_vk_layer_dispatch_table_h',
+                            'message': 'generating vk_layer_dispatch_table.h',
+                            'inputs':
+                            [
+                                '<(vulkan_layers_path)/scripts/loader_extension_generator.py',
+                                '<(vulkan_layers_path)/scripts/generator.py',
+                                '<(vulkan_layers_path)/scripts/lvl_genvk.py',
+                                '<(vulkan_layers_path)/scripts/reg.py',
+                                '<(vulkan_layers_path)/scripts/vk.xml',
+                            ],
+                            'outputs':
+                            [
+                                '<(angle_gen_path)/vulkan/vk_layer_dispatch_table.h',
+                            ],
+                            'action':
+                            [
+                                'python', '<(vulkan_layers_path)/scripts/lvl_genvk.py', '-o', '<(angle_gen_path)/vulkan',
+                                '-registry', '<(vulkan_layers_path)/scripts/vk.xml', 'vk_layer_dispatch_table.h', '-quiet',
+                            ],
+                        },
+
+                        {
+                            'action_name': 'vulkan_run_vk_xml_generate_vk_dispatch_table_helper_h',
                             'message': 'generating vk_dispatch_table_helper.h',
                             'inputs':
                             [
-                                '<(vulkan_layers_path)/scripts/dispatch_table_generator.py',
+                                '<(vulkan_layers_path)/scripts/dispatch_table_helper_generator.py',
                                 '<(vulkan_layers_path)/scripts/generator.py',
                                 '<(vulkan_layers_path)/scripts/lvl_genvk.py',
                                 '<(vulkan_layers_path)/scripts/reg.py',
@@ -675,6 +748,50 @@
                             [
                                 'python', '<(vulkan_layers_path)/scripts/lvl_genvk.py', '-o', '<(angle_gen_path)/vulkan',
                                 '-registry', '<(vulkan_layers_path)/scripts/vk.xml', 'vk_dispatch_table_helper.h', '-quiet',
+                            ],
+                        },
+
+                        {
+                            'action_name': 'vulkan_run_vk_xml_generate_vk_loader_extensions_h',
+                            'message': 'generating vk_loader_extensions.h',
+                            'inputs':
+                            [
+                                '<(vulkan_layers_path)/scripts/loader_extension_generator.py',
+                                '<(vulkan_layers_path)/scripts/generator.py',
+                                '<(vulkan_layers_path)/scripts/lvl_genvk.py',
+                                '<(vulkan_layers_path)/scripts/reg.py',
+                                '<(vulkan_layers_path)/scripts/vk.xml',
+                            ],
+                            'outputs':
+                            [
+                                '<(angle_gen_path)/vulkan/vk_loader_extensions.h',
+                            ],
+                            'action':
+                            [
+                                'python', '<(vulkan_layers_path)/scripts/lvl_genvk.py', '-o', '<(angle_gen_path)/vulkan',
+                                '-registry', '<(vulkan_layers_path)/scripts/vk.xml', 'vk_loader_extensions.h', '-quiet',
+                            ],
+                        },
+
+                        {
+                            'action_name': 'vulkan_run_vk_xml_generate_vk_loader_extensions_c',
+                            'message': 'generating vk_loader_extensions.c',
+                            'inputs':
+                            [
+                                '<(vulkan_layers_path)/scripts/loader_extension_generator.py',
+                                '<(vulkan_layers_path)/scripts/generator.py',
+                                '<(vulkan_layers_path)/scripts/lvl_genvk.py',
+                                '<(vulkan_layers_path)/scripts/reg.py',
+                                '<(vulkan_layers_path)/scripts/vk.xml',
+                            ],
+                            'outputs':
+                            [
+                                '<(angle_gen_path)/vulkan/vk_loader_extensions.c',
+                            ],
+                            'action':
+                            [
+                                'python', '<(vulkan_layers_path)/scripts/lvl_genvk.py', '-o', '<(angle_gen_path)/vulkan',
+                                '-registry', '<(vulkan_layers_path)/scripts/vk.xml', 'vk_loader_extensions.c', '-quiet',
                             ],
                         },
 
@@ -700,9 +817,117 @@
                                     'action':
                                     [
                                         'python', '<(angle_path)/scripts/generate_vulkan_layers_json.py',
-                                        '<(vulkan_layers_path)/layers/windows', '<(angle_gen_path)/vulkan/json', '<(PRODUCT_DIR)',
+                                        '<(vulkan_layers_path)/layers/windows', '<(angle_gen_path)/vulkan/json',
                                     ],
                                 }],
+                            ],
+                        },
+                    ],
+                },
+
+                {
+                    'target_name': 'vulkan_loader',
+                    'type': 'static_library',
+                    'deps': 'vulkan_layer_utils_static',
+                    'sources':
+                    [
+                        '<@(vulkan_loader_sources)',
+                    ],
+                    'include_dirs':
+                    [
+                        '<@(vulkan_loader_include_dirs)',
+                        '<(angle_gen_path)/vulkan',
+                    ],
+                    'defines':
+                    [
+                        'API_NAME="Vulkan"',
+                        'VULKAN_NON_CMAKE_BUILD',
+                    ],
+                    'msvs_settings':
+                    {
+                        'VCCLCompilerTool':
+                        {
+                            'AdditionalOptions':
+                            [
+                                # TODO(jmadill): Force include header on other platforms.
+                                '<@(vulkan_loader_cflags_win)',
+                                '/FIangle_loader.h'
+                            ],
+                        },
+                        'VCLinkerTool':
+                        {
+                            'AdditionalDependencies':
+                            [
+                                'shlwapi.lib',
+                            ],
+                        },
+                    },
+                    'direct_dependent_settings':
+                    {
+                        'include_dirs':
+                        [
+                            '<@(vulkan_loader_include_dirs)',
+                        ],
+                        'msvs_settings':
+                        {
+                            'VCLinkerTool':
+                            {
+                                'AdditionalDependencies':
+                                [
+                                    'shlwapi.lib',
+                                ],
+                            },
+                        },
+                        'conditions':
+                        [
+                            ['OS=="win"',
+                            {
+                                'defines':
+                                [
+                                    'VK_USE_PLATFORM_WIN32_KHR',
+                                    'VK_USE_PLATFORM_WIN32_KHX',
+                                ],
+                            }],
+                        ],
+                    },
+                    'conditions':
+                    [
+                        ['OS=="win"',
+                        {
+                            'sources':
+                            [
+                                '<(angle_gen_path)/vulkan/angle_loader.h',
+                                '<@(vulkan_loader_win_sources)',
+                            ],
+                            'defines':
+                            [
+                                'VK_USE_PLATFORM_WIN32_KHR',
+                                'VK_USE_PLATFORM_WIN32_KHX',
+                            ],
+                        }],
+                    ],
+                    'actions':
+                    [
+                        {
+                            # The loader header is force included into the loader and layers. Because
+                            # of issues with GYP, we can't use a normal header file, we hav to force
+                            # inclue this using compiler-specific flags.
+                            'action_name': 'vulkan_loader_gen_angle_header',
+                            'message': 'generating Vulkan loader ANGLE header',
+                            'msvs_cygwin_shell': 0,
+                            'inputs':
+                            [
+                                '<(angle_path)/scripts/generate_vulkan_header.py',
+                            ],
+                            'outputs':
+                            [
+                                '<(angle_gen_path)/vulkan/angle_loader.h',
+                            ],
+                            'action':
+                            [
+                                # TODO(jmadill): Use correct platform path
+                                'python', '<(angle_path)/scripts/generate_vulkan_header.py', '<(angle_gen_path)/vulkan/json',
+                                '<(angle_gen_path)/vulkan/angle_loader.h', '<(PRODUCT_DIR)',
                             ],
                         },
                     ],
@@ -714,7 +939,6 @@
                     'dependencies':
                     [
                         'spirv_tools',
-                        'vulkan_generate_layer_helpers',
                         'vulkan_layer_utils_static',
                     ],
                     'sources':
@@ -734,35 +958,10 @@
                 },
 
                 {
-                    'target_name': 'VkLayer_image',
-                    'type': 'shared_library',
-                    'dependencies':
-                    [
-                        'vulkan_generate_layer_helpers',
-                        'vulkan_layer_utils_static',
-                    ],
-                    'sources':
-                    [
-                        '<@(VkLayer_image_sources)',
-                    ],
-                    'conditions':
-                    [
-                        ['OS=="win"',
-                        {
-                            'sources':
-                            [
-                                '<(vulkan_layers_path)/layers/VkLayer_image.def',
-                            ]
-                        }],
-                    ],
-                },
-
-                {
                     'target_name': 'VkLayer_swapchain',
                     'type': 'shared_library',
                     'dependencies':
                     [
-                        'vulkan_generate_layer_helpers',
                         'vulkan_layer_utils_static',
                     ],
                     'sources':
@@ -786,7 +985,6 @@
                     'type': 'shared_library',
                     'dependencies':
                     [
-                        'vulkan_generate_layer_helpers',
                         'vulkan_layer_utils_static',
                     ],
                     'sources':
@@ -810,7 +1008,6 @@
                     'type': 'shared_library',
                     'dependencies':
                     [
-                        'vulkan_generate_layer_helpers',
                         'vulkan_layer_utils_static',
                     ],
                     'sources':
@@ -858,7 +1055,6 @@
                     'type': 'shared_library',
                     'dependencies':
                     [
-                        'vulkan_generate_layer_helpers',
                         'vulkan_layer_utils_static',
                     ],
                     'sources':
@@ -906,7 +1102,6 @@
                     'type': 'shared_library',
                     'dependencies':
                     [
-                        'vulkan_generate_layer_helpers',
                         'vulkan_layer_utils_static',
                     ],
                     'sources':
@@ -953,17 +1148,20 @@
                     'type': 'none',
                     'dependencies':
                     [
-                        'VkLayer_core_validation',
-                        'VkLayer_image',
-                        'VkLayer_object_tracker',
-                        'VkLayer_parameter_validation',
-                        'VkLayer_swapchain',
-                        'VkLayer_threading',
-                        'VkLayer_unique_objects',
+                        'glslang',
+                        # Need to disable these to prevent multiply defined symbols with ninja.
+                        # TODO(jmadill): Figure out how to implement data_deps in gyp.
+                        # 'VkLayer_core_validation',
+                        # 'VkLayer_object_tracker',
+                        # 'VkLayer_parameter_validation',
+                        # 'VkLayer_swapchain',
+                        # 'VkLayer_threading',
+                        # 'VkLayer_unique_objects',
                         'vulkan_loader',
                     ],
                     'export_dependent_settings':
                     [
+                        'glslang',
                         'vulkan_loader',
                     ],
                 }

@@ -6,7 +6,7 @@
 #define CC_TREES_PROXY_MAIN_H_
 
 #include "base/macros.h"
-#include "cc/base/cc_export.h"
+#include "cc/cc_export.h"
 #include "cc/input/browser_controls_state.h"
 #include "cc/trees/proxy.h"
 #include "cc/trees/proxy_common.h"
@@ -16,7 +16,7 @@ namespace cc {
 class MutatorEvents;
 class CompletionEvent;
 class CompositorFrameSink;
-class LayerTreeHostInProcess;
+class LayerTreeHost;
 class LayerTreeMutator;
 class ProxyImpl;
 
@@ -25,7 +25,7 @@ class ProxyImpl;
 // The class is created and lives on the main thread.
 class CC_EXPORT ProxyMain : public Proxy {
  public:
-  ProxyMain(LayerTreeHostInProcess* layer_tree_host,
+  ProxyMain(LayerTreeHost* layer_tree_host,
             TaskRunnerProvider* task_runner_provider);
 
   ~ProxyMain() override;
@@ -76,7 +76,6 @@ class CC_EXPORT ProxyMain : public Proxy {
   void NotifyInputThrottledUntilCommit() override;
   void SetDeferCommits(bool defer_commits) override;
   bool CommitRequested() const override;
-  bool BeginMainFrameRequested() const override;
   void MainThreadHasStoppedFlinging() override;
   void Start() override;
   void Stop() override;
@@ -99,7 +98,7 @@ class CC_EXPORT ProxyMain : public Proxy {
   void InitializeOnImplThread(CompletionEvent* completion_event);
   void DestroyProxyImplOnImplThread(CompletionEvent* completion_event);
 
-  LayerTreeHostInProcess* layer_tree_host_;
+  LayerTreeHost* layer_tree_host_;
 
   TaskRunnerProvider* task_runner_provider_;
 

@@ -4,6 +4,8 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
+#ifndef SkPngCodec_DEFINED
+#define SkPngCodec_DEFINED
 
 #include "SkCodec.h"
 #include "SkColorSpaceXform.h"
@@ -30,7 +32,7 @@ public:
     // Assume IsPng was called and returned true.
     static SkCodec* NewFromStream(SkStream*, SkPngChunkReader* = NULL);
 
-    virtual ~SkPngCodec();
+    ~SkPngCodec() override;
 
 protected:
     // We hold the png_ptr and info_ptr as voidp to avoid having to include png.h
@@ -138,3 +140,4 @@ private:
 
     typedef SkCodec INHERITED;
 };
+#endif  // SkPngCodec_DEFINED

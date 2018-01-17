@@ -15,6 +15,7 @@
 #include "base/memory/ref_counted.h"
 #include "base/run_loop.h"
 #include "base/strings/string_split.h"
+#include "base/test/histogram_tester.h"
 #include "net/base/auth.h"
 #include "net/base/request_priority.h"
 #include "net/base/sdch_observer.h"
@@ -189,9 +190,7 @@ TEST_F(URLRequestHttpJobSetUpSourceTest, SdchNotAdvertisedGotSdchResponse) {
   request->Start();
 
   base::RunLoop().Run();
-  // Pass through the raw response the same way as if received unknown encoding.
-  EXPECT_EQ(OK, delegate_.request_status());
-  EXPECT_EQ("Test Content", delegate_.data_received());
+  EXPECT_EQ(ERR_CONTENT_DECODING_FAILED, delegate_.request_status());
 }
 
 class URLRequestHttpJobTest : public ::testing::Test {
@@ -614,6 +613,53 @@ TEST_F(URLRequestHttpJobWithMockSocketsTest,
   EXPECT_EQ(0, request->GetTotalSentBytes());
   EXPECT_EQ(0, request->GetTotalReceivedBytes());
   EXPECT_EQ(0, network_delegate_.total_network_bytes_received());
+}
+
+TEST_F(URLRequestHttpJobWithMockSocketsTest, TestHttpTimeToFirstByte) {
+  base::HistogramTester histograms;
+  MockWrite writes[] = {MockWrite(kSimpleGetMockWrite)};
+  MockRead reads[] = {MockRead("HTTP/1.1 200 OK\r\n"
+                               "Content-Length: 12\r\n\r\n"),
+                      MockRead("Test Content")};
+
+  StaticSocketDataProvider socket_data(reads, arraysize(reads), writes,
+                                       arraysize(writes));
+  socket_factory_.AddSocketDataProvider(&socket_data);
+
+  TestDelegate delegate;
+  std::unique_ptr<URLRequest> request = context_->CreateRequest(
+      GURL("http://www.example.com"), DEFAULT_PRIORITY, &delegate);
+  histograms.ExpectTotalCount("Net.HttpTimeToFirstByte", 0);
+
+  request->Start();
+  base::RunLoop().Run();
+
+  EXPECT_THAT(delegate.request_status(), IsOk());
+  histograms.ExpectTotalCount("Net.HttpTimeToFirstByte", 1);
+}
+
+TEST_F(URLRequestHttpJobWithMockSocketsTest,
+       TestHttpTimeToFirstByteForCancelledTask) {
+  base::HistogramTester histograms;
+  MockWrite writes[] = {MockWrite(kSimpleGetMockWrite)};
+  MockRead reads[] = {MockRead("HTTP/1.1 200 OK\r\n"
+                               "Content-Length: 12\r\n\r\n"),
+                      MockRead("Test Content")};
+
+  StaticSocketDataProvider socket_data(reads, arraysize(reads), writes,
+                                       arraysize(writes));
+  socket_factory_.AddSocketDataProvider(&socket_data);
+
+  TestDelegate delegate;
+  std::unique_ptr<URLRequest> request = context_->CreateRequest(
+      GURL("http://www.example.com"), DEFAULT_PRIORITY, &delegate);
+
+  request->Start();
+  request->Cancel();
+  base::RunLoop().Run();
+
+  EXPECT_THAT(delegate.request_status(), IsError(ERR_ABORTED));
+  histograms.ExpectTotalCount("Net.HttpTimeToFirstByte", 0);
 }
 
 TEST_F(URLRequestHttpJobTest, TestCancelWhileReadingCookies) {
@@ -1087,6 +1133,11 @@ class FakeWebSocketHandshakeStream : public WebSocketHandshakeStreamBase {
   int64_t GetTotalSentBytes() const override { return 0; }
 
   bool GetLoadTimingInfo(LoadTimingInfo* load_timing_info) const override {
+    return false;
+  }
+
+  bool GetAlternativeService(
+      AlternativeService* alternative_service) const override {
     return false;
   }
 

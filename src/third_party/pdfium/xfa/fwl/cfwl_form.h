@@ -37,7 +37,7 @@ class CFWL_Form : public CFWL_Widget {
   bool IsInstance(const CFX_WideStringC& wsClass) const override;
   CFX_RectF GetClientRect() override;
   void Update() override;
-  FWL_WidgetHit HitTest(FX_FLOAT fx, FX_FLOAT fy) override;
+  FWL_WidgetHit HitTest(const CFX_PointF& point) override;
   void DrawWidget(CFX_Graphics* pGraphics, const CFX_Matrix* pMatrix) override;
   void OnProcessMessage(CFWL_Message* pMessage) override;
   void OnDrawWidget(CFX_Graphics* pGraphics,
@@ -63,8 +63,8 @@ class CFWL_Form : public CFWL_Widget {
   CFX_RectF m_rtRelative;
   std::unique_ptr<CFWL_NoteLoop> m_pNoteLoop;
   CFWL_Widget* m_pSubFocus;
-  FX_FLOAT m_fCXBorder;
-  FX_FLOAT m_fCYBorder;
+  float m_fCXBorder;
+  float m_fCYBorder;
 };
 
 #endif  // XFA_FWL_CFWL_FORM_H_

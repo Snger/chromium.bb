@@ -9,6 +9,8 @@
 // [OpenGL ES 2.0.24] section 2.9 page 21.
 
 #include "libANGLE/Buffer.h"
+
+#include "libANGLE/Context.h"
 #include "libANGLE/renderer/BufferImpl.h"
 #include "libANGLE/renderer/GLImplFactory.h"
 
@@ -42,6 +44,13 @@ Buffer::~Buffer()
     SafeDelete(mImpl);
 }
 
+void Buffer::destroy(const Context *context)
+{
+    // In tests, mImpl might be null.
+    if (mImpl)
+        mImpl->destroy(rx::SafeGetImpl(context));
+}
+
 void Buffer::setLabel(const std::string &label)
 {
     mState.mLabel = label;
@@ -52,9 +61,25 @@ const std::string &Buffer::getLabel() const
     return mState.mLabel;
 }
 
-Error Buffer::bufferData(GLenum target, const void *data, GLsizeiptr size, GLenum usage)
+Error Buffer::bufferData(const Context *context,
+                         GLenum target,
+                         const void *data,
+                         GLsizeiptr size,
+                         GLenum usage)
 {
-    ANGLE_TRY(mImpl->setData(target, data, size, usage));
+    const void *dataForImpl = data;
+
+    // If we are using robust resource init, make sure the buffer starts cleared.
+    // TODO(jmadill): Investigate lazier clearing.
+    if (context && context->getGLState().isRobustResourceInitEnabled() && data == nullptr)
+    {
+        angle::MemoryBuffer *scratchBuffer = nullptr;
+        ANGLE_TRY(context->getScratchBuffer(static_cast<size_t>(size), &scratchBuffer));
+        std::fill(scratchBuffer->data(), scratchBuffer->data() + size, static_cast<uint8_t>(0));
+        dataForImpl = scratchBuffer->data();
+    }
+
+    ANGLE_TRY(mImpl->setData(rx::SafeGetImpl(context), target, dataForImpl, size, usage));
 
     mIndexRangeCache.clear();
     mState.mUsage = usage;
@@ -63,34 +88,39 @@ Error Buffer::bufferData(GLenum target, const void *data, GLsizeiptr size, GLenu
     return NoError();
 }
 
-Error Buffer::bufferSubData(GLenum target, const void *data, GLsizeiptr size, GLintptr offset)
+Error Buffer::bufferSubData(const Context *context,
+                            GLenum target,
+                            const void *data,
+                            GLsizeiptr size,
+                            GLintptr offset)
 {
-    ANGLE_TRY(mImpl->setSubData(target, data, size, offset));
+    ANGLE_TRY(mImpl->setSubData(rx::SafeGetImpl(context), target, data, size, offset));
 
     mIndexRangeCache.invalidateRange(static_cast<unsigned int>(offset), static_cast<unsigned int>(size));
 
     return NoError();
 }
 
-Error Buffer::copyBufferSubData(Buffer* source, GLintptr sourceOffset, GLintptr destOffset, GLsizeiptr size)
+Error Buffer::copyBufferSubData(const Context *context,
+                                Buffer *source,
+                                GLintptr sourceOffset,
+                                GLintptr destOffset,
+                                GLsizeiptr size)
 {
-    ANGLE_TRY(mImpl->copySubData(source->getImplementation(), sourceOffset, destOffset, size));
+    ANGLE_TRY(mImpl->copySubData(rx::SafeGetImpl(context), source->getImplementation(),
+                                 sourceOffset, destOffset, size));
 
     mIndexRangeCache.invalidateRange(static_cast<unsigned int>(destOffset), static_cast<unsigned int>(size));
 
     return NoError();
 }
 
-Error Buffer::map(GLenum access)
+Error Buffer::map(const Context *context, GLenum access)
 {
     ASSERT(!mState.mMapped);
 
-    Error error = mImpl->map(access, &mState.mMapPointer);
-    if (error.isError())
-    {
-        mState.mMapPointer = nullptr;
-        return error;
-    }
+    mState.mMapPointer = nullptr;
+    ANGLE_TRY(mImpl->map(rx::SafeGetImpl(context), access, &mState.mMapPointer));
 
     ASSERT(access == GL_WRITE_ONLY_OES);
 
@@ -101,20 +131,20 @@ Error Buffer::map(GLenum access)
     mState.mAccessFlags = GL_MAP_WRITE_BIT;
     mIndexRangeCache.clear();
 
-    return error;
+    return NoError();
 }
 
-Error Buffer::mapRange(GLintptr offset, GLsizeiptr length, GLbitfield access)
+Error Buffer::mapRange(const Context *context,
+                       GLintptr offset,
+                       GLsizeiptr length,
+                       GLbitfield access)
 {
     ASSERT(!mState.mMapped);
     ASSERT(offset + length <= mState.mSize);
 
-    Error error = mImpl->mapRange(offset, length, access, &mState.mMapPointer);
-    if (error.isError())
-    {
-        mState.mMapPointer = nullptr;
-        return error;
-    }
+    mState.mMapPointer = nullptr;
+    ANGLE_TRY(
+        mImpl->mapRange(rx::SafeGetImpl(context), offset, length, access, &mState.mMapPointer));
 
     mState.mMapped      = GL_TRUE;
     mState.mMapOffset   = static_cast<GLint64>(offset);
@@ -132,19 +162,15 @@ Error Buffer::mapRange(GLintptr offset, GLsizeiptr length, GLbitfield access)
         mIndexRangeCache.invalidateRange(static_cast<unsigned int>(offset), static_cast<unsigned int>(length));
     }
 
-    return error;
+    return NoError();
 }
 
-Error Buffer::unmap(GLboolean *result)
+Error Buffer::unmap(const Context *context, GLboolean *result)
 {
     ASSERT(mState.mMapped);
 
-    Error error = mImpl->unmap(result);
-    if (error.isError())
-    {
-        *result = GL_FALSE;
-        return error;
-    }
+    *result = GL_FALSE;
+    ANGLE_TRY(mImpl->unmap(rx::SafeGetImpl(context), result));
 
     mState.mMapped      = GL_FALSE;
     mState.mMapPointer  = nullptr;
@@ -153,7 +179,7 @@ Error Buffer::unmap(GLboolean *result)
     mState.mAccess      = GL_WRITE_ONLY_OES;
     mState.mAccessFlags = 0;
 
-    return error;
+    return NoError();
 }
 
 void Buffer::onTransformFeedback()

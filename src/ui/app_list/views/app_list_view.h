@@ -15,10 +15,6 @@
 #include "ui/views/bubble/bubble_dialog_delegate.h"
 #include "ui/views/widget/widget.h"
 
-namespace base {
-class FilePath;
-}
-
 namespace app_list {
 class ApplicationDragAndDropHost;
 class AppListMainView;
@@ -44,11 +40,6 @@ class APP_LIST_EXPORT AppListView : public views::BubbleDialogDelegateView,
 
   // Initializes the widget.
   void InitAsBubble(gfx::NativeView parent, int initial_apps_page);
-
-  // Initializes the widget as a frameless window, not a bubble.
-  void InitAsFramelessWindow(gfx::NativeView parent,
-                             int initial_apps_page,
-                             gfx::Rect bounds);
 
   void SetBubbleArrow(views::BubbleBorder::Arrow arrow);
 
@@ -84,8 +75,6 @@ class APP_LIST_EXPORT AppListView : public views::BubbleDialogDelegateView,
   bool ShouldDescendIntoChildForEventHandling(
       gfx::NativeView child,
       const gfx::Point& location) override;
-
-  void SetProfileByPath(const base::FilePath& profile_path);
 
   AppListMainView* app_list_main_view() { return app_list_main_view_; }
 

@@ -67,7 +67,8 @@ TEST_F(NetworkSessionConfiguratorTest, EnableQuicFromFieldTrialGroup) {
   ParseFieldTrials();
 
   EXPECT_TRUE(params_.enable_quic);
-  EXPECT_FALSE(params_.disable_quic_on_timeout_with_open_streams);
+  EXPECT_FALSE(params_.mark_quic_broken_when_network_blackholes);
+  EXPECT_FALSE(params_.retry_without_alt_svc_on_quic_errors);
   EXPECT_EQ(1350u, params_.quic_max_packet_length);
   EXPECT_EQ(net::QuicTagVector(), params_.quic_connection_options);
   EXPECT_FALSE(params_.quic_always_require_handshake_confirmation);
@@ -87,6 +88,7 @@ TEST_F(NetworkSessionConfiguratorTest, EnableQuicFromFieldTrialGroup) {
             params_.quic_packet_reader_yield_after_duration_milliseconds);
   EXPECT_FALSE(params_.quic_race_cert_verification);
   EXPECT_FALSE(params_.quic_do_not_fragment);
+  EXPECT_FALSE(params_.quic_estimate_initial_rtt);
   EXPECT_FALSE(params_.quic_disable_preconnect_if_0rtt);
   EXPECT_FALSE(params_.quic_migrate_sessions_on_network_change);
   EXPECT_FALSE(params_.quic_migrate_sessions_early);
@@ -97,6 +99,17 @@ TEST_F(NetworkSessionConfiguratorTest, EnableQuicFromFieldTrialGroup) {
   net::HttpNetworkSession::Params default_params;
   EXPECT_EQ(default_params.quic_supported_versions,
             params_.quic_supported_versions);
+}
+
+TEST_F(NetworkSessionConfiguratorTest, EnableQuicFromParams) {
+  std::map<std::string, std::string> field_trial_params;
+  field_trial_params["enable_quic"] = "true";
+  variations::AssociateVariationParams("QUIC", "UseQuic", field_trial_params);
+  base::FieldTrialList::CreateFieldTrial("QUIC", "UseQuic");
+
+  ParseFieldTrials();
+
+  EXPECT_TRUE(params_.enable_quic);
 }
 
 TEST_F(NetworkSessionConfiguratorTest, EnableQuicForDataReductionProxy) {
@@ -110,15 +123,26 @@ TEST_F(NetworkSessionConfiguratorTest, EnableQuicForDataReductionProxy) {
 }
 
 TEST_F(NetworkSessionConfiguratorTest,
-       DisableQuicWhenConnectionTimesOutWithOpenStreamsFromFieldTrialParams) {
+       MarkQuicBrokenWhenNetworkBlackholesFromFieldTrialParams) {
   std::map<std::string, std::string> field_trial_params;
-  field_trial_params["disable_quic_on_timeout_with_open_streams"] = "true";
+  field_trial_params["mark_quic_broken_when_network_blackholes"] = "true";
   variations::AssociateVariationParams("QUIC", "Enabled", field_trial_params);
   base::FieldTrialList::CreateFieldTrial("QUIC", "Enabled");
 
   ParseFieldTrials();
 
-  EXPECT_TRUE(params_.disable_quic_on_timeout_with_open_streams);
+  EXPECT_TRUE(params_.mark_quic_broken_when_network_blackholes);
+}
+
+TEST_F(NetworkSessionConfiguratorTest, RetryWithoutAltSvcOnQuicErrors) {
+  std::map<std::string, std::string> field_trial_params;
+  field_trial_params["retry_without_alt_svc_on_quic_errors"] = "true";
+  variations::AssociateVariationParams("QUIC", "Enabled", field_trial_params);
+  base::FieldTrialList::CreateFieldTrial("QUIC", "Enabled");
+
+  ParseFieldTrials();
+
+  EXPECT_TRUE(params_.retry_without_alt_svc_on_quic_errors);
 }
 
 TEST_F(NetworkSessionConfiguratorTest,
@@ -207,6 +231,17 @@ TEST_F(NetworkSessionConfiguratorTest, QuicDoNotFragment) {
   ParseFieldTrials();
 
   EXPECT_TRUE(params_.quic_do_not_fragment);
+}
+
+TEST_F(NetworkSessionConfiguratorTest, QuicEstimateInitialRtt) {
+  std::map<std::string, std::string> field_trial_params;
+  field_trial_params["estimate_initial_rtt"] = "true";
+  variations::AssociateVariationParams("QUIC", "Enabled", field_trial_params);
+  base::FieldTrialList::CreateFieldTrial("QUIC", "Enabled");
+
+  ParseFieldTrials();
+
+  EXPECT_TRUE(params_.quic_estimate_initial_rtt);
 }
 
 TEST_F(NetworkSessionConfiguratorTest, QuicDisablePreConnectIfZeroRtt) {

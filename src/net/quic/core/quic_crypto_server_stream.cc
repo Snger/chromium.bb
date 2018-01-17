@@ -6,7 +6,6 @@
 
 #include <memory>
 
-#include "crypto/secure_hash.h"
 #include "net/quic/core/crypto/crypto_protocol.h"
 #include "net/quic/core/crypto/crypto_utils.h"
 #include "net/quic/core/crypto/quic_crypto_server_config.h"
@@ -17,9 +16,10 @@
 #include "net/quic/core/quic_packets.h"
 #include "net/quic/core/quic_session.h"
 #include "net/quic/platform/api/quic_logging.h"
+#include "net/quic/platform/api/quic_string_piece.h"
 #include "net/quic/platform/api/quic_text_utils.h"
+#include "third_party/boringssl/src/include/openssl/sha.h"
 
-using base::StringPiece;
 using std::string;
 
 namespace net {
@@ -42,13 +42,6 @@ class QuicCryptoServerStream::ProcessClientHelloCallback
     if (stream_ == nullptr) {
       return;
     }
-
-    // Note: set the parent's callback to nullptr here because
-    // FinishProcessingHandshakeMessageAfterProcessClientHello can be invoked
-    // from either synchronous or asynchronous codepaths.  When the synchronous
-    // codepaths are removed, this assignment should move to
-    // FinishProcessingHandshakeMessageAfterProcessClientHello.
-    stream_->process_client_hello_cb_ = nullptr;
 
     stream_->FinishProcessingHandshakeMessageAfterProcessClientHello(
         *result_, error, error_details, std::move(message),
@@ -96,7 +89,6 @@ QuicCryptoServerStream::QuicCryptoServerStream(
       crypto_config_(crypto_config),
       compressed_certs_cache_(compressed_certs_cache),
       signed_config_(new QuicSignedServerConfig),
-      validate_client_hello_cb_(nullptr),
       helper_(helper),
       num_handshake_messages_(0),
       num_handshake_messages_with_server_nonces_(0),
@@ -106,6 +98,7 @@ QuicCryptoServerStream::QuicCryptoServerStream(
           use_stateless_rejects_if_peer_supported),
       peer_supports_stateless_rejects_(false),
       chlo_packet_size_(0),
+      validate_client_hello_cb_(nullptr),
       process_client_hello_cb_(nullptr) {
   DCHECK_EQ(Perspective::IS_SERVER, session->connection()->perspective());
 }
@@ -149,7 +142,9 @@ void QuicCryptoServerStream::OnHandshakeMessage(
     return;
   }
 
-  if (validate_client_hello_cb_ != nullptr) {
+  if (validate_client_hello_cb_ != nullptr ||
+      (base::GetFlag(FLAGS_quic_reloadable_flag_fix_quic_callback_crash) &&
+       process_client_hello_cb_ != nullptr)) {
     // Already processing some other handshake message.  The protocol
     // does not allow for clients to send multiple handshake messages
     // before the server has a chance to respond.
@@ -159,9 +154,12 @@ void QuicCryptoServerStream::OnHandshakeMessage(
     return;
   }
 
-  CryptoUtils::HashHandshakeMessage(message, &chlo_hash_);
+  CryptoUtils::HashHandshakeMessage(message, &chlo_hash_,
+                                    Perspective::IS_SERVER);
 
   std::unique_ptr<ValidateCallback> cb(new ValidateCallback(this));
+  DCHECK(validate_client_hello_cb_ == nullptr);
+  DCHECK(process_client_hello_cb_ == nullptr);
   validate_client_hello_cb_ = cb.get();
   crypto_config_->ValidateClientHello(
       message, session()->connection()->peer_address().host(),
@@ -177,6 +175,7 @@ void QuicCryptoServerStream::FinishProcessingHandshakeMessage(
 
   // Clear the callback that got us here.
   DCHECK(validate_client_hello_cb_ != nullptr);
+  DCHECK(process_client_hello_cb_ == nullptr);
   validate_client_hello_cb_ = nullptr;
 
   if (use_stateless_rejects_if_peer_supported_) {
@@ -197,6 +196,11 @@ void QuicCryptoServerStream::
         std::unique_ptr<CryptoHandshakeMessage> reply,
         std::unique_ptr<DiversificationNonce> diversification_nonce,
         std::unique_ptr<ProofSource::Details> proof_source_details) {
+  // Clear the callback that got us here.
+  DCHECK(process_client_hello_cb_ != nullptr);
+  DCHECK(validate_client_hello_cb_ == nullptr);
+  process_client_hello_cb_ = nullptr;
+
   const CryptoHandshakeMessage& message = result.client_hello;
   if (error != QUIC_NO_ERROR) {
     CloseConnectionWithDetails(error, error_details);
@@ -284,55 +288,27 @@ void QuicCryptoServerStream::SendServerConfigUpdate(
     return;
   }
 
-  if (FLAGS_quic_reloadable_flag_enable_async_get_proof) {
-    if (send_server_config_update_cb_ != nullptr) {
-      QUIC_DVLOG(1)
-          << "Skipped server config update since one is already in progress";
-      return;
-    }
-
-    std::unique_ptr<SendServerConfigUpdateCallback> cb(
-        new SendServerConfigUpdateCallback(this));
-    send_server_config_update_cb_ = cb.get();
-
-    crypto_config_->BuildServerConfigUpdateMessage(
-        session()->connection()->version(), chlo_hash_,
-        previous_source_address_tokens_,
-        session()->connection()->self_address(),
-        session()->connection()->peer_address().host(),
-        session()->connection()->clock(),
-        session()->connection()->random_generator(), compressed_certs_cache_,
-        *crypto_negotiated_params_, cached_network_params,
-        (session()->config()->HasReceivedConnectionOptions()
-             ? session()->config()->ReceivedConnectionOptions()
-             : QuicTagVector()),
-        std::move(cb));
+  if (send_server_config_update_cb_ != nullptr) {
+    QUIC_DVLOG(1)
+        << "Skipped server config update since one is already in progress";
     return;
   }
 
-  CryptoHandshakeMessage server_config_update_message;
-  if (!crypto_config_->BuildServerConfigUpdateMessage(
-          session()->connection()->version(), chlo_hash_,
-          previous_source_address_tokens_,
-          session()->connection()->self_address(),
-          session()->connection()->peer_address().host(),
-          session()->connection()->clock(),
-          session()->connection()->random_generator(), compressed_certs_cache_,
-          *crypto_negotiated_params_, cached_network_params,
-          (session()->config()->HasReceivedConnectionOptions()
-               ? session()->config()->ReceivedConnectionOptions()
-               : QuicTagVector()),
-          &server_config_update_message)) {
-    QUIC_DVLOG(1) << "Server: Failed to build server config update (SCUP)!";
-    return;
-  }
+  std::unique_ptr<SendServerConfigUpdateCallback> cb(
+      new SendServerConfigUpdateCallback(this));
+  send_server_config_update_cb_ = cb.get();
 
-  QUIC_DVLOG(1) << "Server: Sending server config update: "
-                << server_config_update_message.DebugString();
-  const QuicData& data = server_config_update_message.GetSerialized();
-  WriteOrBufferData(StringPiece(data.data(), data.length()), false, nullptr);
-
-  ++num_server_config_update_messages_sent_;
+  crypto_config_->BuildServerConfigUpdateMessage(
+      session()->connection()->version(), chlo_hash_,
+      previous_source_address_tokens_, session()->connection()->self_address(),
+      session()->connection()->peer_address().host(),
+      session()->connection()->clock(),
+      session()->connection()->random_generator(), compressed_certs_cache_,
+      *crypto_negotiated_params_, cached_network_params,
+      (session()->config()->HasReceivedConnectionOptions()
+           ? session()->config()->ReceivedConnectionOptions()
+           : QuicTagVector()),
+      std::move(cb));
 }
 
 QuicCryptoServerStream::SendServerConfigUpdateCallback::
@@ -366,9 +342,10 @@ void QuicCryptoServerStream::FinishSendServerConfigUpdate(
   }
 
   QUIC_DVLOG(1) << "Server: Sending server config update: "
-                << message.DebugString();
-  const QuicData& data = message.GetSerialized();
-  WriteOrBufferData(StringPiece(data.data(), data.length()), false, nullptr);
+                << message.DebugString(Perspective::IS_SERVER);
+  const QuicData& data = message.GetSerialized(Perspective::IS_SERVER);
+  WriteOrBufferData(QuicStringPiece(data.data(), data.length()), false,
+                    nullptr);
 
   ++num_server_config_update_messages_sent_;
 }
@@ -417,11 +394,9 @@ bool QuicCryptoServerStream::GetBase64SHA256ClientChannelID(
   }
 
   const string& channel_id(crypto_negotiated_params_->channel_id);
-  std::unique_ptr<crypto::SecureHash> hash(
-      crypto::SecureHash::Create(crypto::SecureHash::SHA256));
-  hash->Update(channel_id.data(), channel_id.size());
-  uint8_t digest[32];
-  hash->Finish(digest, sizeof(digest));
+  uint8_t digest[SHA256_DIGEST_LENGTH];
+  SHA256(reinterpret_cast<const uint8_t*>(channel_id.data()), channel_id.size(),
+         digest);
 
   QuicTextUtils::Base64Encode(digest, arraysize(digest), output);
   return true;

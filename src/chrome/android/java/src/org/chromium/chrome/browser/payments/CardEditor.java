@@ -183,7 +183,8 @@ public class CardEditor extends EditorBase<AutofillPaymentInstrument>
             if (TextUtils.isEmpty(profile.getStreetAddress())) continue;
             mProfilesForBillingAddress.add(profile);
             Pair<Integer, Integer> editMessageResIds = AutofillAddress.getEditMessageAndTitleResIds(
-                    AutofillAddress.checkAddressCompletionStatus(profile));
+                    AutofillAddress.checkAddressCompletionStatus(
+                            profile, AutofillAddress.IGNORE_PHONE_COMPLETENESS_CHECK));
             if (editMessageResIds.first.intValue() != 0) {
                 mIncompleteProfilesForBillingAddress.put(
                         profile.getGUID(), editMessageResIds.first);
@@ -194,10 +195,12 @@ public class CardEditor extends EditorBase<AutofillPaymentInstrument>
         Collections.sort(mProfilesForBillingAddress, new Comparator<AutofillProfile>() {
             @Override
             public int compare(AutofillProfile a, AutofillProfile b) {
-                boolean isAComplete =
-                        AutofillAddress.checkAddressCompletionStatus(a) == AutofillAddress.COMPLETE;
-                boolean isBComplete =
-                        AutofillAddress.checkAddressCompletionStatus(b) == AutofillAddress.COMPLETE;
+                boolean isAComplete = AutofillAddress.checkAddressCompletionStatus(
+                                              a, AutofillAddress.NORMAL_COMPLETENESS_CHECK)
+                        == AutofillAddress.COMPLETE;
+                boolean isBComplete = AutofillAddress.checkAddressCompletionStatus(
+                                              b, AutofillAddress.NORMAL_COMPLETENESS_CHECK)
+                        == AutofillAddress.COMPLETE;
                 return ApiCompatibilityUtils.compareBoolean(isBComplete, isAComplete);
             }
         });
@@ -344,7 +347,7 @@ public class CardEditor extends EditorBase<AutofillPaymentInstrument>
 
         // Ensure that |instrument| and |card| are never null.
         final AutofillPaymentInstrument instrument = isNewCard
-                ? new AutofillPaymentInstrument(mContext, mWebContents, new CreditCard(),
+                ? new AutofillPaymentInstrument(mWebContents, new CreditCard(),
                           null /* billingAddress */, null /* methodName */)
                 : toEdit;
         final CreditCard card = instrument.getCard();
@@ -466,7 +469,7 @@ public class CardEditor extends EditorBase<AutofillPaymentInstrument>
 
         // Card scanner is expensive to query.
         if (mCardScanner == null) {
-            mCardScanner = CreditCardScanner.create(mContext, mWebContents, this);
+            mCardScanner = CreditCardScanner.create(mWebContents, this);
             mCanScan = mCardScanner.canScan();
         }
 
@@ -675,15 +678,24 @@ public class CardEditor extends EditorBase<AutofillPaymentInstrument>
                     }
                     return;
                 }
+                assert isAddingNewAddress != isSelectingIncompleteAddress;
 
-                final AutofillAddress editAddress = isSelectingIncompleteAddress
-                        ? new AutofillAddress(mContext,
-                                  findTargetProfile(mProfilesForBillingAddress, eventData.first))
-                        : null;
+                AutofillProfile profile;
+                if (isAddingNewAddress) {
+                    profile = new AutofillProfile();
+                    // Prefill card holder name as the billing address name only when adding a new
+                    // address.
+                    profile.setFullName(
+                            card.getIsLocal() ? mNameField.getValue().toString() : card.getName());
+                } else {
+                    profile = findTargetProfile(mProfilesForBillingAddress, eventData.first);
+                }
+
+                final AutofillAddress editAddress = new AutofillAddress(mContext, profile);
                 mAddressEditor.edit(editAddress, new Callback<AutofillAddress>() {
                     @Override
                     public void onResult(AutofillAddress billingAddress) {
-                        if (billingAddress == null || !billingAddress.isComplete()) {
+                        if (!billingAddress.isComplete()) {
                             // User cancelled out of the add or edit flow. Restore the selection
                             // to the card's billing address, if any, else clear the selection.
                             if (mBillingAddressField.getDropdownKeys().contains(

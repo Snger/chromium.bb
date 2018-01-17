@@ -83,11 +83,12 @@ namespace {
 typedef base::hash_set<AXPlatformNodeWin*> AXPlatformNodeWinSet;
 // Set of all AXPlatformNodeWin objects that were the target of an
 // alert event.
-base::LazyInstance<AXPlatformNodeWinSet> g_alert_targets =
+base::LazyInstance<AXPlatformNodeWinSet>::DestructorAtExit g_alert_targets =
     LAZY_INSTANCE_INITIALIZER;
 
-base::LazyInstance<base::ObserverList<IAccessible2UsageObserver>>
-    g_iaccessible2_usage_observer_list = LAZY_INSTANCE_INITIALIZER;
+base::LazyInstance<base::ObserverList<IAccessible2UsageObserver>>::
+    DestructorAtExit g_iaccessible2_usage_observer_list =
+        LAZY_INSTANCE_INITIALIZER;
 
 }  // namespace
 
@@ -252,17 +253,19 @@ STDMETHODIMP AXPlatformNodeWin::accHitTest(
 
 HRESULT AXPlatformNodeWin::accDoDefaultAction(VARIANT var_id) {
   COM_OBJECT_VALIDATE_VAR_ID(var_id);
-  delegate_->DoDefaultAction();
-  return S_OK;
+  AXActionData data;
+  data.action = ui::AX_ACTION_DO_DEFAULT;
+  if (delegate_->AccessibilityPerformAction(data))
+    return S_OK;
+  return E_FAIL;
 }
 
 STDMETHODIMP AXPlatformNodeWin::accLocation(
     LONG* x_left, LONG* y_top, LONG* width, LONG* height, VARIANT var_id) {
   COM_OBJECT_VALIDATE_VAR_ID_4_ARGS(var_id, x_left, y_top, width, height);
-  gfx::Rect bounds = gfx::ToEnclosingRect(GetData().location);
-  bounds += delegate_->GetGlobalCoordinateOffset();
+  gfx::Rect bounds = delegate_->GetScreenBoundsRect();
   *x_left = bounds.x();
-  *y_top  = bounds.y();
+  *y_top = bounds.y();
   *width  = bounds.width();
   *height = bounds.height();
 
@@ -276,6 +279,12 @@ STDMETHODIMP AXPlatformNodeWin::accNavigate(
     LONG nav_dir, VARIANT start, VARIANT* end) {
   COM_OBJECT_VALIDATE_VAR_ID_1_ARG(start, end);
   IAccessible* result = nullptr;
+
+  if ((nav_dir == NAVDIR_LASTCHILD || nav_dir == NAVDIR_FIRSTCHILD) &&
+      start.lVal != CHILDID_SELF) {
+    // MSAA states that navigating to first/last child can only be from self.
+    return E_INVALIDARG;
+  }
 
   switch (nav_dir) {
     case NAVDIR_DOWN:
@@ -854,6 +863,48 @@ STDMETHODIMP AXPlatformNodeWin::get_offsetAtPoint(
   return S_OK;
 }
 
+STDMETHODIMP AXPlatformNodeWin::addSelection(LONG start_offset,
+                                             LONG end_offset) {
+  // We only support one selection.
+  return setSelection(0, start_offset, end_offset);
+}
+
+STDMETHODIMP AXPlatformNodeWin::removeSelection(LONG selection_index) {
+  if (selection_index != 0)
+    return E_INVALIDARG;
+  // Simply collapse the selection to the position of the caret if a caret is
+  // visible, otherwise set the selection to 0.
+  return setCaretOffset(GetIntAttribute(ui::AX_ATTR_TEXT_SEL_END));
+}
+
+STDMETHODIMP AXPlatformNodeWin::setCaretOffset(LONG offset) {
+  return setSelection(0, offset, offset);
+}
+
+STDMETHODIMP AXPlatformNodeWin::setSelection(LONG selection_index,
+                                             LONG start_offset,
+                                             LONG end_offset) {
+  if (selection_index != 0)
+    return E_INVALIDARG;
+
+  HandleSpecialTextOffset(&start_offset);
+  HandleSpecialTextOffset(&end_offset);
+  if (start_offset < 0 ||
+      start_offset > static_cast<LONG>(TextForIAccessibleText().length())) {
+    return E_INVALIDARG;
+  }
+  if (end_offset < 0 ||
+      end_offset > static_cast<LONG>(TextForIAccessibleText().length())) {
+    return E_INVALIDARG;
+  }
+
+  if (SetTextSelection(static_cast<int>(start_offset),
+                       static_cast<int>(end_offset))) {
+    return S_OK;
+  }
+  return E_FAIL;
+}
+
 //
 // IAccessibleText methods not implemented.
 //
@@ -864,16 +915,6 @@ STDMETHODIMP AXPlatformNodeWin::get_newText(IA2TextSegment* new_text) {
 STDMETHODIMP AXPlatformNodeWin::get_oldText(IA2TextSegment* old_text) {
   return E_NOTIMPL;
 }
-STDMETHODIMP AXPlatformNodeWin::addSelection(LONG start_offset,
-                                             LONG end_offset) {
-  return E_NOTIMPL;
-}
-STDMETHODIMP AXPlatformNodeWin::get_attributes(LONG offset,
-                                               LONG* start_offset,
-                                               LONG* end_offset,
-                                               BSTR* text_attributes) {
-  return E_NOTIMPL;
-}
 STDMETHODIMP AXPlatformNodeWin::get_characterExtents(
     LONG offset,
     enum IA2CoordinateType coord_type,
@@ -881,17 +922,6 @@ STDMETHODIMP AXPlatformNodeWin::get_characterExtents(
     LONG* y,
     LONG* width,
     LONG* height) {
-  return E_NOTIMPL;
-}
-STDMETHODIMP AXPlatformNodeWin::removeSelection(LONG selection_index) {
-  return E_NOTIMPL;
-}
-STDMETHODIMP AXPlatformNodeWin::setCaretOffset(LONG offset) {
-  return E_NOTIMPL;
-}
-STDMETHODIMP AXPlatformNodeWin::setSelection(LONG selection_index,
-                                             LONG start_offset,
-                                             LONG end_offset) {
   return E_NOTIMPL;
 }
 STDMETHODIMP AXPlatformNodeWin::scrollSubstringTo(
@@ -906,6 +936,12 @@ STDMETHODIMP AXPlatformNodeWin::scrollSubstringToPoint(
     enum IA2CoordinateType coordinate_type,
     LONG x,
     LONG y) {
+  return E_NOTIMPL;
+}
+STDMETHODIMP AXPlatformNodeWin::get_attributes(LONG offset,
+                                               LONG* start_offset,
+                                               LONG* end_offset,
+                                               BSTR* text_attributes) {
   return E_NOTIMPL;
 }
 
@@ -1131,14 +1167,12 @@ void AXPlatformNodeWin::RemoveAlertTarget() {
 base::string16 AXPlatformNodeWin::TextForIAccessibleText() {
   if (GetData().role == ui::AX_ROLE_TEXT_FIELD)
     return GetString16Attribute(ui::AX_ATTR_VALUE);
-  else
-    return GetString16Attribute(ui::AX_ATTR_NAME);
+  return GetString16Attribute(ui::AX_ATTR_NAME);
 }
 
-void AXPlatformNodeWin::HandleSpecialTextOffset(
-    const base::string16& text, LONG* offset) {
+void AXPlatformNodeWin::HandleSpecialTextOffset(LONG* offset) {
   if (*offset == IA2_TEXT_OFFSET_LENGTH) {
-    *offset = static_cast<LONG>(text.size());
+    *offset = static_cast<LONG>(TextForIAccessibleText().length());
   } else if (*offset == IA2_TEXT_OFFSET_CARET) {
     get_caretOffset(offset);
   }
@@ -1164,7 +1198,7 @@ LONG AXPlatformNodeWin::FindBoundary(
     IA2TextBoundaryType ia2_boundary,
     LONG start_offset,
     ui::TextBoundaryDirection direction) {
-  HandleSpecialTextOffset(text, &start_offset);
+  HandleSpecialTextOffset(&start_offset);
   ui::TextBoundaryType boundary = IA2TextBoundaryToTextBoundary(ia2_boundary);
   std::vector<int32_t> line_breaks;
   return static_cast<LONG>(ui::FindAccessibleTextBoundary(

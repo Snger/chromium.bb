@@ -10,16 +10,15 @@
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
-#import "ios/testing/earl_grey/disabled_test_macros.h"
 #import "ios/web/public/test/http_server.h"
 #include "ios/web/public/test/http_server_util.h"
 #include "ios/web/public/test/response_providers/data_response_provider.h"
 #include "ui/base/l10n/l10n_util.h"
 
-using chrome_test_util::backButton;
-using chrome_test_util::forwardButton;
+using chrome_test_util::BackButton;
+using chrome_test_util::ForwardButton;
 using chrome_test_util::TapWebViewElementWithId;
-using chrome_test_util::webViewContainingText;
+using chrome_test_util::WebViewContainingText;
 
 namespace {
 
@@ -101,20 +100,6 @@ void SetupBackAndForwardResponseProvider() {
       "id=\"ForwardHTMLButton\" onclick=\"window.history.forward()\" /></br>"
       "Forward page loaded</html>";
   web::test::SetUpSimpleHttpServer(responses);
-}
-
-// Matcher for the error page.
-// TODO(crbug.com/638674): Evaluate if this can move to shared code. See
-// ios/chrome/browser/ui/error_page_egtest.mm.
-id<GREYMatcher> errorPage() {
-  NSString* const kDNSError =
-      l10n_util::GetNSString(IDS_ERRORPAGES_HEADING_NOT_AVAILABLE);
-  NSString* const kInternetDisconnectedError =
-      l10n_util::GetNSString(IDS_ERRORPAGES_HEADING_INTERNET_DISCONNECTED);
-  return grey_anyOf(chrome_test_util::staticHtmlViewContainingText(kDNSError),
-                    chrome_test_util::staticHtmlViewContainingText(
-                        kInternetDisconnectedError),
-                    nil);
 }
 
 // URLs for server redirect tests.
@@ -219,7 +204,7 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   const GURL windowHistoryURL =
       web::test::HttpServer::MakeUrl(kWindowHistoryGoTestURL);
   [ChromeEarlGrey loadURL:windowHistoryURL];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kOnLoadText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kOnLoadText)]
       assertWithMatcher:grey_notNil()];
 
   // Tap on the window.history.go() button.  This will clear |kOnLoadText|, so
@@ -228,7 +213,7 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   [ChromeEarlGrey tapWebViewElementWithID:kGoNoParameterID];
 
   // Verify that the onload text is reset.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kOnLoadText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kOnLoadText)]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -240,7 +225,7 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   const GURL windowHistoryURL =
       web::test::HttpServer::MakeUrl(kWindowHistoryGoTestURL);
   [ChromeEarlGrey loadURL:windowHistoryURL];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kOnLoadText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kOnLoadText)]
       assertWithMatcher:grey_notNil()];
 
   // Tap on the window.history.go() button.  This will clear |kOnLoadText|, so
@@ -249,7 +234,7 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   [ChromeEarlGrey tapWebViewElementWithID:kGoZeroID];
 
   // Verify that the onload text is reset.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kOnLoadText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kOnLoadText)]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -262,21 +247,21 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   const GURL windowHistoryURL =
       web::test::HttpServer::MakeUrl(kWindowHistoryGoTestURL);
   [ChromeEarlGrey loadURL:windowHistoryURL];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kOnLoadText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kOnLoadText)]
       assertWithMatcher:grey_notNil()];
 
   // Tap on the window.history.go(2) button.  This will clear all div text, so
   // the subsequent check for |kNoOpText| will only pass if no navigations have
   // occurred.
   [ChromeEarlGrey tapWebViewElementWithID:kGoTwoID];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kNoOpText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kNoOpText)]
       assertWithMatcher:grey_notNil()];
 
   // Tap on the window.history.go(-2) button.  This will clear all div text, so
   // the subsequent check for |kNoOpText| will only pass if no navigations have
   // occurred.
   [ChromeEarlGrey tapWebViewElementWithID:kGoBackTwoID];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kNoOpText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kNoOpText)]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -302,22 +287,22 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   [ChromeEarlGrey loadURL:secondURL];
   [ChromeEarlGrey loadURL:thirdURL];
   [ChromeEarlGrey loadURL:fourthURL];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText("page4")]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText("page4")]
       assertWithMatcher:grey_notNil()];
 
   // Tap button to go back 3 pages.
   TapWebViewElementWithId("goBack");
-  [[EarlGrey selectElementWithMatcher:webViewContainingText("page1")]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText("page1")]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           firstURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Tap button to go forward 2 pages.
   TapWebViewElementWithId("goForward");
-  [[EarlGrey selectElementWithMatcher:webViewContainingText("page3")]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText("page3")]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           thirdURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 }
@@ -331,21 +316,21 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   const GURL windowHistoryURL =
       web::test::HttpServer::MakeUrl(kWindowHistoryGoTestURL);
   [ChromeEarlGrey loadURL:windowHistoryURL];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kOnLoadText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kOnLoadText)]
       assertWithMatcher:grey_notNil()];
 
   const GURL sampleURL = web::test::HttpServer::MakeUrl(kSampleFileBasedURL);
   [ChromeEarlGrey loadURL:sampleURL];
 
   [ChromeEarlGrey loadURL:windowHistoryURL];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kOnLoadText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kOnLoadText)]
       assertWithMatcher:grey_notNil()];
 
   // Tap the window.history.go(-2) button.  This will clear the current page's
   // |kOnLoadText|, so the subsequent check will only pass if another load
   // occurs.
   [ChromeEarlGrey tapWebViewElementWithID:kGoBackTwoID];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kOnLoadText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kOnLoadText)]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -365,14 +350,14 @@ class RedirectResponseProvider : public web::DataResponseProvider {
 
   // Tap the back button in the HTML and verify the first URL is loaded.
   TapWebViewElementWithId(kBackHTMLButtonLabel);
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           firstURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Tap the forward button in the toolbar and verify the second URL is loaded.
-  [[EarlGrey selectElementWithMatcher:forwardButton()]
+  [[EarlGrey selectElementWithMatcher:ForwardButton()]
       performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           secondURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 }
@@ -391,19 +376,19 @@ class RedirectResponseProvider : public web::DataResponseProvider {
 
   // Tap the back button in the toolbar and verify the page with forward button
   // is loaded.
-  [[EarlGrey selectElementWithMatcher:backButton()] performAction:grey_tap()];
+  [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
   [[EarlGrey
-      selectElementWithMatcher:webViewContainingText(kForwardHTMLSentinel)]
+      selectElementWithMatcher:WebViewContainingText(kForwardHTMLSentinel)]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           firstURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Tap the forward button in the HTML and verify the second URL is loaded.
   TapWebViewElementWithId(kForwardHTMLButtonLabel);
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kTestPageSentinel)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kTestPageSentinel)]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           secondURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
@@ -413,13 +398,13 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   if (UIApplication.sharedApplication.keyWindow.traitCollection
           .horizontalSizeClass == UIUserInterfaceSizeClassCompact) {
     // In horizontally compact environments, the forward button is not visible.
-    [[EarlGrey selectElementWithMatcher:forwardButton()]
+    [[EarlGrey selectElementWithMatcher:ForwardButton()]
         assertWithMatcher:grey_nil()];
   } else {
     // In horizontally regular environments, the forward button is visible and
     // disabled.
     id<GREYMatcher> disabledForwardButton = grey_allOf(
-        forwardButton(),
+        ForwardButton(),
         grey_accessibilityTrait(UIAccessibilityTraitNotEnabled), nil);
     [[EarlGrey selectElementWithMatcher:disabledForwardButton]
         assertWithMatcher:grey_notNil()];
@@ -428,6 +413,12 @@ class RedirectResponseProvider : public web::DataResponseProvider {
 
 // Tests navigating forward via window.history.forward() to an error page.
 - (void)testHistoryForwardToErrorPage {
+// TODO(crbug.com/694662): This test relies on external URL because of the bug.
+// Re-enable this test on device once the bug is fixed.
+#if !TARGET_IPHONE_SIMULATOR
+  EARL_GREY_TEST_DISABLED(@"Test disabled on device.");
+#endif
+
   SetupBackAndForwardResponseProvider();
 
   // Go to page 1 with a button which calls window.history.forward().
@@ -438,20 +429,18 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   // page not available error.
   const GURL badURL("http://www.badurljkljkljklfloofy.com");
   [ChromeEarlGrey loadURL:badURL];
-  [[EarlGrey selectElementWithMatcher:errorPage()]
-      assertWithMatcher:grey_notNil()];
+  [ChromeEarlGrey waitForErrorPage];
 
   // Go back to page 1 by clicking back button.
-  [[EarlGrey selectElementWithMatcher:backButton()] performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           forwardURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Go forward to page 2 by calling window.history.forward() and assert that
   // the error page is shown.
   TapWebViewElementWithId(kForwardHTMLButtonLabel);
-  [[EarlGrey selectElementWithMatcher:errorPage()]
-      assertWithMatcher:grey_notNil()];
+  [ChromeEarlGrey waitForErrorPage];
 }
 
 #pragma mark window.location.hash operations
@@ -474,32 +463,32 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   // Navigate back to original URL. This should fire a hashchange event.
   std::string backHashChangeContent = "backHashChange";
   [self addHashChangeListenerWithContent:backHashChangeContent];
-  [[EarlGrey selectElementWithMatcher:backButton()] performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           page1URL.GetContent())]
       assertWithMatcher:grey_notNil()];
   [[EarlGrey
-      selectElementWithMatcher:webViewContainingText(backHashChangeContent)]
+      selectElementWithMatcher:WebViewContainingText(backHashChangeContent)]
       assertWithMatcher:grey_notNil()];
 
   // Navigate forward to the new URL. This should fire a hashchange event.
   std::string forwardHashChangeContent = "forwardHashChange";
   [self addHashChangeListenerWithContent:forwardHashChangeContent];
-  [[EarlGrey selectElementWithMatcher:forwardButton()]
+  [[EarlGrey selectElementWithMatcher:ForwardButton()]
       performAction:grey_tap()];
   [[EarlGrey
-      selectElementWithMatcher:chrome_test_util::omniboxText(
+      selectElementWithMatcher:chrome_test_util::OmniboxText(
                                    hashChangedWithHistoryURL.GetContent())]
       assertWithMatcher:grey_notNil()];
   [[EarlGrey
-      selectElementWithMatcher:webViewContainingText(forwardHashChangeContent)]
+      selectElementWithMatcher:WebViewContainingText(forwardHashChangeContent)]
       assertWithMatcher:grey_notNil()];
 
   // Load a hash URL directly. This shouldn't fire a hashchange event.
   std::string hashChangeContent = "FAIL_loadUrlHashChange";
   [self addHashChangeListenerWithContent:hashChangeContent];
   [ChromeEarlGrey loadURL:hashChangedWithHistoryURL];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(hashChangeContent)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(hashChangeContent)]
       assertWithMatcher:grey_nil()];
 }
 
@@ -519,22 +508,22 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   // Tap link to replace the location value.
   TapWebViewElementWithId(kHashChangeWithoutHistoryLabel);
   [[EarlGrey
-      selectElementWithMatcher:chrome_test_util::omniboxText(
+      selectElementWithMatcher:chrome_test_util::OmniboxText(
                                    hashChangedWithoutHistoryURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Tap link to update the location.hash with a new value.
   TapWebViewElementWithId(kHashChangeWithHistoryLabel);
   [[EarlGrey
-      selectElementWithMatcher:chrome_test_util::omniboxText(
+      selectElementWithMatcher:chrome_test_util::OmniboxText(
                                    hashChangedWithHistoryURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Navigate back and verify that the URL that replaced window.location
   // has been reached.
-  [[EarlGrey selectElementWithMatcher:backButton()] performAction:grey_tap()];
+  [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
   [[EarlGrey
-      selectElementWithMatcher:chrome_test_util::omniboxText(
+      selectElementWithMatcher:chrome_test_util::OmniboxText(
                                    hashChangedWithoutHistoryURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 }
@@ -553,7 +542,7 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   // Tap link to update location.hash with a new value.
   TapWebViewElementWithId(kHashChangeWithHistoryLabel);
   [[EarlGrey
-      selectElementWithMatcher:chrome_test_util::omniboxText(
+      selectElementWithMatcher:chrome_test_util::OmniboxText(
                                    hashChangedWithHistoryURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
@@ -561,16 +550,16 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   TapWebViewElementWithId(kHashChangeWithHistoryLabel);
 
   // Tap back once to return to original URL.
-  [[EarlGrey selectElementWithMatcher:backButton()] performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           page1URL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Navigate forward and verify the URL.
-  [[EarlGrey selectElementWithMatcher:forwardButton()]
+  [[EarlGrey selectElementWithMatcher:ForwardButton()]
       performAction:grey_tap()];
   [[EarlGrey
-      selectElementWithMatcher:chrome_test_util::omniboxText(
+      selectElementWithMatcher:chrome_test_util::OmniboxText(
                                    hashChangedWithHistoryURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 }
@@ -596,20 +585,20 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   web::test::SetUpSimpleHttpServer(responses);
   [ChromeEarlGrey loadURL:initialURL];
   [ChromeEarlGrey loadURL:originURL];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           destinationURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Navigating back takes the user to the new tab page.
-  [[EarlGrey selectElementWithMatcher:backButton()] performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           initialURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Navigating forward take the user to destination page.
-  [[EarlGrey selectElementWithMatcher:forwardButton()]
+  [[EarlGrey selectElementWithMatcher:ForwardButton()]
       performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           destinationURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 }
@@ -665,29 +654,29 @@ class RedirectResponseProvider : public web::DataResponseProvider {
   // to the proper destination.
   [ChromeEarlGrey loadURL:indexURL];
   TapWebViewElementWithId(redirectLabel);
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           destinationURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Navigate to a new URL, navigate back and assert that the resulting page is
   // the proper destination.
   [ChromeEarlGrey loadURL:lastURL];
-  [[EarlGrey selectElementWithMatcher:backButton()] performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           destinationURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Navigate back and assert that the resulting page is the initial index.
-  [[EarlGrey selectElementWithMatcher:backButton()] performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:BackButton()] performAction:grey_tap()];
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           indexURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 
   // Navigate forward and assert the the resulting page is the proper
   // destination.
-  [[EarlGrey selectElementWithMatcher:forwardButton()]
+  [[EarlGrey selectElementWithMatcher:ForwardButton()]
       performAction:grey_tap()];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           destinationURL.GetContent())]
       assertWithMatcher:grey_notNil()];
 }

@@ -18,11 +18,13 @@
 #include "base/strings/stringprintf.h"
 #include "base/sys_byteorder.h"
 #include "base/threading/thread_task_runner_handle.h"
+#include "components/data_use_measurement/core/data_use_user_data.h"
 #include "components/sync/model/attachments/attachment.h"
 #include "components/sync/protocol/sync.pb.h"
 #include "google_apis/gaia/gaia_constants.h"
 #include "net/base/load_flags.h"
 #include "net/http/http_status_code.h"
+#include "net/traffic_annotation/network_traffic_annotation.h"
 #include "net/url_request/url_fetcher.h"
 #include "net/url_request/url_fetcher_delegate.h"
 #include "net/url_request/url_request_status.h"
@@ -91,7 +93,7 @@ class AttachmentUploaderImpl::UploadState : public net::URLFetcherDelegate,
                          const GoogleServiceAuthError& error) override;
 
  private:
-  typedef std::vector<UploadCallback> UploadCallbackList;
+  using UploadCallbackList = std::vector<UploadCallback>;
 
   void GetToken();
 
@@ -213,10 +215,39 @@ void AttachmentUploaderImpl::UploadState::OnGetTokenSuccess(
   DCHECK_EQ(access_token_request_.get(), request);
   access_token_request_.reset();
   access_token_ = access_token;
-  fetcher_ = net::URLFetcher::Create(upload_url_, net::URLFetcher::POST, this);
+  net::NetworkTrafficAnnotationTag traffic_annotation =
+      net::DefineNetworkTrafficAnnotation("sync_attachment_uploader", R"(
+        semantics {
+          sender: "Chrome Sync"
+          description:
+            "Chrome Sync synchronizes profile data between Chromium clients "
+            "and Google for a given user account."
+          trigger:
+            "User makes a change to syncable profile data after enabling sync "
+            "on the device."
+          data:
+            "The device and user identifiers, along with any profile data that "
+            "is changing."
+          destination: GOOGLE_OWNED_SERVICE
+        }
+        policy {
+          cookies_allowed: false
+          setting:
+            "Users can disable Chrome Sync by going into the profile settings "
+            "and choosing to Sign Out."
+          chrome_policy {
+            SyncDisabled {
+              policy_options {mode: MANDATORY}
+              SyncDisabled: true
+            }
+          }
+        })");
+  fetcher_ = net::URLFetcher::Create(upload_url_, net::URLFetcher::POST, this,
+                                     traffic_annotation);
   ConfigureURLFetcherCommon(fetcher_.get(), access_token_, raw_store_birthday_,
                             model_type_, url_request_context_getter_.get());
-
+  data_use_measurement::DataUseUserData::AttachToFetcher(
+      fetcher_.get(), data_use_measurement::DataUseUserData::SYNC);
   const uint32_t crc32c = attachment_.GetCrc32c();
   fetcher_->AddExtraRequestHeader(base::StringPrintf(
       "X-Goog-Hash: crc32c=%s", FormatCrc32cHash(crc32c).c_str()));

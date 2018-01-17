@@ -10,7 +10,6 @@
 
 #include <deque>
 #include <memory>
-#include <string>
 #include <vector>
 
 #include "base/macros.h"
@@ -19,9 +18,11 @@
 #include "net/base/io_buffer.h"
 #include "net/base/net_export.h"
 #include "net/base/request_priority.h"
+#include "net/log/net_log_source.h"
 #include "net/log/net_log_with_source.h"
 #include "net/socket/next_proto.h"
 #include "net/socket/ssl_client_socket.h"
+#include "net/spdy/platform/api/spdy_string.h"
 #include "net/spdy/spdy_buffer.h"
 #include "net/spdy/spdy_framer.h"
 #include "net/spdy/spdy_header_block.h"
@@ -55,7 +56,7 @@ enum SpdySendStatus {
   NO_MORE_DATA_TO_SEND
 };
 
-// The SpdyStream is used by the SpdySession to represent each stream known
+// SpdyStream is owned by SpdySession and is used to represent each stream known
 // on the SpdySession.  This class provides interfaces for SpdySession to use.
 // Streams can be created either by the client or by the server.  When they
 // are initiated by the client, both the SpdySession and client object (such as
@@ -101,6 +102,8 @@ class NET_EXPORT_PRIVATE SpdyStream {
     // TODO(akalin): Allow this function to re-close the stream and
     // handle it gracefully.
     virtual void OnClose(int status) = 0;
+
+    virtual NetLogSource source_dependency() const = 0;
 
    protected:
     virtual ~Delegate() {}
@@ -280,12 +283,13 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // Called by the SpdySession when the request is finished.  This callback
   // will always be called at the end of the request and signals to the
   // stream that the stream has no more network events.  No further callbacks
-  // to the stream will be made after this call.
+  // to the stream will be made after this call.  Must be called before
+  // SpdyStream is destroyed.
   // |status| is an error code or OK.
   void OnClose(int status);
 
   // Called by the SpdySession to log stream related errors.
-  void LogStreamError(int status, const std::string& description);
+  void LogStreamError(int status, const SpdyString& description);
 
   // If this stream is active, reset it, and close it otherwise. In
   // either case the stream is deleted.
@@ -371,6 +375,9 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // GURL() if it is unknown.
   const GURL& GetUrlFromHeaders() const { return url_from_header_block_; }
 
+  // Returns the estimate of dynamically allocated memory in bytes.
+  size_t EstimateMemoryUsage() const;
+
  private:
   class HeadersBufferProducer;
 
@@ -428,7 +435,7 @@ class NET_EXPORT_PRIVATE SpdyStream {
   // OnHeadersReceived() on the delegate if attached.
   void SaveResponseHeaders(const SpdyHeaderBlock& response_headers);
 
-  static std::string DescribeState(State state);
+  static SpdyString DescribeState(State state);
 
   const SpdyStreamType type_;
 

@@ -6,10 +6,10 @@
 
 #include "ash/screen_util.h"
 #include "ash/shell.h"
+#include "ash/strings/grit/ash_strings.h"
 #include "ash/test/ash_test_base.h"
 #include "base/bind.h"
 #include "base/strings/utf_string_conversions.h"
-#include "grit/ash_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/display/manager/display_manager.h"
 #include "ui/gfx/geometry/size.h"
@@ -66,12 +66,10 @@ class ResolutionNotificationControllerTest : public ash::test::AshTestBase {
             old_mode->native(), old_mode->ui_scale(),
             old_mode->device_scale_factor()));
 
-    if (display_manager()->SetDisplayMode(display.id(), new_mode)) {
-      controller()->PrepareNotification(
-          display.id(), old_mode, new_mode,
-          base::Bind(&ResolutionNotificationControllerTest::OnAccepted,
-                     base::Unretained(this)));
-    }
+    EXPECT_TRUE(controller()->PrepareNotificationAndSetDisplayMode(
+        display.id(), old_mode, new_mode,
+        base::Bind(&ResolutionNotificationControllerTest::OnAccepted,
+                   base::Unretained(this))));
 
     // OnConfigurationChanged event won't be emitted in the test environment,
     // so invoke UpdateDisplay() to emit that event explicitly.
@@ -132,7 +130,7 @@ class ResolutionNotificationControllerTest : public ash::test::AshTestBase {
   static void TickTimer() { controller()->OnTimerTick(); }
 
   static ResolutionNotificationController* controller() {
-    return Shell::GetInstance()->resolution_notification_controller();
+    return Shell::Get()->resolution_notification_controller();
   }
 
   int accept_count() const { return accept_count_; }
@@ -150,9 +148,6 @@ class ResolutionNotificationControllerTest : public ash::test::AshTestBase {
 
 // Basic behaviors and verifies it doesn't cause crashes.
 TEST_F(ResolutionNotificationControllerTest, Basic) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("300x300#300x300%57|200x200%58,250x250#250x250%59|200x200%60");
   int64_t id2 = display_manager()->GetSecondaryDisplay().id();
   ASSERT_EQ(0, accept_count());
@@ -183,9 +178,6 @@ TEST_F(ResolutionNotificationControllerTest, Basic) {
 }
 
 TEST_F(ResolutionNotificationControllerTest, ClickMeansAccept) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("300x300#300x300%57|200x200%58,250x250#250x250%59|200x200%60");
   int64_t id2 = display_manager()->GetSecondaryDisplay().id();
   ASSERT_EQ(0, accept_count());
@@ -214,9 +206,6 @@ TEST_F(ResolutionNotificationControllerTest, ClickMeansAccept) {
 }
 
 TEST_F(ResolutionNotificationControllerTest, AcceptButton) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("300x300#300x300%59|200x200%60");
   const display::Display& display =
       display::Screen::GetScreen()->GetPrimaryDisplay();
@@ -254,9 +243,6 @@ TEST_F(ResolutionNotificationControllerTest, AcceptButton) {
 }
 
 TEST_F(ResolutionNotificationControllerTest, Close) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("100x100,150x150#150x150%59|200x200%60");
   int64_t id2 = display_manager()->GetSecondaryDisplay().id();
   ASSERT_EQ(0, accept_count());
@@ -282,9 +268,6 @@ TEST_F(ResolutionNotificationControllerTest, Close) {
 }
 
 TEST_F(ResolutionNotificationControllerTest, Timeout) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("300x300#300x300%59|200x200%60");
   const display::Display& display =
       display::Screen::GetScreen()->GetPrimaryDisplay();
@@ -306,9 +289,6 @@ TEST_F(ResolutionNotificationControllerTest, Timeout) {
 }
 
 TEST_F(ResolutionNotificationControllerTest, DisplayDisconnected) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay(
       "300x300#300x300%56|200x200%57,"
       "200x200#250x250%58|200x200%59|100x100%60");
@@ -325,15 +305,11 @@ TEST_F(ResolutionNotificationControllerTest, DisplayDisconnected) {
   scoped_refptr<display::ManagedDisplayMode> mode =
       display_manager()->GetSelectedModeForDisplayId(id2);
   EXPECT_TRUE(!!mode);
-  gfx::Size resolution;
   EXPECT_EQ("200x200", mode->size().ToString());
   EXPECT_EQ(59.0f, mode->refresh_rate());
 }
 
 TEST_F(ResolutionNotificationControllerTest, MultipleResolutionChange) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay(
       "300x300#300x300%56|200x200%57,"
       "250x250#250x250%58|200x200%59");
@@ -372,9 +348,6 @@ TEST_F(ResolutionNotificationControllerTest, MultipleResolutionChange) {
 }
 
 TEST_F(ResolutionNotificationControllerTest, Fallback) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay(
       "300x300#300x300%56|200x200%57,"
       "250x250#250x250%58|220x220%59|200x200%60");

@@ -15,6 +15,7 @@
 #include "chrome/browser/ui/views/frame/browser_header_painter_ash.h"
 #include "chrome/browser/ui/views/frame/browser_view.h"
 #include "chrome/browser/ui/views/frame/immersive_mode_controller.h"
+#include "chrome/browser/ui/views/frame/top_container_view.h"
 #include "chrome/browser/ui/views/profiles/profile_indicator_icon.h"
 #include "chrome/browser/ui/views/tab_icon_view.h"
 #include "chrome/browser/ui/views/tabs/tab_strip.h"
@@ -26,6 +27,7 @@
 #include "ui/aura/window.h"
 #include "ui/base/hit_test.h"
 #include "ui/base/layout.h"
+#include "ui/base/material_design/material_design_controller.h"
 #include "ui/base/theme_provider.h"
 #include "ui/compositor/layer_animator.h"
 #include "ui/gfx/canvas.h"
@@ -39,6 +41,10 @@
 #include "ui/views/widget/widget.h"
 #include "ui/views/widget/widget_delegate.h"
 
+#if defined(OS_CHROMEOS)
+#include "ash/ash_layout_constants.h"
+#endif
+
 #if !defined(OS_CHROMEOS)
 #define FRAME_AVATAR_BUTTON
 #endif
@@ -51,14 +57,6 @@ const int kAvatarButtonOffset = 5;
 #endif
 // Space between right edge of tabstrip and maximize button.
 const int kTabstripRightSpacing = 10;
-// Height of the shadow of the content area, at the top of the toolbar.
-const int kContentShadowHeight = 1;
-// Space between top of window and top of tabstrip for tall headers, such as
-// for restored windows, apps, etc.
-const int kTabstripTopSpacingTall = 4;
-// Space between top of window and top of tabstrip for short headers, such as
-// for maximized windows, pop-ups, etc.
-const int kTabstripTopSpacingShort = 0;
 // Height of the shadow in the tab image, used to ensure clicks in the shadow
 // area still drag restored windows.  This keeps the clickable area large enough
 // to hit easily.
@@ -136,9 +134,10 @@ gfx::Rect BrowserNonClientFrameViewMus::GetBoundsForTabStrip(
 
   int left_inset = GetTabStripLeftInset();
   int right_inset = GetTabStripRightInset();
-  return gfx::Rect(left_inset, GetTopInset(false),
-                   std::max(0, width() - left_inset - right_inset),
-                   tabstrip->GetPreferredSize().height());
+  const gfx::Rect bounds(left_inset, GetTopInset(false),
+                         std::max(0, width() - left_inset - right_inset),
+                         tabstrip->GetPreferredSize().height());
+  return bounds;
 }
 
 int BrowserNonClientFrameViewMus::GetTopInset(bool restored) const {
@@ -154,19 +153,12 @@ int BrowserNonClientFrameViewMus::GetTopInset(bool restored) const {
     return 0;
   }
 
-  if (browser_view()->IsTabStripVisible()) {
-    return ((frame()->IsMaximized() || frame()->IsFullscreen()) && !restored)
-               ? kTabstripTopSpacingShort
-               : kTabstripTopSpacingTall;
-  }
+  const int header_height = GetHeaderHeight();
 
-  int caption_buttons_bottom = frame_values().normal_insets.top();
+  if (browser_view()->IsTabStripVisible())
+    return header_height - browser_view()->GetTabStripHeight();
 
-  // The toolbar partially overlaps the caption buttons.
-  if (browser_view()->IsToolbarVisible())
-    return caption_buttons_bottom - kContentShadowHeight;
-
-  return caption_buttons_bottom + kClientEdgeThickness;
+  return header_height;
 }
 
 int BrowserNonClientFrameViewMus::GetThemeBackgroundXInset() const {
@@ -184,6 +176,55 @@ views::View* BrowserNonClientFrameViewMus::GetProfileSwitcherView() const {
 #else
   return nullptr;
 #endif
+}
+
+void BrowserNonClientFrameViewMus::UpdateClientArea() {
+  std::vector<gfx::Rect> additional_client_area;
+  int top_container_offset = 0;
+  ImmersiveModeController* immersive_mode_controller =
+      browser_view()->immersive_mode_controller();
+  // Frame decorations (the non-client area) are visible if not in immersive
+  // mode, or in immersive mode *and* the reveal widget is showing.
+  const bool show_frame_decorations = !immersive_mode_controller->IsEnabled() ||
+                                      immersive_mode_controller->IsRevealed();
+  if (browser_view()->IsTabStripVisible() && show_frame_decorations) {
+    gfx::Rect tab_strip_bounds(GetBoundsForTabStrip(tab_strip_));
+    if (!tab_strip_bounds.IsEmpty() && tab_strip_->max_x()) {
+      tab_strip_bounds.set_width(tab_strip_->max_x());
+      if (immersive_mode_controller->IsEnabled()) {
+        top_container_offset =
+            immersive_mode_controller->GetTopContainerVerticalOffset(
+                browser_view()->top_container()->size());
+        tab_strip_bounds.set_y(tab_strip_bounds.y() + top_container_offset);
+        tab_strip_bounds.Intersect(gfx::Rect(size()));
+      }
+      additional_client_area.push_back(tab_strip_bounds);
+    }
+  }
+  aura::WindowTreeHostMus* window_tree_host_mus =
+      static_cast<aura::WindowTreeHostMus*>(
+          GetWidget()->GetNativeWindow()->GetHost());
+  if (show_frame_decorations) {
+    const int header_height = GetHeaderHeight();
+    gfx::Insets client_area_insets =
+        views::WindowManagerFrameValues::instance().normal_insets;
+    client_area_insets.Set(header_height, client_area_insets.left(),
+                           client_area_insets.bottom(),
+                           client_area_insets.right());
+    window_tree_host_mus->SetClientArea(client_area_insets,
+                                        additional_client_area);
+    views::Widget* reveal_widget = immersive_mode_controller->GetRevealWidget();
+    if (reveal_widget) {
+      // In immersive mode the reveal widget needs the same client area as
+      // the Browser widget. This way mus targets the window manager (ash) for
+      // clicks in the frame decoration.
+      static_cast<aura::WindowTreeHostMus*>(
+          reveal_widget->GetNativeWindow()->GetHost())
+          ->SetClientArea(client_area_insets, additional_client_area);
+    }
+  } else {
+    window_tree_host_mus->SetClientArea(gfx::Insets(), additional_client_area);
+  }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -327,26 +368,21 @@ void BrowserNonClientFrameViewMus::UpdateProfileIcons() {
     return;
   }
 #endif
+  Browser* browser = browser_view()->browser();
+
+  // Similar logic as in BrowserNonClientFrameViewAsh::UpdateProfileIcons (minus
+  // the multi-profile part). That is, no profile indicator for non-tabbed and
+  // non-app browser window, or regular/guest user browser window.
+  if (!browser->is_type_tabbed() && !browser->is_app())
+    return;
+  if (browser_view()->IsRegularOrGuestSession())
+    return;
+
   UpdateProfileIndicatorIcon();
 }
 
 ///////////////////////////////////////////////////////////////////////////////
 // BrowserNonClientFrameViewMus, private:
-
-void BrowserNonClientFrameViewMus::UpdateClientArea() {
-  std::vector<gfx::Rect> additional_client_area;
-  if (tab_strip_) {
-    gfx::Rect tab_strip_bounds(GetBoundsForTabStrip(tab_strip_));
-    if (!tab_strip_bounds.IsEmpty() && tab_strip_->max_x()) {
-      tab_strip_bounds.set_width(tab_strip_->max_x());
-      additional_client_area.push_back(tab_strip_bounds);
-    }
-  }
-  static_cast<aura::WindowTreeHostMus*>(
-      GetWidget()->GetNativeWindow()->GetHost())
-      ->SetClientArea(views::WindowManagerFrameValues::instance().normal_insets,
-                      additional_client_area);
-}
 
 void BrowserNonClientFrameViewMus::TabStripMaxXChanged(TabStrip* tab_strip) {
   UpdateClientArea();
@@ -474,4 +510,17 @@ void BrowserNonClientFrameViewMus::PaintContentEdge(gfx::Canvas* canvas) {
       gfx::Rect(0, bottom, width(), kClientEdgeThickness),
       GetThemeProvider()->GetColor(
           ThemeProperties::COLOR_TOOLBAR_BOTTOM_SEPARATOR));
+}
+
+int BrowserNonClientFrameViewMus::GetHeaderHeight() const {
+#if defined(OS_CHROMEOS)
+  // TODO: move ash_layout_constants to ash/public/cpp.
+  const bool restored = !frame()->IsMaximized() && !frame()->IsFullscreen();
+  return GetAshLayoutSize(restored
+                              ? AshLayoutSize::BROWSER_RESTORED_CAPTION_BUTTON
+                              : AshLayoutSize::BROWSER_MAXIMIZED_CAPTION_BUTTON)
+      .height();
+#else
+  return views::WindowManagerFrameValues::instance().normal_insets.top();
+#endif
 }

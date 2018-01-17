@@ -37,8 +37,9 @@ void SkLocalMatrixShader::flatten(SkWriteBuffer& buffer) const {
     buffer.writeFlattenable(fProxyShader.get());
 }
 
-SkShader::Context* SkLocalMatrixShader::onCreateContext(const ContextRec& rec,
-                                                        void* storage) const {
+SkShader::Context* SkLocalMatrixShader::onMakeContext(
+    const ContextRec& rec, SkArenaAlloc* alloc) const
+{
     ContextRec newRec(rec);
     SkMatrix tmp;
     if (rec.fLocalMatrix) {
@@ -47,7 +48,33 @@ SkShader::Context* SkLocalMatrixShader::onCreateContext(const ContextRec& rec,
     } else {
         newRec.fLocalMatrix = &this->getLocalMatrix();
     }
-    return fProxyShader->createContext(newRec, storage);
+    return fProxyShader->makeContext(newRec, alloc);
+}
+
+SkImage* SkLocalMatrixShader::onIsAImage(SkMatrix* outMatrix, enum TileMode* mode) const {
+    SkMatrix imageMatrix;
+    SkImage* image = fProxyShader->isAImage(&imageMatrix, mode);
+    if (image && outMatrix) {
+        // Local matrix must be applied first so it is on the right side of the concat.
+        *outMatrix = SkMatrix::Concat(imageMatrix, this->getLocalMatrix());
+    }
+
+    return image;
+}
+
+bool SkLocalMatrixShader::onAppendStages(SkRasterPipeline* p,
+                                         SkColorSpace* dst,
+                                         SkArenaAlloc* scratch,
+                                         const SkMatrix& ctm,
+                                         const SkPaint& paint,
+                                         const SkMatrix* localM) const {
+    SkMatrix tmp;
+    if (localM) {
+        tmp.setConcat(*localM, this->getLocalMatrix());
+    }
+
+    return fProxyShader->onAppendStages(p, dst, scratch, ctm, paint,
+                                        localM ? &tmp : &this->getLocalMatrix());
 }
 
 #ifndef SK_IGNORE_TO_STRING

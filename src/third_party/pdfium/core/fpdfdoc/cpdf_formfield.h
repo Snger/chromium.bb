@@ -25,6 +25,10 @@
 #define FIELDTYPE_TEXTFIELD 6
 #define FIELDTYPE_SIGNATURE 7
 
+#define FORMFLAG_READONLY 0x01
+#define FORMFLAG_REQUIRED 0x02
+#define FORMFLAG_NOEXPORT 0x04
+
 class CPDF_Dictionary;
 class CPDF_Font;
 class CPDF_FormControl;
@@ -32,7 +36,7 @@ class CPDF_InterForm;
 class CPDF_String;
 
 CPDF_Object* FPDF_GetFieldAttr(CPDF_Dictionary* pFieldDict,
-                               const FX_CHAR* name,
+                               const char* name,
                                int nLevel = 0);
 CFX_WideString FPDF_GetFullName(CPDF_Dictionary* pFieldDict);
 
@@ -50,6 +54,9 @@ class CPDF_FormField {
     ComboBox,
     Sign
   };
+
+  CPDF_FormField(CPDF_InterForm* pForm, CPDF_Dictionary* pDict);
+  ~CPDF_FormField();
 
   CFX_WideString GetFullName() const;
 
@@ -121,15 +128,12 @@ class CPDF_FormField {
                    bool bNotify = false);
 #endif  // PDF_ENABLE_XFA
 
-  FX_FLOAT GetFontSize() const { return m_FontSize; }
+  float GetFontSize() const { return m_FontSize; }
   CPDF_Font* GetFont() const { return m_pFont; }
 
  private:
   friend class CPDF_InterForm;
   friend class CPDF_FormControl;
-
-  CPDF_FormField(CPDF_InterForm* pForm, CPDF_Dictionary* pDict);
-  ~CPDF_FormField();
 
   CFX_WideString GetValue(bool bDefault) const;
   bool SetValue(const CFX_WideString& value, bool bDefault, bool bNotify);
@@ -156,7 +160,7 @@ class CPDF_FormField {
   CPDF_InterForm* const m_pForm;
   CPDF_Dictionary* m_pDict;
   std::vector<CPDF_FormControl*> m_ControlList;  // Owned by InterForm parent.
-  FX_FLOAT m_FontSize;
+  float m_FontSize;
   CPDF_Font* m_pFont;
 };
 

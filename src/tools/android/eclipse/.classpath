@@ -21,6 +21,8 @@ to the classpath for downstream development. See "additional_entries" below.
     <classpathentry kind="src" path="android_webview/javatests/src"/>
     <classpathentry kind="src" path="android_webview/test/shell/src"/>
     <classpathentry kind="src" path="android_webview/unittestjava/src"/>
+    <classpathentry kind="src" path="android_webview/tools/system_webview_shell/apk/src"/>
+    <classpathentry kind="src" path="android_webview/tools/system_webview_shell/layout_tests/src"/>
     <classpathentry kind="src" path="base/android/java/src"/>
     <classpathentry kind="src" path="base/android/javatests/src"/>
     <classpathentry kind="src" path="base/test/android/javatests/src"/>
@@ -54,6 +56,7 @@ to the classpath for downstream development. See "additional_entries" below.
     <classpathentry kind="src" path="components/location/android/java/src"/>
     <classpathentry kind="src" path="components/navigation_interception/android/java/src"/>
     <classpathentry kind="src" path="components/ntp_tiles/android/java/src"/>
+    <classpathentry kind="src" path="components/payments/content/android/java/src"/>
     <classpathentry kind="src" path="components/policy/android/java/src"/>
     <classpathentry kind="src" path="components/precache/android/java/src"/>
     <classpathentry kind="src" path="components/precache/android/javatests/src"/>
@@ -142,6 +145,7 @@ to the classpath for downstream development. See "additional_entries" below.
     <classpathentry kind="src" path="out/Debug/gen/enums/browsing_data_utils_java"/>
     <classpathentry kind="src" path="out/Debug/gen/enums/certificate_mime_types_java"/>
     <classpathentry kind="src" path="out/Debug/gen/enums/cert_verify_status_android_java"/>
+    <classpathentry kind="src" path="out/Debug/gen/enums/clear_browsing_data_tab_java"/>
     <classpathentry kind="src" path="out/Debug/gen/enums/chromium_url_request_java"/>
     <classpathentry kind="src" path="out/Debug/gen/enums/connectivity_check_result_java"/>
     <classpathentry kind="src" path="out/Debug/gen/enums/console_message_level_java"/>
@@ -213,21 +217,24 @@ to the classpath for downstream development. See "additional_entries" below.
     <classpathentry kind="src" path="out/Debug/java_proto/test_support_proto_java/src"/>
     <classpathentry kind="src" path="out/Debug/remoting_apk/gen"/>
     <classpathentry kind="lib" path="third_party/android_tools/sdk/extras/google/gcm/gcm-client/dist/gcm.jar" sourcepath="third_party/android_tools/sdk/extras/google/gcm/gcm-client/src"/>
-    <classpathentry kind="lib" path="third_party/android_tools/sdk/platforms/android-24/android.jar" sourcepath="third_party/android_tools/sdk/sources/">
+    <classpathentry kind="lib" path="third_party/android_tools/sdk/platforms/android-25/android.jar" sourcepath="third_party/android_tools/sdk/sources/">
         <attributes>
             <attribute name="javadoc_location" value="http://developer.android.com/reference/"/>
         </attributes>
     </classpathentry>
-    <classpathentry kind="lib" path="third_party/android_tools/sdk/platforms/android-24/data/layoutlib.jar" sourcepath="third_party/android_tools/sdk/sources/"/>
-    <classpathentry kind="lib" path="third_party/android_tools/sdk/platforms/android-24/uiautomator.jar" sourcepath="third_party/android_tools/sdk/sources"/>
+    <classpathentry kind="lib" path="third_party/android_tools/sdk/platforms/android-25/data/layoutlib.jar" sourcepath="third_party/android_tools/sdk/sources/"/>
+    <classpathentry kind="lib" path="third_party/android_tools/sdk/platforms/android-25/uiautomator.jar" sourcepath="third_party/android_tools/sdk/sources"/>
     <classpathentry kind="lib" path="third_party/android_tools/sdk/extras/android/support/design/libs/android-support-design.jar" sourcepath="third_party/android_tools/sdk/sources"/>
     <classpathentry kind="lib" path="third_party/android_tools/sdk/extras/android/support/v7/mediarouter/libs/android-support-v7-mediarouter.jar" sourcepath="third_party/android_tools/sdk/sources"/>
     <classpathentry kind="lib" path="third_party/android_tools/sdk/extras/android/support/v7/recyclerview/libs/android-support-v7-recyclerview.jar" sourcepath="third_party/android_tools/sdk/sources"/>
     <classpathentry kind="lib" path="third_party/android_tools/sdk/extras/android/support/v13/android-support-v13.jar" sourcepath="third_party/android_tools/sdk/sources"/>
     <classpathentry kind="lib" path="third_party/android_tools/sdk/extras/android/support/v7/appcompat/libs/android-support-v7-appcompat.jar" sourcepath="third_party/android_tools/sdk/sources"/>
+    <classpathentry kind="lib" path="third_party/android_support_test_runner/lib/runner-0.5-release-no-dep.jar"/>
+    <classpathentry kind="lib" path="third_party/android_support_test_runner/lib/rules-0.5.jar"/>
     <classpathentry kind="lib" path="third_party/bouncycastle/lib/bcprov-jdk16-1.46.jar"/>
     <classpathentry kind="lib" path="third_party/byte_buddy/lib/byte-buddy-1.4.17.jar"/>
     <classpathentry kind="lib" path="third_party/findbugs/lib/findbugs.jar"/>
+    <classpathentry kind="lib" path="third_party/hamcrest/lib/hamcrest-library-1.3.jar"/>
     <classpathentry kind="lib" path="third_party/intellij/lib/annotations-12.0.jar"/>
     <classpathentry kind="lib" path="third_party/junit/src/lib/hamcrest-core-1.3.jar" sourcepath="third_party/junit/src/lib/hamcrest-core-1.3-sources.jar"/>
     <classpathentry kind="lib" path="third_party/objenesis/lib/objenesis-2.4.jar"/>
@@ -254,7 +261,7 @@ to the classpath for downstream development. See "additional_entries" below.
     <classpathentry kind="lib" path="out/Debug/lib.java/components/invalidation/impl/proto_java.jar"/>
     <classpathentry kind="lib" path="out/Debug/lib.java/components/navigation_interception/android/navigation_interception_java.jar"/>
     <classpathentry kind="lib" path="out/Debug/lib.java/components/policy/android/policy_java.jar"/>
-    <classpathentry kind="lib" path="out/Debug/lib.java/components/payments/payment_request_java.jar"/>
+    <classpathentry kind="lib" path="out/Debug/lib.java/components/payments/content/payment_request_java.jar"/>
     <classpathentry kind="lib" path="out/Debug/lib.java/components/precache/android/precache_java.jar"/>
     <classpathentry kind="lib" path="out/Debug/lib.java/components/safe_json/android/safe_json_java.jar"/>
     <classpathentry kind="lib" path="out/Debug/lib.java/components/service_tab_launcher/service_tab_launcher_java.jar"/>

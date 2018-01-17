@@ -112,6 +112,10 @@ class TabProxyDelegate : public content::DevToolsExternalAgentProxyDelegate,
     return true;
   }
 
+  base::TimeTicks GetLastActivityTime() override {
+    return agent_host_ ? agent_host_->GetLastActivityTime() : base::TimeTicks();
+  }
+
   void SendMessageToBackend(const std::string& message) override {
     if (agent_host_)
       agent_host_->DispatchProtocolMessage(this, message);
@@ -180,14 +184,6 @@ std::string DevToolsManagerDelegateAndroid::GetTargetType(
       : nullptr;
   return tab ? DevToolsAgentHost::kTypePage :
       DevToolsAgentHost::kTypeOther;
-}
-
-std::string DevToolsManagerDelegateAndroid::GetTargetTitle(
-    content::RenderFrameHost* host) {
-  content::WebContents* web_contents =
-      content::WebContents::FromRenderFrameHost(host);
-  TabAndroid* tab = TabAndroid::FromWebContents(web_contents);
-  return tab ? base::UTF16ToUTF8(tab->GetTitle()) : "";
 }
 
 bool DevToolsManagerDelegateAndroid::DiscoverTargets(

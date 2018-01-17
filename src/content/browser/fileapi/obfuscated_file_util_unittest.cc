@@ -22,10 +22,7 @@
 #include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "content/browser/fileapi/mock_file_change_observer.h"
-#include "content/public/test/async_file_test_helper.h"
-#include "content/public/test/mock_special_storage_policy.h"
 #include "content/public/test/sandbox_file_system_test_helper.h"
-#include "content/public/test/test_file_system_context.h"
 #include "content/test/fileapi_test_file_set.h"
 #include "storage/browser/fileapi/external_mount_points.h"
 #include "storage/browser/fileapi/file_system_backend.h"
@@ -38,6 +35,9 @@
 #include "storage/browser/fileapi/sandbox_isolated_origin_database.h"
 #include "storage/browser/fileapi/sandbox_origin_database.h"
 #include "storage/browser/quota/quota_manager.h"
+#include "storage/browser/test/async_file_test_helper.h"
+#include "storage/browser/test/mock_special_storage_policy.h"
+#include "storage/browser/test/test_file_system_context.h"
 #include "storage/common/database/database_identifier.h"
 #include "storage/common/quota/quota_types.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -167,7 +167,14 @@ class ObfuscatedFileUtilTest : public testing::Test {
     quota_manager_ = new storage::QuotaManager(
         false /* is_incognito */, data_dir_.GetPath(),
         base::ThreadTaskRunnerHandle::Get().get(),
-        base::ThreadTaskRunnerHandle::Get().get(), storage_policy_.get());
+        base::ThreadTaskRunnerHandle::Get().get(), storage_policy_.get(),
+        storage::GetQuotaSettingsFunc());
+    storage::QuotaSettings settings;
+    settings.per_host_quota = 25 * 1024 * 1024;
+    settings.pool_size = settings.per_host_quota * 5;
+    settings.must_remain_available = 10 * 1024 * 1024;
+    settings.refresh_interval = base::TimeDelta::Max();
+    quota_manager_->SetQuotaSettings(settings);
 
     // Every time we create a new sandbox_file_system helper,
     // it creates another context, which creates another path manager,

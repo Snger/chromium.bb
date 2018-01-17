@@ -28,11 +28,13 @@
 #include "media/base/text_renderer.h"
 #include "media/base/text_track_config.h"
 #include "media/base/time_delta_interpolator.h"
+#include "testing/gmock_mutant.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "ui/gfx/geometry/size.h"
 
 using ::testing::_;
 using ::testing::AnyNumber;
+using ::testing::CreateFunctor;
 using ::testing::DeleteArg;
 using ::testing::DoAll;
 // TODO(scherkus): Remove InSequence after refactoring Pipeline.
@@ -105,8 +107,8 @@ class PipelineImplTest : public ::testing::Test {
         renderer_client_(nullptr) {
     // SetDemuxerExpectations() adds overriding expectations for expected
     // non-NULL streams.
-    DemuxerStream* null_pointer = NULL;
-    EXPECT_CALL(*demuxer_, GetStream(_)).WillRepeatedly(Return(null_pointer));
+    std::vector<DemuxerStream*> empty;
+    EXPECT_CALL(*demuxer_, GetAllStreams()).WillRepeatedly(Return(empty));
 
     EXPECT_CALL(*demuxer_, GetTimelineOffset())
         .WillRepeatedly(Return(base::Time()));
@@ -147,11 +149,13 @@ class PipelineImplTest : public ::testing::Test {
                         PostCallback<1>(PIPELINE_OK)));
 
     // Configure the demuxer to return the streams.
+    std::vector<DemuxerStream*> mock_streams;
     for (size_t i = 0; i < streams->size(); ++i) {
       DemuxerStream* stream = (*streams)[i];
-      EXPECT_CALL(*demuxer_, GetStream(stream->type()))
-          .WillRepeatedly(Return(stream));
+      mock_streams.push_back(stream);
     }
+    EXPECT_CALL(*demuxer_, GetAllStreams())
+        .WillRepeatedly(Return(mock_streams));
   }
 
   void SetDemuxerExpectations(MockDemuxerStreamVector* streams) {
@@ -732,8 +736,7 @@ TEST_F(PipelineImplTest, NoMessageDuringTearDownFromError) {
   // Trigger additional requests on the pipeline during tear down from error.
   base::Callback<void(PipelineStatus)> cb =
       base::Bind(&TestNoCallsAfterError, pipeline_.get(), &message_loop_);
-  ON_CALL(callbacks_, OnError(_))
-      .WillByDefault(Invoke(&cb, &base::Callback<void(PipelineStatus)>::Run));
+  ON_CALL(callbacks_, OnError(_)).WillByDefault(Invoke(CreateFunctor(cb)));
 
   base::TimeDelta seek_time = base::TimeDelta::FromSeconds(5);
 

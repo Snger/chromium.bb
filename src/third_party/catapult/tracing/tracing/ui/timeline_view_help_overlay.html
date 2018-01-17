@@ -236,9 +236,10 @@ Polymer({
   ready: function() {
     var mod = tr.isMac ? 'cmd ' : 'ctrl';
     var spans = Polymer.dom(this.root).querySelectorAll(
-      'span.mod');
-    for (var i = 0; i < spans.length; i++)
+        'span.mod');
+    for (var i = 0; i < spans.length; i++) {
       Polymer.dom(spans[i]).textContent = mod;
+    }
   }
 });
 </script>

@@ -8,8 +8,6 @@
 
 #include "cc/layers/layer_impl.h"
 #include "cc/layers/solid_color_scrollbar_layer_impl.h"
-#include "cc/proto/cc_conversions.h"
-#include "cc/proto/layer.pb.h"
 
 namespace cc {
 
@@ -41,7 +39,7 @@ SolidColorScrollbarLayer::SolidColorScrollbarLayerInputs::
                                    int track_start,
                                    bool is_left_side_vertical_scrollbar,
                                    int scroll_layer_id)
-    : scroll_layer_id(Layer::INVALID_ID),
+    : scroll_layer_id(scroll_layer_id),
       orientation(orientation),
       thumb_thickness(thumb_thickness),
       track_start(track_start),
@@ -68,22 +66,6 @@ SolidColorScrollbarLayer::~SolidColorScrollbarLayer() {}
 
 ScrollbarLayerInterface* SolidColorScrollbarLayer::ToScrollbarLayer() {
   return this;
-}
-
-void SolidColorScrollbarLayer::ToLayerNodeProto(proto::LayerNode* proto) const {
-  Layer::ToLayerNodeProto(proto);
-
-  proto::SolidColorScrollbarLayerProperties* scrollbar =
-      proto->mutable_solid_scrollbar();
-  scrollbar->set_scroll_layer_id(
-      solid_color_scrollbar_layer_inputs_.scroll_layer_id);
-  scrollbar->set_thumb_thickness(
-      solid_color_scrollbar_layer_inputs_.thumb_thickness);
-  scrollbar->set_track_start(solid_color_scrollbar_layer_inputs_.track_start);
-  scrollbar->set_is_left_side_vertical_scrollbar(
-      solid_color_scrollbar_layer_inputs_.is_left_side_vertical_scrollbar);
-  scrollbar->set_orientation(ScrollbarOrientationToProto(
-      solid_color_scrollbar_layer_inputs_.orientation));
 }
 
 void SolidColorScrollbarLayer::SetOpacity(float opacity) {
@@ -127,11 +109,6 @@ void SolidColorScrollbarLayer::SetScrollLayer(int layer_id) {
 
 ScrollbarOrientation SolidColorScrollbarLayer::orientation() const {
   return solid_color_scrollbar_layer_inputs_.orientation;
-}
-
-void SolidColorScrollbarLayer::SetTypeForProtoSerialization(
-    proto::LayerNode* proto) const {
-  proto->set_type(proto::LayerNode::SOLID_COLOR_SCROLLBAR_LAYER);
 }
 
 }  // namespace cc

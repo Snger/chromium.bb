@@ -18,7 +18,7 @@
 
 #define PWLCB_DEFAULTFONTSIZE 12.0f
 
-bool CPWL_CBListBox::OnLButtonUp(const CFX_FloatPoint& point, uint32_t nFlag) {
+bool CPWL_CBListBox::OnLButtonUp(const CFX_PointF& point, uint32_t nFlag) {
   CPWL_Wnd::OnLButtonUp(point, nFlag);
 
   if (!m_bMouseDown)
@@ -102,14 +102,14 @@ void CPWL_CBButton::GetThisAppearanceStream(CFX_ByteTextBuf& sAppStream) {
   if (IsVisible() && !rectWnd.IsEmpty()) {
     CFX_ByteTextBuf sButton;
 
-    CFX_FloatPoint ptCenter = GetCenterPoint();
+    CFX_PointF ptCenter = GetCenterPoint();
 
-    CFX_FloatPoint pt1(ptCenter.x - PWL_CBBUTTON_TRIANGLE_HALFLEN,
-                       ptCenter.y + PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
-    CFX_FloatPoint pt2(ptCenter.x + PWL_CBBUTTON_TRIANGLE_HALFLEN,
-                       ptCenter.y + PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
-    CFX_FloatPoint pt3(ptCenter.x,
-                       ptCenter.y - PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
+    CFX_PointF pt1(ptCenter.x - PWL_CBBUTTON_TRIANGLE_HALFLEN,
+                   ptCenter.y + PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
+    CFX_PointF pt2(ptCenter.x + PWL_CBBUTTON_TRIANGLE_HALFLEN,
+                   ptCenter.y + PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
+    CFX_PointF pt3(ptCenter.x,
+                   ptCenter.y - PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
 
     if (IsFloatBigger(rectWnd.right - rectWnd.left,
                       PWL_CBBUTTON_TRIANGLE_HALFLEN * 2) &&
@@ -133,36 +133,33 @@ void CPWL_CBButton::DrawThisAppearance(CFX_RenderDevice* pDevice,
   CFX_FloatRect rectWnd = CPWL_Wnd::GetWindowRect();
 
   if (IsVisible() && !rectWnd.IsEmpty()) {
-    CFX_FloatPoint ptCenter = GetCenterPoint();
+    CFX_PointF ptCenter = GetCenterPoint();
 
-    CFX_FloatPoint pt1(ptCenter.x - PWL_CBBUTTON_TRIANGLE_HALFLEN,
-                       ptCenter.y + PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
-    CFX_FloatPoint pt2(ptCenter.x + PWL_CBBUTTON_TRIANGLE_HALFLEN,
-                       ptCenter.y + PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
-    CFX_FloatPoint pt3(ptCenter.x,
-                       ptCenter.y - PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
+    CFX_PointF pt1(ptCenter.x - PWL_CBBUTTON_TRIANGLE_HALFLEN,
+                   ptCenter.y + PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
+    CFX_PointF pt2(ptCenter.x + PWL_CBBUTTON_TRIANGLE_HALFLEN,
+                   ptCenter.y + PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
+    CFX_PointF pt3(ptCenter.x,
+                   ptCenter.y - PWL_CBBUTTON_TRIANGLE_HALFLEN * 0.5f);
 
     if (IsFloatBigger(rectWnd.right - rectWnd.left,
                       PWL_CBBUTTON_TRIANGLE_HALFLEN * 2) &&
         IsFloatBigger(rectWnd.top - rectWnd.bottom,
                       PWL_CBBUTTON_TRIANGLE_HALFLEN)) {
       CFX_PathData path;
-
-      path.SetPointCount(4);
-      path.SetPoint(0, pt1.x, pt1.y, FXPT_MOVETO);
-      path.SetPoint(1, pt2.x, pt2.y, FXPT_LINETO);
-      path.SetPoint(2, pt3.x, pt3.y, FXPT_LINETO);
-      path.SetPoint(3, pt1.x, pt1.y, FXPT_LINETO);
+      path.AppendPoint(pt1, FXPT_TYPE::MoveTo, false);
+      path.AppendPoint(pt2, FXPT_TYPE::LineTo, false);
+      path.AppendPoint(pt3, FXPT_TYPE::LineTo, false);
+      path.AppendPoint(pt1, FXPT_TYPE::LineTo, false);
 
       pDevice->DrawPath(&path, pUser2Device, nullptr,
-                        CPWL_Utils::PWLColorToFXColor(PWL_DEFAULT_BLACKCOLOR,
-                                                      GetTransparency()),
-                        0, FXFILL_ALTERNATE);
+                        PWL_DEFAULT_BLACKCOLOR.ToFXColor(GetTransparency()), 0,
+                        FXFILL_ALTERNATE);
     }
   }
 }
 
-bool CPWL_CBButton::OnLButtonDown(const CFX_FloatPoint& point, uint32_t nFlag) {
+bool CPWL_CBButton::OnLButtonDown(const CFX_PointF& point, uint32_t nFlag) {
   CPWL_Wnd::OnLButtonDown(point, nFlag);
 
   SetCapture();
@@ -175,7 +172,7 @@ bool CPWL_CBButton::OnLButtonDown(const CFX_FloatPoint& point, uint32_t nFlag) {
   return true;
 }
 
-bool CPWL_CBButton::OnLButtonUp(const CFX_FloatPoint& point, uint32_t nFlag) {
+bool CPWL_CBButton::OnLButtonUp(const CFX_PointF& point, uint32_t nFlag) {
   CPWL_Wnd::OnLButtonUp(point, nFlag);
 
   ReleaseCapture();
@@ -342,8 +339,8 @@ void CPWL_ComboBox::RePosChildWnd() {
     CFX_FloatRect rcEdit = rcClient;
     CFX_FloatRect rcList = CPWL_Wnd::GetWindowRect();
 
-    FX_FLOAT fOldWindowHeight = m_rcOldWindow.Height();
-    FX_FLOAT fOldClientHeight = fOldWindowHeight - GetBorderWidth() * 2;
+    float fOldWindowHeight = m_rcOldWindow.Height();
+    float fOldClientHeight = fOldWindowHeight - GetBorderWidth() * 2;
 
     switch (m_nPopupWhere) {
       case 0:
@@ -443,7 +440,7 @@ void CPWL_ComboBox::SetPopup(bool bPopup) {
     return;
   if (bPopup == m_bPopup)
     return;
-  FX_FLOAT fListHeight = m_pList->GetContentRect().Height();
+  float fListHeight = m_pList->GetContentRect().Height();
   if (!IsFloatBigger(fListHeight, 0.0f))
     return;
 
@@ -456,12 +453,12 @@ void CPWL_ComboBox::SetPopup(bool bPopup) {
         return;
 #endif  // PDF_ENABLE_XFA
       int32_t nWhere = 0;
-      FX_FLOAT fPopupRet = 0.0f;
-      FX_FLOAT fPopupMin = 0.0f;
+      float fPopupRet = 0.0f;
+      float fPopupMin = 0.0f;
       if (m_pList->GetCount() > 3)
         fPopupMin =
             m_pList->GetFirstHeight() * 3 + m_pList->GetBorderWidth() * 2;
-      FX_FLOAT fPopupMax = fListHeight + m_pList->GetBorderWidth() * 2;
+      float fPopupMax = fListHeight + m_pList->GetBorderWidth() * 2;
       m_pFillerNotify->QueryWherePopup(GetAttachedData(), fPopupMin, fPopupMax,
                                        nWhere, fPopupRet);
 

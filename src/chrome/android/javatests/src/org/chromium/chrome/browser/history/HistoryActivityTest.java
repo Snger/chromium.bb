@@ -196,7 +196,7 @@ public class HistoryActivityTest extends BaseActivityInstrumentationTestCase<His
 
     @SmallTest
     public void testPrivacyDisclaimers_SignedOut() {
-        ChromeSigninController signinController = ChromeSigninController.get(getActivity());
+        ChromeSigninController signinController = ChromeSigninController.get();
         signinController.setSignedInAccountName(null);
 
         assertEquals(View.GONE, mAdapter.getSignedInNotSyncedViewForTests().getVisibility());
@@ -207,7 +207,7 @@ public class HistoryActivityTest extends BaseActivityInstrumentationTestCase<His
 
     @SmallTest
     public void testPrivacyDisclaimers_SignedIn() {
-        ChromeSigninController signinController = ChromeSigninController.get(getActivity());
+        ChromeSigninController signinController = ChromeSigninController.get();
         signinController.setSignedInAccountName("test@gmail.com");
 
         setHasOtherFormsOfBrowsingData(false, false);
@@ -222,7 +222,7 @@ public class HistoryActivityTest extends BaseActivityInstrumentationTestCase<His
 
     @SmallTest
     public void testPrivacyDisclaimers_SignedInSynced() {
-        ChromeSigninController signinController = ChromeSigninController.get(getActivity());
+        ChromeSigninController signinController = ChromeSigninController.get();
         signinController.setSignedInAccountName("test@gmail.com");
 
         setHasOtherFormsOfBrowsingData(false, true);
@@ -237,7 +237,7 @@ public class HistoryActivityTest extends BaseActivityInstrumentationTestCase<His
 
     @SmallTest
     public void testPrivacyDisclaimers_SignedInSyncedAndOtherForms() {
-        ChromeSigninController signinController = ChromeSigninController.get(getActivity());
+        ChromeSigninController signinController = ChromeSigninController.get();
         signinController.setSignedInAccountName("test@gmail.com");
 
         setHasOtherFormsOfBrowsingData(true, true);
@@ -371,7 +371,7 @@ public class HistoryActivityTest extends BaseActivityInstrumentationTestCase<His
 
     @SmallTest
     public void testToolbarShadow() throws Exception {
-        View toolbarShadow = mHistoryManager.getToolbarShadowForTests();
+        View toolbarShadow = mHistoryManager.getSelectableListLayout().getToolbarShadowForTests();
         assertEquals(View.GONE, toolbarShadow.getVisibility());
 
         toggleItemSelection(2);
@@ -386,7 +386,7 @@ public class HistoryActivityTest extends BaseActivityInstrumentationTestCase<His
     @SmallTest
     public void testSearchView() throws Exception {
         final HistoryManagerToolbar toolbar = mHistoryManager.getToolbarForTests();
-        View toolbarShadow = mHistoryManager.getToolbarShadowForTests();
+        View toolbarShadow = mHistoryManager.getSelectableListLayout().getToolbarShadowForTests();
         View toolbarSearchView = toolbar.getSearchViewForTests();
         assertEquals(View.GONE, toolbarShadow.getVisibility());
         assertEquals(View.GONE, toolbarSearchView.getVisibility());
@@ -461,6 +461,7 @@ public class HistoryActivityTest extends BaseActivityInstrumentationTestCase<His
         });
 
         // Check that the copy link item is not visible when more than one item is selected.
+        toggleItemSelection(2);
         toggleItemSelection(3);
         assertFalse(toolbar.getItemById(R.id.selection_mode_copy_link).isVisible());
     }

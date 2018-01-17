@@ -506,8 +506,7 @@ void SkPicturePlayback::handleOp(SkReadBuffer* reader,
             const SkScalar bottom = reader->readScalar();
             BREAK_ON_READ_ERROR(reader);
 
-            SkRect clip;
-            canvas->getClipBounds(&clip);
+            SkRect clip = canvas->getLocalClipBounds();
             if (top < clip.fBottom && bottom > clip.fTop && paint && text.text()) {
                 canvas->drawPosText(text.text(), text.length(), pos, *paint);
             }
@@ -536,8 +535,7 @@ void SkPicturePlayback::handleOp(SkReadBuffer* reader,
             const SkScalar top = *xpos++;
             const SkScalar bottom = *xpos++;
             const SkScalar constY = *xpos++;
-            SkRect clip;
-            canvas->getClipBounds(&clip);
+            SkRect clip = canvas->getLocalClipBounds();
             if (top < clip.fBottom && bottom > clip.fTop && paint && text.text()) {
                 canvas->drawPosTextH(text.text(), text.length(), xpos, constY, *paint);
             }
@@ -613,8 +611,7 @@ void SkPicturePlayback::handleOp(SkReadBuffer* reader,
             // ptr[1] == y
             // ptr[2] == top
             // ptr[3] == bottom
-            SkRect clip;
-            canvas->getClipBounds(&clip);
+            SkRect clip = canvas->getLocalClipBounds();
             float top = ptr[2];
             float bottom = ptr[3];
             if (top < clip.fBottom && bottom > clip.fTop && paint && text.text()) {
@@ -651,10 +648,10 @@ void SkPicturePlayback::handleOp(SkReadBuffer* reader,
                 canvas->drawTextRSXform(text.text(), text.length(), xform, cull, *paint);
             }
         } break;
-        case DRAW_VERTICES: {
+        case DRAW_VERTICES_RETIRED_03_2017: {
             const SkPaint* paint = fPictureData->getPaint(reader);
             DrawVertexFlags flags = (DrawVertexFlags)reader->readInt();
-            SkCanvas::VertexMode vmode = (SkCanvas::VertexMode)reader->readInt();
+            SkVertices::VertexMode vmode = (SkVertices::VertexMode)reader->readInt();
             int vCount = reader->readInt();
             const SkPoint* verts = (const SkPoint*)reader->skip(vCount * sizeof(SkPoint));
             const SkPoint* texs = nullptr;
@@ -681,8 +678,19 @@ void SkPicturePlayback::handleOp(SkReadBuffer* reader,
             BREAK_ON_READ_ERROR(reader);
 
             if (paint) {
-                canvas->drawVertices(vmode, vCount, verts, texs, colors,
-                                     bmode, indices, iCount, *paint);
+                canvas->drawVertices(SkVertices::MakeCopy(vmode, vCount, verts, texs, colors,
+                                                          iCount, indices), bmode, *paint);
+            }
+        } break;
+        case DRAW_VERTICES_OBJECT: {
+            const SkPaint* paint = fPictureData->getPaint(reader);
+            const SkVertices* vertices = fPictureData->getVertices(reader);
+            SkBlendMode bmode = static_cast<SkBlendMode>(reader->readInt());
+
+            BREAK_ON_READ_ERROR(reader);
+
+            if (paint && vertices) {
+                canvas->drawVertices(vertices, bmode, *paint);
             }
         } break;
         case RESTORE:

@@ -129,8 +129,9 @@ class VIEWS_EXPORT GridLayout : public LayoutManager {
   void StartRowWithPadding(float vertical_resize, int column_set_id,
                            float padding_resize, int padding);
 
-  // Starts a new row with the specified column set.
-  void StartRow(float vertical_resize, int column_set_id);
+  // Starts a new row with the specified column set and height (0 for
+  // unspecified height).
+  void StartRow(float vertical_resize, int column_set_id, int height = 0);
 
   // Advances past columns. Use this when the current column should not
   // contain any views.
@@ -299,6 +300,11 @@ class VIEWS_EXPORT ColumnSet {
   // LinkColumnSizes(0, 1, -1);
   void LinkColumnSizes(int first, ...);
 
+  // When sizing linked columns, columns wider than |size_limit| are ignored.
+  void set_linked_column_size_limit(int size_limit) {
+    linked_column_size_limit_ = size_limit;
+  }
+
   // ID of this ColumnSet.
   int id() const { return id_; }
 
@@ -324,7 +330,7 @@ class VIEWS_EXPORT ColumnSet {
   void AccumulateMasterColumns();
 
   // Sets the size of each linked column to be the same.
-  void UnifySameSizedColumnSizes();
+  void UnifyLinkedColumnSizes();
 
   // Updates the remaining width field of the ViewState from that of the
   // columns the view spans.
@@ -353,6 +359,10 @@ class VIEWS_EXPORT ColumnSet {
 
   // ID for this columnset.
   const int id_;
+
+  // Columns wider than this limit will be ignored when computing linked
+  // columns' sizes.
+  int linked_column_size_limit_;
 
   // The columns.
   std::vector<std::unique_ptr<Column>> columns_;

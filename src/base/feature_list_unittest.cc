@@ -14,6 +14,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/persistent_memory_allocator.h"
+#include "base/strings/string_piece.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -22,18 +23,18 @@ namespace base {
 
 namespace {
 
-const char kFeatureOnByDefaultName[] = "OnByDefault";
+constexpr char kFeatureOnByDefaultName[] = "OnByDefault";
 struct Feature kFeatureOnByDefault {
   kFeatureOnByDefaultName, FEATURE_ENABLED_BY_DEFAULT
 };
 
-const char kFeatureOffByDefaultName[] = "OffByDefault";
+constexpr char kFeatureOffByDefaultName[] = "OffByDefault";
 struct Feature kFeatureOffByDefault {
   kFeatureOffByDefaultName, FEATURE_DISABLED_BY_DEFAULT
 };
 
 std::string SortFeatureListString(const std::string& feature_list) {
-  std::vector<std::string> features =
+  std::vector<base::StringPiece> features =
       FeatureList::SplitFeatureListString(feature_list);
   std::sort(features.begin(), features.end());
   return JoinString(features, ",");

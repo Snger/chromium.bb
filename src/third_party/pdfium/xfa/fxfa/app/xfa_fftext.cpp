@@ -13,58 +13,61 @@
 #include "xfa/fxfa/app/cxfa_textlayout.h"
 #include "xfa/fxfa/app/xfa_ffdraw.h"
 #include "xfa/fxfa/app/xfa_textpiece.h"
-#include "xfa/fxfa/xfa_ffapp.h"
-#include "xfa/fxfa/xfa_ffdoc.h"
-#include "xfa/fxfa/xfa_ffpageview.h"
-#include "xfa/fxfa/xfa_ffwidget.h"
+#include "xfa/fxfa/cxfa_ffapp.h"
+#include "xfa/fxfa/cxfa_ffdoc.h"
+#include "xfa/fxfa/cxfa_ffpageview.h"
+#include "xfa/fxfa/cxfa_ffwidget.h"
 #include "xfa/fxgraphics/cfx_graphics.h"
 
-CXFA_FFText::CXFA_FFText(CXFA_FFPageView* pPageView, CXFA_WidgetAcc* pDataAcc)
-    : CXFA_FFDraw(pPageView, pDataAcc) {}
+CXFA_FFText::CXFA_FFText(CXFA_WidgetAcc* pDataAcc) : CXFA_FFDraw(pDataAcc) {}
+
 CXFA_FFText::~CXFA_FFText() {}
+
 void CXFA_FFText::RenderWidget(CFX_Graphics* pGS,
                                CFX_Matrix* pMatrix,
                                uint32_t dwStatus) {
-  if (!IsMatchVisibleStatus(dwStatus)) {
+  if (!IsMatchVisibleStatus(dwStatus))
     return;
-  }
-  {
-    CFX_Matrix mtRotate;
-    GetRotateMatrix(mtRotate);
-    if (pMatrix) {
-      mtRotate.Concat(*pMatrix);
-    }
-    CXFA_FFWidget::RenderWidget(pGS, &mtRotate, dwStatus);
-    CXFA_TextLayout* pTextLayout = m_pDataAcc->GetTextLayout();
-    if (pTextLayout) {
-      CFX_RenderDevice* pRenderDevice = pGS->GetRenderDevice();
-      CFX_RectF rtText;
-      GetRectWithoutRotate(rtText);
-      if (CXFA_Margin mgWidget = m_pDataAcc->GetMargin()) {
-        CXFA_LayoutItem* pItem = this;
-        if (!pItem->GetPrev() && !pItem->GetNext()) {
-          XFA_RectWidthoutMargin(rtText, mgWidget);
-        } else {
-          FX_FLOAT fLeftInset, fRightInset, fTopInset = 0, fBottomInset = 0;
-          mgWidget.GetLeftInset(fLeftInset);
-          mgWidget.GetRightInset(fRightInset);
-          if (!pItem->GetPrev()) {
-            mgWidget.GetTopInset(fTopInset);
-          } else if (!pItem->GetNext()) {
-            mgWidget.GetBottomInset(fBottomInset);
-          }
-          rtText.Deflate(fLeftInset, fTopInset, fRightInset, fBottomInset);
-        }
-      }
-      CFX_Matrix mt;
-      mt.Set(1, 0, 0, 1, rtText.left, rtText.top);
-      CFX_RectF rtClip = rtText;
-      mtRotate.TransformRect(rtClip);
-      mt.Concat(mtRotate);
-      pTextLayout->DrawString(pRenderDevice, mt, rtClip, GetIndex());
+
+  CFX_Matrix mtRotate = GetRotateMatrix();
+  if (pMatrix)
+    mtRotate.Concat(*pMatrix);
+
+  CXFA_FFWidget::RenderWidget(pGS, &mtRotate, dwStatus);
+
+  CXFA_TextLayout* pTextLayout = m_pDataAcc->GetTextLayout();
+  if (!pTextLayout)
+    return;
+
+  CFX_RenderDevice* pRenderDevice = pGS->GetRenderDevice();
+  CFX_RectF rtText = GetRectWithoutRotate();
+  if (CXFA_Margin mgWidget = m_pDataAcc->GetMargin()) {
+    CXFA_LayoutItem* pItem = this;
+    if (!pItem->GetPrev() && !pItem->GetNext()) {
+      XFA_RectWidthoutMargin(rtText, mgWidget);
+    } else {
+      float fLeftInset;
+      float fRightInset;
+      float fTopInset = 0;
+      float fBottomInset = 0;
+      mgWidget.GetLeftInset(fLeftInset);
+      mgWidget.GetRightInset(fRightInset);
+      if (!pItem->GetPrev())
+        mgWidget.GetTopInset(fTopInset);
+      else if (!pItem->GetNext())
+        mgWidget.GetBottomInset(fBottomInset);
+
+      rtText.Deflate(fLeftInset, fTopInset, fRightInset, fBottomInset);
     }
   }
+
+  CFX_Matrix mt(1, 0, 0, 1, rtText.left, rtText.top);
+  CFX_RectF rtClip = rtText;
+  mtRotate.TransformRect(rtClip);
+  mt.Concat(mtRotate);
+  pTextLayout->DrawString(pRenderDevice, mt, rtClip, GetIndex());
 }
+
 bool CXFA_FFText::IsLoaded() {
   CXFA_TextLayout* pTextLayout = m_pDataAcc->GetTextLayout();
   return pTextLayout && !pTextLayout->m_bHasBlock;
@@ -72,28 +75,27 @@ bool CXFA_FFText::IsLoaded() {
 bool CXFA_FFText::PerformLayout() {
   CXFA_FFDraw::PerformLayout();
   CXFA_TextLayout* pTextLayout = m_pDataAcc->GetTextLayout();
-  if (!pTextLayout) {
+  if (!pTextLayout)
     return false;
-  }
-  if (!pTextLayout->m_bHasBlock) {
+
+  if (!pTextLayout->m_bHasBlock)
     return true;
-  }
-  pTextLayout->m_Blocks.RemoveAll();
+
+  pTextLayout->m_Blocks.clear();
   CXFA_LayoutItem* pItem = this;
   if (!pItem->GetPrev() && !pItem->GetNext()) {
     return true;
   }
   pItem = pItem->GetFirst();
   while (pItem) {
-    CFX_RectF rtText;
-    pItem->GetRect(rtText);
+    CFX_RectF rtText = pItem->GetRect(false);
     if (CXFA_Margin mgWidget = m_pDataAcc->GetMargin()) {
       if (!pItem->GetPrev()) {
-        FX_FLOAT fTopInset;
+        float fTopInset;
         mgWidget.GetTopInset(fTopInset);
         rtText.height -= fTopInset;
       } else if (!pItem->GetNext()) {
-        FX_FLOAT fBottomInset;
+        float fBottomInset;
         mgWidget.GetBottomInset(fBottomInset);
         rtText.height -= fBottomInset;
       }
@@ -104,73 +106,58 @@ bool CXFA_FFText::PerformLayout() {
   pTextLayout->m_bHasBlock = false;
   return true;
 }
-bool CXFA_FFText::OnLButtonDown(uint32_t dwFlags, FX_FLOAT fx, FX_FLOAT fy) {
-  CFX_RectF rtBox;
-  GetRectWithoutRotate(rtBox);
-  if (!rtBox.Contains(fx, fy)) {
+
+bool CXFA_FFText::OnLButtonDown(uint32_t dwFlags, const CFX_PointF& point) {
+  if (!GetRectWithoutRotate().Contains(point))
     return false;
-  }
-  const FX_WCHAR* wsURLContent = GetLinkURLAtPoint(fx, fy);
-  if (!wsURLContent) {
+
+  const wchar_t* wsURLContent = GetLinkURLAtPoint(point);
+  if (!wsURLContent)
     return false;
-  }
+
   SetButtonDown(true);
   return true;
 }
-bool CXFA_FFText::OnMouseMove(uint32_t dwFlags, FX_FLOAT fx, FX_FLOAT fy) {
-  CFX_RectF rtBox;
-  GetRectWithoutRotate(rtBox);
-  if (!rtBox.Contains(fx, fy)) {
-    return false;
-  }
-  const FX_WCHAR* wsURLContent = GetLinkURLAtPoint(fx, fy);
-  if (!wsURLContent) {
-    return false;
-  }
-  return true;
+
+bool CXFA_FFText::OnMouseMove(uint32_t dwFlags, const CFX_PointF& point) {
+  return GetRectWithoutRotate().Contains(point) && !!GetLinkURLAtPoint(point);
 }
-bool CXFA_FFText::OnLButtonUp(uint32_t dwFlags, FX_FLOAT fx, FX_FLOAT fy) {
-  if (!IsButtonDown()) {
+
+bool CXFA_FFText::OnLButtonUp(uint32_t dwFlags, const CFX_PointF& point) {
+  if (!IsButtonDown())
     return false;
-  }
+
   SetButtonDown(false);
-  const FX_WCHAR* wsURLContent = GetLinkURLAtPoint(fx, fy);
-  if (!wsURLContent) {
+  const wchar_t* wsURLContent = GetLinkURLAtPoint(point);
+  if (!wsURLContent)
     return false;
-  }
+
   CXFA_FFDoc* pDoc = GetDoc();
   pDoc->GetDocEnvironment()->GotoURL(pDoc, wsURLContent);
   return true;
 }
-FWL_WidgetHit CXFA_FFText::OnHitTest(FX_FLOAT fx, FX_FLOAT fy) {
-  CFX_RectF rtBox;
-  GetRectWithoutRotate(rtBox);
-  if (!rtBox.Contains(fx, fy))
+
+FWL_WidgetHit CXFA_FFText::OnHitTest(const CFX_PointF& point) {
+  if (!GetRectWithoutRotate().Contains(point))
     return FWL_WidgetHit::Unknown;
-  if (!GetLinkURLAtPoint(fx, fy))
+  if (!GetLinkURLAtPoint(point))
     return FWL_WidgetHit::Unknown;
   return FWL_WidgetHit::HyperLink;
 }
-const FX_WCHAR* CXFA_FFText::GetLinkURLAtPoint(FX_FLOAT fx, FX_FLOAT fy) {
+
+const wchar_t* CXFA_FFText::GetLinkURLAtPoint(const CFX_PointF& point) {
   CXFA_TextLayout* pTextLayout = m_pDataAcc->GetTextLayout();
   if (!pTextLayout)
     return nullptr;
 
-  FX_FLOAT x(fx);
-  FX_FLOAT y(fy);
-  FWLToClient(x, y);
-
+  CFX_RectF rect = GetRectWithoutRotate();
   for (const auto& pPieceLine : *pTextLayout->GetPieceLines()) {
     for (const auto& pPiece : pPieceLine->m_textPieces) {
-      if (pPiece->pLinkData && pPiece->rtPiece.Contains(x, y))
+      if (pPiece->pLinkData &&
+          pPiece->rtPiece.Contains(point - rect.TopLeft())) {
         return pPiece->pLinkData->GetLinkURL();
+      }
     }
   }
   return nullptr;
-}
-void CXFA_FFText::FWLToClient(FX_FLOAT& fx, FX_FLOAT& fy) {
-  CFX_RectF rtWidget;
-  GetRectWithoutRotate(rtWidget);
-  fx -= rtWidget.left;
-  fy -= rtWidget.top;
 }

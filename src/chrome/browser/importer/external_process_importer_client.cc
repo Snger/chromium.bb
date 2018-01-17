@@ -19,7 +19,6 @@
 #include "components/strings/grit/components_strings.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/utility_process_host.h"
-#include "services/service_manager/public/cpp/interface_provider.h"
 #include "ui/base/l10n/l10n_util.h"
 
 using content::BrowserThread;
@@ -91,8 +90,7 @@ void ExternalProcessImporterClient::Cancel() {
     return;
 
   cancelled_ = true;
-  if (utility_process_host_)
-    profile_import_->CancelImport();
+  profile_import_->CancelImport();
   CloseMojoHandles();
   Release();
 }
@@ -292,26 +290,24 @@ void ExternalProcessImporterClient::Cleanup() {
 void ExternalProcessImporterClient::StartProcessOnIOThread(
     BrowserThread::ID thread_id,
     chrome::mojom::ProfileImportRequest request) {
-  utility_process_host_ =
-      UtilityProcessHost::Create(
-          this, BrowserThread::GetTaskRunnerForThread(thread_id).get())
-          ->AsWeakPtr();
-  utility_process_host_->SetName(l10n_util::GetStringUTF16(
-      IDS_UTILITY_PROCESS_PROFILE_IMPORTER_NAME));
-  utility_process_host_->DisableSandbox();
+  // Deletes itself when the external process dies.
+  UtilityProcessHost* utility_process_host = UtilityProcessHost::Create(
+      this, BrowserThread::GetTaskRunnerForThread(thread_id).get());
+  utility_process_host->SetName(
+      l10n_util::GetStringUTF16(IDS_UTILITY_PROCESS_PROFILE_IMPORTER_NAME));
+  utility_process_host->DisableSandbox();
 
 #if defined(OS_MACOSX)
   base::EnvironmentMap env;
   std::string dylib_path = GetFirefoxDylibPath().value();
   if (!dylib_path.empty())
     env["DYLD_FALLBACK_LIBRARY_PATH"] = dylib_path;
-  utility_process_host_->SetEnv(env);
+  utility_process_host->SetEnv(env);
 #endif
 
-  utility_process_host_->Start();
+  utility_process_host->Start();
   chrome::mojom::ProfileImportPtr profile_import;
-  utility_process_host_->GetRemoteInterfaces()->GetInterface(
-      std::move(request));
+  BindInterface(utility_process_host, std::move(request));
 }
 
 void ExternalProcessImporterClient::CloseMojoHandles() {

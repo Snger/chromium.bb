@@ -11,18 +11,11 @@
 #include "SkImageEncoder.h"
 
 struct SkEncodeOptions {
-    enum class PremulBehavior {
-         // Convert to a linear space before premultiplying or unpremultiplying.
-        kGammaCorrect,
-
-        // Ignore the transfer function when premultiplying or unpremultiplying.
-        kLegacy,
-    };
-
-    PremulBehavior fPremulBehavior = PremulBehavior::kLegacy;
+    SkTransferFunctionBehavior fUnpremulBehavior = SkTransferFunctionBehavior::kIgnore;
 };
 
 #ifdef SK_HAS_JPEG_LIBRARY
+    bool SkEncodeImageAsJPEG(SkWStream*, const SkPixmap&, const SkEncodeOptions&);
     bool SkEncodeImageAsJPEG(SkWStream*, const SkPixmap&, int quality);
 #else
     #define SkEncodeImageAsJPEG(...) false
@@ -35,6 +28,7 @@ struct SkEncodeOptions {
 #endif
 
 #ifdef SK_HAS_WEBP_LIBRARY
+    bool SkEncodeImageAsWEBP(SkWStream*, const SkPixmap&, const SkEncodeOptions&);
     bool SkEncodeImageAsWEBP(SkWStream*, const SkPixmap&, int quality);
 #else
     #define SkEncodeImageAsWEBP(...) false

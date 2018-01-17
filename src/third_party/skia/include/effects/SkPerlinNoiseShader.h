@@ -65,7 +65,7 @@ public:
     class PerlinNoiseShaderContext : public SkShader::Context {
     public:
         PerlinNoiseShaderContext(const SkPerlinNoiseShader& shader, const ContextRec&);
-        virtual ~PerlinNoiseShaderContext();
+        ~PerlinNoiseShaderContext() override;
 
         void shadeSpan(int x, int y, SkPMColor[], int count) override;
 
@@ -92,14 +92,13 @@ public:
 
 protected:
     void flatten(SkWriteBuffer&) const override;
-    Context* onCreateContext(const ContextRec&, void* storage) const override;
-    size_t onContextSize(const ContextRec&) const override;
+    Context* onMakeContext(const ContextRec&, SkArenaAlloc* storage) const override;
 
 private:
     SkPerlinNoiseShader(SkPerlinNoiseShader::Type type, SkScalar baseFrequencyX,
                         SkScalar baseFrequencyY, int numOctaves, SkScalar seed,
                         const SkISize* tileSize);
-    virtual ~SkPerlinNoiseShader();
+    ~SkPerlinNoiseShader() override;
 
     const SkPerlinNoiseShader::Type fType;
     const SkScalar                  fBaseFrequencyX;

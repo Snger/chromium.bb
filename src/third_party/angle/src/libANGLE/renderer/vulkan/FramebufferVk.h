@@ -18,7 +18,7 @@ namespace rx
 class RenderTargetVk;
 class WindowSurfaceVk;
 
-class FramebufferVk : public FramebufferImpl
+class FramebufferVk : public FramebufferImpl, public ResourceVk
 {
   public:
     // Factory methods so we don't have to use constructors with overloads.
@@ -31,6 +31,8 @@ class FramebufferVk : public FramebufferImpl
                                            WindowSurfaceVk *backbuffer);
 
     ~FramebufferVk() override;
+    void destroy(ContextImpl *contextImpl) override;
+    void destroyDefault(DisplayImpl *displayImpl) override;
 
     gl::Error discard(size_t count, const GLenum *attachments) override;
     gl::Error invalidate(size_t count, const GLenum *attachments) override;
@@ -73,12 +75,13 @@ class FramebufferVk : public FramebufferImpl
 
     bool checkStatus() const override;
 
-    void syncState(const gl::Framebuffer::DirtyBits &dirtyBits) override;
+    void syncState(ContextImpl *contextImpl, const gl::Framebuffer::DirtyBits &dirtyBits) override;
 
     gl::Error getSamplePosition(size_t index, GLfloat *xy) const override;
 
     gl::Error beginRenderPass(VkDevice device,
                               vk::CommandBuffer *commandBuffer,
+                              Serial queueSerial,
                               const gl::State &glState);
 
     gl::ErrorOrResult<vk::RenderPass *> getRenderPass(VkDevice device);

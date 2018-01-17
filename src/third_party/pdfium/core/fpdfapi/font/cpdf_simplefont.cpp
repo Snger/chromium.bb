@@ -13,9 +13,9 @@
 #include "third_party/base/numerics/safe_math.h"
 
 CPDF_SimpleFont::CPDF_SimpleFont() : m_BaseEncoding(PDFFONT_ENCODING_BUILTIN) {
-  FXSYS_memset(m_CharWidth, 0xff, sizeof(m_CharWidth));
-  FXSYS_memset(m_GlyphIndex, 0xff, sizeof(m_GlyphIndex));
-  FXSYS_memset(m_ExtGID, 0xff, sizeof(m_ExtGID));
+  memset(m_CharWidth, 0xff, sizeof(m_CharWidth));
+  memset(m_GlyphIndex, 0xff, sizeof(m_GlyphIndex));
+  memset(m_ExtGID, 0xff, sizeof(m_ExtGID));
   for (size_t i = 0; i < FX_ArraySize(m_CharBBox); ++i)
     m_CharBBox[i] = FX_RECT(-1, -1, -1, -1);
 }
@@ -29,8 +29,11 @@ int CPDF_SimpleFont::GlyphFromCharCode(uint32_t charcode, bool* pVertGlyph) {
   if (charcode > 0xff)
     return -1;
 
-  int index = m_GlyphIndex[(uint8_t)charcode];
-  return index != 0xffff ? index : -1;
+  int index = m_GlyphIndex[charcode];
+  if (index == 0xffff || (index == 0 && IsTrueTypeFont()))
+    return -1;
+
+  return index;
 }
 
 void CPDF_SimpleFont::LoadCharMetrics(int charcode) {
@@ -127,15 +130,13 @@ bool CPDF_SimpleFont::LoadCommon() {
     }
   }
   if (m_pFontFile) {
-    if (m_BaseFont.GetLength() > 8 && m_BaseFont[7] == '+') {
+    if (m_BaseFont.GetLength() > 8 && m_BaseFont[7] == '+')
       m_BaseFont = m_BaseFont.Mid(8);
-    }
   } else {
     LoadSubstFont();
   }
-  if (!(m_Flags & PDFFONT_SYMBOLIC)) {
+  if (!(m_Flags & FXFONT_SYMBOLIC))
     m_BaseEncoding = PDFFONT_ENCODING_STANDARD;
-  }
   CPDF_Object* pEncoding = m_pFontDict->GetDirectObjectFor("Encoding");
   LoadPDFEncoding(pEncoding, m_BaseEncoding, &m_CharNames, !!m_pFontFile,
                   m_Font.IsTTFont());
@@ -144,7 +145,7 @@ bool CPDF_SimpleFont::LoadCommon() {
   if (!m_Font.GetFace())
     return true;
 
-  if (m_Flags & PDFFONT_ALLCAP) {
+  if (m_Flags & FXFONT_ALLCAP) {
     unsigned char kLowercases[][2] = {{'a', 'z'}, {0xe0, 0xf6}, {0xf8, 0xfd}};
     for (size_t range = 0; range < FX_ArraySize(kLowercases); ++range) {
       const auto& lower = kLowercases[range];
@@ -166,21 +167,19 @@ bool CPDF_SimpleFont::LoadCommon() {
 }
 
 void CPDF_SimpleFont::LoadSubstFont() {
-  if (!m_bUseFontWidth && !(m_Flags & PDFFONT_FIXEDPITCH)) {
+  if (!m_bUseFontWidth && !(m_Flags & FXFONT_FIXED_PITCH)) {
     int width = 0, i;
     for (i = 0; i < 256; i++) {
-      if (m_CharWidth[i] == 0 || m_CharWidth[i] == 0xffff) {
+      if (m_CharWidth[i] == 0 || m_CharWidth[i] == 0xffff)
         continue;
-      }
-      if (width == 0) {
+
+      if (width == 0)
         width = m_CharWidth[i];
-      } else if (width != m_CharWidth[i]) {
+      else if (width != m_CharWidth[i])
         break;
-      }
     }
-    if (i == 256 && width) {
-      m_Flags |= PDFFONT_FIXEDPITCH;
-    }
+    if (i == 256 && width)
+      m_Flags |= FXFONT_FIXED_PITCH;
   }
   pdfium::base::CheckedNumeric<int> safeStemV(m_StemV);
   if (m_StemV < 140)
@@ -202,13 +201,13 @@ CFX_WideString CPDF_SimpleFont::UnicodeFromCharCode(uint32_t charcode) const {
   CFX_WideString unicode = CPDF_Font::UnicodeFromCharCode(charcode);
   if (!unicode.IsEmpty())
     return unicode;
-  FX_WCHAR ret = m_Encoding.UnicodeFromCharCode((uint8_t)charcode);
+  wchar_t ret = m_Encoding.UnicodeFromCharCode((uint8_t)charcode);
   if (ret == 0)
     return CFX_WideString();
   return ret;
 }
 
-uint32_t CPDF_SimpleFont::CharCodeFromUnicode(FX_WCHAR unicode) const {
+uint32_t CPDF_SimpleFont::CharCodeFromUnicode(wchar_t unicode) const {
   uint32_t ret = CPDF_Font::CharCodeFromUnicode(unicode);
   if (ret)
     return ret;

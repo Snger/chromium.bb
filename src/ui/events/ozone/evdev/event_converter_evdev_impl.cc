@@ -48,11 +48,11 @@ EventConverterEvdevImpl::EventConverterEvdevImpl(
       has_keyboard_(devinfo.HasKeyboard()),
       has_touchpad_(devinfo.HasTouchpad()),
       has_caps_lock_led_(devinfo.HasLedEvent(LED_CAPSL)),
+      controller_(FROM_HERE),
       cursor_(cursor),
       dispatcher_(dispatcher) {}
 
 EventConverterEvdevImpl::~EventConverterEvdevImpl() {
-  DCHECK(!enabled_);
 }
 
 void EventConverterEvdevImpl::OnFileCanReadWithoutBlocking(int fd) {

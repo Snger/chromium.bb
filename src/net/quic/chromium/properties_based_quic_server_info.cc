@@ -5,6 +5,7 @@
 #include "net/quic/chromium/properties_based_quic_server_info.h"
 
 #include "base/base64.h"
+#include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
 #include "net/base/net_errors.h"
 #include "net/http/http_server_properties.h"
@@ -93,15 +94,21 @@ void PropertiesBasedQuicServerInfo::OnExternalCacheHit() {
   RecordQuicServerInfoStatus(QUIC_SERVER_INFO_EXTERNAL_CACHE_HIT);
 }
 
+size_t PropertiesBasedQuicServerInfo::EstimateMemoryUsage() const {
+  return 0;
+}
+
 PropertiesBasedQuicServerInfoFactory::PropertiesBasedQuicServerInfoFactory(
     HttpServerProperties* http_server_properties)
     : http_server_properties_(http_server_properties) {}
 
 PropertiesBasedQuicServerInfoFactory::~PropertiesBasedQuicServerInfoFactory() {}
 
-QuicServerInfo* PropertiesBasedQuicServerInfoFactory::GetForServer(
+std::unique_ptr<QuicServerInfo>
+PropertiesBasedQuicServerInfoFactory::GetForServer(
     const QuicServerId& server_id) {
-  return new PropertiesBasedQuicServerInfo(server_id, http_server_properties_);
+  return base::MakeUnique<PropertiesBasedQuicServerInfo>(
+      server_id, http_server_properties_);
 }
 
 }  // namespace net

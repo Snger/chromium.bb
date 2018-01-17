@@ -11,6 +11,7 @@
 #define LIBANGLE_RENDERER_VULKAN_PROGRAMVK_H_
 
 #include "libANGLE/renderer/ProgramImpl.h"
+#include "libANGLE/renderer/vulkan/renderervk_utils.h"
 
 namespace rx
 {
@@ -20,14 +21,16 @@ class ProgramVk : public ProgramImpl
   public:
     ProgramVk(const gl::ProgramState &state);
     ~ProgramVk() override;
+    void destroy(const ContextImpl *contextImpl) override;
 
     LinkResult load(const ContextImpl *contextImpl,
                     gl::InfoLog &infoLog,
                     gl::BinaryInputStream *stream) override;
     gl::Error save(gl::BinaryOutputStream *stream) override;
     void setBinaryRetrievableHint(bool retrievable) override;
+    void setSeparable(bool separable) override;
 
-    LinkResult link(const gl::ContextState &data,
+    LinkResult link(ContextImpl *contextImpl,
                     const gl::VaryingPacking &packing,
                     gl::InfoLog &infoLog) override;
     GLboolean validate(const gl::Caps &caps, gl::InfoLog *infoLog) override;
@@ -97,6 +100,15 @@ class ProgramVk : public ProgramImpl
                                  GLenum genMode,
                                  GLint components,
                                  const GLfloat *coeffs) override;
+
+    const vk::ShaderModule &getLinkedVertexModule() const;
+    const vk::ShaderModule &getLinkedFragmentModule() const;
+    gl::ErrorOrResult<vk::PipelineLayout *> getPipelineLayout(VkDevice device);
+
+  private:
+    vk::ShaderModule mLinkedVertexModule;
+    vk::ShaderModule mLinkedFragmentModule;
+    vk::PipelineLayout mPipelineLayout;
 };
 
 }  // namespace rx

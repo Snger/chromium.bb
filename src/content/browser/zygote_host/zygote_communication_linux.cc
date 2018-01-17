@@ -250,8 +250,7 @@ void ZygoteCommunication::Init() {
   // Should this list be obtained from browser_render_process_host.cc?
   static const char* const kForwardSwitches[] = {
       switches::kAllowSandboxDebugging, switches::kAndroidFontsPath,
-      switches::kDisableSeccompFilterSandbox,
-      switches::kEnableHeapProfiling,
+      switches::kDisableSeccompFilterSandbox, switches::kEnableHeapProfiling,
       switches::kEnableLogging,  // Support, e.g., --enable-logging=stderr.
       // Need to tell the zygote that it is headless so that we don't try to use
       // the wrong type of main delegate.

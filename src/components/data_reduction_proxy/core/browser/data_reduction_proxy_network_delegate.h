@@ -104,11 +104,25 @@ class DataReductionProxyNetworkDelegate : public net::LayeredNetworkDelegate {
       const net::ProxyRetryInfoMap& proxy_retry_info,
       net::HttpRequestHeaders* headers) override;
 
+  // Called after a redirect response. Clears out persistent
+  // DataReductionProxyData from the URLRequest.
+  void OnBeforeRedirectInternal(net::URLRequest* request,
+                                const GURL& new_location) override;
+
   // Indicates that the URL request has been completed or failed.
   // |started| indicates whether the request has been started. If false,
   // some information like the socket address is not available.
   void OnCompletedInternal(net::URLRequest* request,
                            bool started) override;
+
+  // Checks if a LoFi or Lite Pages response was received and sets the state on
+  // DataReductionProxyData for |request|.
+  void OnHeadersReceivedInternal(
+      net::URLRequest* request,
+      const net::CompletionCallback& callback,
+      const net::HttpResponseHeaders* original_response_headers,
+      scoped_refptr<net::HttpResponseHeaders>* override_response_headers,
+      GURL* allowed_unsafe_redirect_url) override;
 
   // Calculates actual data usage that went over the network at the HTTP layer
   // (e.g. not including network layer overhead) and estimates original data

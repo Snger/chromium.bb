@@ -22,11 +22,8 @@ const char kDisableMediaSuspend[] = "disable-media-suspend";
 const char kReportVp9AsAnUnsupportedMimeType[] =
     "report-vp9-as-an-unsupported-mime-type";
 
-#if defined(OS_ANDROID)
-// Use WebMediaPlayerAndroid instead of WebMediaPlayerImpl. This is a temporary
-// switch for holding back the new unified media pipeline.
-const char kDisableUnifiedMediaPipeline[] = "disable-unified-media-pipeline";
-#endif
+// Enable parsing of new multi-part VP9 string for webm.
+const char kEnableNewVp9CodecString[] = "enable-new-vp9-codec-string";
 
 #if defined(OS_LINUX) || defined(OS_FREEBSD) || defined(OS_SOLARIS)
 // The Alsa device to use when opening an audio input stream.
@@ -67,6 +64,18 @@ const char kWaveOutBuffers[] = "waveout-buffers";
 const char kUseCras[] = "use-cras";
 #endif
 
+// For automated testing of protected content, this switch allows specific
+// domains (e.g. example.com) to skip asking the user for permission to share
+// their personal identifier. In this context, domain does not include the
+// port number. This flag will have no effect if user-data-dir is not set and
+// will not affect the user's content settings.
+// Reference: http://crbug.com/718608
+// Example:
+// --unsafely-allow-protected-media-identifier-for-domain=a.com,b.ca
+// --user-data-dir=/test/only/profile/dir
+const char kUnsafelyAllowProtectedMediaIdentifierForDomain[] =
+    "unsafely-allow-protected-media-identifier-for-domain";
+
 #if !defined(OS_ANDROID) || BUILDFLAG(ENABLE_PLUGINS)
 // Use a media session for each tabs in a way that two tabs can't play on top of
 // each other. This is different from the Media Session API as it is enabling a
@@ -80,6 +89,13 @@ const char kEnableDefaultMediaSession[] = "enable-default-media-session";
 // be ducked when losing audio focus.
 const char kEnableDefaultMediaSessionDuckFlash[] = "duck-flash";
 #endif  // BUILDFLAG(ENABLE_PLUGINS)
+
+#if BUILDFLAG(ENABLE_RUNTIME_MEDIA_RENDERER_SELECTION)
+// Rather than use the renderer hosted remotely in the media service, fall back
+// to the default renderer within content_renderer. Does not change the behavior
+// of the media service.
+const char kDisableMojoRenderer[] = "disable-mojo-renderer";
+#endif  // BUILDFLAG(ENABLE_RUNTIME_MEDIA_RENDERER_SELECTION)
 
 // Use fake device for Media Stream to replace actual camera and microphone.
 const char kUseFakeDeviceForMediaStream[] = "use-fake-device-for-media-stream";
@@ -95,6 +111,11 @@ const char kUseFileForFakeVideoCapture[] = "use-file-for-fake-video-capture";
 // .wav files should work. You can pass either <path> to play the file looping
 // or <path>%noloop to stop after playing the file to completion.
 const char kUseFileForFakeAudioCapture[] = "use-file-for-fake-audio-capture";
+
+// Use fake device for accelerated decoding of JPEG. This allows, for example,
+// testing of the communication to the GPU service without requiring actual
+// accelerator hardware to be present.
+const char kUseFakeJpegDecodeAccelerator[] = "use-fake-jpeg-decode-accelerator";
 
 // Enables support for inband text tracks in media content.
 const char kEnableInbandTextTracks[] = "enable-inband-text-tracks";
@@ -138,7 +159,7 @@ const base::Feature kD3D11VideoDecoding{"D3D11VideoDecoding",
 
 // Enables H264 HW encode acceleration using Media Foundation for Windows.
 const base::Feature kMediaFoundationH264Encoding{
-    "MediaFoundationH264Encoding", base::FEATURE_DISABLED_BY_DEFAULT};
+    "MediaFoundationH264Encoding", base::FEATURE_ENABLED_BY_DEFAULT};
 #endif  // defined(OS_WIN)
 
 // Use new audio rendering mixer.
@@ -164,6 +185,16 @@ const base::Feature kResumeBackgroundVideo {
 const base::Feature kBackgroundVideoTrackOptimization{
     "BackgroundVideoTrackOptimization", base::FEATURE_DISABLED_BY_DEFAULT};
 
+// Let video without audio be paused when it is playing in the background.
+const base::Feature kBackgroundVideoPauseOptimization{
+    "BackgroundVideoPauseOptimization", base::FEATURE_DISABLED_BY_DEFAULT};
+
+// Make MSE garbage collection algorithm more aggressive when we are under
+// moderate or critical memory pressure. This will relieve memory pressure by
+// releasing stale data from MSE buffers.
+const base::Feature kMemoryPressureBasedSourceBufferGC{
+    "MemoryPressureBasedSourceBufferGC", base::FEATURE_DISABLED_BY_DEFAULT};
+
 // Use shared block-based buffering for media.
 const base::Feature kUseNewMediaCache{"use-new-media-cache",
                                       base::FEATURE_ENABLED_BY_DEFAULT};
@@ -183,13 +214,16 @@ const base::Feature kExternalClearKeyForTesting{
     "external-clear-key-for-testing", base::FEATURE_DISABLED_BY_DEFAULT};
 
 #if defined(OS_ANDROID)
-// Replaces WPMA by the MediaPlayerRenderer for HLS and fallback playback.
-const base::Feature kAndroidMediaPlayerRenderer{
-    "android-media-player-renderer", base::FEATURE_ENABLED_BY_DEFAULT};
-
 // Lock the screen orientation when a video goes fullscreen.
 const base::Feature kVideoFullscreenOrientationLock{
     "VideoFullscreenOrientationLock", base::FEATURE_ENABLED_BY_DEFAULT};
+
+// An experimental feature to enable persistent-license type support in MediaDrm
+// when using Encrypted Media Extensions (EME) API.
+// TODO(xhwang): Remove this after feature launch. See http://crbug.com/493521
+const base::Feature kMediaDrmPersistentLicense{
+    "MediaDrmPersistentLicense", base::FEATURE_DISABLED_BY_DEFAULT};
+
 #endif
 
 }  // namespace media

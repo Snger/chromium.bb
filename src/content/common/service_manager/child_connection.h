@@ -14,8 +14,8 @@
 #include "base/process/process_handle.h"
 #include "base/sequenced_task_runner.h"
 #include "content/common/content_export.h"
+#include "mojo/edk/embedder/pending_process_connection.h"
 #include "services/service_manager/public/cpp/identity.h"
-#include "services/service_manager/public/cpp/interface_provider.h"
 #include "services/service_manager/public/interfaces/connector.mojom.h"
 
 namespace service_manager {
@@ -35,14 +35,15 @@ class CONTENT_EXPORT ChildConnection {
   // connector to use to establish the connection.
   ChildConnection(const std::string& name,
                   const std::string& instance_id,
-                  const std::string& child_token,
+                  mojo::edk::PendingProcessConnection* process_connection,
                   service_manager::Connector* connector,
                   scoped_refptr<base::SequencedTaskRunner> io_task_runner);
   ~ChildConnection();
 
-  service_manager::InterfaceProvider* GetRemoteInterfaces() {
-    return &remote_interfaces_;
-  }
+  // Binds an implementation of |interface_name| to |interface_pipe| in the
+  // child.
+  void BindInterface(const std::string& interface_name,
+                     mojo::ScopedMessagePipeHandle interface_pipe);
 
   const service_manager::Identity& child_identity() const {
     return child_identity_;
@@ -61,13 +62,10 @@ class CONTENT_EXPORT ChildConnection {
  private:
   class IOThreadContext;
 
-  const std::string child_token_;
   scoped_refptr<IOThreadContext> context_;
   service_manager::Identity child_identity_;
-  const std::string service_token_;
+  std::string service_token_;
   base::ProcessHandle process_handle_ = base::kNullProcessHandle;
-
-  service_manager::InterfaceProvider remote_interfaces_;
 
   base::WeakPtrFactory<ChildConnection> weak_factory_;
 

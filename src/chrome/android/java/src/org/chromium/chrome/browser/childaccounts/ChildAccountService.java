@@ -5,11 +5,14 @@
 package org.chromium.chrome.browser.childaccounts;
 
 import android.accounts.Account;
+import android.app.Activity;
 import android.content.Context;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.annotations.CalledByNative;
 import org.chromium.components.signin.AccountManagerHelper;
+import org.chromium.ui.base.WindowAndroid;
 
 /**
  * This class serves as a simple interface for querying the child account information. It has two
@@ -38,7 +41,7 @@ public class ChildAccountService {
      */
     public static void checkHasChildAccount(Context context, final Callback<Boolean> callback) {
         ThreadUtils.assertOnUiThread();
-        final AccountManagerHelper helper = AccountManagerHelper.get(context);
+        final AccountManagerHelper helper = AccountManagerHelper.get();
         helper.getGoogleAccounts(new Callback<Account[]>() {
             @Override
             public void onResult(Account[] accounts) {
@@ -69,7 +72,35 @@ public class ChildAccountService {
         nativeListenForChildStatusReceived(callback);
     }
 
+    @CalledByNative
+    private static void reauthenticateChildAccount(
+            WindowAndroid windowAndroid, String accountName, final long nativeCallback) {
+        ThreadUtils.assertOnUiThread();
+
+        Activity activity = windowAndroid.getActivity().get();
+        if (activity == null) {
+            ThreadUtils.postOnUiThread(new Runnable() {
+                @Override
+                public void run() {
+                    nativeOnReauthenticationResult(nativeCallback, false);
+                }
+            });
+            return;
+        }
+
+        Account account = AccountManagerHelper.createAccountFromName(accountName);
+        AccountManagerHelper.get().updateCredentials(account, activity, new Callback<Boolean>() {
+            @Override
+            public void onResult(Boolean result) {
+                nativeOnReauthenticationResult(nativeCallback, result);
+            }
+        });
+    }
+
     private static native boolean nativeIsChildAccount();
 
     private static native void nativeListenForChildStatusReceived(Callback<Boolean> callback);
+
+    private static native void nativeOnReauthenticationResult(
+            long callbackPtr, boolean reauthSuccessful);
 }

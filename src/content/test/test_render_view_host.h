@@ -71,13 +71,14 @@ class TestRenderWidgetHostView : public RenderWidgetHostViewBase {
   gfx::NativeViewAccessible GetNativeViewAccessible() override;
   ui::TextInputClient* GetTextInputClient() override;
   bool HasFocus() const override;
-  bool IsSurfaceAvailableForCopy() const override;
   void Show() override;
   void Hide() override;
   bool IsShowing() override;
   void WasUnOccluded() override;
   void WasOccluded() override;
   gfx::Rect GetViewBounds() const override;
+  void SetBackgroundColor(SkColor color) override;
+  SkColor background_color() const override;
 #if defined(OS_MACOSX)
   ui::AcceleratedWidgetMac* GetAcceleratedWidgetMac() const override;
   void SetActive(bool active) override;
@@ -87,7 +88,10 @@ class TestRenderWidgetHostView : public RenderWidgetHostViewBase {
   bool IsSpeaking() const override;
   void StopSpeaking() override;
 #endif  // defined(OS_MACOSX)
-  void OnSwapCompositorFrame(uint32_t compositor_frame_sink_id,
+  void DidCreateNewRendererCompositorFrameSink(
+      cc::mojom::MojoCompositorFrameSinkClient* renderer_compositor_frame_sink)
+      override;
+  void SubmitCompositorFrame(const cc::LocalSurfaceId& local_surface_id,
                              cc::CompositorFrame frame) override;
   void ClearCompositorFrame() override {}
   void SetNeedsBeginFrames(bool needs_begin_frames) override {}
@@ -103,19 +107,7 @@ class TestRenderWidgetHostView : public RenderWidgetHostViewBase {
                          int error_code) override;
   void Destroy() override;
   void SetTooltipText(const base::string16& tooltip_text) override {}
-  void CopyFromCompositingSurface(
-      const gfx::Rect& src_subrect,
-      const gfx::Size& dst_size,
-      const ReadbackRequestCallback& callback,
-      const SkColorType preferred_color_type) override;
-  void CopyFromCompositingSurfaceToVideoFrame(
-      const gfx::Rect& src_subrect,
-      const scoped_refptr<media::VideoFrame>& target,
-      const base::Callback<void(const gfx::Rect&, bool)>& callback) override;
-  bool CanCopyToVideoFrame() const override;
   bool HasAcceleratedSurface(const gfx::Size& desired_size) override;
-  void LockCompositingSurface() override {}
-  void UnlockCompositingSurface() override {}
   gfx::Rect GetBoundsInRootWindow() override;
   bool LockMouse() override;
   void UnlockMouse() override;
@@ -124,6 +116,13 @@ class TestRenderWidgetHostView : public RenderWidgetHostViewBase {
   bool is_showing() const { return is_showing_; }
   bool is_occluded() const { return is_occluded_; }
   bool did_swap_compositor_frame() const { return did_swap_compositor_frame_; }
+  void reset_did_swap_compositor_frame() { did_swap_compositor_frame_ = false; }
+  bool did_change_compositor_frame_sink() {
+    return did_change_compositor_frame_sink_;
+  }
+  void reset_did_change_compositor_frame_sink() {
+    did_change_compositor_frame_sink_ = false;
+  }
 
  protected:
   RenderWidgetHostImpl* rwh_;
@@ -133,6 +132,8 @@ class TestRenderWidgetHostView : public RenderWidgetHostViewBase {
   bool is_showing_;
   bool is_occluded_;
   bool did_swap_compositor_frame_;
+  bool did_change_compositor_frame_sink_ = false;
+  SkColor background_color_;
   ui::DummyTextInputClient text_input_client_;
 };
 

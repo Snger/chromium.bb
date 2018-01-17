@@ -12,7 +12,6 @@ found in the LICENSE file.
 'use strict';
 
 tr.exportTo('tr.ui.analysis', function() {
-
   var LATIN_SMALL_LETTER_F_WITH_HOOK = String.fromCharCode(0x0192);
   var CIRCLED_LATIN_CAPITAL_LETTER_T = String.fromCharCode(0x24C9);
 
@@ -40,8 +39,9 @@ tr.exportTo('tr.ui.analysis', function() {
     __proto__: tr.ui.analysis.TitleColumn.prototype,
 
     formatTitle: function(row) {
-      if (row.dimension === HeapDetailsRowDimension.ROOT)
+      if (row.dimension === HeapDetailsRowDimension.ROOT) {
         return row.title;
+      }
 
       var symbolEl = document.createElement('span');
       Polymer.dom(symbolEl).textContent = row.dimension.symbol;

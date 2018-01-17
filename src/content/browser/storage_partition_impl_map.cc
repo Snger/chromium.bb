@@ -19,11 +19,13 @@
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
+#include "base/task_scheduler/post_task.h"
 #include "base/threading/sequenced_worker_pool.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "content/browser/appcache/appcache_interceptor.h"
 #include "content/browser/appcache/chrome_appcache_service.h"
+#include "content/browser/background_fetch/background_fetch_context.h"
 #include "content/browser/blob_storage/chrome_blob_storage_context.h"
 #include "content/browser/fileapi/browser_file_system_helper.h"
 #include "content/browser/loader/resource_request_info_impl.h"
@@ -400,10 +402,6 @@ StoragePartitionImpl* StoragePartitionImplMap::Get(
   StoragePartitionImpl* partition = partition_ptr.get();
   partitions_[partition_config] = std::move(partition_ptr);
 
-  partition->GetQuotaManager()->SetTemporaryStorageEvictionPolicy(
-      GetContentClient()->browser()->GetTemporaryStorageEvictionPolicy(
-          browser_context_));
-
   ChromeBlobStorageContext* blob_storage_context =
       ChromeBlobStorageContext::GetFor(browser_context_);
   StreamContext* stream_context = StreamContext::GetFor(browser_context_);
@@ -521,8 +519,9 @@ void StoragePartitionImplMap::AsyncObliterate(
   base::FilePath domain_root = browser_context_->GetPath().Append(
       GetStoragePartitionDomainPath(partition_domain));
 
-  BrowserThread::PostBlockingPoolTask(
-      FROM_HERE,
+  base::PostTaskWithTraits(
+      FROM_HERE, base::TaskTraits().MayBlock().WithPriority(
+                     base::TaskPriority::BACKGROUND),
       base::Bind(&BlockingObliteratePath, browser_context_->GetPath(),
                  domain_root, paths_to_keep,
                  base::ThreadTaskRunnerHandle::Get(), on_gc_required));
@@ -601,6 +600,12 @@ void StoragePartitionImplMap::PostCreateInitialization(
         base::Bind(&ServiceWorkerContextWrapper::InitializeResourceContext,
                    partition->GetServiceWorkerContext(),
                    browser_context_->GetResourceContext()));
+
+    BrowserThread::PostTask(
+        BrowserThread::IO, FROM_HERE,
+        base::Bind(&BackgroundFetchContext::InitializeOnIOThread,
+                   partition->GetBackgroundFetchContext(),
+                   base::RetainedRef(partition->GetURLRequestContext())));
 
     // We do not call InitializeURLRequestContext() for media contexts because,
     // other than the HTTP cache, the media contexts share the same backing

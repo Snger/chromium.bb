@@ -89,6 +89,19 @@ Surface::~Surface()
     SafeDelete(mImplementation);
 }
 
+void Surface::destroy(const Display *display)
+{
+    if (mState.defaultFramebuffer)
+    {
+        mState.defaultFramebuffer->destroyDefault(display);
+    }
+    if (mImplementation)
+    {
+        mImplementation->destroy(rx::SafeGetImpl(display));
+    }
+    delete this;
+}
+
 Error Surface::initialize(const Display &display)
 {
     ANGLE_TRY(mImplementation->initialize(display.getImplementation()));
@@ -104,29 +117,28 @@ Error Surface::initialize(const Display &display)
     return Error(EGL_SUCCESS);
 }
 
-void Surface::setIsCurrent(bool isCurrent)
+void Surface::setIsCurrent(Display *display, bool isCurrent)
 {
     if (isCurrent)
     {
         mCurrentCount++;
+        return;
     }
-    else
+
+    ASSERT(mCurrentCount > 0);
+    mCurrentCount--;
+    if (mCurrentCount == 0 && mDestroyed)
     {
-        ASSERT(mCurrentCount > 0);
-        mCurrentCount--;
-        if (mCurrentCount == 0 && mDestroyed)
-        {
-            delete this;
-        }
+        destroy(display);
     }
 }
 
-void Surface::onDestroy()
+void Surface::onDestroy(Display *display)
 {
     mDestroyed = true;
     if (mCurrentCount == 0)
     {
-        delete this;
+        destroy(display);
     }
 }
 
@@ -232,6 +244,11 @@ Error Surface::releaseTexImage(EGLint buffer)
     return Error(EGL_SUCCESS);
 }
 
+Error Surface::getSyncValues(EGLuint64KHR *ust, EGLuint64KHR *msc, EGLuint64KHR *sbc)
+{
+    return mImplementation->getSyncValues(ust, msc, sbc);
+}
+
 void Surface::releaseTexImageFromTexture()
 {
     ASSERT(mTexture.get());
@@ -262,28 +279,7 @@ GLuint Surface::getId() const
 
 gl::Framebuffer *Surface::createDefaultFramebuffer()
 {
-    gl::Framebuffer *framebuffer = new gl::Framebuffer(mImplementation);
-
-    GLenum drawBufferState = GL_BACK;
-    framebuffer->setDrawBuffers(1, &drawBufferState);
-    framebuffer->setReadBuffer(GL_BACK);
-
-    framebuffer->setAttachment(GL_FRAMEBUFFER_DEFAULT, GL_BACK, gl::ImageIndex::MakeInvalid(),
-                               this);
-
-    if (mState.config->depthSize > 0)
-    {
-        framebuffer->setAttachment(GL_FRAMEBUFFER_DEFAULT, GL_DEPTH, gl::ImageIndex::MakeInvalid(),
-                                   this);
-    }
-
-    if (mState.config->stencilSize > 0)
-    {
-        framebuffer->setAttachment(GL_FRAMEBUFFER_DEFAULT, GL_STENCIL,
-                                   gl::ImageIndex::MakeInvalid(), this);
-    }
-
-    return framebuffer;
+    return new gl::Framebuffer(this);
 }
 
 WindowSurface::WindowSurface(rx::EGLImplFactory *implFactory,

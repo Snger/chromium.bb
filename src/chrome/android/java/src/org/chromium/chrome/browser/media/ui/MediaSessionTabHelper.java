@@ -11,7 +11,6 @@ import android.media.AudioManager;
 import android.os.Handler;
 import android.text.TextUtils;
 
-import org.chromium.base.ContextUtils;
 import org.chromium.base.Log;
 import org.chromium.base.VisibleForTesting;
 import org.chromium.blink.mojom.MediaSessionAction;
@@ -42,7 +41,6 @@ public class MediaSessionTabHelper implements MediaImageCallback {
     private static final String TAG = "MediaSession";
 
     private static final String UNICODE_PLAY_CHARACTER = "\u25B6";
-    private static final int MINIMAL_FAVICON_SIZE = 114;
     private static final int HIDE_NOTIFICATION_DELAY_MILLIS = 1000;
 
     private Tab mTab;
@@ -176,8 +174,7 @@ public class MediaSessionTabHelper implements MediaImageCallback {
             mHandler.removeCallbacks(mHideNotificationDelayedTask);
             mHideNotificationDelayedTask = null;
         }
-        MediaNotificationManager.show(
-                ContextUtils.getApplicationContext(), mNotificationInfoBuilder.build());
+        MediaNotificationManager.show(mNotificationInfoBuilder.build());
     }
 
     private MediaSessionObserver createMediaSessionObserver(MediaSession mediaSession) {
@@ -254,10 +251,10 @@ public class MediaSessionTabHelper implements MediaImageCallback {
         }
 
         cleanupMediaSessionObserver();
+        mMediaImageManager.setWebContents(webContents);
         if (mediaSession != null) {
             mMediaSessionObserver = createMediaSessionObserver(mediaSession);
         }
-        mMediaImageManager.setWebContents(webContents);
     }
 
     private void cleanupMediaSessionObserver() {
@@ -284,11 +281,13 @@ public class MediaSessionTabHelper implements MediaImageCallback {
         }
 
         @Override
-        public void onDidNavigateMainFrame(Tab tab, String url, String baseUrl,
-                boolean isNavigationToDifferentPage, boolean isFragmentNavigation, int statusCode) {
+        public void onDidFinishNavigation(Tab tab, String url, boolean isInMainFrame,
+                boolean isErrorPage, boolean hasCommitted, boolean isSameDocument,
+                boolean isFragmentNavigation, Integer pageTransition, int errorCode,
+                int httpStatusCode) {
             assert tab == mTab;
 
-            if (!isNavigationToDifferentPage) return;
+            if (!hasCommitted || !isInMainFrame || isSameDocument) return;
 
             String origin = mTab.getUrl();
             try {
@@ -352,8 +351,9 @@ public class MediaSessionTabHelper implements MediaImageCallback {
     private MediaSessionTabHelper(Tab tab) {
         mTab = tab;
         mTab.addObserver(mTabObserver);
-        mMediaImageManager = new MediaImageManager(
-                MINIMAL_FAVICON_SIZE, MediaNotificationManager.getIdealMediaImageSize());
+        mMediaImageManager =
+                new MediaImageManager(MediaNotificationManager.MINIMAL_MEDIA_IMAGE_SIZE_PX,
+                        MediaNotificationManager.getIdealMediaImageSize());
         if (mTab.getWebContents() != null) setWebContents(tab.getWebContents());
 
         Activity activity = getActivityFromTab(mTab);
@@ -417,9 +417,7 @@ public class MediaSessionTabHelper implements MediaImageCallback {
     private boolean updateFavicon(Bitmap icon) {
         if (icon == null) return false;
 
-        if (icon.getWidth() < MINIMAL_FAVICON_SIZE || icon.getHeight() < MINIMAL_FAVICON_SIZE) {
-            return false;
-        }
+        if (!MediaNotificationManager.isBitmapSuitableAsMediaImage(icon)) return false;
         if (mFavicon != null && (icon.getWidth() < mFavicon.getWidth()
                                         || icon.getHeight() < mFavicon.getHeight())) {
             return false;

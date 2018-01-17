@@ -14,7 +14,6 @@
 #include "core/fxcrt/fx_coordinates.h"
 #include "core/fxcrt/fx_system.h"
 #include "xfa/fgas/font/cfgas_gefont.h"
-#include "xfa/fwl/fwl_error.h"
 #include "xfa/fwl/theme/cfwl_utils.h"
 #include "xfa/fxgraphics/cfx_graphics.h"
 
@@ -67,10 +66,10 @@ class CFWL_WidgetTP {
                      const CFX_RectF* pRect,
                      CFX_Matrix* pMatrix = nullptr);
   void DrawAxialShading(CFX_Graphics* pGraphics,
-                        FX_FLOAT fx1,
-                        FX_FLOAT fy1,
-                        FX_FLOAT fx2,
-                        FX_FLOAT fy2,
+                        float fx1,
+                        float fy1,
+                        float fx2,
+                        float fy2,
                         FX_ARGB beginColor,
                         FX_ARGB endColor,
                         CFX_Path* path,

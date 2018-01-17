@@ -53,14 +53,15 @@ tr.exportTo('tr.ui.tracks', function() {
     detach: function() {
       tr.ui.tracks.Track.prototype.detach.call(this);
       this.viewport.removeEventListener('change',
-                                        this.viewportChange_);
+          this.viewportChange_);
     },
 
     viewportChange_: function() {
-      if (this.viewport.interestRange.isEmpty)
+      if (this.viewport.interestRange.isEmpty) {
         Polymer.dom(this).classList.remove('tall-mode');
-      else
+      } else {
         Polymer.dom(this).classList.add('tall-mode');
+      }
     },
 
     draw: function(type, viewLWorld, viewRWorld) {
@@ -69,9 +70,10 @@ tr.exportTo('tr.ui.tracks', function() {
           this.drawGrid_(viewLWorld, viewRWorld);
           break;
         case tr.ui.tracks.DrawType.MARKERS:
-          if (!this.viewport.interestRange.isEmpty)
+          if (!this.viewport.interestRange.isEmpty) {
             this.viewport.interestRange.draw(this.context(),
-                                             viewLWorld, viewRWorld);
+                viewLWorld, viewRWorld);
+          }
           break;
       }
     },
@@ -124,16 +126,9 @@ tr.exportTo('tr.ui.tracks', function() {
       for (var i = 0; i < vp.majorMarkWorldPositions.length; i++) {
         var curXWorld = vp.majorMarkWorldPositions[i];
         var curXView = dt.xWorldToView(curXWorld);
-
-        var roundedUnitValue =
-            Math.round(curXWorld / vp.majorMarkUnitDivisor * 100000) / 100000;
-
-        if (!tickLabels[roundedUnitValue]) {
-          tickLabels[roundedUnitValue] =
-              roundedUnitValue + ' ' + vp.majorMarkUnit;
-        }
-        ctx.fillText(tickLabels[roundedUnitValue],
-                     curXView + (2 * pixelRatio), 0);
+        var displayText = vp.majorMarkUnit.format(
+            curXWorld, {deltaValue: majorMarkDistanceWorld});
+        ctx.fillText(displayText, curXView + (2 * pixelRatio), 0);
 
         // Draw major mark.
         tr.ui.b.drawLine(ctx, curXView, 0, curXView, xAxisHeightPx);
@@ -155,8 +150,7 @@ tr.exportTo('tr.ui.tracks', function() {
       ctx.stroke();
 
       // Give distance between directly adjacent markers.
-      if (!hasInterestRange)
-        return;
+      if (!hasInterestRange) return;
 
       // Draw middle bar.
       tr.ui.b.drawLine(ctx, 0, xAxisHeightPx, width, xAxisHeightPx);
@@ -184,16 +178,15 @@ tr.exportTo('tr.ui.tracks', function() {
       if (interestRange.range === 0) {
         var markerWorld = interestRange.min;
         var markerView = dt.xWorldToView(markerWorld);
-        var displayValue = markerWorld / vp.majorMarkUnitDivisor;
-        displayValue = Math.abs((Math.round(displayValue * 1000) / 1000));
 
-        var textToDraw = displayValue + ' ' + vp.majorMarkUnit;
+        var textToDraw = vp.majorMarkUnit.format(markerWorld);
         var textLeftView = markerView + 4 * pixelRatio;
         var textWidthView = ctx.measureText(textToDraw).width;
 
         // Put text to the left in case it gets cut off.
-        if (textLeftView + textWidthView > width)
+        if (textLeftView + textWidthView > width) {
           textLeftView = markerView - 4 * pixelRatio - textWidthView;
+        }
 
         ctx.fillStyle = displayTextColor;
         ctx.fillText(textToDraw, textLeftView, textPosY);
@@ -212,11 +205,7 @@ tr.exportTo('tr.ui.tracks', function() {
       var positionInMiddleOfMarkersView =
           leftMarkerView + (distanceBetweenMarkersView / 2);
 
-      // Calculate display value to print.
-      displayDistance = distanceBetweenMarkers / vp.majorMarkUnitDivisor;
-      var roundedDisplayDistance =
-          Math.abs((Math.round(displayDistance * 1000) / 1000));
-      var textToDraw = roundedDisplayDistance + ' ' + vp.majorMarkUnit;
+      var textToDraw = vp.majorMarkUnit.format(distanceBetweenMarkers);
       var textWidthView = ctx.measureText(textToDraw).width;
       var spaceForArrowsAndTextView =
           textWidthView + spaceForArrowsView + arrowSpacing;
@@ -230,8 +219,9 @@ tr.exportTo('tr.ui.tracks', function() {
         textLeftView = rightMarkerView + 2 * arrowSpacing;
 
         // Put text to the left in case it gets cut off.
-        if (textLeftView + textWidthView > width)
+        if (textLeftView + textWidthView > width) {
           textLeftView = leftMarkerView - 2 * arrowSpacing - textWidthView;
+        }
 
         ctx.fillStyle = displayTextColor;
         ctx.fillText(textToDraw, textLeftView, textPosY);
@@ -252,7 +242,6 @@ tr.exportTo('tr.ui.tracks', function() {
             rightMarkerView + 1.5 * arrowSpacing, arrowPosY,
             rightMarkerView, arrowPosY,
             arrowLengthView, arrowWidthView);
-
       } else if (spaceForArrowsView <= distanceBetweenMarkersView) {
         var leftArrowStart;
         var rightArrowStart;

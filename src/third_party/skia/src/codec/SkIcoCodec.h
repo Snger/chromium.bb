@@ -4,10 +4,13 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
+#ifndef SkIcoCodec_DEFINED
+#define SkIcoCodec_DEFINED
 
 #include "SkCodec.h"
 #include "SkImageInfo.h"
 #include "SkStream.h"
+#include "SkTArray.h"
 #include "SkTypes.h"
 
 /*
@@ -99,3 +102,4 @@ private:
 
     typedef SkCodec INHERITED;
 };
+#endif  // SkIcoCodec_DEFINED

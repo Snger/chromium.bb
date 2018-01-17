@@ -12,7 +12,7 @@
 #include "base/files/file_util.h"
 #include "base/lazy_instance.h"
 #include "base/logging.h"
-#include "base/metrics/histogram.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/path_service.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -372,6 +372,22 @@ bool WallpaperManagerBase::GetLoggedInUserWallpaperInfo(WallpaperInfo* info) {
       user_manager::UserManager::Get()->GetActiveUser()->GetAccountId(), info);
 }
 
+void WallpaperManagerBase::SetDefaultWallpaper(const AccountId& account_id,
+                                               bool update_wallpaper) {
+  RemoveUserWallpaperInfo(account_id);
+
+  const wallpaper::WallpaperInfo info = {
+      std::string(), wallpaper::WALLPAPER_LAYOUT_CENTER,
+      user_manager::User::DEFAULT, base::Time::Now().LocalMidnight()};
+  const bool is_persistent =
+      !user_manager::UserManager::Get()->IsUserNonCryptohomeDataEphemeral(
+          account_id);
+  SetUserWallpaperInfo(account_id, info, is_persistent);
+
+  if (update_wallpaper)
+    SetDefaultWallpaperNow(account_id);
+}
+
 // static
 bool WallpaperManagerBase::ResizeImage(
     const gfx::ImageSkia& image,
@@ -474,13 +490,7 @@ void WallpaperManagerBase::OnPolicyCleared(const std::string& policy,
   GetUserWallpaperInfo(account_id, &info);
   info.type = user_manager::User::DEFAULT;
   SetUserWallpaperInfo(account_id, info, true /* is_persistent */);
-  // If the user's policy is cleared, try to set the device wallpaper first.
-  // Note We have to modify the user wallpaper info first. Otherwise, we won't
-  // be able to override the current user policy wallpaper. The wallpaper info
-  // will be set correctly if the device wallpaper is set successfully.
-  if (!SetDeviceWallpaperIfApplicable(account_id)) {
-    SetDefaultWallpaperNow(account_id);
-  }
+  SetDefaultWallpaperNow(account_id);
 }
 
 // static

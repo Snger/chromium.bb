@@ -5,6 +5,7 @@
 #include "net/spdy/spdy_proxy_client_socket.h"
 
 #include <algorithm>  // min
+#include <memory>
 #include <utility>
 
 #include "base/bind.h"
@@ -24,7 +25,6 @@
 #include "net/http/http_response_headers.h"
 #include "net/http/proxy_connect_redirect_http_stream.h"
 #include "net/log/net_log_event_type.h"
-#include "net/log/net_log_source.h"
 #include "net/log/net_log_source_type.h"
 #include "net/spdy/spdy_http_utils.h"
 #include "url/gurl.h"
@@ -33,7 +33,7 @@ namespace net {
 
 SpdyProxyClientSocket::SpdyProxyClientSocket(
     const base::WeakPtr<SpdyStream>& spdy_stream,
-    const std::string& user_agent,
+    const SpdyString& user_agent,
     const HostPortPair& endpoint,
     const HostPortPair& proxy_server,
     const NetLogWithSource& source_net_log,
@@ -49,6 +49,7 @@ SpdyProxyClientSocket::SpdyProxyClientSocket(
       redirect_has_load_timing_info_(false),
       net_log_(NetLogWithSource::Make(spdy_stream->net_log().net_log(),
                                       NetLogSourceType::PROXY_CLIENT_SOCKET)),
+      source_dependency_(source_net_log.source()),
       weak_factory_(this),
       write_callback_weak_factory_(this) {
   request_.method = "CONNECT";
@@ -350,7 +351,7 @@ int SpdyProxyClientSocket::DoSendRequest() {
     auth_->AddAuthorizationHeader(&authorization_headers);
   }
 
-  std::string request_line;
+  SpdyString request_line;
   BuildTunnelRequest(endpoint_, authorization_headers, user_agent_,
                      &request_line, &request_.extra_headers);
 
@@ -406,7 +407,7 @@ int SpdyProxyClientSocket::DoReadReplyComplete(int result) {
 
       redirect_has_load_timing_info_ =
           spdy_stream_->GetLoadTimingInfo(&redirect_load_timing_info_);
-      // Note that this triggers a RST_STREAM_CANCEL.
+      // Note that this triggers a ERROR_CODE_CANCEL.
       spdy_stream_->DetachDelegate();
       next_state_ = STATE_DISCONNECTED;
       return ERR_HTTPS_PROXY_TUNNEL_RESPONSE;
@@ -524,6 +525,10 @@ void SpdyProxyClientSocket::OnClose(int status)  {
   // This may have been deleted by read_callback_, so check first.
   if (weak_ptr.get() && !write_callback.is_null())
     write_callback.Run(ERR_CONNECTION_CLOSED);
+}
+
+NetLogSource SpdyProxyClientSocket::source_dependency() const {
+  return source_dependency_;
 }
 
 }  // namespace net

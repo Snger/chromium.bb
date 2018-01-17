@@ -438,11 +438,10 @@ TEST_F(SearchTest, UseLocalNTPIfNTPURLIsBlockedForSupervisedUser) {
   // Block access to foo.com in the URL filter.
   SupervisedUserService* supervised_user_service =
       SupervisedUserServiceFactory::GetForProfile(profile());
-  SupervisedUserURLFilter* url_filter =
-      supervised_user_service->GetURLFilterForUIThread();
+  SupervisedUserURLFilter* url_filter = supervised_user_service->GetURLFilter();
   std::map<std::string, bool> hosts;
   hosts["foo.com"] = false;
-  url_filter->SetManualHosts(&hosts);
+  url_filter->SetManualHosts(std::move(hosts));
 
   EXPECT_EQ(GURL(chrome::kChromeSearchLocalNtpUrl),
             GetNewTabPageURL(profile()));
@@ -557,7 +556,6 @@ TEST_F(SearchTest, GetSearchURLs) {
 }
 
 TEST_F(SearchTest, GetSearchResultPrefetchBaseURL) {
-  EXPECT_TRUE(ShouldPrefetchSearchResults());
   EXPECT_EQ(GURL("https://foo.com/instant?ion=1&foo=foo#foo=foo&strk"),
             GetSearchResultPrefetchBaseURL(profile()));
 }
@@ -582,31 +580,6 @@ TEST_F(SearchTest, ExtractSearchTermsFromURL) {
     EXPECT_EQ(test.expected_result,
               base::UTF16ToASCII(
                   ExtractSearchTermsFromURL(profile(), GURL(test.url))))
-        << test.url << " " << test.comment;
-  }
-}
-
-struct QueryExtractionAllowedTestCase {
-  const char* url;
-  bool expected_result;
-  const char* comment;
-};
-
-TEST_F(SearchTest, IsQueryExtractionAllowedForURL) {
-  const QueryExtractionAllowedTestCase kTestCases[] = {
-    {"http://foo.com/instant?strk",       false, "HTTP URL"},
-    {"https://foo.com/instant?strk",      true,  "Valid URL"},
-    {"https://foo.com/instant?",          false,
-     "No search terms replacement key"},
-    {"https://foo.com/alt#quux=foo",      false,
-     "No search terms replacement key"},
-    {"https://foo.com/alt#quux=foo&strk", true,  "Valid search url"}
-  };
-
-  for (size_t i = 0; i < arraysize(kTestCases); ++i) {
-    const QueryExtractionAllowedTestCase& test = kTestCases[i];
-    EXPECT_EQ(test.expected_result,
-              IsQueryExtractionAllowedForURL(profile(), GURL(test.url)))
         << test.url << " " << test.comment;
   }
 }

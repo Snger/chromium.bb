@@ -162,12 +162,6 @@ void ServiceWorkerWriteToCacheJob::GetResponseInfo(
   *info = *http_info();
 }
 
-int ServiceWorkerWriteToCacheJob::GetResponseCode() const {
-  if (!http_info())
-    return -1;
-  return http_info()->headers->response_code();
-}
-
 void ServiceWorkerWriteToCacheJob::SetExtraRequestHeaders(
       const net::HttpRequestHeaders& headers) {
   std::string value;
@@ -439,7 +433,7 @@ net::Error ServiceWorkerWriteToCacheJob::NotifyFinishedCaching(
     // occurred because the worker stops soon after receiving the error
     // response.
     version_->embedded_worker()->AddMessageToConsole(
-        blink::WebConsoleMessage::LevelError,
+        blink::WebConsoleMessage::kLevelError,
         status_message.empty() ? kFetchScriptError : status_message);
   } else {
     size = cache_writer_->bytes_written();

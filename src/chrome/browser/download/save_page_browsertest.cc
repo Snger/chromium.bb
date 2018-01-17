@@ -801,7 +801,7 @@ IN_PROC_BROWSER_TEST_F(SavePageBrowserTest, SaveDownloadableIFrame) {
     persisted.WaitForPersisted();
     std::vector<content::DownloadItem*> downloads;
     GetDownloadManager()->GetAllDownloads(&downloads);
-    for (auto download : downloads)
+    for (auto* download : downloads)
       download->Remove();
   }
 
@@ -1304,9 +1304,9 @@ IN_PROC_BROWSER_TEST_P(SavePageOriginalVsSavedComparisonTest, Style) {
 
   GURL url(embedded_test_server()->GetURL("a.com", "/save_page/style.htm"));
 
-  // The original page has 7 iframes. 2 of them are both hidden and affecting
-  // no layout. So these two are excluded from the saved page.
-  TestOriginalVsSavedPage(save_page_type, url, 7, 5, expected_substrings);
+  // The original page has 7 iframes. One of them that contains hidden attribute
+  // will be excluded from the saved page.
+  TestOriginalVsSavedPage(save_page_type, url, 7, 6, expected_substrings);
 }
 
 // Test for saving a page with broken subresources:

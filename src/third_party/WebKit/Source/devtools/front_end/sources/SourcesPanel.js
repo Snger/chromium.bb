@@ -112,13 +112,12 @@ Sources.SourcesPanel = class extends UI.Panel {
         SDK.DebuggerModel, SDK.DebuggerModel.Events.DebuggerPaused, this._debuggerPaused, this);
     SDK.targetManager.addModelListener(
         SDK.DebuggerModel, SDK.DebuggerModel.Events.DebuggerResumed,
-        (event) => this._debuggerResumed(/** @type {!SDK.DebuggerModel} */ (event.data)));
+        event => this._debuggerResumed(/** @type {!SDK.DebuggerModel} */ (event.data)));
     SDK.targetManager.addModelListener(
         SDK.DebuggerModel, SDK.DebuggerModel.Events.GlobalObjectCleared,
-        (event) => this._debuggerResumed(/** @type {!SDK.DebuggerModel} */ (event.data)));
-    SDK.targetManager.addModelListener(
-        SDK.SubTargetsManager, SDK.SubTargetsManager.Events.AvailableNodeTargetsChanged,
-        this._availableNodeTargetsChanged, this);
+        event => this._debuggerResumed(/** @type {!SDK.DebuggerModel} */ (event.data)));
+    SDK.targetManager.addEventListener(
+        SDK.TargetManager.Events.AvailableNodeTargetsChanged, this._availableNodeTargetsChanged, this);
     new Sources.WorkspaceMappingTip(this, this._workspace);
     Extensions.extensionServer.addEventListener(
         Extensions.ExtensionServer.Events.SidebarPaneAdded, this._extensionSidebarPaneAdded, this);
@@ -192,7 +191,7 @@ Sources.SourcesPanel = class extends UI.Panel {
   _setTarget(target) {
     if (!target)
       return;
-    var debuggerModel = SDK.DebuggerModel.fromTarget(target);
+    var debuggerModel = target.model(SDK.DebuggerModel);
     if (!debuggerModel)
       return;
 
@@ -296,10 +295,10 @@ Sources.SourcesPanel = class extends UI.Panel {
     if (!this._paused)
       this._setAsCurrentPanel();
 
-    if (UI.context.flavor(SDK.Target) === details.target())
-      this._showDebuggerPausedDetails(details);
+    if (UI.context.flavor(SDK.Target) === debuggerModel.target())
+      this._showDebuggerPausedDetails(/** @type {!SDK.DebuggerPausedDetails} */ (details));
     else if (!this._paused)
-      UI.context.setFlavor(SDK.Target, details.target());
+      UI.context.setFlavor(SDK.Target, debuggerModel.target());
   }
 
   /**
@@ -471,7 +470,7 @@ Sources.SourcesPanel = class extends UI.Panel {
 
   _updateDebuggerButtonsAndStatus() {
     var currentTarget = UI.context.flavor(SDK.Target);
-    var currentDebuggerModel = SDK.DebuggerModel.fromTarget(currentTarget);
+    var currentDebuggerModel = currentTarget ? currentTarget.model(SDK.DebuggerModel) : null;
     if (!currentDebuggerModel) {
       this._togglePauseAction.setEnabled(false);
       this._stepOverAction.setEnabled(false);
@@ -514,7 +513,7 @@ Sources.SourcesPanel = class extends UI.Panel {
       return;
     if (debuggerModel.isPaused())
       return;
-    var debuggerModels = SDK.DebuggerModel.instances();
+    var debuggerModels = SDK.targetManager.models(SDK.DebuggerModel);
     for (var i = 0; i < debuggerModels.length; ++i) {
       if (debuggerModels[i].isPaused()) {
         UI.context.setFlavor(SDK.Target, debuggerModels[i].target());
@@ -562,7 +561,7 @@ Sources.SourcesPanel = class extends UI.Panel {
     var target = UI.context.flavor(SDK.Target);
     if (!target)
       return true;
-    var debuggerModel = SDK.DebuggerModel.fromTarget(target);
+    var debuggerModel = target.model(SDK.DebuggerModel);
     if (!debuggerModel)
       return true;
 
@@ -589,7 +588,7 @@ Sources.SourcesPanel = class extends UI.Panel {
 
     this._clearInterface();
     var target = UI.context.flavor(SDK.Target);
-    return target ? SDK.DebuggerModel.fromTarget(target) : null;
+    return target ? target.model(SDK.DebuggerModel) : null;
   }
 
   /**
@@ -647,13 +646,11 @@ Sources.SourcesPanel = class extends UI.Panel {
     var executionContext = UI.context.flavor(SDK.ExecutionContext);
     if (!executionContext)
       return;
-
     // Always use 0 column.
-    var rawLocation = Bindings.debuggerWorkspaceBinding.uiLocationToRawLocation(
-        executionContext.target(), uiLocation.uiSourceCode, uiLocation.lineNumber, 0);
-    if (!rawLocation)
+    var rawLocation =
+        Bindings.debuggerWorkspaceBinding.uiLocationToRawLocation(uiLocation.uiSourceCode, uiLocation.lineNumber, 0);
+    if (!rawLocation || rawLocation.debuggerModel !== executionContext.debuggerModel)
       return;
-
     if (!this._prepareToResume())
       return;
 
@@ -692,9 +689,9 @@ Sources.SourcesPanel = class extends UI.Panel {
     debugToolbar.appendToolbarItem(this._pauseOnExceptionButton);
 
     debugToolbar.appendSeparator();
-    debugToolbar.appendToolbarItem(new UI.ToolbarCheckbox(
-        Common.UIString('Async'), Common.UIString('Capture async stack traces'),
-        Common.moduleSetting('enableAsyncStackTraces')));
+    debugToolbar.appendToolbarItem(new UI.ToolbarSettingCheckbox(
+        Common.moduleSetting('enableAsyncStackTraces'), Common.UIString('Capture async stack traces'),
+        Common.UIString('Async')));
 
     return debugToolbar;
   }
@@ -862,7 +859,7 @@ Sources.SourcesPanel = class extends UI.Panel {
     var contentType = uiSourceCode.contentType();
     if (contentType.hasScripts()) {
       var target = UI.context.flavor(SDK.Target);
-      var debuggerModel = SDK.DebuggerModel.fromTarget(target);
+      var debuggerModel = target ? target.model(SDK.DebuggerModel) : null;
       if (debuggerModel && debuggerModel.isPaused()) {
         contextMenu.appendItem(
             Common.UIString.capitalize('Continue to ^here'), this._continueToLocation.bind(this, uiLocation));
@@ -957,8 +954,8 @@ Sources.SourcesPanel = class extends UI.Panel {
       if (wasThrown || !result || result.type !== 'string') {
         failedToSave(result);
       } else {
-        SDK.ConsoleModel.evaluateCommandInConsole(
-            /** @type {!SDK.ExecutionContext} */ (currentExecutionContext), result.value,
+        ConsoleModel.consoleModel.evaluateCommandInConsole(
+            /** @type {!SDK.ExecutionContext} */ (currentExecutionContext), /** @type {string} */ (result.value),
             /* useCommandLineAPI */ false);
       }
     }
@@ -997,10 +994,6 @@ Sources.SourcesPanel = class extends UI.Panel {
     var uiLocation = Bindings.debuggerWorkspaceBinding.rawLocationToUILocation(location);
     if (uiLocation)
       this.showUILocation(uiLocation);
-  }
-
-  showGoToSourceDialog() {
-    this._sourcesView.showOpenResourceDialog();
   }
 
   _revealNavigatorSidebar() {
@@ -1226,9 +1219,6 @@ Sources.SourcesPanel.RevealingActionDelegate = class {
       case 'debugger.toggle-pause':
         panel._togglePause();
         return true;
-      case 'sources.go-to-source':
-        panel.showGoToSourceDialog();
-        return true;
     }
     return false;
   }
@@ -1269,7 +1259,7 @@ Sources.SourcesPanel.DebuggingActionDelegate = class {
           var text = frame.textEditor.text(frame.textEditor.selection());
           var executionContext = UI.context.flavor(SDK.ExecutionContext);
           if (executionContext)
-            SDK.ConsoleModel.evaluateCommandInConsole(executionContext, text, /* useCommandLineAPI */ true);
+            ConsoleModel.consoleModel.evaluateCommandInConsole(executionContext, text, /* useCommandLineAPI */ true);
         }
         return true;
     }

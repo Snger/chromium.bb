@@ -20,7 +20,7 @@ tr.b.unittest.testSuite(function() {
   var createTestProcessMemoryDumps = tr.ui.tracks.createTestProcessMemoryDumps;
 
   function instantiateTrack(withVMRegions, withAllocatorDumps,
-                            expectedTrackCount) {
+      expectedTrackCount) {
     var dumps = createTestProcessMemoryDumps(withVMRegions, withAllocatorDumps);
 
     var div = document.createElement('div');
@@ -35,8 +35,9 @@ tr.b.unittest.testSuite(function() {
     track.memoryDumps = dumps;
 
     // TODO(petrcermak): Check that the div has indeed zero size.
-    if (expectedTrackCount > 0)
+    if (expectedTrackCount > 0) {
       this.addHTMLOutput(div);
+    }
 
     var dt = new tr.ui.TimelineDisplayTransform();
     dt.xSetWorldBounds(0, 50, track.clientWidth);

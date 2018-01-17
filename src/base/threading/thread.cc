@@ -156,7 +156,7 @@ void Thread::FlushForTesting() {
   WaitableEvent done(WaitableEvent::ResetPolicy::AUTOMATIC,
                      WaitableEvent::InitialState::NOT_SIGNALED);
   task_runner()->PostTask(FROM_HERE,
-                          Bind(&WaitableEvent::Signal, Unretained(&done)));
+                          BindOnce(&WaitableEvent::Signal, Unretained(&done)));
   done.Wait();
 }
 
@@ -210,7 +210,12 @@ void Thread::StopSoon() {
   }
 
   task_runner()->PostTask(
-      FROM_HERE, base::Bind(&Thread::ThreadQuitHelper, Unretained(this)));
+      FROM_HERE, base::BindOnce(&Thread::ThreadQuitHelper, Unretained(this)));
+}
+
+void Thread::DetachFromSequence() {
+  DCHECK(owning_sequence_checker_.CalledOnValidSequence());
+  owning_sequence_checker_.DetachFromSequence();
 }
 
 PlatformThreadId Thread::GetThreadId() const {
@@ -277,7 +282,7 @@ void Thread::ThreadMain() {
   // any place in the following thread initialization code.
   DCHECK(!id_event_.IsSignaled());
   // Note: this read of |id_| while |id_event_| isn't signaled is exceptionally
-  // okay because ThreadMain has an happens-after relationship with the other
+  // okay because ThreadMain has a happens-after relationship with the other
   // write in StartWithOptions().
   DCHECK_EQ(kInvalidThreadId, id_);
   id_ = PlatformThread::CurrentId();

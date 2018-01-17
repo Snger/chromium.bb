@@ -2,16 +2,19 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-// ======                        New Architecture                         =====
-// =         This code is only used in the new iOS Chrome architecture.       =
-// ============================================================================
-
 #import "ios/clean/chrome/browser/ui/tools/menu_view_controller.h"
 
+#include "base/i18n/rtl.h"
 #import "base/logging.h"
 #import "base/macros.h"
-#import "ios/clean/chrome/browser/ui/actions/settings_actions.h"
-#import "ios/clean/chrome/browser/ui/actions/tools_menu_actions.h"
+#import "ios/chrome/browser/ui/rtl_geometry.h"
+#import "ios/clean/chrome/browser/ui/commands/find_in_page_visibility_commands.h"
+#import "ios/clean/chrome/browser/ui/commands/tools_menu_commands.h"
+#import "ios/clean/chrome/browser/ui/toolbar/toolbar_button.h"
+#import "ios/clean/chrome/browser/ui/tools/menu_overflow_controls_stackview.h"
+#import "ios/clean/chrome/browser/ui/tools/tools_actions.h"
+#import "ios/clean/chrome/browser/ui/tools/tools_menu_item.h"
+#import "ios/third_party/material_components_ios/src/components/Typography/src/MaterialTypography.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -19,45 +22,19 @@
 
 namespace {
 const CGFloat kMenuWidth = 250;
-const CGFloat kMenuItemHeight = 44;
+const CGFloat kMenuItemHeight = 48;
 }
 
-// Placeholder model for menu item configuration.
-@interface MenuItem : NSObject
-@property(nonatomic, copy) NSString* title;
-@property(nonatomic) SEL action;
-@end
-
-@implementation MenuItem
-@synthesize title = _title;
-@synthesize action = _action;
-@end
-
-@interface MenuViewController ()
-@property(nonatomic, readonly) NSArray<MenuItem*>* menuItems;
+@interface MenuViewController ()<ToolsActions>
+@property(nonatomic, strong) NSArray<ToolsMenuItem*>* menuItems;
+@property(nonatomic, strong)
+    MenuOverflowControlsStackView* toolbarOverflowStackView;
 @end
 
 @implementation MenuViewController
+@synthesize dispatcher = _dispatcher;
 @synthesize menuItems = _menuItems;
-
-- (instancetype)init {
-  if ((self = [super init])) {
-    _menuItems = @[
-      [[MenuItem alloc] init], [[MenuItem alloc] init], [[MenuItem alloc] init],
-      [[MenuItem alloc] init]
-    ];
-
-    _menuItems[0].title = @"New Tab";
-
-    _menuItems[1].title = @"Find in Page…";
-
-    _menuItems[2].title = @"Request Desktop Site";
-
-    _menuItems[3].title = @"Settings";
-    _menuItems[3].action = @selector(showSettings:);
-  }
-  return self;
-}
+@synthesize toolbarOverflowStackView = _toolbarOverflowStackView;
 
 - (void)loadView {
   CGRect frame;
@@ -66,21 +43,27 @@ const CGFloat kMenuItemHeight = 44;
   self.view = [[UIView alloc] initWithFrame:frame];
   self.view.backgroundColor = [UIColor whiteColor];
   self.view.autoresizingMask = UIViewAutoresizingNone;
+  self.view.layer.borderColor = [UIColor clearColor].CGColor;
 }
 
 - (void)viewDidLoad {
   NSMutableArray<UIButton*>* buttons =
       [[NSMutableArray alloc] initWithCapacity:_menuItems.count];
 
-  for (MenuItem* item in _menuItems) {
+  for (ToolsMenuItem* item in _menuItems) {
     UIButton* menuButton = [UIButton buttonWithType:UIButtonTypeSystem];
     menuButton.translatesAutoresizingMaskIntoConstraints = NO;
+    menuButton.tintColor = [UIColor blackColor];
     [menuButton setTitle:item.title forState:UIControlStateNormal];
-    [menuButton addTarget:nil
+    [menuButton setContentEdgeInsets:UIEdgeInsetsMakeDirected(0, 10.0f, 0, 0)];
+    [menuButton.titleLabel setFont:[MDCTypography subheadFont]];
+    [menuButton.titleLabel setTextAlignment:NSTextAlignmentNatural];
+    [menuButton addTarget:self
                    action:@selector(closeToolsMenu:)
          forControlEvents:UIControlEventTouchUpInside];
     if (item.action) {
-      [menuButton addTarget:nil
+      id target = (item.action == @selector(showFindInPage)) ? self : nil;
+      [menuButton addTarget:target
                      action:item.action
            forControlEvents:UIControlEventTouchUpInside];
     }
@@ -94,17 +77,49 @@ const CGFloat kMenuItemHeight = 44;
   menu.distribution = UIStackViewDistributionFillEqually;
   menu.alignment = UIStackViewAlignmentLeading;
 
+  // Stack view to hold overflow ToolbarButtons.
+  if (self.traitCollection.horizontalSizeClass ==
+      UIUserInterfaceSizeClassCompact) {
+    self.toolbarOverflowStackView =
+        [[MenuOverflowControlsStackView alloc] init];
+    // PLACEHOLDER: ToolsMenuButton might end up being part of the MenuVC's view
+    // instead of the StackView. We are waiting confirmation on this.
+    [self.toolbarOverflowStackView.toolsMenuButton
+               addTarget:nil
+                  action:@selector(closeToolsMenu:)
+        forControlEvents:UIControlEventTouchUpInside];
+    [menu insertArrangedSubview:self.toolbarOverflowStackView atIndex:0];
+    [NSLayoutConstraint activateConstraints:@[
+      [self.toolbarOverflowStackView.leadingAnchor
+          constraintEqualToAnchor:menu.leadingAnchor],
+      [self.toolbarOverflowStackView.trailingAnchor
+          constraintEqualToAnchor:menu.trailingAnchor],
+    ]];
+  }
+
   [self.view addSubview:menu];
   [NSLayoutConstraint activateConstraints:@[
-    [menu.leadingAnchor
-        constraintEqualToAnchor:self.view.layoutMarginsGuide.leadingAnchor],
-    [menu.trailingAnchor
-        constraintEqualToAnchor:self.view.layoutMarginsGuide.trailingAnchor],
-    [menu.bottomAnchor
-        constraintEqualToAnchor:self.view.layoutMarginsGuide.bottomAnchor],
-    [menu.topAnchor
-        constraintEqualToAnchor:self.view.layoutMarginsGuide.topAnchor],
+    [menu.leadingAnchor constraintEqualToAnchor:self.view.leadingAnchor],
+    [menu.trailingAnchor constraintEqualToAnchor:self.view.trailingAnchor],
+    [menu.bottomAnchor constraintEqualToAnchor:self.view.bottomAnchor],
+    [menu.topAnchor constraintEqualToAnchor:self.view.topAnchor],
   ]];
+}
+
+#pragma mark - ToolsMenuCommands
+
+- (void)closeToolsMenu:(id)sender {
+  [self.dispatcher closeToolsMenu];
+}
+
+- (void)showFindInPage {
+  [self.dispatcher showFindInPage];
+}
+
+#pragma mark - Tools Consumer
+
+- (void)setToolsMenuItems:(NSArray*)menuItems {
+  _menuItems = menuItems;
 }
 
 @end

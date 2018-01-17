@@ -23,12 +23,11 @@ void TestContextSupport::SignalSyncToken(const gpu::SyncToken& sync_token,
                                          const base::Closure& callback) {
   sync_point_callbacks_.push_back(callback);
   base::ThreadTaskRunnerHandle::Get()->PostTask(
-      FROM_HERE, base::Bind(&TestContextSupport::CallAllSyncPointCallbacks,
-                            weak_ptr_factory_.GetWeakPtr()));
+      FROM_HERE, base::BindOnce(&TestContextSupport::CallAllSyncPointCallbacks,
+                                weak_ptr_factory_.GetWeakPtr()));
 }
 
-bool TestContextSupport::IsSyncTokenSignalled(
-    const gpu::SyncToken& sync_token) {
+bool TestContextSupport::IsSyncTokenSignaled(const gpu::SyncToken& sync_token) {
   return true;
 }
 
@@ -36,8 +35,8 @@ void TestContextSupport::SignalQuery(uint32_t query,
                                      const base::Closure& callback) {
   sync_point_callbacks_.push_back(callback);
   base::ThreadTaskRunnerHandle::Get()->PostTask(
-      FROM_HERE, base::Bind(&TestContextSupport::CallAllSyncPointCallbacks,
-                            weak_ptr_factory_.GetWeakPtr()));
+      FROM_HERE, base::BindOnce(&TestContextSupport::CallAllSyncPointCallbacks,
+                                weak_ptr_factory_.GetWeakPtr()));
 }
 
 void TestContextSupport::SetAggressivelyFreeResources(
@@ -66,7 +65,7 @@ void TestContextSupport::SetScheduleOverlayPlaneCallback(
 
 void TestContextSupport::Swap() {}
 
-void TestContextSupport::SwapWithDamage(const gfx::Rect& damage) {}
+void TestContextSupport::SwapWithBounds(const std::vector<gfx::Rect>& rects) {}
 
 void TestContextSupport::PartialSwapBuffers(const gfx::Rect& sub_buffer) {}
 

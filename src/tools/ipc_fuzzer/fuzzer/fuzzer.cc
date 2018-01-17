@@ -12,6 +12,7 @@
 #include "base/macros.h"
 #include "base/memory/shared_memory_handle.h"
 #include "base/strings/string_util.h"
+#include "base/values.h"
 #include "build/build_config.h"
 #include "ipc/ipc_message.h"
 #include "ipc/ipc_message_utils.h"
@@ -509,36 +510,35 @@ struct FuzzTraits<base::ListValue> {
           bool tmp;
           p->GetBoolean(index, &tmp);
           fuzzer->FuzzBool(&tmp);
-          p->Set(index, new base::FundamentalValue(tmp));
+          p->Set(index, new base::Value(tmp));
           break;
         }
         case base::Value::Type::INTEGER: {
           int tmp;
           p->GetInteger(index, &tmp);
           fuzzer->FuzzInt(&tmp);
-          p->Set(index, new base::FundamentalValue(tmp));
+          p->Set(index, new base::Value(tmp));
           break;
         }
         case base::Value::Type::DOUBLE: {
           double tmp;
           p->GetDouble(index, &tmp);
           fuzzer->FuzzDouble(&tmp);
-          p->Set(index, new base::FundamentalValue(tmp));
+          p->Set(index, new base::Value(tmp));
           break;
         }
         case base::Value::Type::STRING: {
           std::string tmp;
           p->GetString(index, &tmp);
           fuzzer->FuzzString(&tmp);
-          p->Set(index, new base::StringValue(tmp));
+          p->Set(index, new base::Value(tmp));
           break;
         }
         case base::Value::Type::BINARY: {
           char tmp[200];
           size_t bin_length = RandInRange(sizeof(tmp));
           fuzzer->FuzzData(tmp, bin_length);
-          p->Set(index,
-                 base::BinaryValue::CreateWithCopiedBuffer(tmp, bin_length));
+          p->Set(index, base::Value::CreateWithCopiedBuffer(tmp, bin_length));
           break;
         }
         case base::Value::Type::DICTIONARY: {
@@ -581,25 +581,25 @@ struct FuzzTraits<base::DictionaryValue> {
         case base::Value::Type::BOOLEAN: {
           bool tmp;
           fuzzer->FuzzBool(&tmp);
-          p->SetWithoutPathExpansion(property, new base::FundamentalValue(tmp));
+          p->SetWithoutPathExpansion(property, new base::Value(tmp));
           break;
         }
         case base::Value::Type::INTEGER: {
           int tmp;
           fuzzer->FuzzInt(&tmp);
-          p->SetWithoutPathExpansion(property, new base::FundamentalValue(tmp));
+          p->SetWithoutPathExpansion(property, new base::Value(tmp));
           break;
         }
         case base::Value::Type::DOUBLE: {
           double tmp;
           fuzzer->FuzzDouble(&tmp);
-          p->SetWithoutPathExpansion(property, new base::FundamentalValue(tmp));
+          p->SetWithoutPathExpansion(property, new base::Value(tmp));
           break;
         }
         case base::Value::Type::STRING: {
           std::string tmp;
           fuzzer->FuzzString(&tmp);
-          p->SetWithoutPathExpansion(property, new base::StringValue(tmp));
+          p->SetWithoutPathExpansion(property, new base::Value(tmp));
           break;
         }
         case base::Value::Type::BINARY: {
@@ -607,8 +607,7 @@ struct FuzzTraits<base::DictionaryValue> {
           size_t bin_length = RandInRange(sizeof(tmp));
           fuzzer->FuzzData(tmp, bin_length);
           p->SetWithoutPathExpansion(
-              property,
-              base::BinaryValue::CreateWithCopiedBuffer(tmp, bin_length));
+              property, base::Value::CreateWithCopiedBuffer(tmp, bin_length));
           break;
         }
         case base::Value::Type::DICTIONARY: {
@@ -810,7 +809,7 @@ struct FuzzTraits<content::SyntheticGesturePacket> {
 template <>
 struct FuzzTraits<content::WebCursor> {
   static bool Fuzz(content::WebCursor* p, Fuzzer* fuzzer) {
-    content::WebCursor::CursorInfo info;
+    content::CursorInfo info;
     p->GetCursorInfo(&info);
 
     // |type| enum is not validated on de-serialization, so pick random value.
@@ -1500,23 +1499,6 @@ struct FuzzTraits<ppapi::SocketOptionData> {
     if (!FuzzParam(&tmp, fuzzer))
       return false;
     p->SetInt32(tmp);
-    return true;
-  }
-};
-
-template <>
-struct FuzzTraits<printing::PdfRenderSettings> {
-  static bool Fuzz(printing::PdfRenderSettings* p, Fuzzer* fuzzer) {
-    gfx::Rect area = p->area;
-    int dpi = p->dpi;
-    bool autorotate = p->autorotate;
-    if (!FuzzParam(&area, fuzzer))
-      return false;
-    if (!FuzzParam(&dpi, fuzzer))
-      return false;
-    if (!FuzzParam(&autorotate, fuzzer))
-      return false;
-    *p = printing::PdfRenderSettings(area, dpi, autorotate);
     return true;
   }
 };

@@ -175,6 +175,10 @@ CL_STATUS_WAITING = 'waiting'
 CL_STATUS_READY_TO_SUBMIT = 'ready-to-submit'
 CL_STATUS_FULLY_VERIFIED = 'fully-verified'
 
+# Signer status strings
+SIGNER_STATUS_PASSED = 'passed'
+SIGNER_STATUS_FAILED = 'failed'
+
 # Change sources
 CHANGE_SOURCE_INTERNAL = 'internal'
 CHANGE_SOURCE_EXTERNAL = 'external'
@@ -230,12 +234,11 @@ EXCEPTION_CATEGORY_ALL_CATEGORIES = (
     EXCEPTION_CATEGORY_LAB,
 )
 
-# TODO: Eliminate these or merge with manifest_version.py:STATUS_PASSED
-# crbug.com/318930
-FINAL_STATUS_PASSED = 'passed'
-FINAL_STATUS_FAILED = 'failed'
-
 # Monarch metric names
+MON_CQ_WALL_CLOCK_SECS = 'chromeos/cbuildbot/cq_wall_clock_seconds'
+MON_CQ_SELF_DESTRUCTION_COUNT = ('chromeos/cbuildbot/build/'
+                                 'cq_self_destruction_count')
+MON_CQ_BUILD_DURATION = 'chromeos/cbuildbot/build/cq_build_durations'
 MON_CL_ACTION = 'chromeos/cbuildbot/cl_action'
 MON_PRECQ_LAUNCH_COUNT = 'chromeos/cbuildbot/pre-cq/launch_count'
 MON_PRECQ_CL_LAUNCH_COUNT = 'chromeos/cbuildbot/pre-cq/cl_launch_count'
@@ -248,14 +251,21 @@ MON_CL_HANDLE_TIME = 'chromeos/cbuildbot/submitted_change/handling_times'
 MON_CL_PRECQ_TIME = 'chromeos/cbuildbot/submitted_change/precq_times'
 MON_CL_WAIT_TIME = 'chromeos/cbuildbot/submitted_change/wait_times'
 MON_CL_CQRUN_TIME = 'chromeos/cbuildbot/submitted_change/cq_run_times'
+MON_CL_CQ_TRIES = 'chromeos/cbuildbot/submitted_change/cq_attempts'
 MON_CL_FALSE_REJ = 'chromeos/cbuildbot/submitted_change/false_rejections'
+MON_CL_FALSE_REJ_TOTAL = ('chromeos/cbuildbot/submitted_change/'
+                          'false_rejections_total')
 MON_CL_FALSE_REJ_COUNT = ('chromeos/cbuildbot/submitted_change/'
                           'false_rejection_count')
 MON_REPO_SYNC_COUNT = 'chromeos/cbuildbot/repo/sync_count'
 MON_REPO_SYNC_RETRY_COUNT = 'chromeos/cbuildbot/repo/sync_retry_count'
+MON_REPO_SELFUPDATE_FAILURE_COUNT = ('chromeos/cbuildbot/repo/'
+                                     'selfupdate_failure_count')
+MON_REPO_INIT_RETRY_COUNT = 'chromeos/cbuildbot/repo/init_retry_count'
+MON_REPO_MANIFEST_FAILURE_COUNT = ('chromeos/cbuildbot/repo/'
+                                   'manifest_failure_count')
 MON_GIT_FETCH_COUNT = 'chromeos/cbuildbot/git/fetch_count'
 MON_GIT_FETCH_RETRY_COUNT = 'chromeos/cbuildbot/git/fetch_retry_count'
-
 MON_BB_RETRY_BUILD_COUNT = ('chromeos/cbuildbot/buildbucket/'
                             'retry_build_count')
 MON_BB_CANCEL_BATCH_BUILDS_COUNT = ('chromeos/cbuildbot/buildbucket/'
@@ -263,17 +273,40 @@ MON_BB_CANCEL_BATCH_BUILDS_COUNT = ('chromeos/cbuildbot/buildbucket/'
 MON_BB_CANCEL_PRE_CQ_BUILD_COUNT = ('chromeos/cbuildbot/buildbucket/'
                                     'cancel_pre_cq_build_count')
 
+# Sheriff-o-Matic tree which Chrome OS alerts are posted to.
+SOM_TREE = 'chromeos'
+
+# Sheriff-o-Matic severities (all severities must start at 1000 and should
+# be synchronized with:
+# https://cs.chromium.org/chromium/infra/go/src/infra/appengine/sheriff-o-matic/elements/
+SOM_SEVERITY_CQ_FAILURE = 1000
+SOM_SEVERITY_PFQ_FAILURE = 1001
+SOM_SEVERITY_CANARY_FAILURE = 1002
+SOM_SEVERITY_RELEASE_FAILURE = 1003
+
+# List of master builds to generate Sheriff-o-Matics alerts for.
+# Waterfall, build config, SOM alert severity.
+SOM_IMPORTANT_BUILDS = [
+    (WATERFALL_INTERNAL, 'master-paladin', SOM_SEVERITY_CQ_FAILURE),
+    (WATERFALL_INTERNAL, 'master-chromium-pfq', SOM_SEVERITY_PFQ_FAILURE),
+    (WATERFALL_INTERNAL, 'master-android-pfq', SOM_SEVERITY_PFQ_FAILURE),
+    (WATERFALL_INTERNAL, 'master-release', SOM_SEVERITY_CANARY_FAILURE),
+]
+
 # Re-execution API constants.
 # Used by --resume and --bootstrap to decipher which options they
 # can pass to the target cbuildbot (since it may not have that
 # option).
-# Format is Major:Minor.  Minor is used for tracking new options added
+# Format is Major.Minor.  Minor is used for tracking new options added
 # that aren't critical to the older version if it's not ran.
 # Major is used for tracking heavy API breakage- for example, no longer
 # supporting the --resume option.
 REEXEC_API_MAJOR = 0
-REEXEC_API_MINOR = 4
+REEXEC_API_MINOR = 5
 REEXEC_API_VERSION = '%i.%i' % (REEXEC_API_MAJOR, REEXEC_API_MINOR)
+
+# Minor version 5 is the first to support --goma_dir and --goma_client_json
+REEXEC_API_GOMA = 5
 
 # Minor version 4 is the first to support --git-cache-dir
 REEXEC_API_GIT_CACHE_DIR = 4
@@ -338,6 +371,16 @@ ARC_BUCKET_ACLS = {
     'SDK_TOOLS': 'googlestorage_acl_public.txt',
     'XTS': 'googlestorage_acl_cts.txt',
 }
+ARC_USE_FLAG_TO_ARCH = {
+    'arm': 'arm',
+    'x86': 'x86',
+    'amd64': 'x86',
+}
+ANDROID_SYMBOLS_URL_TEMPLATE = (
+    ARC_BUCKET_URL +
+    '/%(branch)s-linux-cheets_%(arch)s-user/%(version)s'
+    '/cheets_%(arch)s-symbols-%(version)s.zip')
+ANDROID_SYMBOLS_FILE = 'android-symbols.zip'
 # x86-user, x86-userdebug and x86-eng builders create build artifacts with the
 # same name, e.g. cheets_x86-target_files-${VERSION}.zip. Chrome OS builders
 # that need to select x86-user or x86-userdebug artifacts at emerge time need
@@ -405,6 +448,8 @@ CREATED_BRANCHES = [
 
 # Constants for uprevving Chrome
 
+CHROMEOS_BASE = 'chromeos-base'
+
 # Portage category and package name for Chrome.
 CHROME_PN = 'chromeos-chrome'
 CHROME_CP = 'chromeos-base/%s' % CHROME_PN
@@ -442,9 +487,8 @@ VALID_CHROME_REVISIONS = [CHROME_REV_TOT, CHROME_REV_LATEST,
 
 # Constants for uprevving Android.
 
-# Portage category and package name for Chrome.
-ANDROID_PN = 'android-container'
-ANDROID_CP = 'chromeos-base/%s' % ANDROID_PN
+# Portage package name for Android container.
+ANDROID_PACKAGE_NAME = 'android-container'
 
 # Builds and validates the latest Android release.
 ANDROID_REV_LATEST = 'latest_release'
@@ -453,7 +497,6 @@ VALID_ANDROID_REVISIONS = [ANDROID_REV_LATEST]
 
 # Builder types supported
 BAREMETAL_BUILD_SLAVE_TYPE = 'baremetal'
-VM_BUILD_SLAVE_TYPE = 'vm'
 GCE_BEEFY_BUILD_SLAVE_TYPE = 'gce_beefy'
 GCE_BUILD_SLAVE_TYPE = 'gce'
 # A wimpy GCE instance well suited to run cbuildbot's master build-types.
@@ -461,7 +504,6 @@ GCE_WIMPY_BUILD_SLAVE_TYPE = 'gce_wimpy'
 
 VALID_BUILD_SLAVE_TYPES = (
     BAREMETAL_BUILD_SLAVE_TYPE,
-    VM_BUILD_SLAVE_TYPE,
     GCE_BEEFY_BUILD_SLAVE_TYPE,
     GCE_BUILD_SLAVE_TYPE,
     GCE_WIMPY_BUILD_SLAVE_TYPE,
@@ -536,8 +578,15 @@ VALID_BUILD_TYPES = (
 )
 
 # The default list of pre-cq configs to use.
-PRE_CQ_DEFAULT_CONFIGS = ['rambi-pre-cq', 'mixed-a-pre-cq', 'mixed-b-pre-cq',
-                          'mixed-c-pre-cq']
+PRE_CQ_DEFAULT_CONFIGS = [
+    'caroline-pre-cq',                # skylake      kernel 3.18      vmtest
+    'daisy_spring-no-vmtest-pre-cq',  # arm          kernel 3.8
+    'lumpy-no-vmtest-pre-cq',         # sandybridge  kernel 3.8
+    'rambi-no-vmtest-pre-cq',         # baytrail     kernel 4.4
+    'samus-no-vmtest-pre-cq',         # broadwell    kernel 3.14
+    'whirlwind-no-vmtest-pre-cq',     # brillo
+    'x86-alex-no-vmtest-pre-cq',      # x86          kernel 3.8
+]
 
 # The name of the pre-cq launching config.
 PRE_CQ_LAUNCHER_CONFIG = 'pre-cq-launcher'
@@ -621,6 +670,9 @@ SUBSYSTEM_PASS = 'subsystem_pass'
 SUBSYSTEM_FAIL = 'subsystem_fail'
 SUBSYSTEM_UNUSED = 'subsystem_unused'
 
+# Define HWTEST job_keyvals
+DATASTORE_PARENT_KEY = 'datastore_parent_key'
+
 # Defines VM Test types.
 FULL_AU_TEST_TYPE = 'full_suite'
 SIMPLE_AU_TEST_TYPE = 'pfq_suite'
@@ -628,12 +680,13 @@ SMOKE_SUITE_TEST_TYPE = 'smoke_suite'
 TELEMETRY_SUITE_TEST_TYPE = 'telemetry_suite'
 CROS_VM_TEST_TYPE = 'cros_vm_test'
 DEV_MODE_TEST_TYPE = 'dev_mode_test'
-# Special test type for the GCE test lab. It runs all tests in the smoke suite,
-# but runs them on GCE.
-GCE_VM_TEST_TYPE = 'gce_vm_test'
 VALID_VM_TEST_TYPES = [FULL_AU_TEST_TYPE, SIMPLE_AU_TEST_TYPE,
                        SMOKE_SUITE_TEST_TYPE, TELEMETRY_SUITE_TEST_TYPE,
-                       CROS_VM_TEST_TYPE, DEV_MODE_TEST_TYPE, GCE_VM_TEST_TYPE]
+                       CROS_VM_TEST_TYPE, DEV_MODE_TEST_TYPE]
+# GCE tests are suites of tests that run on GCE instances.
+GCE_SMOKE_TEST_TYPE = 'gce_smoke_test'  # suite:gce-smoke
+GCE_SANITY_TEST_TYPE = 'gce_sanity_test'  # suite:gce-sanity
+VALID_GCE_TEST_TYPES = [GCE_SMOKE_TEST_TYPE, GCE_SANITY_TEST_TYPE]
 
 CHROMIUMOS_OVERLAY_DIR = 'src/third_party/chromiumos-overlay'
 VERSION_FILE = os.path.join(CHROMIUMOS_OVERLAY_DIR,
@@ -690,16 +743,9 @@ _QUERIES = {
 
 
 # Default gerrit query used to find changes for CQ.
-# Permits CQ+1 or CQ+2 changes.
 CQ_READY_QUERY = (
     '%(open)s AND %(approved)s AND label:Commit-Queue>=1' % _QUERIES,
     lambda change: change.IsMergeable())
-
-# Gerrit query used to find changes for CQ when tree is throttled.
-# Permits only CQ+2 changes.
-THROTTLED_CQ_READY_QUERY = (
-    '%(open)s AND %(approved)s AND label:Commit-Queue>=2' % _QUERIES,
-    lambda change: change.IsMergeable() and change.HasApproval('COMR', '2'))
 
 # The PreCQ does not require the CQ bit to be set if it's a recent CL, or if
 # the Trybot-Ready flag has been set.
@@ -968,6 +1014,8 @@ CANARY_MASTER = 'master-release'
 PFQ_MASTER = 'master-chromium-pfq'
 BINHOST_PRE_CQ = 'binhost-pre-cq'
 WIFICELL_PRE_CQ = 'wificell-pre-cq'
+ANDROID_PFQ_MASTER = 'master-android-pfq'
+TOOLCHAIN_MASTTER = 'master-toolchain'
 
 
 # Email validation regex. Not quite fully compliant with RFC 2822, but good
@@ -1027,3 +1075,6 @@ BUILDBUCKET_BUILD_RETRY_LIMIT = 2
 # Builder_run metadata keys
 METADATA_SCHEDULED_SLAVES = 'scheduled_slaves'
 METADATA_UNSCHEDULED_SLAVES = 'unscheduled_slaves'
+
+# Metadata key to indicate whether a build is self-destructed.
+SELF_DESTRUCTED_BUILD = 'self_destructed_build'

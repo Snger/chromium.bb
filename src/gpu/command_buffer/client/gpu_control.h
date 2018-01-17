@@ -48,13 +48,6 @@ class GPU_EXPORT GpuControl {
   // Destroy an image. The ID must be positive.
   virtual void DestroyImage(int32_t id) = 0;
 
-  // Create a gpu memory buffer backed image with the given dimensions and
-  // format for |usage|. Returns its ID or -1 on error.
-  virtual int32_t CreateGpuMemoryBufferImage(size_t width,
-                                             size_t height,
-                                             unsigned internalformat,
-                                             unsigned usage) = 0;
-
   // Runs |callback| when a query created via glCreateQueryEXT() has cleared
   // passed the glEndQueryEXT() point.
   virtual void SignalQuery(uint32_t query, const base::Closure& callback) = 0;
@@ -105,15 +98,22 @@ class GPU_EXPORT GpuControl {
   // the lock provided by the client.
   virtual bool IsFenceSyncReleased(uint64_t release) = 0;
 
-  // Runs |callback| when sync token is signalled.
+  // Runs |callback| when sync token is signaled.
   virtual void SignalSyncToken(const SyncToken& sync_token,
                                const base::Closure& callback) = 0;
 
+  // This allows the command buffer proxy to mark the next flush with sync token
+  // dependencies for the gpu scheduler. This is used in addition to the
+  // WaitSyncToken command in the command buffer which is still needed. For
+  // example, the WaitSyncToken command is used to pull texture updates when
+  // used in conjunction with MailboxManagerSync.
+  virtual void WaitSyncTokenHint(const SyncToken& sync_token) = 0;
+
   // Under some circumstances a sync token may be used which has not been
-  // verified to have been flushed. For example, fence syncs queued on the
-  // same channel as the wait command guarantee that the fence sync will
-  // be enqueued first so does not need to be flushed.
-  virtual bool CanWaitUnverifiedSyncToken(const SyncToken* sync_token) = 0;
+  // verified to have been flushed. For example, fence syncs queued on the same
+  // channel as the wait command guarantee that the fence sync will be enqueued
+  // first so does not need to be flushed.
+  virtual bool CanWaitUnverifiedSyncToken(const SyncToken& sync_token) = 0;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(GpuControl);

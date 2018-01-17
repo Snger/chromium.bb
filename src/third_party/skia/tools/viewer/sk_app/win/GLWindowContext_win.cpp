@@ -52,10 +52,25 @@ GLWindowContext_win::~GLWindowContext_win() {
 void GLWindowContext_win::onInitializeContext() {
     HDC dc = GetDC(fHWND);
 
-    fHGLRC = SkCreateWGLContext(dc, fDisplayParams.fMSAASampleCount, fDisplayParams.fDeepColor,
+    fHGLRC = SkCreateWGLContext(dc, fDisplayParams.fMSAASampleCount, false /* deepColor */,
                                 kGLPreferCompatibilityProfile_SkWGLContextRequest);
     if (NULL == fHGLRC) {
         return;
+    }
+
+    // Look to see if RenderDoc is attached. If so, re-create the context with a core profile
+    if (wglMakeCurrent(dc, fHGLRC)) {
+        const GrGLInterface* glInterface = GrGLCreateNativeInterface();
+        bool renderDocAttached = glInterface->hasExtension("GL_EXT_debug_tool");
+        SkSafeUnref(glInterface);
+        if (renderDocAttached) {
+            wglDeleteContext(fHGLRC);
+            fHGLRC = SkCreateWGLContext(dc, fDisplayParams.fMSAASampleCount, false /* deepColor */,
+                                        kGLPreferCoreProfile_SkWGLContextRequest);
+            if (NULL == fHGLRC) {
+                return;
+            }
+        }
     }
 
     if (wglMakeCurrent(dc, fHGLRC)) {
@@ -69,8 +84,6 @@ void GLWindowContext_win::onInitializeContext() {
         PIXELFORMATDESCRIPTOR pfd;
         DescribePixelFormat(dc, pixelFormat, sizeof(pfd), &pfd);
         fStencilBits = pfd.cStencilBits;
-        // pfd.cColorBits includes alpha, so it will be 32 in 8/8/8/8 and 10/10/10/2
-        fColorBits = pfd.cRedBits + pfd.cGreenBits + pfd.cBlueBits;
 
         // Get sample count if the MSAA WGL extension is present
         SkWGLExtensions extensions;

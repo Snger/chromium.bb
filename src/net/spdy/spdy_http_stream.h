@@ -14,6 +14,7 @@
 #include "base/memory/weak_ptr.h"
 #include "net/base/completion_callback.h"
 #include "net/base/net_export.h"
+#include "net/log/net_log_source.h"
 #include "net/spdy/multiplexed_http_stream.h"
 #include "net/spdy/spdy_read_queue.h"
 #include "net/spdy/spdy_session.h"
@@ -33,10 +34,12 @@ class NET_EXPORT_PRIVATE SpdyHttpStream : public SpdyStream::Delegate,
  public:
   static const size_t kRequestBodyBufferSize;
   // |spdy_session| must not be NULL.
-  SpdyHttpStream(const base::WeakPtr<SpdySession>& spdy_session, bool direct);
+  SpdyHttpStream(const base::WeakPtr<SpdySession>& spdy_session,
+                 bool direct,
+                 NetLogSource source_dependency);
   ~SpdyHttpStream() override;
 
-  SpdyStream* stream() { return stream_.get(); }
+  SpdyStream* stream() { return stream_; }
 
   // Cancels any callbacks from being invoked and deletes the stream.
   void Cancel();
@@ -71,6 +74,8 @@ class NET_EXPORT_PRIVATE SpdyHttpStream : public SpdyStream::Delegate,
   // not including proxy overhead. Note that some SPDY frames such as pings are
   // not associated with any stream, and are not included in this value.
   int64_t GetTotalSentBytes() const override;
+  bool GetAlternativeService(
+      AlternativeService* alternative_service) const override;
   bool GetLoadTimingInfo(LoadTimingInfo* load_timing_info) const override;
   bool GetRemoteEndpoint(IPEndPoint* endpoint) override;
   void PopulateNetErrorDetails(NetErrorDetails* details) override;
@@ -83,6 +88,7 @@ class NET_EXPORT_PRIVATE SpdyHttpStream : public SpdyStream::Delegate,
   void OnDataSent() override;
   void OnTrailers(const SpdyHeaderBlock& trailers) override;
   void OnClose(int status) override;
+  NetLogSource source_dependency() const override;
 
  private:
   // Helper function used to initialize private members and to set delegate on
@@ -128,8 +134,16 @@ class NET_EXPORT_PRIVATE SpdyHttpStream : public SpdyStream::Delegate,
   const base::WeakPtr<SpdySession> spdy_session_;
   bool is_reused_;
   SpdyStreamRequest stream_request_;
-  base::WeakPtr<SpdyStream> stream_;
+  const NetLogSource source_dependency_;
 
+  // |stream_| is owned by SpdySession.
+  // Before InitializeStream() is called, stream_ == nullptr.
+  // After InitializeStream() is called but before OnClose() is called,
+  //   |*stream_| is guaranteed to be valid.
+  // After OnClose() is called, stream_ == nullptr.
+  SpdyStream* stream_;
+
+  // False before OnClose() is called, true after.
   bool stream_closed_;
 
   // Set only when |stream_closed_| is true.

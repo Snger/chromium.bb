@@ -6,7 +6,8 @@ found in the LICENSE file.
 -->
 
 <link rel="import" href="/tracing/base/guid.html">
-<link rel="import" href="/tracing/base/range.html">
+<link rel="import" href="/tracing/base/math/range.html">
+<link rel="import" href="/tracing/model/cpu.html">
 <link rel="import" href="/tracing/model/event_container.html">
 <link rel="import" href="/tracing/model/power_series.html">
 
@@ -17,19 +18,20 @@ found in the LICENSE file.
  * @fileoverview Provides the Device class.
  */
 tr.exportTo('tr.model', function() {
-
   /**
    * Device represents the device-level objects in the model.
    * @constructor
    * @extends {tr.model.EventContainer}
    */
   function Device(model) {
-    if (!model)
+    if (!model) {
       throw new Error('Must provide a model.');
+    }
 
     tr.model.EventContainer.call(this);
 
     this.powerSeries_ = undefined;
+    this.cpuUsageSeries_ = undefined;
     this.vSyncTimestamps_ = [];
   }
 
@@ -68,6 +70,14 @@ tr.exportTo('tr.model', function() {
       this.powerSeries_ = powerSeries;
     },
 
+    get cpuUsageSeries() {
+      return this.cpuUsageSeries_;
+    },
+
+    set cpuUsageSeries(cpuUsageSeries) {
+      this.cpuUsageSeries_ = cpuUsageSeries;
+    },
+
     get vSyncTimestamps() {
       return this.vSyncTimestamps_;
     },
@@ -89,16 +99,21 @@ tr.exportTo('tr.model', function() {
         child.shiftTimestampsForward(amount);
       }
 
-      for (var i = 0; i < this.vSyncTimestamps_.length; i++)
+      for (var i = 0; i < this.vSyncTimestamps_.length; i++) {
         this.vSyncTimestamps_[i] += amount;
+      }
     },
 
     addCategoriesToDict: function(categoriesDict) {
     },
 
     childEventContainers: function* () {
-      if (this.powerSeries_)
+      if (this.powerSeries_) {
         yield this.powerSeries_;
+      }
+      if (this.cpuUsageSeries_) {
+        yield this.cpuUsageSeries_;
+      }
     }
   };
 

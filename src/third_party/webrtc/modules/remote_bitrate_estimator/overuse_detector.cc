@@ -18,13 +18,11 @@
 #include <string>
 
 #include "webrtc/base/checks.h"
-#include "webrtc/base/common.h"
 #include "webrtc/base/logging.h"
 #include "webrtc/modules/remote_bitrate_estimator/include/bwe_defines.h"
 #include "webrtc/modules/remote_bitrate_estimator/test/bwe_test_logging.h"
 #include "webrtc/modules/rtp_rtcp/source/rtp_utility.h"
 #include "webrtc/system_wrappers/include/field_trial.h"
-#include "webrtc/system_wrappers/include/trace.h"
 
 namespace webrtc {
 
@@ -72,7 +70,7 @@ OveruseDetector::OveruseDetector()
       prev_offset_(0.0),
       time_over_using_(-1),
       overuse_counter_(0),
-      hypothesis_(kBwNormal) {
+      hypothesis_(BandwidthUsage::kBwNormal) {
   if (!AdaptiveThresholdExperimentIsDisabled())
     InitializeExperiment();
 }
@@ -88,7 +86,7 @@ BandwidthUsage OveruseDetector::Detect(double offset,
                                        int num_of_deltas,
                                        int64_t now_ms) {
   if (num_of_deltas < 2) {
-    return kBwNormal;
+    return BandwidthUsage::kBwNormal;
   }
   const double T = std::min(num_of_deltas, kMinNumDeltas) * offset;
   BWE_TEST_LOGGING_PLOT(1, "offset_ms#1", now_ms, offset);
@@ -108,17 +106,17 @@ BandwidthUsage OveruseDetector::Detect(double offset,
       if (offset >= prev_offset_) {
         time_over_using_ = 0;
         overuse_counter_ = 0;
-        hypothesis_ = kBwOverusing;
+        hypothesis_ = BandwidthUsage::kBwOverusing;
       }
     }
   } else if (T < -threshold_) {
     time_over_using_ = -1;
     overuse_counter_ = 0;
-    hypothesis_ = kBwUnderusing;
+    hypothesis_ = BandwidthUsage::kBwUnderusing;
   } else {
     time_over_using_ = -1;
     overuse_counter_ = 0;
-    hypothesis_ = kBwNormal;
+    hypothesis_ = BandwidthUsage::kBwNormal;
   }
   prev_offset_ = offset;
 

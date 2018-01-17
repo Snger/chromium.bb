@@ -13,7 +13,6 @@
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/platform_thread.h"
 #include "services/service_manager/public/c/main.h"
-#include "services/service_manager/public/cpp/connection.h"
 #include "services/service_manager/public/cpp/connector.h"
 #include "services/service_manager/public/cpp/interface_registry.h"
 #include "services/service_manager/public/cpp/service.h"
@@ -434,7 +433,9 @@ class WindowTypeLauncherView : public views::WidgetDelegateView,
 
 }  // namespace
 
-WindowTypeLauncher::WindowTypeLauncher() {}
+WindowTypeLauncher::WindowTypeLauncher() {
+  registry_.AddInterface<mash::mojom::Launchable>(this);
+}
 WindowTypeLauncher::~WindowTypeLauncher() {}
 
 void WindowTypeLauncher::RemoveWindow(views::Widget* window) {
@@ -451,11 +452,12 @@ void WindowTypeLauncher::OnStart() {
       std::string(), nullptr, views::AuraInit::Mode::AURA_MUS);
 }
 
-bool WindowTypeLauncher::OnConnect(
-    const service_manager::ServiceInfo& remote_info,
-    service_manager::InterfaceRegistry* registry) {
-  registry->AddInterface<mash::mojom::Launchable>(this);
-  return true;
+void WindowTypeLauncher::OnBindInterface(
+    const service_manager::ServiceInfo& source_info,
+    const std::string& interface_name,
+    mojo::ScopedMessagePipeHandle interface_pipe) {
+  registry_.BindInterface(source_info.identity, interface_name,
+                          std::move(interface_pipe));
 }
 
 void WindowTypeLauncher::Launch(uint32_t what, mash::mojom::LaunchMode how) {

@@ -8,8 +8,6 @@
 #include <string>
 #include <utility>
 
-#include "ash/common/session/session_state_delegate.h"
-#include "ash/common/wm_shell.h"
 #include "base/bind.h"
 #include "base/location.h"
 #include "base/macros.h"
@@ -29,6 +27,7 @@
 #include "chrome/browser/chromeos/proxy_cros_settings_parser.h"
 #include "chrome/browser/chromeos/settings/cros_settings.h"
 #include "chrome/browser/profiles/profile.h"
+#include "chrome/browser/ui/ash/session_controller_client.h"
 #include "chrome/browser/ui/webui/chromeos/ui_account_tweaks.h"
 #include "chrome/browser/ui/webui/options/chromeos/accounts_options_handler.h"
 #include "chrome/common/pref_names.h"
@@ -40,7 +39,6 @@
 #include "components/proxy_config/proxy_config_pref_names.h"
 #include "components/user_manager/user_manager.h"
 #include "content/public/browser/notification_service.h"
-#include "content/public/browser/user_metrics.h"
 #include "content/public/browser/web_ui.h"
 #include "ui/base/l10n/l10n_util.h"
 
@@ -100,7 +98,7 @@ base::Value* CreateUsersWhitelist(const base::Value *pref_value) {
   for (base::ListValue::const_iterator i = list_value->begin();
        i != list_value->end(); ++i) {
     std::string email;
-    if ((*i)->GetAsString(&email)) {
+    if (i->GetAsString(&email)) {
       // Translate email to the display email.
       const std::string display_email =
           user_manager->GetUserDisplayEmail(AccountId::FromUserEmail(email));
@@ -179,7 +177,7 @@ base::Value* CoreChromeOSOptionsHandler::FetchPref(
     base::Value* value = nullptr;
     proxy_cros_settings_parser::GetProxyPrefValue(
         network_guid_, pref_name, GetUiProxyConfigService(), &value);
-    return value ? value : base::Value::CreateNullValue().release();
+    return value ? value : new base::Value();
   }
 
   Profile* profile = Profile::FromWebUI(web_ui());
@@ -207,7 +205,7 @@ base::Value* CoreChromeOSOptionsHandler::FetchPref(
 
   const base::Value* pref_value = CrosSettings::Get()->GetPref(pref_name);
   if (!pref_value)
-    return base::Value::CreateNullValue().release();
+    return new base::Value();
 
   // Decorate pref value as CoreOptionsHandler::CreateValueForPref() does.
   // TODO(estade): seems that this should replicate CreateValueForPref less.
@@ -255,7 +253,7 @@ void CoreChromeOSOptionsHandler::SetPref(const std::string& pref_name,
   if (proxy_cros_settings_parser::IsProxyPref(pref_name)) {
     proxy_cros_settings_parser::SetProxyPrefValue(
         network_guid_, pref_name, value, GetUiProxyConfigService());
-    base::StringValue proxy_type(pref_name);
+    base::Value proxy_type(pref_name);
     web_ui()->CallJavascriptFunctionUnsafe(
         "options.internet.DetailsInternetPage.updateProxySettings", proxy_type);
     ProcessUserMetric(value, metric);
@@ -295,10 +293,8 @@ base::Value* CoreChromeOSOptionsHandler::CreateValueForPref(
     const PrefService::Preference* pref =
         user_prefs->FindPreference(prefs::kEnableAutoScreenLock);
 
-    ash::SessionStateDelegate* delegate =
-        ash::WmShell::Get()->GetSessionStateDelegate();
     if (pref && pref->IsUserModifiable() &&
-        delegate->ShouldLockScreenAutomatically()) {
+        SessionControllerClient::ShouldLockScreenAutomatically()) {
       bool screen_lock = false;
       bool success = pref->GetValue()->GetAsBoolean(&screen_lock);
       DCHECK(success);

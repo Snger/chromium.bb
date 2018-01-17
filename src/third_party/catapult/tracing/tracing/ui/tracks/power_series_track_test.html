@@ -18,7 +18,6 @@ found in the LICENSE file.
 'use strict';
 
 tr.b.unittest.testSuite(function() {
-
   var Device = tr.model.Device;
   var Model = tr.Model;
   var PowerSeries = tr.model.PowerSeries;
@@ -114,7 +113,7 @@ tr.b.unittest.testSuite(function() {
     var containerToTrackMap = new tr.ui.tracks.ContainerToTrackMap();
     powerSeriesTrack.addContainersToTrackMap(containerToTrackMap);
 
-    assert.equal(
+    assert.strictEqual(
         containerToTrackMap.getTrackByStableId('Device.PowerSeries'),
         powerSeriesTrack);
   });

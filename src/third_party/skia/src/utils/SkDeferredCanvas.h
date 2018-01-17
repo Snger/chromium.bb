@@ -1,4 +1,3 @@
-
 /*
  * Copyright 2016 Google Inc.
  *
@@ -14,7 +13,15 @@
 
 class SK_API SkDeferredCanvas : public SkNoDrawCanvas {
 public:
-    SkDeferredCanvas(SkCanvas* = nullptr);
+    enum EvalType {kEager, kLazy};
+    // There are two strategies for evaluating of sub-drawings (pictures and drawables).
+    // * kEager - a sub-drawing is expanded using the using the SkDeferredCanvas. This has
+    //            the advantage of optimizing the sub drawing, and is used when the underlying
+    //            SkCanvas is drawing and not recording.
+    // * kLazy  - a sub-drawing is not expanded, but passed directly to the underlying SkCanvas.
+    //            This has the advantage of not expanding the sub drawing and then immediately
+    //            re-encoding it, and is used for recording canvases.
+    SkDeferredCanvas(SkCanvas*, EvalType);
     ~SkDeferredCanvas() override;
 
     void reset(SkCanvas*);
@@ -26,8 +33,8 @@ public:
 protected:
     sk_sp<SkSurface> onNewSurface(const SkImageInfo&, const SkSurfaceProps&) override;
     SkISize getBaseLayerSize() const override;
-    bool getClipBounds(SkRect* bounds) const override;
-    bool getClipDeviceBounds(SkIRect* bounds) const override;
+    SkRect onGetLocalClipBounds() const override;
+    SkIRect onGetDeviceClipBounds() const override;
     bool isClipEmpty() const override;
     bool isClipRect() const override;
     bool onPeekPixels(SkPixmap*) override;
@@ -85,11 +92,7 @@ protected:
     void onDrawImageRect(const SkImage*, const SkRect* src, const SkRect& dst,
                          const SkPaint*, SrcRectConstraint) override;
 
-    void onDrawVertices(VertexMode vmode, int vertexCount,
-                              const SkPoint vertices[], const SkPoint texs[],
-                              const SkColor colors[], SkBlendMode,
-                              const uint16_t indices[], int indexCount,
-                              const SkPaint&) override;
+    void onDrawVerticesObject(const SkVertices*, SkBlendMode, const SkPaint&) override;
     void onDrawAtlas(const SkImage* image, const SkRSXform xform[],
                      const SkRect rects[], const SkColor colors[],
                      int count, SkBlendMode, const SkRect* cull, const SkPaint* paint) override;
@@ -106,8 +109,6 @@ protected:
     class Iter;
 
 private:
-    SkCanvas* fCanvas{nullptr};
-
     enum Type {
         kSave_Type,
         kClipRect_Type,
@@ -132,7 +133,6 @@ private:
         }
         void setConcat(const SkMatrix&);
     };
-    SkTDArray<Rec>  fRecs;
 
     void push_save();
     void push_cliprect(const SkRect&);
@@ -148,6 +148,10 @@ private:
     void flush_check(SkRect* bounds, const SkPaint*, unsigned flags = 0);
 
     void internal_flush_translate(SkScalar* x, SkScalar* y, const SkRect* boundsOrNull);
+
+    SkTDArray<Rec> fRecs;
+    SkCanvas*      fCanvas;
+    const EvalType fEvalType;
 
     typedef SkNoDrawCanvas INHERITED;
 };

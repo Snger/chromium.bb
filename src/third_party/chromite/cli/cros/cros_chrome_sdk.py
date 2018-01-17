@@ -22,7 +22,6 @@ from chromite.lib import git
 from chromite.lib import gs
 from chromite.lib import osutils
 from chromite.lib import path_util
-from chromite.lib import stats
 from chromite.cbuildbot import archive_lib
 from chromite.lib import config_lib
 from chromite.lib import constants
@@ -165,6 +164,8 @@ class SDKFetcher(object):
     """
     version = osutils.ReadFile(os.path.join(
         chrome_src_dir, constants.PATH_TO_CHROME_LKGM))
+    logging.debug('Loading LKGM version from "%s": %s',
+                  constants.PATH_TO_CHROME_LKGM, version)
     return version
 
   def _GetRepoCheckoutVersion(self, repo_root):
@@ -437,21 +438,8 @@ class ChromeSDKCommand(command.CliCommand):
   GOMACC_PORT_CMD = ['./gomacc', 'port']
   FETCH_GOMA_CMD = ['wget', _GOMA_URL]
 
-  # Override base class property to enable stats upload.
-  upload_stats = True
-
   # Override base class property to use cache related commandline options.
   use_caching_options = True
-
-  @property
-  def upload_stats_timeout(self):
-    # Give a longer timeout for interactive SDK shell invocations, since the
-    # user will not notice a longer wait because it's happening in the
-    # background.
-    if self.options.cmd:
-      return super(ChromeSDKCommand, self).upload_stats_timeout
-    else:
-      return stats.StatsUploader.UPLOAD_TIMEOUT
 
   @staticmethod
   def ValidateVersion(version):
@@ -483,7 +471,8 @@ class ChromeSDKCommand(command.CliCommand):
              'running with --clang if not running from a Chrome checkout.')
     parser.add_argument(
         '--clang', action='store_true', default=False,
-        help='Sets up the environment for building with clang.')
+        help='Sets up the environment for building with clang. For all '
+             'boards, except X86-32, clang is the default.')
     parser.add_argument(
         '--cwd', type='path',
         help='Specifies a directory to switch to after setting up the SDK '
@@ -494,12 +483,11 @@ class ChromeSDKCommand(command.CliCommand):
              'Chrome, rather than Chromium.')
     parser.add_argument(
         '--component', action='store_true', default=False,
-        help='Sets up SDK for building a componentized build of Chrome '
-             '(is_component_build=true in GN).')
+        help='Deprecated and ignored. Set is_component_build=true in args.gn '
+             'instead.')
     parser.add_argument(
         '--fastbuild', action='store_true', default=False,
-        help='Turn off debugging information for a faster build '
-             '(symbol_level=1 in GN).')
+        help='Deprecated and ignored. Set symbol_level=1 in args.gn instead.')
     parser.add_argument(
         '--use-external-config', action='store_true', default=False,
         help='Use the external configuration for the specified board, even if '
@@ -600,7 +588,7 @@ class ChromeSDKCommand(command.CliCommand):
     gold_path = os.path.join(toolchain_path, gold_path.lstrip('/'))
     return '%s -B%s' % (cmd, gold_path)
 
-  def _SetupTCEnvironment(self, sdk_ctx, options, env):
+  def _SetupTCEnvironment(self, sdk_ctx, options, env, gn_is_clang):
     """Sets up toolchain-related environment variables."""
     target_tc_path = sdk_ctx.key_map[self.sdk.TARGET_TOOLCHAIN_KEY].path
     tc_bin_path = os.path.join(target_tc_path, 'bin')
@@ -611,12 +599,19 @@ class ChromeSDKCommand(command.CliCommand):
 
     chrome_clang_path = os.path.join(options.chrome_src, self._CHROME_CLANG_DIR)
 
-    if options.clang:
-      clang_flags = ['-Wno-unknown-warning-option']
+    # Either we are forcing the use of clang through options or GN
+    # args say we should be using clang.
+    if options.clang or gn_is_clang:
+      clang_prepend_flags = ['-Wno-unknown-warning-option']
+      # crbug.com/686903
+      clang_append_flags = ['-Wno-inline-asm']
+
       env['CC'] = ' '.join([sdk_ctx.target_tc + '-clang'] +
-                           env['CC'].split()[1:] + clang_flags)
+                           env['CC'].split()[1:] + clang_prepend_flags)
       env['CXX'] = ' '.join([sdk_ctx.target_tc + '-clang++'] +
-                            env['CXX'].split()[1:] + clang_flags)
+                            env['CXX'].split()[1:] + clang_prepend_flags)
+      env['CFLAGS'] = ' '.join(env['CFLAGS'].split() + clang_append_flags)
+      env['CXXFLAGS'] = ' '.join(env['CXXFLAGS'].split() + clang_append_flags)
       env['LD'] = env['CXX']
 
     # For host compiler, we use the compiler that comes with Chrome
@@ -667,7 +662,8 @@ class ChromeSDKCommand(command.CliCommand):
           cros_build_lib.UncompressFile(chroot_env_file, environment)
 
     env = osutils.SourceEnvironment(environment, self.EBUILD_ENV)
-    self._SetupTCEnvironment(sdk_ctx, options, env)
+    gn_args = gn_helpers.FromGNArgs(env['GN_ARGS'])
+    self._SetupTCEnvironment(sdk_ctx, options, env, gn_args['is_clang'])
 
     # Add managed components to the PATH.
     env['PATH'] = '%s:%s' % (constants.CHROMITE_BIN_DIR, env['PATH'])
@@ -694,7 +690,14 @@ class ChromeSDKCommand(command.CliCommand):
 
     # SYSROOT is necessary for Goma and the sysroot wrapper.
     env['SYSROOT'] = sysroot
-    gn_args = gn_helpers.FromGNArgs(env['GN_ARGS'])
+
+    # Deprecated options warnings. TODO(stevenjb): Eliminate these entirely
+    # once removed from any builders.
+    if options.component:
+      logging.warning('--component is deprecated, ignoring')
+    if options.fastbuild:
+      logging.warning('--fastbuild is deprecated, ignoring')
+
     gn_args['target_sysroot'] = sysroot
     gn_args.pop('pkg_config', None)
     if options.clang:
@@ -706,14 +709,6 @@ class ChromeSDKCommand(command.CliCommand):
       gn_args.pop('is_chrome_branded', None)
       gn_args.pop('is_official_build', None)
       gn_args.pop('internal_gles2_conform_tests', None)
-    if options.component:
-      gn_args['is_component_build'] = True
-    if options.fastbuild:
-      # symbol_level corresponds to GYP's fastbuild (https://goo.gl/ZC4fUO).
-      gn_args['symbol_level'] = 1
-    else:
-      # Enable debug fission for GN.
-      gn_args['use_debug_fission'] = True
 
     # For SimpleChrome, we use the binutils that comes bundled within Chrome.
     # We should not use the binutils from the host system.

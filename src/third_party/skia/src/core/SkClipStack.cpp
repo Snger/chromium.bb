@@ -70,6 +70,7 @@ bool SkClipStack::Element::operator== (const Element& element) const {
     }
 }
 
+#ifdef SK_SUPPORT_OBSOLETE_REPLAYCLIP
 void SkClipStack::Element::replay(SkCanvasClipVisitor* visitor) const {
     static const SkRect kEmptyRect = { 0, 0, 0, 0 };
 
@@ -88,6 +89,7 @@ void SkClipStack::Element::replay(SkCanvasClipVisitor* visitor) const {
             break;
     }
 }
+#endif
 
 void SkClipStack::Element::invertShapeFillType() {
     switch (fType) {
@@ -499,6 +501,11 @@ SkClipStack::SkClipStack()
     , fSaveCount(0) {
 }
 
+SkClipStack::SkClipStack(void* storage, size_t size)
+    : fDeque(sizeof(Element), storage, size, kDefaultElementAllocCnt)
+    , fSaveCount(0) {
+}
+
 SkClipStack::SkClipStack(const SkClipStack& b)
     : fDeque(sizeof(Element), kDefaultElementAllocCnt) {
     *this = b;
@@ -579,6 +586,20 @@ void SkClipStack::restoreTo(int saveCount) {
         fDeque.pop_back();
     }
 }
+
+SkRect SkClipStack::bounds(const SkIRect& deviceBounds) const {
+    // TODO: optimize this.
+    SkRect r;
+    SkClipStack::BoundsType bounds;
+    this->getBounds(&r, &bounds);
+    if (bounds == SkClipStack::kInsideOut_BoundsType) {
+        return SkRect::Make(deviceBounds);
+    }
+    return r.intersect(SkRect::Make(deviceBounds)) ? r : SkRect::MakeEmpty();
+}
+
+// TODO: optimize this.
+bool SkClipStack::isEmpty(const SkIRect& r) const { return this->bounds(r).isEmpty(); }
 
 void SkClipStack::getBounds(SkRect* canvFiniteBound,
                             BoundsType* boundType,

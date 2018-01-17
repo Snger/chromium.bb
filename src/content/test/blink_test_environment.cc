@@ -17,7 +17,7 @@
 #include "content/public/common/user_agent.h"
 #include "content/public/test/test_content_client_initializer.h"
 #include "content/test/test_blink_web_unit_test_support.h"
-#include "third_party/WebKit/public/web/WebCache.h"
+#include "third_party/WebKit/public/platform/WebCache.h"
 #include "third_party/WebKit/public/web/WebKit.h"
 #include "third_party/WebKit/public/web/WebRuntimeFeatures.h"
 #include "url/url_util.h"
@@ -73,8 +73,8 @@ TestEnvironment* test_environment;
 }  // namespace
 
 void SetUpBlinkTestEnvironment() {
-  blink::WebRuntimeFeatures::enableExperimentalFeatures(true);
-  blink::WebRuntimeFeatures::enableTestOnlyFeatures(true);
+  blink::WebRuntimeFeatures::EnableExperimentalFeatures(true);
+  blink::WebRuntimeFeatures::EnableTestOnlyFeatures(true);
 
 #if defined(OS_MACOSX)
   mock_cr_app::RegisterMockCrApp();
@@ -97,7 +97,7 @@ void TearDownBlinkTestEnvironment() {
   base::RunLoop().RunUntilIdle();
 
   if (RunningOnValgrind())
-    blink::WebCache::clear();
+    blink::WebCache::Clear();
   delete test_environment;
   test_environment = NULL;
 }

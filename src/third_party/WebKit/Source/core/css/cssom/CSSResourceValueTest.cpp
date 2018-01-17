@@ -12,25 +12,28 @@ namespace {
 
 class FakeCSSResourceValue : public CSSResourceValue {
  public:
-  FakeCSSResourceValue(Resource::Status status) : m_status(status) {}
-  Resource::Status status() const override { return m_status; }
+  FakeCSSResourceValue(ResourceStatus status) : status_(status) {}
+  ResourceStatus Status() const override { return status_; }
 
-  CSSValue* toCSSValue() const override { return nullptr; }
-  StyleValueType type() const override { return Unknown; }
+  CSSValue* ToCSSValue() const override { return nullptr; }
+  StyleValueType GetType() const override { return kUnknown; }
 
  private:
-  Resource::Status m_status;
+  ResourceStatus status_;
 };
 
 }  // namespace
 
 TEST(CSSResourceValueTest, TestStatus) {
-  EXPECT_EQ((new FakeCSSResourceValue(Resource::NotStarted))->state(),
+  EXPECT_EQ((new FakeCSSResourceValue(ResourceStatus::kNotStarted))->state(),
             "unloaded");
-  EXPECT_EQ((new FakeCSSResourceValue(Resource::Pending))->state(), "loading");
-  EXPECT_EQ((new FakeCSSResourceValue(Resource::Cached))->state(), "loaded");
-  EXPECT_EQ((new FakeCSSResourceValue(Resource::LoadError))->state(), "error");
-  EXPECT_EQ((new FakeCSSResourceValue(Resource::DecodeError))->state(),
+  EXPECT_EQ((new FakeCSSResourceValue(ResourceStatus::kPending))->state(),
+            "loading");
+  EXPECT_EQ((new FakeCSSResourceValue(ResourceStatus::kCached))->state(),
+            "loaded");
+  EXPECT_EQ((new FakeCSSResourceValue(ResourceStatus::kLoadError))->state(),
+            "error");
+  EXPECT_EQ((new FakeCSSResourceValue(ResourceStatus::kDecodeError))->state(),
             "error");
 }
 

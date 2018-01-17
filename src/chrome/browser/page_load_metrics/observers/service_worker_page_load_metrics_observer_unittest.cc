@@ -39,6 +39,10 @@ class ServiceWorkerPageLoadMetricsObserverTest
         internal::kHistogramServiceWorkerDomContentLoaded, 0);
     histogram_tester().ExpectTotalCount(internal::kHistogramServiceWorkerLoad,
                                         0);
+    histogram_tester().ExpectTotalCount(
+        internal::kHistogramServiceWorkerParseStart, 0);
+    histogram_tester().ExpectTotalCount(
+        internal::kBackgroundHistogramServiceWorkerParseStart, 0);
   }
 
   void AssertNoInboxHistogramsLogged() {
@@ -87,7 +91,7 @@ TEST_F(ServiceWorkerPageLoadMetricsObserverTest, WithServiceWorker) {
   NavigateAndCommit(GURL(kDefaultTestUrl));
   page_load_metrics::PageLoadMetadata metadata;
   metadata.behavior_flags |=
-      blink::WebLoadingBehaviorFlag::WebLoadingBehaviorServiceWorkerControlled;
+      blink::WebLoadingBehaviorFlag::kWebLoadingBehaviorServiceWorkerControlled;
   SimulateTimingAndMetadataUpdate(timing, metadata);
 
   histogram_tester().ExpectTotalCount(
@@ -118,6 +122,9 @@ TEST_F(ServiceWorkerPageLoadMetricsObserverTest, WithServiceWorker) {
       internal::kHistogramServiceWorkerLoad,
       timing.load_event_start.value().InMilliseconds(), 1);
 
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramServiceWorkerParseStart, 1);
+
   AssertNoInboxHistogramsLogged();
 }
 
@@ -127,7 +134,7 @@ TEST_F(ServiceWorkerPageLoadMetricsObserverTest, WithServiceWorkerBackground) {
 
   page_load_metrics::PageLoadMetadata metadata;
   metadata.behavior_flags |=
-      blink::WebLoadingBehaviorFlag::WebLoadingBehaviorServiceWorkerControlled;
+      blink::WebLoadingBehaviorFlag::kWebLoadingBehaviorServiceWorkerControlled;
 
   NavigateAndCommit(GURL(kDefaultTestUrl));
   SimulateTimingAndMetadataUpdate(timing, metadata);
@@ -151,6 +158,10 @@ TEST_F(ServiceWorkerPageLoadMetricsObserverTest, WithServiceWorkerBackground) {
   histogram_tester().ExpectTotalCount(
       internal::kHistogramServiceWorkerDomContentLoaded, 0);
   histogram_tester().ExpectTotalCount(internal::kHistogramServiceWorkerLoad, 0);
+  // TODO(crbug.com/686590): The following expectation fails on Win7 Tests
+  // (dbg)(1) builder, so is disabled for the time being.
+  // histogram_tester().ExpectTotalCount(
+  //     internal::kBackgroundHistogramServiceWorkerParseStart, 1);
 
   AssertNoInboxHistogramsLogged();
 }
@@ -162,7 +173,7 @@ TEST_F(ServiceWorkerPageLoadMetricsObserverTest, InboxSite) {
   NavigateAndCommit(GURL(kInboxTestUrl));
   page_load_metrics::PageLoadMetadata metadata;
   metadata.behavior_flags |=
-      blink::WebLoadingBehaviorFlag::WebLoadingBehaviorServiceWorkerControlled;
+      blink::WebLoadingBehaviorFlag::kWebLoadingBehaviorServiceWorkerControlled;
   SimulateTimingAndMetadataUpdate(timing, metadata);
 
   histogram_tester().ExpectTotalCount(
@@ -215,4 +226,6 @@ TEST_F(ServiceWorkerPageLoadMetricsObserverTest, InboxSite) {
   histogram_tester().ExpectBucketCount(
       internal::kHistogramServiceWorkerLoadInbox,
       timing.load_event_start.value().InMilliseconds(), 1);
+  histogram_tester().ExpectTotalCount(
+      internal::kHistogramServiceWorkerParseStart, 1);
 }

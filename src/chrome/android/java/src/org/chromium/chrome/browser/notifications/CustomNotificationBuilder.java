@@ -137,9 +137,12 @@ public class CustomNotificationBuilder extends NotificationBuilderBase {
         addActionButtons(bigView);
         configureSettingsButton(bigView);
 
-        // Note: this is not a NotificationCompat builder so be mindful of the
+        // Note: under the hood this is not a NotificationCompat builder so be mindful of the
         // API level of methods you call on the builder.
-        Notification.Builder builder = new Notification.Builder(mContext);
+        // TODO(crbug.com/697104) We should probably use a Compat builder.
+        ChromeNotificationBuilder builder =
+                NotificationBuilderFactory.createChromeNotificationBuilder(
+                        false /* preferCompat */, ChannelDefinitions.CHANNEL_ID_SITES);
         builder.setTicker(mTickerText);
         builder.setContentIntent(mContentIntent);
         builder.setDeleteIntent(mDeleteIntent);
@@ -147,7 +150,7 @@ public class CustomNotificationBuilder extends NotificationBuilderBase {
         builder.setVibrate(mVibratePattern);
         builder.setWhen(mTimestamp);
         builder.setOnlyAlertOnce(!mRenotify);
-        ApiCompatibilityUtils.setContentViewForNotificationBuilder(builder, compactView);
+        builder.setContent(compactView);
 
         // Some things are duplicated in the builder to ensure the notification shows correctly on
         // Wear devices and custom lock screens.
@@ -164,11 +167,11 @@ public class CustomNotificationBuilder extends NotificationBuilderBase {
         }
         setGroupOnBuilder(builder, mOrigin);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            // Notification.Builder.setPublicVersion was added in Android L.
+            // Public versions only supported since L, and createPublicNotification requires L+.
             builder.setPublicVersion(createPublicNotification(mContext));
         }
 
-        return ApiCompatibilityUtils.notificationWithBigContentView(builder, bigView);
+        return builder.buildWithBigContentView(bigView);
     }
 
     /**

@@ -17,6 +17,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/message_loop/message_loop.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/metrics/user_metrics.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -89,13 +90,11 @@
 #include "components/prefs/pref_service.h"
 #include "components/sessions/core/tab_restore_service.h"
 #include "components/signin/core/browser/signin_manager.h"
-#include "components/signin/core/common/profile_management_switches.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/download_manager.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/notification_types.h"
 #include "content/public/browser/plugin_service.h"
-#include "content/public/browser/user_metrics.h"
 #include "extensions/browser/extension_registry.h"
 #include "extensions/browser/extension_system.h"
 #include "net/base/filename_util.h"
@@ -183,10 +182,6 @@ void RecordLastRunAppBundlePath() {
 }
 
 bool IsProfileSignedOut(Profile* profile) {
-  // The signed out status only makes sense at the moment in the context of the
-  // --new-profile-management flag.
-  if (!switches::IsNewProfileManagement())
-    return false;
   ProfileAttributesEntry* entry;
   bool has_entry =
       g_browser_process->profile_manager()->GetProfileAttributesStorage().
@@ -799,7 +794,7 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer {
         // downloads page if the user chooses to wait.
         Browser* browser = chrome::FindBrowserWithProfile(profiles[i]);
         if (!browser) {
-          browser = new Browser(Browser::CreateParams(profiles[i]));
+          browser = new Browser(Browser::CreateParams(profiles[i], true));
           browser->window()->Show();
         }
         DCHECK(browser);
@@ -1008,7 +1003,7 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer {
       break;
     }
     case IDC_SHOW_BOOKMARK_MANAGER:
-      content::RecordAction(UserMetricsAction("ShowBookmarkManager"));
+      base::RecordAction(UserMetricsAction("ShowBookmarkManager"));
       if (Browser* browser = ActivateBrowser(lastProfile)) {
         chrome::ShowBookmarkManager(browser);
       } else {
@@ -1282,7 +1277,7 @@ class AppControllerProfileObserver : public ProfileAttributesStorage::Observer {
   Browser* browser = chrome::GetLastActiveBrowser();
   // if no browser window exists then create one with no tabs to be filled in
   if (!browser) {
-    browser = new Browser(Browser::CreateParams([self lastProfile]));
+    browser = new Browser(Browser::CreateParams([self lastProfile], true));
     browser->window()->Show();
   }
 

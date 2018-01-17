@@ -318,7 +318,10 @@ bool ValidateProgramPathFragmentInputGen(Context *context,
 
 bool ValidateCopyTextureCHROMIUM(Context *context,
                                  GLuint sourceId,
+                                 GLint sourceLevel,
+                                 GLenum destTarget,
                                  GLuint destId,
+                                 GLint destLevel,
                                  GLint internalFormat,
                                  GLenum destType,
                                  GLboolean unpackFlipY,
@@ -326,7 +329,10 @@ bool ValidateCopyTextureCHROMIUM(Context *context,
                                  GLboolean unpackUnmultiplyAlpha);
 bool ValidateCopySubTextureCHROMIUM(Context *context,
                                     GLuint sourceId,
+                                    GLint sourceLevel,
+                                    GLenum destTarget,
                                     GLuint destId,
+                                    GLint destLevel,
                                     GLint xoffset,
                                     GLint yoffset,
                                     GLint x,
@@ -379,6 +385,19 @@ bool ValidateVertexAttribPointer(ValidationContext *context,
                                  GLboolean normalized,
                                  GLsizei stride,
                                  const GLvoid *ptr);
+
+bool ValidateDepthRangef(ValidationContext *context, GLclampf zNear, GLclampf zFar);
+bool ValidateRenderbufferStorage(ValidationContext *context,
+                                 GLenum target,
+                                 GLenum internalformat,
+                                 GLsizei width,
+                                 GLsizei height);
+bool ValidateRenderbufferStorageMultisampleANGLE(ValidationContext *context,
+                                                 GLenum target,
+                                                 GLsizei samples,
+                                                 GLenum internalformat,
+                                                 GLsizei width,
+                                                 GLsizei height);
 
 }  // namespace gl
 

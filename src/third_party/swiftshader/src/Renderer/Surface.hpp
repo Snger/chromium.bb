@@ -217,7 +217,7 @@ namespace sw
 		LOCK_DISCARD
 	};
 
-	class Surface
+	class [[clang::lto_visibility_public]] Surface
 	{
 	private:
 		struct Buffer
@@ -249,6 +249,8 @@ namespace sw
 
 			bool dirty;
 		};
+
+		virtual void typeinfo();   // Dummy key method (https://gcc.gnu.org/onlinedocs/gcc/Vague-Linkage.html)
 
 	public:
 		Surface(int width, int height, int depth, Format format, void *pixels, int pitch, int slice);
@@ -335,7 +337,10 @@ namespace sw
 		static bool isSRGBreadable(Format format);
 		static bool isSRGBwritable(Format format);
 		static bool isCompressed(Format format);
+		static bool isSignedNonNormalizedInteger(Format format);
+		static bool isUnsignedNonNormalizedInteger(Format format);
 		static bool isNonNormalizedInteger(Format format);
+		static bool isNormalizedInteger(Format format);
 		static int componentCount(Format format);
 
 		static void setTexturePalette(unsigned int *palette);
@@ -512,7 +517,7 @@ namespace sw
 
 	int Surface::getPitchP(bool internal) const
 	{
-		return internal ? getInternalPitchP() : getExternalPitchB();
+		return internal ? getInternalPitchP() : getExternalPitchP();
 	}
 
 	int Surface::getSliceB(bool internal) const
@@ -522,7 +527,7 @@ namespace sw
 
 	int Surface::getSliceP(bool internal) const
 	{
-		return internal ? getInternalSliceP() : getExternalSliceB();
+		return internal ? getInternalSliceP() : getExternalSliceP();
 	}
 
 	Format Surface::getExternalFormat() const

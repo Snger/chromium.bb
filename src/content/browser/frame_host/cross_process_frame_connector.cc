@@ -40,7 +40,6 @@ bool CrossProcessFrameConnector::OnMessageReceived(const IPC::Message& msg) {
   bool handled = true;
 
   IPC_BEGIN_MESSAGE_MAP(CrossProcessFrameConnector, msg)
-    IPC_MESSAGE_HANDLER(FrameHostMsg_ForwardInputEvent, OnForwardInputEvent)
     IPC_MESSAGE_HANDLER(FrameHostMsg_FrameRectChanged, OnFrameRectChanged)
     IPC_MESSAGE_HANDLER(FrameHostMsg_UpdateViewportIntersection,
                         OnUpdateViewportIntersection)
@@ -89,13 +88,10 @@ void CrossProcessFrameConnector::RenderProcessGone() {
 }
 
 void CrossProcessFrameConnector::SetChildFrameSurface(
-    const cc::SurfaceId& surface_id,
-    const gfx::Size& frame_size,
-    float scale_factor,
+    const cc::SurfaceInfo& surface_info,
     const cc::SurfaceSequence& sequence) {
   frame_proxy_in_parent_renderer_->Send(new FrameMsg_SetChildFrameSurface(
-      frame_proxy_in_parent_renderer_->GetRoutingID(), surface_id, frame_size,
-      scale_factor, sequence));
+      frame_proxy_in_parent_renderer_->GetRoutingID(), surface_info, sequence));
 }
 
 void CrossProcessFrameConnector::OnSatisfySequence(
@@ -186,8 +182,8 @@ void CrossProcessFrameConnector::ForwardProcessAckedTouchEvent(
 
 void CrossProcessFrameConnector::BubbleScrollEvent(
     const blink::WebGestureEvent& event) {
-  DCHECK(event.type() == blink::WebInputEvent::GestureScrollUpdate ||
-         event.type() == blink::WebInputEvent::GestureScrollEnd);
+  DCHECK(event.GetType() == blink::WebInputEvent::kGestureScrollUpdate ||
+         event.GetType() == blink::WebInputEvent::kGestureScrollEnd);
   auto* parent_view = GetParentRenderWidgetHostView();
 
   if (!parent_view)
@@ -204,10 +200,10 @@ void CrossProcessFrameConnector::BubbleScrollEvent(
   // See https://crbug.com/626020.
   resent_gesture_event.x += offset_from_parent.x();
   resent_gesture_event.y += offset_from_parent.y();
-  if (event.type() == blink::WebInputEvent::GestureScrollUpdate) {
+  if (event.GetType() == blink::WebInputEvent::kGestureScrollUpdate) {
     event_router->BubbleScrollEvent(parent_view, resent_gesture_event);
     is_scroll_bubbling_ = true;
-  } else if (event.type() == blink::WebInputEvent::GestureScrollEnd &&
+  } else if (event.GetType() == blink::WebInputEvent::kGestureScrollEnd &&
              is_scroll_bubbling_) {
     event_router->BubbleScrollEvent(parent_view, resent_gesture_event);
     is_scroll_bubbling_ = false;
@@ -238,50 +234,6 @@ void CrossProcessFrameConnector::UnlockMouse() {
   RenderWidgetHostViewBase* root_view = GetRootRenderWidgetHostView();
   if (root_view)
     root_view->UnlockMouse();
-}
-
-void CrossProcessFrameConnector::OnForwardInputEvent(
-    const blink::WebInputEvent* event) {
-  if (!view_)
-    return;
-
-  RenderFrameHostManager* manager =
-      frame_proxy_in_parent_renderer_->frame_tree_node()->render_manager();
-  RenderWidgetHostImpl* parent_widget =
-      manager->ForInnerDelegate()
-          ? manager->GetOuterRenderWidgetHostForKeyboardInput()
-          : frame_proxy_in_parent_renderer_->GetRenderViewHost()->GetWidget();
-
-  // TODO(wjmaclean): We should remove these forwarding functions, since they
-  // are directly target using RenderWidgetHostInputEventRouter. But neither
-  // pathway is currently handling gesture events, so that needs to be fixed
-  // in a subsequent CL.
-  if (blink::WebInputEvent::isKeyboardEventType(event->type())) {
-    if (!parent_widget->GetLastKeyboardEvent())
-      return;
-    NativeWebKeyboardEvent keyboard_event(
-        *parent_widget->GetLastKeyboardEvent());
-    view_->ProcessKeyboardEvent(keyboard_event);
-    return;
-  }
-
-  if (blink::WebInputEvent::isMouseEventType(event->type())) {
-    // TODO(wjmaclean): Initialize latency info correctly for OOPIFs.
-    // https://crbug.com/613628
-    ui::LatencyInfo latency_info;
-    view_->ProcessMouseEvent(*static_cast<const blink::WebMouseEvent*>(event),
-                              latency_info);
-    return;
-  }
-
-  if (event->type() == blink::WebInputEvent::MouseWheel) {
-    // TODO(wjmaclean): Initialize latency info correctly for OOPIFs.
-    // https://crbug.com/613628
-    ui::LatencyInfo latency_info;
-    view_->ProcessMouseWheelEvent(
-        *static_cast<const blink::WebMouseWheelEvent*>(event), latency_info);
-    return;
-  }
 }
 
 void CrossProcessFrameConnector::OnFrameRectChanged(

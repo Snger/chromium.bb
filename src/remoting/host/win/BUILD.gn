@@ -116,10 +116,8 @@ source_set("win") {
   deps = [
     "//base:i18n",
     "//components/policy/core/common",
-    "//content/public/common",
     "//crypto",
     "//device/power_save_blocker",
-    "//google_apis",
     "//ipc",
     "//remoting/base",
     "//remoting/host/security_key",
@@ -154,6 +152,7 @@ source_set("unit_tests") {
   ]
 
   deps = [
+    "//ipc",
     "//remoting/host",
     "//remoting/host:test_support",
     "//remoting/host/it2me:common",
@@ -331,6 +330,10 @@ shared_library("remoting_core") {
               "VERSION=$chrome_version_full",
             ]
 
+  if (is_chrome_branded && is_official_build) {
+    defines += [ "REMOTING_ENABLE_BREAKPAD" ]
+  }
+
   if (remoting_multi_process != 0 && remoting_rdp_session != 0) {
     defines += [ "REMOTING_RDP_SESSION" ]
   }
@@ -359,6 +362,7 @@ shared_library("remoting_core") {
     "chromoting_module.cc",
     "chromoting_module.h",
     "core.cc",
+    "core.h",
     "core_resource.h",
     "elevated_native_messaging_host.cc",
     "elevated_native_messaging_host.h",
@@ -390,7 +394,6 @@ shared_library("remoting_core") {
     "//net",
     "//remoting/base",
     "//remoting/base:breakpad",
-    "//remoting/codec",
     "//remoting/host:host",
     "//remoting/host:remoting_me2me_host_static",
     "//remoting/host/it2me:common",

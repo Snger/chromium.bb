@@ -78,9 +78,8 @@
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #include "apps/browser_context_keyed_service_factories.h"
-#include "chrome/browser/apps/shortcut_manager_factory.h"
+#include "chrome/browser/apps/browser_context_keyed_service_factories.h"
 #include "chrome/browser/extensions/api/networking_private/networking_private_ui_delegate_factory_impl.h"
-#include "chrome/browser/extensions/api/networking_private/networking_private_verify_delegate_factory_impl.h"
 #include "chrome/browser/extensions/browser_context_keyed_service_factories.h"
 #include "chrome/browser/extensions/extension_management.h"
 #include "chrome/browser/search/hotword_service_factory.h"
@@ -115,14 +114,10 @@
 #endif
 #endif
 
-#if !defined(OS_ANDROID) && !defined(OS_CHROMEOS)
-#include "chrome/browser/signin/cross_device_promo_factory.h"
-#endif
-
 #if defined(OS_CHROMEOS)
 #include "chrome/browser/chromeos/printer_detector/printer_detector_factory.h"
 #include "chrome/browser/chromeos/printing/cups_print_job_manager_factory.h"
-#include "chrome/browser/chromeos/printing/printer_pref_manager_factory.h"
+#include "chrome/browser/chromeos/printing/printers_manager_factory.h"
 #include "chrome/browser/extensions/api/platform_keys/verify_trust_api.h"
 #endif
 
@@ -130,12 +125,14 @@
 #include "chrome/browser/android/data_usage/data_use_ui_tab_model_factory.h"
 #include "chrome/browser/android/search_geolocation/search_geolocation_service.h"
 #else
+#include "chrome/browser/cryptauth/chrome_cryptauth_service_factory.h"
 #include "chrome/browser/ui/global_error/global_error_service_factory.h"
 #include "chrome/browser/usb/usb_chooser_context_factory.h"
 #endif
 
 #if defined(OS_WIN)
 #include "chrome/browser/profile_resetter/triggered_profile_resetter_factory.h"
+#include "chrome/browser/ui/desktop_ios_promotion/sms_service_factory.h"
 #endif
 
 #if BUILDFLAG(ENABLE_SPELLCHECK)
@@ -185,7 +182,7 @@ EnsureBrowserContextKeyedServiceFactoriesBuilt() {
   extensions::EnsureBrowserContextKeyedServiceFactoriesBuilt();
   extensions::ExtensionManagementFactory::GetInstance();
   chrome_extensions::EnsureBrowserContextKeyedServiceFactoriesBuilt();
-  AppShortcutManagerFactory::GetInstance();
+  chrome_apps::EnsureBrowserContextKeyedServiceFactoriesBuilt();
 #endif
 
 #if BUILDFLAG(ENABLE_APP_LIST)
@@ -215,14 +212,17 @@ EnsureBrowserContextKeyedServiceFactoriesBuilt() {
   CloudPrintProxyServiceFactory::GetInstance();
 #endif
   CookieSettingsFactory::GetInstance();
-#if !defined(OS_ANDROID) && !defined(OS_CHROMEOS)
-  CrossDevicePromoFactory::GetInstance();
+#if !defined(OS_ANDROID)
+  ChromeCryptAuthServiceFactory::GetInstance();
 #endif
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   ExtensionWelcomeNotificationFactory::GetInstance();
 #endif
   NotifierStateTrackerFactory::GetInstance();
   data_use_measurement::ChromeDataUseAscriberServiceFactory::GetInstance();
+#if defined(OS_WIN)
+  SMSServiceFactory::GetInstance();
+#endif
   dom_distiller::DomDistillerServiceFactory::GetInstance();
   domain_reliability::DomainReliabilityServiceFactory::GetInstance();
   DownloadServiceFactory::GetInstance();
@@ -233,7 +233,7 @@ EnsureBrowserContextKeyedServiceFactoriesBuilt() {
 #if defined(OS_CHROMEOS)
   chromeos::PrinterDetectorFactory::GetInstance();
   chromeos::CupsPrintJobManagerFactory::GetInstance();
-  chromeos::PrinterPrefManagerFactory::GetInstance();
+  chromeos::PrintersManagerFactory::GetInstance();
   extensions::VerifyTrustAPI::GetFactoryInstance();
 #endif
   FaviconServiceFactory::GetInstance();
@@ -266,12 +266,6 @@ EnsureBrowserContextKeyedServiceFactoriesBuilt() {
 #endif
 #if BUILDFLAG(ENABLE_EXTENSIONS)
 #if defined(OS_CHROMEOS) || defined(OS_WIN) || defined(OS_MACOSX)
-  std::unique_ptr<extensions::NetworkingPrivateVerifyDelegateFactoryImpl>
-      networking_private_verify_delegate_factory(
-          new extensions::NetworkingPrivateVerifyDelegateFactoryImpl);
-  extensions::NetworkingPrivateDelegateFactory::GetInstance()
-      ->SetVerifyDelegateFactory(
-          std::move(networking_private_verify_delegate_factory));
   std::unique_ptr<extensions::NetworkingPrivateUIDelegateFactoryImpl>
       networking_private_ui_delegate_factory(
           new extensions::NetworkingPrivateUIDelegateFactoryImpl);

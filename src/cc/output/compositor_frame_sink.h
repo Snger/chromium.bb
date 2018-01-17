@@ -11,7 +11,7 @@
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/threading/thread_checker.h"
-#include "cc/base/cc_export.h"
+#include "cc/cc_export.h"
 #include "cc/output/context_provider.h"
 #include "cc/output/overlay_candidate_validator.h"
 #include "cc/output/vulkan_context_provider.h"
@@ -27,6 +27,7 @@ namespace cc {
 
 class CompositorFrame;
 class CompositorFrameSinkClient;
+class LocalSurfaceId;
 class SharedBitmapManager;
 
 // An interface for submitting CompositorFrames to a display compositor
@@ -105,6 +106,10 @@ class CC_EXPORT CompositorFrameSink {
   // currently in use.
   virtual void ForceReclaimResources() {}
 
+  // If supported, this sets the LocalSurfaceId the CompositorFrameSink will use
+  // to submit a CompositorFrame.
+  virtual void SetLocalSurfaceId(const LocalSurfaceId& local_surface_id) {}
+
   // Support for a pull-model where draws are requested by the output surface.
   //
   // CompositorFrameSink::Invalidate is called by the compositor to notify that
@@ -129,7 +134,6 @@ class CC_EXPORT CompositorFrameSink {
   scoped_refptr<VulkanContextProvider> vulkan_context_provider_;
   gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager_;
   SharedBitmapManager* shared_bitmap_manager_;
-  base::ThreadChecker client_thread_checker_;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(CompositorFrameSink);

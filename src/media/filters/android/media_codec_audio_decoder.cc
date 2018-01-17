@@ -9,8 +9,7 @@
 #include "base/callback_helpers.h"
 #include "base/logging.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "media/base/android/sdk_media_codec_bridge.h"
-#include "media/base/audio_buffer.h"
+#include "media/base/android/media_codec_bridge_impl.h"
 #include "media/base/audio_timestamp_helper.h"
 #include "media/base/bind_to_current_loop.h"
 #include "media/base/timestamp_constants.h"
@@ -26,6 +25,7 @@ MediaCodecAudioDecoder::MediaCodecAudioDecoder(
       sample_rate_(0),
       media_drm_bridge_cdm_context_(nullptr),
       cdm_registration_id_(0),
+      pool_(new AudioBufferMemoryPool()),
       weak_factory_(this) {
   DVLOG(1) << __func__;
 }
@@ -72,10 +72,9 @@ void MediaCodecAudioDecoder::Initialize(const AudioDecoderConfig& config,
     return;
   }
 
-  // We can support only the codecs that AudioCodecBridge can decode.
-  // TODO(xhwang): Get this list from AudioCodecBridge or just rely on
-  // AudioCodecBridge::ConfigureAndStart() to determine whether the codec is
-  // supported.
+  // We can support only the codecs that MediaCodecBridge can decode.
+  // TODO(xhwang): Get this list from MediaCodecBridge or just rely on
+  // attempting to create one to determine whether the codec is supported.
   const bool is_codec_supported = config.codec() == kCodecVorbis ||
                                   config.codec() == kCodecAAC ||
                                   config.codec() == kCodecOpus;
@@ -117,19 +116,11 @@ bool MediaCodecAudioDecoder::CreateMediaCodecLoop() {
   DVLOG(1) << __func__ << ": config:" << config_.AsHumanReadableString();
 
   codec_loop_.reset();
-
-  std::unique_ptr<AudioCodecBridge> audio_codec_bridge(
-      AudioCodecBridge::Create(config_.codec()));
-  if (!audio_codec_bridge) {
-    DLOG(ERROR) << __func__ << " failed: cannot create AudioCodecBridge";
-    return false;
-  }
-
   jobject media_crypto_obj = media_crypto_ ? media_crypto_->obj() : nullptr;
-
-  if (!audio_codec_bridge->ConfigureAndStart(config_, media_crypto_obj)) {
-    DLOG(ERROR) << __func__ << " failed: cannot configure audio codec for "
-                << config_.AsHumanReadableString();
+  std::unique_ptr<MediaCodecBridge> audio_codec_bridge(
+      MediaCodecBridgeImpl::CreateAudioDecoder(config_, media_crypto_obj));
+  if (!audio_codec_bridge) {
+    DLOG(ERROR) << __func__ << " failed: cannot create MediaCodecBridge";
     return false;
   }
 
@@ -372,9 +363,9 @@ bool MediaCodecAudioDecoder::OnDecodedFrame(
   const size_t frame_count = out.size / bytes_per_frame;
 
   // Create AudioOutput buffer based on current parameters.
-  scoped_refptr<AudioBuffer> audio_buffer =
-      AudioBuffer::CreateBuffer(kSampleFormatS16, channel_layout_,
-                                channel_count_, sample_rate_, frame_count);
+  scoped_refptr<AudioBuffer> audio_buffer = AudioBuffer::CreateBuffer(
+      kSampleFormatS16, channel_layout_, channel_count_, sample_rate_,
+      frame_count, pool_);
 
   // Copy data into AudioBuffer.
   CHECK_LE(out.size, audio_buffer->data_size());

@@ -82,13 +82,14 @@ Compiler::Compiler(rx::GLImplFactory *implFactory, const ContextState &state)
     mResources.MinProgramTexelOffset   = caps.minProgramTexelOffset;
     mResources.MaxProgramTexelOffset   = caps.maxProgramTexelOffset;
 
-    // GLSL ES 3.1 compute shader constants
+    // GLSL ES 3.1 constants
     mResources.MaxImageUnits                    = caps.maxImageUnits;
     mResources.MaxVertexImageUniforms           = caps.maxVertexImageUniforms;
     mResources.MaxFragmentImageUniforms         = caps.maxFragmentImageUniforms;
     mResources.MaxComputeImageUniforms          = caps.maxComputeImageUniforms;
     mResources.MaxCombinedImageUniforms         = caps.maxCombinedImageUniforms;
     mResources.MaxCombinedShaderOutputResources = caps.maxCombinedShaderOutputResources;
+    mResources.MaxUniformLocations              = caps.maxUniformLocations;
 
     for (size_t index = 0u; index < 3u; ++index)
     {
@@ -110,6 +111,11 @@ Compiler::Compiler(rx::GLImplFactory *implFactory, const ContextState &state)
     mResources.MaxFragmentAtomicCounterBuffers = caps.maxFragmentAtomicCounterBuffers;
     mResources.MaxCombinedAtomicCounterBuffers = caps.maxCombinedAtomicCounterBuffers;
     mResources.MaxAtomicCounterBufferSize      = caps.maxAtomicCounterBufferSize;
+
+    if (state.getClientMajorVersion() == 2 && !extensions.drawBuffers)
+    {
+        mResources.MaxDrawBuffers = 1;
+    }
 }
 
 Compiler::~Compiler()
@@ -185,6 +191,7 @@ ShHandle Compiler::getCompilerHandle(GLenum type)
         }
 
         *compiler = sh::ConstructCompiler(type, mSpec, mOutputType, &mResources);
+        ASSERT(*compiler);
         activeCompilerHandles++;
     }
 

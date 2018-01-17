@@ -10,6 +10,7 @@
 
 #include "SkData.h"
 #include "../tools/Registry.h"
+#include "SkMalloc.h"
 #include "SkTypes.h"
 
 #include <cmath>
@@ -67,7 +68,7 @@ inline void Fuzz::next(bool* b) {
 template <typename T>
 inline void Fuzz::next(T* n) {
     if ((fNextByte + sizeof(T)) > fBytes->size()) {
-        *n = 0;
+        sk_bzero(n, sizeof(T));
         memcpy(n, fBytes->bytes() + fNextByte, fBytes->size() - fNextByte);
         fNextByte = fBytes->size();
         return;

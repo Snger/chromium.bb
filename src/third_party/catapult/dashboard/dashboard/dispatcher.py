@@ -13,13 +13,16 @@ from dashboard import associate_alerts
 from dashboard import auto_bisect
 from dashboard import auto_triage
 from dashboard import bad_bisect
+from dashboard import benchmark_health_report
 from dashboard import bisect_stats
 from dashboard import bisect_fyi
+from dashboard import bug_details
 from dashboard import buildbucket_job_status
 from dashboard import change_internal_only
 from dashboard import create_health_report
 from dashboard import debug_alert
 from dashboard import delete_test_data
+from dashboard import deprecate_tests
 from dashboard import dump_graph_json
 from dashboard import edit_anomalies
 from dashboard import edit_anomaly_configs
@@ -28,6 +31,7 @@ from dashboard import edit_sheriffs
 from dashboard import edit_site_config
 from dashboard import email_summary
 from dashboard import file_bug
+from dashboard import generate_benchmark_health_report
 from dashboard import get_logs
 from dashboard import graph_csv
 from dashboard import graph_json
@@ -40,7 +44,6 @@ from dashboard import load_from_prod
 from dashboard import main
 from dashboard import memory_report
 from dashboard import migrate_test_names
-from dashboard import mr
 from dashboard import navbar
 from dashboard import new_points
 from dashboard import oauth2_decorator
@@ -66,8 +69,11 @@ _URL_MAPPING = [
     ('/auto_bisect', auto_bisect.AutoBisectHandler),
     ('/auto_triage', auto_triage.AutoTriageHandler),
     ('/bad_bisect', bad_bisect.BadBisectHandler),
+    ('/benchmark_health_report',
+     benchmark_health_report.BenchmarkHealthReportHandler),
     ('/bisect_fyi', bisect_fyi.BisectFYIHandler),
     ('/bisect_stats', bisect_stats.BisectStatsHandler),
+    ('/bug_details', bug_details.BugDetailsHandler),
     (r'/buildbucket_job_status/(\d+)',
      buildbucket_job_status.BuildbucketJobStatusHandler),
     ('/change_internal_only', change_internal_only.ChangeInternalOnlyHandler),
@@ -83,6 +89,8 @@ _URL_MAPPING = [
     ('/edit_site_config', edit_site_config.EditSiteConfigHandler),
     ('/email_summary', email_summary.EmailSummaryHandler),
     ('/file_bug', file_bug.FileBugHandler),
+    ('/generate_benchmark_health_report',
+     generate_benchmark_health_report.GenerateBenchmarkHealthReportHandler),
     ('/get_logs', get_logs.GetLogsHandler),
     ('/graph_csv', graph_csv.GraphCsvHandler),
     ('/graph_json', graph_json.GraphJsonHandler),
@@ -94,7 +102,7 @@ _URL_MAPPING = [
     ('/', main.MainHandler),
     ('/memory_report', memory_report.MemoryReportHandler),
     ('/migrate_test_names', migrate_test_names.MigrateTestNamesHandler),
-    ('/mr_deprecate_tests', mr.MRDeprecateTestsHandler),
+    ('/deprecate_tests', deprecate_tests.DeprecateTestsHandler),
     ('/navbar', navbar.NavbarHandler),
     ('/new_points', new_points.NewPointsHandler),
     ('/post_bisect_results', post_bisect_results.PostBisectResultsHandler),
@@ -104,6 +112,8 @@ _URL_MAPPING = [
      send_stoppage_alert_emails.SendStoppageAlertEmailsHandler),
     ('/set_warning_message', set_warning_message.SetWarningMessageHandler),
     ('/short_uri', short_uri.ShortUriHandler),
+    (r'/speed_releasing/(.*)',
+     speed_releasing.SpeedReleasingHandler),
     ('/speed_releasing', speed_releasing.SpeedReleasingHandler),
     ('/start_try_job', start_try_job.StartBisectHandler),
     ('/stoppage_alert_debugging_info',

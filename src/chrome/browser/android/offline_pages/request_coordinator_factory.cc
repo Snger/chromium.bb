@@ -9,6 +9,7 @@
 #include "base/memory/ptr_util.h"
 #include "base/memory/singleton.h"
 #include "base/sequenced_task_runner.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "chrome/browser/android/offline_pages/background_loader_offliner.h"
 #include "chrome/browser/android/offline_pages/background_scheduler_bridge.h"
 #include "chrome/browser/android/offline_pages/downloads/offline_page_notification_bridge.h"
@@ -81,8 +82,6 @@ KeyedService* RequestCoordinatorFactory::BuildServiceInstanceFor(
   net::NetworkQualityEstimator::NetworkQualityProvider*
       network_quality_estimator =
           UINetworkQualityEstimatorServiceFactory::GetForProfile(profile);
-  // TODO(fgorski): Something needs to keep the handle to the Notification
-  // dispatcher.
   RequestCoordinator* request_coordinator = new RequestCoordinator(
       std::move(policy), std::move(offliner), std::move(queue),
       std::move(scheduler), network_quality_estimator);

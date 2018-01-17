@@ -5,16 +5,45 @@
 Polymer({
   is: 'bookmarks-list',
 
+  behaviors: [
+    bookmarks.StoreClient,
+  ],
+
   properties: {
-    /** @type {BookmarkTreeNode} */
+    /** @type {BookmarkNode} */
     menuItem_: Object,
 
-    /** @type {Array<BookmarkTreeNode>} */
-    displayedList: Array,
+    /** @private {Array<string>} */
+    displayedList_: {
+      type: Array,
+      value: function() {
+        // Use an empty list during initialization so that the databinding to
+        // hide #bookmarksCard takes effect.
+        return [];
+      },
+    },
+
+    /** @private */
+    searchTerm_: String,
   },
 
   listeners: {
+    'click': 'deselectItems_',
     'open-item-menu': 'onOpenItemMenu_',
+  },
+
+  attached: function() {
+    this.watch('displayedList_', function(state) {
+      return bookmarks.util.getDisplayedList(state);
+    });
+    this.watch('searchTerm_', function(state) {
+      return state.search.term;
+    });
+    this.updateFromStore();
+  },
+
+  getDropTarget: function() {
+    return this.$.message;
   },
 
   /**
@@ -28,12 +57,11 @@ Polymer({
     menu.showAt(/** @type {!Element} */ (e.detail.target));
   },
 
-  // TODO(jiaxi): change these dummy click event handlers later.
   /** @private */
   onEditTap_: function() {
     this.closeDropdownMenu_();
-    if (this.menuItem_.url)
-      this.$.editBookmark.showModal();
+    /** @type {BookmarksEditDialogElement} */ (this.$.editDialog.get())
+        .showEditDialog(this.menuItem_);
   },
 
   /** @private */
@@ -60,20 +88,6 @@ Polymer({
   },
 
   /** @private */
-  onSaveEditTap_: function() {
-    chrome.bookmarks.update(this.menuItem_.id, {
-      'title': this.menuItem_.title,
-      'url': this.menuItem_.url,
-    });
-    this.$.editBookmark.close();
-  },
-
-  /** @private */
-  onCancelEditTap_: function() {
-    this.$.editBookmark.cancel();
-  },
-
-  /** @private */
   closeDropdownMenu_: function() {
     var menu = /** @type {!CrActionMenuElement} */ (
         this.$.dropdown);
@@ -81,7 +95,24 @@ Polymer({
   },
 
   /** @private */
-  isListEmpty_: function() {
-    return this.displayedList.length == 0;
-  }
+  getEditActionLabel_: function() {
+    var label = this.menuItem_.url ? 'menuEdit' : 'menuRename';
+    return loadTimeData.getString(label);
+  },
+
+  /** @private */
+  emptyListMessage_: function() {
+    var emptyListMessage = this.searchTerm_ ? 'noSearchResults' : 'emptyList';
+    return loadTimeData.getString(emptyListMessage);
+  },
+
+  /** @private */
+  isEmptyList_: function() {
+    return this.displayedList_.length == 0;
+  },
+
+  /** @private */
+  deselectItems_: function() {
+    this.dispatch(bookmarks.actions.deselectItems());
+  },
 });

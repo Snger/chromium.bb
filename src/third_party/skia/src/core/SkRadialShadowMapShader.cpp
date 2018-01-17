@@ -87,7 +87,6 @@ private:
 #include "glsl/GrGLSLFragmentProcessor.h"
 #include "glsl/GrGLSLFragmentShaderBuilder.h"
 #include "SkGr.h"
-#include "SkGrPriv.h"
 #include "SkImage_Base.h"
 #include "GrInvariantOutput.h"
 #include "SkSpecialImage.h"
@@ -182,7 +181,8 @@ public:
         }
 
     protected:
-        void onSetData(const GrGLSLProgramDataManager& pdman, const GrProcessor& proc) override {
+        void onSetData(const GrGLSLProgramDataManager& pdman,
+                       const GrFragmentProcessor& proc) override {
             const RadialShadowMapFP &radialShadowMapFP = proc.cast<RadialShadowMapFP>();
 
             const SkVector3& lightPos = radialShadowMapFP.lightPos();
@@ -219,9 +219,6 @@ public:
 
     const char* name() const override { return "RadialShadowMapFP"; }
 
-    void onComputeInvariantOutput(GrInvariantOutput* inout) const override {
-        inout->mulByUnknownFourComponents();
-    }
     const SkVector3& lightPos() const {
         return fLightPos;
     }

@@ -15,7 +15,6 @@ found in the LICENSE file.
  * @fileoverview Parses power events in the Linux event trace format.
  */
 tr.exportTo('tr.e.importer.linux_perf', function() {
-
   var ColorScheme = tr.b.ColorScheme;
   var Parser = tr.e.importer.linux_perf.Parser;
 
@@ -106,10 +105,12 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
                 powerCounter.name + '.' + 'Max Frequency')));
       }
       powerCounter.series.forEach(function(series) {
-        if (series.name === 'Min Frequency')
+        if (series.name === 'Min Frequency') {
           series.addCounterSample(ts, minFreq);
-        if (series.name === 'Max Frequency')
+        }
+        if (series.name === 'Max Frequency') {
           series.addCounterSample(ts, maxFreq);
+        }
       });
     },
 
@@ -118,8 +119,7 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
      */
     powerStartEvent: function(eventName, cpuNumber, pid, ts, eventBase) {
       var event = /type=(\d+) state=(\d) cpu_id=(\d+)/.exec(eventBase.details);
-      if (!event)
-        return false;
+      if (!event) return false;
 
       var targetCpuNumber = parseInt(event[3]);
       var cpuState = parseInt(event[2]);
@@ -130,8 +130,7 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
     powerFrequencyEvent: function(eventName, cpuNumber, pid, ts, eventBase) {
       var event = /type=(\d+) state=(\d+) cpu_id=(\d+)/
           .exec(eventBase.details);
-      if (!event)
-        return false;
+      if (!event) return false;
 
       var targetCpuNumber = parseInt(event[3]);
       var powerState = parseInt(event[2]);
@@ -141,8 +140,7 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
 
     cpuFrequencyEvent: function(eventName, cpuNumber, pid, ts, eventBase) {
       var event = /state=(\d+) cpu_id=(\d+)/.exec(eventBase.details);
-      if (!event)
-        return false;
+      if (!event) return false;
 
       var targetCpuNumber = parseInt(event[2]);
       var powerState = parseInt(event[1]);
@@ -152,8 +150,7 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
 
     cpuFrequencyLimitsEvent: function(eventName, cpu, pid, ts, eventBase) {
       var event = /min=(\d+) max=(\d+) cpu_id=(\d+)/.exec(eventBase.details);
-      if (!event)
-        return false;
+      if (!event) return false;
 
       var targetCpuNumber = parseInt(event[3]);
       var minFreq = parseInt(event[1]);
@@ -164,8 +161,7 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
 
     cpuIdleEvent: function(eventName, cpuNumber, pid, ts, eventBase) {
       var event = /state=(\d+) cpu_id=(\d+)/.exec(eventBase.details);
-      if (!event)
-        return false;
+      if (!event) return false;
 
       var targetCpuNumber = parseInt(event[2]);
       var cpuState = parseInt(event[1]);

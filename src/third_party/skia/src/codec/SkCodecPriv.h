@@ -120,7 +120,7 @@ static inline const SkPMColor* get_color_ptr(SkColorTable* colorTable) {
  * Given that the encoded image uses a color table, return the fill value
  */
 static inline uint64_t get_color_table_fill_value(SkColorType dstColorType, SkAlphaType alphaType,
-        const SkPMColor* colorPtr, uint8_t fillIndex, SkColorSpaceXform* colorXform) {
+        const SkPMColor* colorPtr, uint8_t fillIndex, SkColorSpaceXform* colorXform, bool isRGBA) {
     SkASSERT(nullptr != colorPtr);
     switch (dstColorType) {
         case kRGBA_8888_SkColorType:
@@ -134,8 +134,11 @@ static inline uint64_t get_color_table_fill_value(SkColorType dstColorType, SkAl
             SkASSERT(colorXform);
             uint64_t dstColor;
             uint32_t srcColor = colorPtr[fillIndex];
+            SkColorSpaceXform::ColorFormat srcFormat =
+                    isRGBA ? SkColorSpaceXform::kRGBA_8888_ColorFormat
+                           : SkColorSpaceXform::kBGRA_8888_ColorFormat;
             SkAssertResult(colorXform->apply(select_xform_format(dstColorType), &dstColor,
-                    SkColorSpaceXform::kRGBA_8888_ColorFormat, &srcColor, 1, alphaType));
+                                             srcFormat, &srcColor, 1, alphaType));
             return dstColor;
         }
         default:
@@ -301,17 +304,19 @@ static inline bool needs_premul(const SkImageInfo& dstInfo, const SkEncodedInfo&
 }
 
 static inline bool needs_color_xform(const SkImageInfo& dstInfo, const SkImageInfo& srcInfo,
-                                     bool needsPremul) {
+                                     bool needsColorCorrectPremul) {
+    // We never perform a color xform in legacy mode.
+    if (!dstInfo.colorSpace()) {
+        return false;
+    }
+
     // F16 is by definition a linear space, so we always must perform a color xform.
     bool isF16 = kRGBA_F16_SkColorType == dstInfo.colorType();
 
     // Need a color xform when dst space does not match the src.
     bool srcDstNotEqual = !SkColorSpace::Equals(srcInfo.colorSpace(), dstInfo.colorSpace());
 
-    // We never perform a color xform in legacy mode.
-    bool isLegacy = nullptr == dstInfo.colorSpace();
-
-    return !isLegacy && (needsPremul || isF16 || srcDstNotEqual);
+    return needsColorCorrectPremul || isF16 || srcDstNotEqual;
 }
 
 static inline SkAlphaType select_xform_alpha(SkAlphaType dstAlphaType, SkAlphaType srcAlphaType) {
@@ -319,7 +324,7 @@ static inline SkAlphaType select_xform_alpha(SkAlphaType dstAlphaType, SkAlphaTy
 }
 
 static inline bool apply_xform_on_decode(SkColorType dstColorType, SkEncodedInfo::Color srcColor) {
-    // We will apply the color xform when reading the color table, unless F16 is requested.
+    // We will apply the color xform when reading the color table unless F16 is requested.
     return SkEncodedInfo::kPalette_Color != srcColor || kRGBA_F16_SkColorType == dstColorType;
 }
 
@@ -351,12 +356,31 @@ static inline bool conversion_possible(const SkImageInfo& dst, const SkImageInfo
         case kIndex_8_SkColorType:
             return kIndex_8_SkColorType == src.colorType();
         case kRGB_565_SkColorType:
-            return kOpaque_SkAlphaType == src.alphaType() && !needs_color_xform(dst, src, false);
+            return kOpaque_SkAlphaType == src.alphaType();
         case kGray_8_SkColorType:
             return kGray_8_SkColorType == src.colorType() &&
                    kOpaque_SkAlphaType == src.alphaType() && !needs_color_xform(dst, src, false);
         default:
             return false;
+    }
+}
+
+static inline SkColorSpaceXform::ColorFormat select_xform_format_ct(SkColorType colorType) {
+    switch (colorType) {
+        case kRGBA_8888_SkColorType:
+            return SkColorSpaceXform::kRGBA_8888_ColorFormat;
+        case kBGRA_8888_SkColorType:
+            return SkColorSpaceXform::kBGRA_8888_ColorFormat;
+        case kRGB_565_SkColorType:
+        case kIndex_8_SkColorType:
+#ifdef SK_PMCOLOR_IS_RGBA
+            return SkColorSpaceXform::kRGBA_8888_ColorFormat;
+#else
+            return SkColorSpaceXform::kBGRA_8888_ColorFormat;
+#endif
+        default:
+            SkASSERT(false);
+            return SkColorSpaceXform::kRGBA_8888_ColorFormat;
     }
 }
 

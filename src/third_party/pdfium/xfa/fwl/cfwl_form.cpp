@@ -9,7 +9,7 @@
 #include <utility>
 
 #include "third_party/base/ptr_util.h"
-#include "xfa/fde/tto/fde_textout.h"
+#include "xfa/fde/cfde_textout.h"
 #include "xfa/fwl/cfwl_app.h"
 #include "xfa/fwl/cfwl_event.h"
 #include "xfa/fwl/cfwl_formproxy.h"
@@ -67,13 +67,12 @@ void CFWL_Form::Update() {
   Layout();
 }
 
-FWL_WidgetHit CFWL_Form::HitTest(FX_FLOAT fx, FX_FLOAT fy) {
+FWL_WidgetHit CFWL_Form::HitTest(const CFX_PointF& point) {
   GetAvailableTheme();
 
-  CFX_RectF rtCap;
-  rtCap.Set(m_fCYBorder, m_fCXBorder, -2 * m_fCYBorder, 0 - m_fCXBorder);
-  return rtCap.Contains(fx, fy) ? FWL_WidgetHit::Titlebar
-                                : FWL_WidgetHit::Client;
+  CFX_RectF rtCap(m_fCYBorder, m_fCXBorder, -2 * m_fCYBorder, 0 - m_fCXBorder);
+  return rtCap.Contains(point) ? FWL_WidgetHit::Titlebar
+                               : FWL_WidgetHit::Client;
 }
 
 void CFWL_Form::DrawWidget(CFX_Graphics* pGraphics, const CFX_Matrix* pMatrix) {
@@ -162,8 +161,8 @@ void CFWL_Form::DrawBackground(CFX_Graphics* pGraphics,
 CFX_RectF CFWL_Form::GetEdgeRect() {
   CFX_RectF rtEdge = m_rtRelative;
   if (m_pProperties->m_dwStyles & FWL_WGTSTYLE_Border) {
-    FX_FLOAT fCX = GetBorderSize(true);
-    FX_FLOAT fCY = GetBorderSize(false);
+    float fCX = GetBorderSize(true);
+    float fCY = GetBorderSize(false);
     rtEdge.Deflate(fCX, fCY, fCX, fCY);
   }
   return rtEdge;

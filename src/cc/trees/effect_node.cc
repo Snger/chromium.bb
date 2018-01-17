@@ -4,8 +4,6 @@
 
 #include "base/trace_event/trace_event_argument.h"
 #include "cc/layers/layer.h"
-#include "cc/proto/gfx_conversions.h"
-#include "cc/proto/skia_conversions.h"
 #include "cc/trees/effect_node.h"
 #include "cc/trees/property_tree.h"
 
@@ -19,8 +17,6 @@ EffectNode::EffectNode()
       screen_space_opacity(1.f),
       blend_mode(SkBlendMode::kSrcOver),
       has_render_surface(false),
-      render_surface(nullptr),
-      surface_is_clipped(false),
       has_copy_request(false),
       hidden_by_backface_visibility(false),
       double_sided(false),
@@ -32,7 +28,6 @@ EffectNode::EffectNode()
       is_currently_animating_opacity(false),
       effect_changed(false),
       num_copy_requests_in_subtree(0),
-      has_unclipped_descendants(false),
       transform_id(0),
       clip_id(0),
       target_id(1),
@@ -45,7 +40,6 @@ bool EffectNode::operator==(const EffectNode& other) const {
          owning_layer_id == other.owning_layer_id && opacity == other.opacity &&
          screen_space_opacity == other.screen_space_opacity &&
          has_render_surface == other.has_render_surface &&
-         surface_is_clipped == other.surface_is_clipped &&
          has_copy_request == other.has_copy_request &&
          filters == other.filters &&
          background_filters == other.background_filters &&
@@ -75,7 +69,6 @@ void EffectNode::AsValueInto(base::trace_event::TracedValue* value) const {
   value->SetInteger("owning_layer_id", owning_layer_id);
   value->SetDouble("opacity", opacity);
   value->SetBoolean("has_render_surface", has_render_surface);
-  value->SetBoolean("surface_is_clipped", surface_is_clipped);
   value->SetBoolean("has_copy_request", has_copy_request);
   value->SetBoolean("double_sided", double_sided);
   value->SetBoolean("is_drawn", is_drawn);

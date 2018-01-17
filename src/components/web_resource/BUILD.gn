@@ -16,6 +16,7 @@ static_library("web_resource") {
 
   deps = [
     "//base",
+    "//components/data_use_measurement/core",
     "//components/google/core/browser",
     "//components/pref_registry",
     "//components/prefs",
@@ -42,6 +43,7 @@ source_set("unit_tests") {
   sources = [
     "eula_accepted_notifier_unittest.cc",
     "resource_request_allowed_notifier_unittest.cc",
+    "web_resource_service_unittest.cc",
   ]
 
   deps = [

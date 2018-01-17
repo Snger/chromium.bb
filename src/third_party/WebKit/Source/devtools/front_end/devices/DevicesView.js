@@ -86,7 +86,9 @@ Devices.DevicesView = class extends UI.VBox {
    */
   _devicesUpdated(event) {
     this._devices =
-        /** @type {!Array.<!Adb.Device>} */ (event.data).slice().filter(d => d.adbSerial.toUpperCase() !== 'WEBRTC');
+        /** @type {!Array.<!Adb.Device>} */ (event.data)
+            .slice()
+            .filter(d => d.adbSerial.toUpperCase() !== 'WEBRTC' && d.adbSerial.toUpperCase() !== 'LOCALHOST');
     for (var device of this._devices) {
       if (!device.adbConnected)
         device.adbModel = Common.UIString('Unknown');
@@ -210,7 +212,7 @@ Devices.DevicesView.DiscoveryView = class extends UI.VBox {
     this.contentElement.createChild('div', 'hbox device-text-row').createChild('div', 'view-title').textContent =
         Common.UIString('Settings');
 
-    var discoverUsbDevicesCheckbox = UI.createCheckboxLabel(Common.UIString('Discover USB devices'));
+    var discoverUsbDevicesCheckbox = UI.CheckboxLabel.create(Common.UIString('Discover USB devices'));
     discoverUsbDevicesCheckbox.classList.add('usb-checkbox');
     this.element.appendChild(discoverUsbDevicesCheckbox);
     this._discoverUsbDevicesCheckbox = discoverUsbDevicesCheckbox.checkboxElement;
@@ -223,7 +225,7 @@ Devices.DevicesView.DiscoveryView = class extends UI.VBox {
         Common.UIString('remote debugging documentation.')));
 
     var portForwardingHeader = this.element.createChild('div', 'port-forwarding-header');
-    var portForwardingEnabledCheckbox = UI.createCheckboxLabel(Common.UIString('Port forwarding'));
+    var portForwardingEnabledCheckbox = UI.CheckboxLabel.create(Common.UIString('Port forwarding'));
     portForwardingEnabledCheckbox.classList.add('port-forwarding-checkbox');
     portForwardingHeader.appendChild(portForwardingEnabledCheckbox);
     this._portForwardingEnabledCheckbox = portForwardingEnabledCheckbox.checkboxElement;

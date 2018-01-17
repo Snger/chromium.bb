@@ -153,14 +153,35 @@ void ChromeDataUseAscriberService::ReadyToCommitNavigation(
   content::WebContents* web_contents = navigation_handle->GetWebContents();
   content::BrowserThread::PostTask(
       content::BrowserThread::IO, FROM_HERE,
-      base::Bind(
-          &ChromeDataUseAscriber::ReadyToCommitMainFrameNavigation,
-          base::Unretained(ascriber_), navigation_handle->GetURL(),
-          navigation_handle->GetGlobalRequestID(),
-          web_contents->GetRenderProcessHost()->GetID(),
-          web_contents->GetMainFrame()->GetRoutingID(),
-          !navigation_handle->HasCommitted() || navigation_handle->IsSamePage(),
-          navigation_handle));
+      base::Bind(&ChromeDataUseAscriber::ReadyToCommitMainFrameNavigation,
+                 base::Unretained(ascriber_), navigation_handle->GetURL(),
+                 navigation_handle->GetGlobalRequestID(),
+                 web_contents->GetRenderProcessHost()->GetID(),
+                 web_contents->GetMainFrame()->GetRoutingID(),
+                 !navigation_handle->HasCommitted() ||
+                     navigation_handle->IsSameDocument(),
+                 navigation_handle));
+}
+
+void ChromeDataUseAscriberService::DidFinishNavigation(
+    content::NavigationHandle* navigation_handle) {
+  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
+
+  if (!navigation_handle->IsInMainFrame() ||
+      !navigation_handle->HasCommitted() || navigation_handle->IsSameDocument())
+    return;
+
+  if (!ascriber_)
+    return;
+
+  content::WebContents* web_contents = navigation_handle->GetWebContents();
+  content::BrowserThread::PostTask(
+      content::BrowserThread::IO, FROM_HERE,
+      base::Bind(&ChromeDataUseAscriber::DidFinishNavigation,
+                 base::Unretained(ascriber_),
+                 web_contents->GetRenderProcessHost()->GetID(),
+                 web_contents->GetMainFrame()->GetRoutingID(),
+                 navigation_handle->GetPageTransition()));
 }
 
 void ChromeDataUseAscriberService::SetDataUseAscriber(
@@ -171,7 +192,7 @@ void ChromeDataUseAscriberService::SetDataUseAscriber(
   ascriber_ = ascriber;
   is_initialized_ = true;
 
-  for (auto& it : pending_frames_queue_) {
+  for (auto* it : pending_frames_queue_) {
     RenderFrameCreated(it);
     if (pending_visible_main_frames_.find(it) !=
         pending_visible_main_frames_.end()) {

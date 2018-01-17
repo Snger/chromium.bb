@@ -93,6 +93,7 @@ typedef const struct EbmlSyntax {
     int list_elem_size;
     int data_offset;
     union {
+        int64_t     i;
         uint64_t    u;
         double      f;
         const char *s;
@@ -700,7 +701,7 @@ static EbmlSyntax matroska_blockgroup[] = {
     { MATROSKA_ID_SIMPLEBLOCK,    EBML_BIN,  0, offsetof(MatroskaBlock, bin) },
     { MATROSKA_ID_BLOCKDURATION,  EBML_UINT, 0, offsetof(MatroskaBlock, duration) },
     { MATROSKA_ID_DISCARDPADDING, EBML_SINT, 0, offsetof(MatroskaBlock, discard_padding) },
-    { MATROSKA_ID_BLOCKREFERENCE, EBML_SINT, 0, offsetof(MatroskaBlock, reference) },
+    { MATROSKA_ID_BLOCKREFERENCE, EBML_SINT, 0, offsetof(MatroskaBlock, reference), { .i = INT64_MIN } },
     { MATROSKA_ID_CODECSTATE,     EBML_NONE },
     {                          1, EBML_UINT, 0, offsetof(MatroskaBlock, non_simple), { .u = 1 } },
     { 0 }
@@ -1075,6 +1076,9 @@ static int ebml_parse_nest(MatroskaDemuxContext *matroska, EbmlSyntax *syntax,
 
     for (i = 0; syntax[i].id; i++)
         switch (syntax[i].type) {
+        case EBML_SINT:
+            *(int64_t *) ((char *) data + syntax[i].data_offset) = syntax[i].def.i;
+            break;
         case EBML_UINT:
             *(uint64_t *) ((char *) data + syntax[i].data_offset) = syntax[i].def.u;
             break;
@@ -1917,8 +1921,6 @@ static int mkv_parse_video_projection(AVStream *st, const MatroskaTrack *track) 
 
     switch (track->video.projection.type) {
     case MATROSKA_VIDEO_PROJECTION_TYPE_EQUIRECTANGULAR:
-        if (track->video.projection.private.size < 4)
-            return AVERROR_INVALIDDATA;
         projection = AV_SPHERICAL_EQUIRECTANGULAR;
         break;
     case MATROSKA_VIDEO_PROJECTION_TYPE_CUBEMAP:
@@ -2292,7 +2294,7 @@ static int matroska_parse_tracks(AVFormatContext *s)
                 track->audio.coded_framesize <= 0 ||
                 track->audio.sub_packet_h    <= 0 ||
                 track->audio.frame_size      <= 0 ||
-                track->audio.sub_packet_size <= 0)
+                track->audio.sub_packet_size <= 0 && codec_id != AV_CODEC_ID_SIPR)
                 return AVERROR_INVALIDDATA;
             track->audio.buf = av_malloc_array(track->audio.sub_packet_h,
                                                track->audio.frame_size);
@@ -3247,9 +3249,11 @@ static int matroska_parse_block(MatroskaDemuxContext *matroska, uint8_t *data,
         if (track->type == MATROSKA_TRACK_TYPE_SUBTITLE &&
             timecode < track->end_timecode)
             is_keyframe = 0;  /* overlapping subtitles are not key frame */
-        if (is_keyframe)
+        if (is_keyframe) {
+            ff_reduce_index(matroska->ctx, st->index);
             av_add_index_entry(st, cluster_pos, timecode, 0, 0,
                                AVINDEX_KEYFRAME);
+        }
     }
 
     if (matroska->skip_to_keyframe &&
@@ -3378,7 +3382,7 @@ static int matroska_parse_cluster_incremental(MatroskaDemuxContext *matroska)
         matroska->current_cluster_num_blocks = blocks_list->nb_elem;
         i                                    = blocks_list->nb_elem - 1;
         if (blocks[i].bin.size > 0 && blocks[i].bin.data) {
-            int is_keyframe = blocks[i].non_simple ? !blocks[i].reference : -1;
+            int is_keyframe = blocks[i].non_simple ? blocks[i].reference == INT64_MIN : -1;
             uint8_t* additional = blocks[i].additional.size > 0 ?
                                     blocks[i].additional.data : NULL;
             if (!blocks[i].non_simple)
@@ -3416,7 +3420,7 @@ static int matroska_parse_cluster(MatroskaDemuxContext *matroska)
     blocks      = blocks_list->elem;
     for (i = 0; i < blocks_list->nb_elem; i++)
         if (blocks[i].bin.size > 0 && blocks[i].bin.data) {
-            int is_keyframe = blocks[i].non_simple ? !blocks[i].reference : -1;
+            int is_keyframe = blocks[i].non_simple ? blocks[i].reference == INT64_MIN : -1;
             res = matroska_parse_block(matroska, blocks[i].bin.data,
                                        blocks[i].bin.size, blocks[i].bin.pos,
                                        cluster.timecode, blocks[i].duration,

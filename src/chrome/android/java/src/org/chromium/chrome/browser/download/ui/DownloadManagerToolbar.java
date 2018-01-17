@@ -5,24 +5,20 @@
 package org.chromium.chrome.browser.download.ui;
 
 import android.content.Context;
-import android.support.annotation.Nullable;
-import android.support.v4.widget.DrawerLayout;
 import android.util.AttributeSet;
 import android.view.View;
 
 import org.chromium.base.metrics.RecordUserAction;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.download.ui.DownloadManagerUi.DownloadUiObserver;
-import org.chromium.chrome.browser.widget.selection.SelectionDelegate;
-import org.chromium.chrome.browser.widget.selection.SelectionToolbar;
-import org.chromium.ui.base.DeviceFormFactor;
+import org.chromium.chrome.browser.widget.selection.SelectableListToolbar;
 
 import java.util.List;
 
 /**
  * Handles toolbar functionality for the {@link DownloadManagerUi}.
  */
-public class DownloadManagerToolbar extends SelectionToolbar<DownloadHistoryItemWrapper>
+public class DownloadManagerToolbar extends SelectableListToolbar<DownloadHistoryItemWrapper>
         implements DownloadUiObserver {
     private int mFilter = DownloadFilter.FILTER_ALL;
 
@@ -31,16 +27,11 @@ public class DownloadManagerToolbar extends SelectionToolbar<DownloadHistoryItem
         inflateMenu(R.menu.download_manager_menu);
     }
 
-    @Override
-    public void initialize(SelectionDelegate<DownloadHistoryItemWrapper> delegate, int titleResId,
-            @Nullable DrawerLayout drawerLayout, int normalGroupResId, int selectedGroupResId,
-            @Nullable Integer normalBackgroundColorResId) {
-        if (DeviceFormFactor.isTablet(getContext())) {
-            getMenu().removeItem(R.id.close_menu_id);
-        }
-
-        super.initialize(delegate, titleResId, drawerLayout, normalGroupResId, selectedGroupResId,
-                normalBackgroundColorResId);
+    /**
+     * Removes the close button from the toolbar.
+     */
+    public void removeCloseButton() {
+        getMenu().removeItem(R.id.close_menu_id);
     }
 
     @Override
@@ -83,6 +74,12 @@ public class DownloadManagerToolbar extends SelectionToolbar<DownloadHistoryItem
 
     @Override
     public void onManagerDestroyed() { }
+
+    @Override
+    public void hideSearchView() {
+        super.hideSearchView();
+        updateTitle();
+    }
 
     private void updateTitle() {
         if (mFilter == DownloadFilter.FILTER_ALL) {

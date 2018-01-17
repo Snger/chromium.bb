@@ -16,16 +16,21 @@
 #import "ios/chrome/test/earl_grey/chrome_actions.h"
 #import "ios/chrome/test/earl_grey/chrome_assertions.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
+#import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
-#include "ios/chrome/test/earl_grey/chrome_util.h"
 #import "ios/testing/wait_util.h"
 #import "ios/web/public/test/earl_grey/web_view_matchers.h"
 #import "ios/web/public/test/http_server.h"
 #import "ios/web/public/test/http_server_util.h"
 #include "url/gurl.h"
 
-using chrome_test_util::buttonWithAccessibilityLabelId;
+#if !defined(__has_feature) || !__has_feature(objc_arc)
+#error "This file requires ARC support."
+#endif
+
+using chrome_test_util::ButtonWithAccessibilityLabelId;
+using chrome_test_util::OpenLinkInNewTabButton;
 
 namespace {
 const char kUrlChromiumLogoPage[] =
@@ -42,51 +47,47 @@ const char kDestinationHtml[] =
     "<script>document.title='new doc'</script>You made it!";
 
 // Matcher for the open image button in the context menu.
-id<GREYMatcher> openImageButton() {
-  return buttonWithAccessibilityLabelId(IDS_IOS_CONTENT_CONTEXT_OPENIMAGE);
+id<GREYMatcher> OpenImageButton() {
+  return ButtonWithAccessibilityLabelId(IDS_IOS_CONTENT_CONTEXT_OPENIMAGE);
 }
 
 // Matcher for the open image in new tab button in the context menu.
-id<GREYMatcher> openImageInNewTabButton() {
-  return buttonWithAccessibilityLabelId(
+id<GREYMatcher> OpenImageInNewTabButton() {
+  return ButtonWithAccessibilityLabelId(
       IDS_IOS_CONTENT_CONTEXT_OPENIMAGENEWTAB);
-}
-
-// Matcher for the open link in new tab button in the context menu.
-id<GREYMatcher> openLinkInNewTabButton() {
-  return buttonWithAccessibilityLabelId(IDS_IOS_CONTENT_CONTEXT_OPENLINKNEWTAB);
 }
 
 // Waits for the context menu item to disappear. TODO(crbug.com/682871): Remove
 // this once EarlGrey is synchronized with context menu.
-void WaitForContextMenuItemDisappeared(id<GREYMatcher> contextMenuItemButton) {
+void WaitForContextMenuItemDisappeared(
+    id<GREYMatcher> context_menu_item_button) {
   ConditionBlock condition = ^{
     NSError* error = nil;
-    [[EarlGrey selectElementWithMatcher:contextMenuItemButton]
+    [[EarlGrey selectElementWithMatcher:context_menu_item_button]
         assertWithMatcher:grey_nil()
                     error:&error];
     return error == nil;
   };
   GREYAssert(testing::WaitUntilConditionOrTimeout(
                  testing::kWaitForUIElementTimeout, condition),
-             [NSString stringWithFormat:@"Waiting for matcher %@ failed.",
-                                        contextMenuItemButton]);
+             @"Waiting for matcher %@ failed.", context_menu_item_button);
 }
 
-// Long press on |elementId| to trigger context menu and then tap on
+// Long press on |element_id| to trigger context menu and then tap on
 // |contextMenuItemButton| item.
-void LongPressElementAndTapOnButton(const char* elementId,
-                                    id<GREYMatcher> contextMenuItemButton) {
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::
-                                          webViewBelongingToWebController()]
-      performAction:chrome_test_util::longPressElementForContextMenu(elementId,
-                                                                     true)];
+void LongPressElementAndTapOnButton(const char* element_id,
+                                    id<GREYMatcher> context_menu_item_button) {
+  id<GREYMatcher> web_view_matcher =
+      web::WebViewInWebState(chrome_test_util::GetCurrentWebState());
+  [[EarlGrey selectElementWithMatcher:web_view_matcher]
+      performAction:chrome_test_util::LongPressElementForContextMenu(
+                        element_id, true /* menu should appear */)];
 
-  [[EarlGrey selectElementWithMatcher:contextMenuItemButton]
+  [[EarlGrey selectElementWithMatcher:context_menu_item_button]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:contextMenuItemButton]
+  [[EarlGrey selectElementWithMatcher:context_menu_item_button]
       performAction:grey_tap()];
-  WaitForContextMenuItemDisappeared(contextMenuItemButton);
+  WaitForContextMenuItemDisappeared(context_menu_item_button);
 }
 
 // A simple wrapper that sleeps for 1s to wait for the animation, triggered from
@@ -130,10 +131,10 @@ void SelectTabAtIndexInCurrentMode(NSUInteger index) {
   [ChromeEarlGrey loadURL:pageURL];
   chrome_test_util::AssertMainTabCount(1U);
 
-  LongPressElementAndTapOnButton(kChromiumImageID, openImageButton());
+  LongPressElementAndTapOnButton(kChromiumImageID, OpenImageButton());
 
   // Verify url and tab count.
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           imageURL.GetContent())]
       assertWithMatcher:grey_notNil()];
   chrome_test_util::AssertMainTabCount(1U);
@@ -148,12 +149,12 @@ void SelectTabAtIndexInCurrentMode(NSUInteger index) {
   [ChromeEarlGrey loadURL:pageURL];
   chrome_test_util::AssertMainTabCount(1U);
 
-  LongPressElementAndTapOnButton(kChromiumImageID, openImageInNewTabButton());
+  LongPressElementAndTapOnButton(kChromiumImageID, OpenImageInNewTabButton());
 
   SelectTabAtIndexInCurrentMode(1U);
 
   // Verify url and tab count.
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           imageURL.GetContent())]
       assertWithMatcher:grey_notNil()];
   chrome_test_util::AssertMainTabCount(2U);
@@ -175,12 +176,12 @@ void SelectTabAtIndexInCurrentMode(NSUInteger index) {
   [ChromeEarlGrey loadURL:initialURL];
   chrome_test_util::AssertMainTabCount(1U);
 
-  LongPressElementAndTapOnButton(kDestinationLinkID, openLinkInNewTabButton());
+  LongPressElementAndTapOnButton(kDestinationLinkID, OpenLinkInNewTabButton());
 
   SelectTabAtIndexInCurrentMode(1U);
 
   // Verify url and tab count.
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           destinationURL.GetContent())]
       assertWithMatcher:grey_notNil()];
   chrome_test_util::AssertMainTabCount(2U);
@@ -209,15 +210,25 @@ void SelectTabAtIndexInCurrentMode(NSUInteger index) {
   chrome_test_util::AssertMainTabCount(1U);
 
   // Scroll down on the web view to make the link visible.
+  // grey_swipeFastInDirecton will quickly scroll towards the bottom, and then
+  // grey_scrollToContentEdge guarantees the content edge is reached. Two
+  // methods are used because the first one is much faster, but doesn't
+  // guarantee the link becomes visible.
+  // TODO(crbug.com/702272): Try to replace this with one EarlGrey method call.
   [[EarlGrey
-      selectElementWithMatcher:webViewScrollView(
+      selectElementWithMatcher:WebViewScrollView(
                                    chrome_test_util::GetCurrentWebState())]
       performAction:grey_swipeFastInDirection(kGREYDirectionUp)];
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::webViewContainingText(
+  [[EarlGrey
+      selectElementWithMatcher:WebViewScrollView(
+                                   chrome_test_util::GetCurrentWebState())]
+      performAction:grey_scrollToContentEdge(kGREYContentEdgeBottom)];
+
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::WebViewContainingText(
                                           kDestinationLinkID)]
       assertWithMatcher:grey_notNil()];
 
-  LongPressElementAndTapOnButton(kDestinationLinkID, openLinkInNewTabButton());
+  LongPressElementAndTapOnButton(kDestinationLinkID, OpenLinkInNewTabButton());
 
   // Earl Grey cannot preperly synchronize some animations, so adding a
   // WaitUntilCondition to wait for the new tab opening animation to finish
@@ -225,7 +236,7 @@ void SelectTabAtIndexInCurrentMode(NSUInteger index) {
   ConditionBlock condition = ^{
     NSError* error = nil;
     [[EarlGrey
-        selectElementWithMatcher:webViewScrollView(
+        selectElementWithMatcher:WebViewScrollView(
                                      chrome_test_util::GetCurrentWebState())]
         assertWithMatcher:grey_interactable()
                     error:&error];
@@ -238,15 +249,15 @@ void SelectTabAtIndexInCurrentMode(NSUInteger index) {
   // Make the toolbar visible by scrolling up on the web view to select the
   // newly opened tab.
   [[EarlGrey
-      selectElementWithMatcher:webViewScrollView(
+      selectElementWithMatcher:WebViewScrollView(
                                    chrome_test_util::GetCurrentWebState())]
       performAction:grey_swipeFastInDirection(kGREYDirectionDown)];
-  chrome_test_util::AssertToolbarVisible();
+  [ChromeEarlGreyUI waitForToolbarVisible:YES];
 
   SelectTabAtIndexInCurrentMode(1U);
 
   // Verify url and tab count.
-  [[EarlGrey selectElementWithMatcher:chrome_test_util::omniboxText(
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::OmniboxText(
                                           destinationURL.GetContent())]
       assertWithMatcher:grey_notNil()];
   chrome_test_util::AssertMainTabCount(2U);

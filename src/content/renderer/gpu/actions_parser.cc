@@ -33,8 +33,22 @@ SyntheticGestureParams::GestureSourceType ToSyntheticGestureSourceType(
     return SyntheticGestureParams::TOUCH_INPUT;
   else if (source_type == "mouse")
     return SyntheticGestureParams::MOUSE_INPUT;
+  else if (source_type == "pen")
+    return SyntheticGestureParams::PEN_INPUT;
   else
     return SyntheticGestureParams::DEFAULT_INPUT;
+}
+
+SyntheticPointerActionParams::Button ToSyntheticMouseButton(
+    std::string button) {
+  if (button == "left")
+    return SyntheticPointerActionParams::Button::LEFT;
+  if (button == "middle")
+    return SyntheticPointerActionParams::Button::MIDDLE;
+  if (button == "right")
+    return SyntheticPointerActionParams::Button::RIGHT;
+  NOTREACHED() << "Unexpected button";
+  return SyntheticPointerActionParams::Button();
 }
 
 }  // namespace
@@ -48,7 +62,8 @@ ActionsParser::~ActionsParser() {}
 
 bool ActionsParser::ParsePointerActionSequence() {
   const base::ListValue* pointer_list;
-  if (!pointer_actions_value_->GetAsList(&pointer_list)) {
+  if (!pointer_actions_value_ ||
+      !pointer_actions_value_->GetAsList(&pointer_list)) {
     error_message_ =
         base::StringPrintf("pointer_list is missing or not a list");
     return false;
@@ -56,7 +71,7 @@ bool ActionsParser::ParsePointerActionSequence() {
 
   for (const auto& pointer_value : *pointer_list) {
     const base::DictionaryValue* pointer_actions;
-    if (!pointer_value->GetAsDictionary(&pointer_actions)) {
+    if (!pointer_value.GetAsDictionary(&pointer_actions)) {
       error_message_ =
           base::StringPrintf("pointer actions is missing or not a dictionary");
       return false;
@@ -94,7 +109,7 @@ bool ActionsParser::ParsePointerActions(const base::DictionaryValue& pointer) {
         base::StringPrintf("source type is missing or not a string");
     return false;
   } else if (source_type != "touch" && source_type != "mouse" &&
-             source_type != "pointer") {
+             source_type != "pen") {
     error_message_ =
         base::StringPrintf("source type is an unsupported input source");
     return false;
@@ -142,7 +157,7 @@ bool ActionsParser::ParseActions(const base::ListValue& actions) {
   SyntheticPointerActionListParams::ParamList param_list;
   for (const auto& action_value : actions) {
     const base::DictionaryValue* action;
-    if (!action_value->GetAsDictionary(&action)) {
+    if (!action_value.GetAsDictionary(&action)) {
       error_message_ = base::StringPrintf(
           "actions[%d].actions is missing or not a dictionary", action_index_);
       return false;
@@ -192,6 +207,20 @@ bool ActionsParser::ParseAction(
     return false;
   }
 
+  std::string button_name = "left";
+  if (action.HasKey("button") && !action.GetString("button", &button_name)) {
+    error_message_ = base::StringPrintf(
+        "actions[%d].actions.button is not a string", action_index_);
+    return false;
+  } else if (button_name != "left" && button_name != "middle" &&
+             button_name != "right") {
+    error_message_ = base::StringPrintf(
+        "actions[%d].actions.button is an unsupported button", action_index_);
+    return false;
+  }
+  SyntheticPointerActionParams::Button button =
+      ToSyntheticMouseButton(button_name);
+
   double duration = 0;
   int num_idle = 0;
   if (pointer_action_type ==
@@ -212,11 +241,20 @@ bool ActionsParser::ParseAction(
 
   SyntheticPointerActionParams action_param(pointer_action_type);
   action_param.set_index(action_index_);
-  if (pointer_action_type ==
-          SyntheticPointerActionParams::PointerActionType::PRESS ||
-      pointer_action_type ==
-          SyntheticPointerActionParams::PointerActionType::MOVE) {
-    action_param.set_position(gfx::PointF(position_x, position_y));
+  switch (pointer_action_type) {
+    case SyntheticPointerActionParams::PointerActionType::PRESS:
+      action_param.set_position(gfx::PointF(position_x, position_y));
+      action_param.set_button(button);
+      break;
+    case SyntheticPointerActionParams::PointerActionType::MOVE:
+      action_param.set_position(gfx::PointF(position_x, position_y));
+      break;
+    case SyntheticPointerActionParams::PointerActionType::RELEASE:
+      action_param.set_button(button);
+      break;
+    case SyntheticPointerActionParams::PointerActionType::IDLE:
+    case SyntheticPointerActionParams::PointerActionType::NOT_INITIALIZED:
+      break;
   }
   param_list.push_back(action_param);
 

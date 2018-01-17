@@ -18,6 +18,7 @@
 class SkData;
 class SkCanvas;
 class SkColorTable;
+class SkCrossContextImageData;
 class SkImageGenerator;
 class SkPaint;
 class SkPicture;
@@ -73,7 +74,8 @@ public:
      *
      *  If a subset is specified, it must be contained within the generator's bounds.
      */
-    static sk_sp<SkImage> MakeFromGenerator(SkImageGenerator*, const SkIRect* subset = nullptr);
+    static sk_sp<SkImage> MakeFromGenerator(std::unique_ptr<SkImageGenerator>,
+                                            const SkIRect* subset = nullptr);
 
     /**
      *  Construct a new SkImage based on the specified encoded data. Returns NULL on failure,
@@ -161,21 +163,11 @@ public:
 
     /**
      *  Create a new image from the specified picture.
-     *  This SkImage has no defined BitDepth or SkColorSpace, it is a flexible container for
-     *  draw commands.
-     */
-    static sk_sp<SkImage> MakeFromPicture(sk_sp<SkPicture> picture, const SkISize& dimensions,
-                                          const SkMatrix* matrix, const SkPaint* paint);
-
-    /**
-     *  Create a new image from the specified picture.
      *  On creation of the SkImage, snap the SkPicture to a particular BitDepth and SkColorSpace.
      */
     static sk_sp<SkImage> MakeFromPicture(sk_sp<SkPicture>, const SkISize& dimensions,
                                           const SkMatrix*, const SkPaint*, BitDepth,
                                           sk_sp<SkColorSpace>);
-
-    static sk_sp<SkImage> MakeTextureFromPixmap(GrContext*, const SkPixmap&, SkBudgeted budgeted);
 
     ///////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -185,6 +177,16 @@ public:
     SkIRect bounds() const { return SkIRect::MakeWH(fWidth, fHeight); }
     uint32_t uniqueID() const { return fUniqueID; }
     SkAlphaType alphaType() const;
+
+    /**
+     *  Returns the color space of the SkImage.
+     *
+     *  This is the color space that was supplied on creation of the SkImage or a color
+     *  space that was parsed from encoded data.  This color space is not guaranteed to be
+     *  renderable.  Can return nullptr if the SkImage was created without a color space.
+     */
+    SkColorSpace* colorSpace() const;
+    sk_sp<SkColorSpace> refColorSpace() const;
 
     /**
      *  Returns true fi the image will be drawn as a mask, with no intrinsic color of its own.
@@ -223,8 +225,11 @@ public:
      *  Retrieves the backend API handle of the texture. If flushPendingGrContextIO then the
      *  GrContext will issue to the backend API any deferred IO operations on the texture before
      *  returning.
+     *  If 'origin' is supplied it will be filled in with the origin of the content drawn
+     *  into the image.
      */
-    GrBackendObject getTextureHandle(bool flushPendingGrContextIO) const;
+    GrBackendObject getTextureHandle(bool flushPendingGrContextIO,
+                                     GrSurfaceOrigin* origin = nullptr) const;
 
     /**
      *  Hints to image calls where the system might cache computed intermediates (e.g. the results
@@ -318,6 +323,22 @@ public:
      *  NULL will be returned.
      */
     sk_sp<SkImage> makeSubset(const SkIRect& subset) const;
+
+    /**
+     *  Ensures that an image is backed by a texture (when GrContext is non-null), suitable for use
+     *  with surfaces that have the supplied destination color space. If no transformation is
+     *  required, the returned image may be the same as this image. If this image is from a
+     *  different GrContext, this will fail.
+     */
+    sk_sp<SkImage> makeTextureImage(GrContext*, SkColorSpace* dstColorSpace) const;
+
+    /**
+     *  Constructs a texture backed image from data that was previously uploaded on another thread
+     *  and GrContext. The GrContext used to upload the data must be in the same GL share group as
+     *  the one passed in here, or otherwise be able to share resources with the passed in context.
+     */
+    static sk_sp<SkImage> MakeFromCrossContextImageData(GrContext*,
+                                                        std::unique_ptr<SkCrossContextImageData>);
 
     /**
      * If the image is texture-backed this will make a raster copy of it (or nullptr if reading back
@@ -415,6 +436,22 @@ public:
      *  (and caches) its pixels / texture on-demand.
      */
     bool isLazyGenerated() const;
+
+    /**
+     *  If |target| is supported, returns an SkImage in the |target| color space.
+     *  Otherwise, returns nullptr.
+     *
+     *  This will leave the image as is if it already in the |target| color space.
+     *  Otherwise, it will convert the pixels from the src color space to the |target|
+     *  color space.  If this->colorSpace() is nullptr, the src color space will be
+     *  treated as sRGB.
+     *
+     *  If |premulBehavior| is kIgnore, any premultiplication or unpremultiplication will
+     *  be performed in the gamma encoded space.  If it is kRespect, premultiplication is
+     *  assumed to be linear.
+     */
+    sk_sp<SkImage> makeColorSpace(sk_sp<SkColorSpace> target,
+                                  SkTransferFunctionBehavior premulBehavior) const;
 
 protected:
     SkImage(int width, int height, uint32_t uniqueID);

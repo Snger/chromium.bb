@@ -6,7 +6,7 @@
 
 #include "xfa/fxfa/parser/cxfa_image.h"
 
-#include "xfa/fxfa/parser/xfa_object.h"
+#include "xfa/fxfa/parser/cxfa_node.h"
 
 CXFA_Image::CXFA_Image(CXFA_Node* pNode, bool bDefValue)
     : CXFA_Data(pNode), m_bDefValue(bDefValue) {}
@@ -22,7 +22,7 @@ bool CXFA_Image::GetContentType(CFX_WideString& wsContentType) {
 bool CXFA_Image::GetHref(CFX_WideString& wsHref) {
   if (m_bDefValue)
     return m_pNode->TryCData(XFA_ATTRIBUTE_Href, wsHref);
-  return m_pNode->GetAttribute(FX_WSTRC(L"href"), wsHref);
+  return m_pNode->GetAttribute(L"href", wsHref);
 }
 
 int32_t CXFA_Image::GetTransferEncoding() {

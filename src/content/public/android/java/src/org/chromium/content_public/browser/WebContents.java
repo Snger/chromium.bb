@@ -4,12 +4,14 @@
 
 package org.chromium.content_public.browser;
 
-import android.graphics.Bitmap;
-import android.graphics.Rect;
+import android.os.Handler;
 import android.os.Parcelable;
 
 import org.chromium.base.VisibleForTesting;
+import org.chromium.content.browser.RenderCoordinates;
 import org.chromium.ui.OverscrollRefreshHandler;
+import org.chromium.ui.base.EventForwarder;
+import org.chromium.ui.base.WindowAndroid;
 
 /**
  * The WebContents Java wrapper to allow communicating with the native WebContents object.
@@ -37,6 +39,11 @@ import org.chromium.ui.OverscrollRefreshHandler;
  */
 public interface WebContents extends Parcelable {
     /**
+     * @return The top level WindowAndroid associated with this WebContents.  This can be null.
+     */
+    WindowAndroid getTopLevelNativeWindow();
+
+    /**
      * Deletes the Web Contents object.
      */
     void destroy();
@@ -50,6 +57,11 @@ public interface WebContents extends Parcelable {
      * @return The navigation controller associated with this WebContents.
      */
     NavigationController getNavigationController();
+
+    /**
+     * @return  The main frame associated with this WebContents.
+     */
+    RenderFrameHost getMainFrame();
 
     /**
      * @return The title for the current visible page.
@@ -77,36 +89,41 @@ public interface WebContents extends Parcelable {
      */
     void stop();
 
+    // TODO (amaralp): Only used in content. Should be moved out of public interface.
     /**
      * Cut the selected content.
      */
     void cut();
 
+    // TODO (amaralp): Only used in content. Should be moved out of public interface.
     /**
      * Copy the selected content.
      */
     void copy();
 
+    // TODO (amaralp): Only used in content. Should be moved out of public interface.
     /**
      * Paste content from the clipboard.
      */
     void paste();
 
+    // TODO (amaralp): Only used in content. Should be moved out of public interface.
     /**
      * Replace the selected text with the {@code word}.
      */
     void replace(String word);
 
+    // TODO (amaralp): Only used in content. Should be moved out of public interface.
     /**
      * Select all content.
      */
     void selectAll();
 
+    // TODO (amaralp): Only used in content. Should be moved out of public interface.
     /**
-     * Clear the selection. This includes the cursor which is a zero-sized selection, and keyboard
-     * will be hidden as a result.
+     * Collapse the selection to the end of selection range.
      */
-    void unselect();
+    void collapseSelection();
 
     /**
      * To be called when the ContentView is hidden.
@@ -118,10 +135,17 @@ public interface WebContents extends Parcelable {
      */
     void onShow();
 
+    // TODO (amaralp): Only used in content. Should be moved out of public interface.
     /**
      * Removes handles used in text selection.
      */
     void dismissTextHandles();
+
+    // TODO (amaralp): Only used in content. Should be moved out of public interface.
+    /**
+     * Shows paste popup menu at point
+     */
+    void showContextMenuAtPoint(int x, int y);
 
     /**
      * Suspends all media players for this WebContents.  Note: There may still
@@ -269,7 +293,7 @@ public interface WebContents extends Parcelable {
      * Dispatches a Message event to the specified frame.
      */
     void postMessageToFrame(String frameName, String message,
-            String sourceOrigin, String targetOrigin, int[] sentPortIds);
+            String sourceOrigin, String targetOrigin, MessagePort[] ports);
 
     /**
      * Creates a message channel for sending postMessage requests and returns the ports for
@@ -277,7 +301,7 @@ public interface WebContents extends Parcelable {
      * @param service The message port service to register the channel with.
      * @return The ports that forms the ends of the message channel created.
      */
-    MessagePort[] createMessageChannel(MessagePortService service);
+    MessagePort[] createMessageChannel();
 
     /**
      * Returns whether the initial empty page has been accessed by a script from another
@@ -298,12 +322,30 @@ public interface WebContents extends Parcelable {
     int getThemeColor();
 
     /**
+     * Initiate extraction of text, HTML, and other information for clipping puposes (smart clip)
+     * from the rectangle area defined by starting positions (x and y), and width and height.
+     */
+    void requestSmartClipExtract(
+            int x, int y, int width, int height, RenderCoordinates coordinateSpace);
+
+    /**
+     * Register a handler to handle smart clip data once extraction is done.
+     */
+    void setSmartClipResultHandler(final Handler smartClipHandler);
+
+    /**
      * Requests a snapshop of accessibility tree. The result is provided asynchronously
      * using the callback
      * @param callback The callback to be called when the snapshot is ready. The callback
      *                 cannot be null.
      */
     void requestAccessibilitySnapshot(AccessibilitySnapshotCallback callback);
+
+    /**
+     * Returns {@link EventForwarder} which is used to forward input/view events
+     * to native content layer.
+     */
+    EventForwarder getEventForwarder();
 
     /**
      * Add an observer to the WebContents
@@ -326,8 +368,16 @@ public interface WebContents extends Parcelable {
      */
     void setOverscrollRefreshHandler(OverscrollRefreshHandler handler);
 
-    public void getContentBitmapAsync(Bitmap.Config config, float scale, Rect srcRect,
-            ContentBitmapCallback callback);
+    /**
+     * Requests an image snapshot of the content.
+     *
+     * @param width The width of the resulting bitmap, or 0 for "auto."
+     * @param height The height of the resulting bitmap, or 0 for "auto."
+     * @param callback May be called synchronously, or at a later point, to deliver the bitmap
+     *                 result (or a failure code).
+     */
+    public void getContentBitmapAsync(int width, int height, ContentBitmapCallback callback);
+
     /**
      * Reloads all the Lo-Fi images in this WebContents.
      */
@@ -354,10 +404,24 @@ public interface WebContents extends Parcelable {
             boolean bypassCache, ImageDownloadCallback callback);
 
     /**
+     * Whether the WebContents has an active fullscreen video with native or custom controls.
+     * The WebContents must be fullscreen when this method is called.
+     */
+    public boolean hasActiveEffectivelyFullscreenVideo();
+
+    /**
      * Issues a fake notification about the renderer being killed.
      *
      * @param wasOomProtected True if the renderer was protected from the OS out-of-memory killer
      *                        (e.g. renderer for the currently selected tab)
      */
     public void simulateRendererKilledForTesting(boolean wasOomProtected);
+
+    /**
+     * Notifies the WebContents about the new persistent video status. It should be called whenever
+     * the value changes.
+     *
+     * @param value Whether there is a persistent video associated with this WebContents.
+     */
+    public void setHasPersistentVideo(boolean value);
 }

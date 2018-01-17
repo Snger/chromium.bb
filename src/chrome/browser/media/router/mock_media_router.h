@@ -16,6 +16,7 @@
 #include "chrome/browser/media/router/media_sink.h"
 #include "chrome/browser/media/router/media_source.h"
 #include "testing/gmock/include/gmock/gmock.h"
+#include "url/origin.h"
 
 namespace media_router {
 
@@ -28,7 +29,7 @@ class MockMediaRouter : public MediaRouterBase {
   MOCK_METHOD7(CreateRoute,
                void(const MediaSource::Id& source,
                     const MediaSink::Id& sink_id,
-                    const GURL& origin,
+                    const url::Origin& origin,
                     content::WebContents* web_contents,
                     const std::vector<MediaRouteResponseCallback>& callbacks,
                     base::TimeDelta timeout,
@@ -36,7 +37,7 @@ class MockMediaRouter : public MediaRouterBase {
   MOCK_METHOD7(JoinRoute,
                void(const MediaSource::Id& source,
                     const std::string& presentation_id,
-                    const GURL& origin,
+                    const url::Origin& origin,
                     content::WebContents* web_contents,
                     const std::vector<MediaRouteResponseCallback>& callbacks,
                     base::TimeDelta timeout,
@@ -44,7 +45,7 @@ class MockMediaRouter : public MediaRouterBase {
   MOCK_METHOD7(ConnectRouteByRouteId,
                void(const MediaSource::Id& source,
                     const MediaRoute::Id& route_id,
-                    const GURL& origin,
+                    const url::Origin& origin,
                     content::WebContents* web_contents,
                     const std::vector<MediaRouteResponseCallback>& callbacks,
                     base::TimeDelta timeout,
@@ -75,6 +76,8 @@ class MockMediaRouter : public MediaRouterBase {
            const std::string& search_input,
            const std::string& domain,
            const MediaSinkSearchResponseCallback& sink_callback));
+  MOCK_METHOD2(ProvideSinks,
+               void(const std::string&, const std::vector<MediaSinkInternal>&));
   MOCK_METHOD1(OnPresentationSessionDetached,
                void(const MediaRoute::Id& route_id));
   std::unique_ptr<PresentationConnectionStateSubscription>

@@ -26,6 +26,7 @@
 #include "base/path_service.h"
 #include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
+#include "base/strings/string_piece.h"
 #include "base/strings/string_split.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
@@ -50,7 +51,9 @@
 #include "components/autofill/core/browser/phone_number.h"
 #include "components/autofill/core/browser/phone_number_i18n.h"
 #include "components/autofill/core/browser/popup_item_ids.h"
+#include "components/autofill/core/browser/ui/save_card_bubble_controller.h"
 #include "components/autofill/core/browser/validation.h"
+#include "components/autofill/core/common/autofill_clock.h"
 #include "components/autofill/core/common/autofill_constants.h"
 #include "components/autofill/core/common/autofill_data_validation.h"
 #include "components/autofill/core/common/autofill_pref_names.h"
@@ -59,13 +62,14 @@
 #include "components/autofill/core/common/form_data_predictions.h"
 #include "components/autofill/core/common/form_field_data.h"
 #include "components/autofill/core/common/password_form_fill_data.h"
+#include "components/autofill/core/common/signatures_util.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
 #include "components/rappor/public/rappor_utils.h"
 #include "components/rappor/rappor_service_impl.h"
 #include "components/security_state/core/security_state.h"
+#include "components/strings/grit/components_strings.h"
 #include "google_apis/gaia/identity_provider.h"
-#include "grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/gfx/geometry/rect.h"
 #include "url/gurl.h"
@@ -78,6 +82,8 @@ namespace autofill {
 
 using base::StartsWith;
 using base::TimeTicks;
+
+const int kCreditCardSigninPromoImpressionLimit = 3;
 
 namespace {
 
@@ -126,9 +132,9 @@ base::string16 SanitizeCreditCardFieldValue(const base::string16& value) {
 // want the logic of which variations of names are considered to be the same to
 // exactly match the logic applied on the Payments server.
 base::string16 RemoveMiddleInitial(const base::string16& name) {
-  std::vector<base::string16> parts =
-      base::SplitString(name, base::kWhitespaceUTF16, base::KEEP_WHITESPACE,
-                        base::SPLIT_WANT_NONEMPTY);
+  std::vector<base::StringPiece16> parts =
+      base::SplitStringPiece(name, base::kWhitespaceUTF16,
+                             base::KEEP_WHITESPACE, base::SPLIT_WANT_NONEMPTY);
   if (parts.size() == 3 && (parts[1].length() == 1 ||
                             (parts[1].length() == 2 &&
                              base::EndsWith(parts[1], base::ASCIIToUTF16("."),
@@ -212,16 +218,24 @@ AutofillManager::AutofillManager(
     AutofillDownloadManagerState enable_download_manager)
     : driver_(driver),
       client_(client),
-      payments_client_(
-          new payments::PaymentsClient(driver->GetURLRequestContext(), this)),
+      payments_client_(base::MakeUnique<payments::PaymentsClient>(
+          driver->GetURLRequestContext(),
+          this)),
       app_locale_(app_locale),
       personal_data_(client->GetPersonalDataManager()),
       autocomplete_history_manager_(
-          new AutocompleteHistoryManager(driver, client)),
+          base::MakeUnique<AutocompleteHistoryManager>(driver, client)),
+      form_interactions_ukm_logger_(
+          base::MakeUnique<AutofillMetrics::FormInteractionsUkmLogger>(
+              client->GetUkmService())),
       address_form_event_logger_(
-          new AutofillMetrics::FormEventLogger(false /* is_for_credit_card */)),
+          base::MakeUnique<AutofillMetrics::FormEventLogger>(
+              false /* is_for_credit_card */,
+              form_interactions_ukm_logger_.get())),
       credit_card_form_event_logger_(
-          new AutofillMetrics::FormEventLogger(true /* is_for_credit_card */)),
+          base::MakeUnique<AutofillMetrics::FormEventLogger>(
+              true /* is_for_credit_card */,
+              form_interactions_ukm_logger_.get())),
       has_logged_autofill_enabled_(false),
       has_logged_address_suggestions_count_(false),
       did_show_suggestions_(false),
@@ -229,6 +243,7 @@ AutofillManager::AutofillManager(
       user_did_autofill_(false),
       user_did_edit_autofilled_field_(false),
       user_did_accept_upload_prompt_(false),
+      should_cvc_be_requested_(false),
       external_delegate_(NULL),
       test_delegate_(NULL),
 #if defined(OS_ANDROID) || defined(OS_IOS)
@@ -242,10 +257,8 @@ AutofillManager::AutofillManager(
   if (personal_data_ && client_)
     personal_data_->OnSyncServiceInitialized(client_->GetSyncService());
 
-#if defined(OS_ANDROID)
   if (personal_data_ && driver_)
     personal_data_->SetURLRequestContextGetter(driver_->GetURLRequestContext());
-#endif
 }
 
 AutofillManager::~AutofillManager() {}
@@ -306,6 +319,9 @@ bool AutofillManager::ShouldShowScanCreditCard(const FormData& form,
   if (!is_card_number_field && !is_scannable_name_on_card_field)
     return false;
 
+  if (IsFormNonSecure(form))
+    return false;
+
   static const int kShowScanCreditCardMaxValueLength = 6;
   return field.value.size() <= kShowScanCreditCardMaxValueLength;
 }
@@ -319,9 +335,6 @@ bool AutofillManager::IsCreditCardPopup(const FormData& form,
 bool AutofillManager::ShouldShowCreditCardSigninPromo(
     const FormData& form,
     const FormFieldData& field) {
-  if (!IsAutofillCreditCardSigninPromoEnabled())
-    return false;
-
   // Check whether we are dealing with a credit card field and whether it's
   // appropriate to show the promo (e.g. the platform is supported).
   AutofillField* autofill_field = GetAutofillField(form, field);
@@ -329,12 +342,13 @@ bool AutofillManager::ShouldShowCreditCardSigninPromo(
       !client_->ShouldShowSigninPromo())
     return false;
 
-  // The last step is checking if we are under the limit of impressions (a limit
-  // of 0 means there is no limit);
-  int impression_limit = GetCreditCardSigninPromoImpressionLimit();
+  if (IsFormNonSecure(form))
+    return false;
+
+  // The last step is checking if we are under the limit of impressions.
   int impression_count = client_->GetPrefs()->GetInteger(
       prefs::kAutofillCreditCardSigninPromoImpressionCount);
-  if (impression_limit == 0 || impression_count < impression_limit) {
+  if (impression_count < kCreditCardSigninPromoImpressionLimit) {
     // The promo will be shown. Increment the impression count.
     client_->GetPrefs()->SetInteger(
         prefs::kAutofillCreditCardSigninPromoImpressionCount,
@@ -489,7 +503,7 @@ void AutofillManager::ProcessPendingFormForUpload() {
   if (!upload_form)
     return;
 
-  StartUploadProcess(std::move(upload_form), base::TimeTicks::Now(), false);
+  StartUploadProcess(std::move(upload_form), TimeTicks::Now(), false);
 }
 
 void AutofillManager::OnTextFieldDidChange(const FormData& form,
@@ -507,6 +521,9 @@ void AutofillManager::OnTextFieldDidChange(const FormData& form,
     return;
 
   UpdatePendingForm(form);
+
+  if (!user_did_type_ || autofill_field->is_autofilled)
+    form_interactions_ukm_logger_->LogTextFieldDidChange(*autofill_field);
 
   if (!user_did_type_) {
     user_did_type_ = true;
@@ -529,6 +546,11 @@ void AutofillManager::OnTextFieldDidChange(const FormData& form,
   UpdateInitialInteractionTimestamp(timestamp);
 }
 
+bool AutofillManager::IsFormNonSecure(const FormData& form) const {
+  return !client_->IsContextSecure() ||
+         (form.action.is_valid() && form.action.SchemeIs("http"));
+}
+
 void AutofillManager::OnQueryFormFieldAutofill(int query_id,
                                                const FormData& form,
                                                const FormFieldData& field,
@@ -538,6 +560,7 @@ void AutofillManager::OnQueryFormFieldAutofill(int query_id,
 
   gfx::RectF transformed_box =
       driver_->TransformBoundingBoxToViewportCoordinates(bounding_box);
+
   external_delegate_->OnQuery(query_id, form, field, transformed_box);
 
   // Need to refresh models before using the form_event_loggers.
@@ -564,13 +587,13 @@ void AutofillManager::OnQueryFormFieldAutofill(int query_id,
   }
 
   std::vector<Suggestion> suggestions;
-  const bool is_context_secure =
-      !form_structure ||
-      (client_->IsContextSecure() &&
-       (!form_structure->target_url().is_valid() ||
-        !form_structure->target_url().SchemeIs("http")));
+  const bool is_context_secure = !IsFormNonSecure(form);
   const bool is_http_warning_enabled =
       security_state::IsHttpWarningInFormEnabled();
+
+  // TODO(rogerm): Early exit here on !driver_->RendererIsAvailable()?
+  // We skip populating autofill data, but might generate warnings and or
+  // signin promo to show over the unavailable renderer. That seems a mistake.
 
   if (is_autofill_possible &&
       driver_->RendererIsAvailable() &&
@@ -723,7 +746,7 @@ void AutofillManager::FillOrPreviewCreditCardForm(
       masked_card_ = credit_card;
       GetOrCreateFullCardRequest()->GetFullCard(
           masked_card_, AutofillClient::UNMASK_FOR_AUTOFILL,
-          weak_ptr_factory_.GetWeakPtr());
+          weak_ptr_factory_.GetWeakPtr(), weak_ptr_factory_.GetWeakPtr());
       credit_card_form_event_logger_->OnDidSelectMaskedServerCardSuggestion();
       return;
     }
@@ -1023,12 +1046,16 @@ void AutofillManager::OnDidGetUploadDetails(
     user_did_accept_upload_prompt_ = false;
     client_->ConfirmSaveCreditCardToCloud(
         upload_request_.card, std::move(legal_message),
+        should_cvc_be_requested_,
         base::Bind(&AutofillManager::OnUserDidAcceptUpload,
                    weak_ptr_factory_.GetWeakPtr()));
     client_->LoadRiskData(base::Bind(&AutofillManager::OnDidGetUploadRiskData,
                                      weak_ptr_factory_.GetWeakPtr()));
-    AutofillMetrics::LogCardUploadDecisionMetric(
-        AutofillMetrics::UPLOAD_OFFERED);
+    AutofillMetrics::CardUploadDecisionMetric card_upload_decision_metric =
+        should_cvc_be_requested_ ? AutofillMetrics::UPLOAD_OFFERED_NO_CVC
+                                 : AutofillMetrics::UPLOAD_OFFERED;
+    AutofillMetrics::LogCardUploadDecisionMetric(card_upload_decision_metric);
+    LogCardUploadDecisionUkm(card_upload_decision_metric);
   } else {
     // If the upload details request failed, fall back to a local save. The
     // reasoning here is as follows:
@@ -1048,7 +1075,10 @@ void AutofillManager::OnDidGetUploadDetails(
             base::Unretained(personal_data_), upload_request_.card));
     AutofillMetrics::LogCardUploadDecisionMetric(
         AutofillMetrics::UPLOAD_NOT_OFFERED_GET_UPLOAD_DETAILS_FAILED);
+    LogCardUploadDecisionUkm(
+        AutofillMetrics::UPLOAD_NOT_OFFERED_GET_UPLOAD_DETAILS_FAILED);
   }
+  pending_upload_request_url_ = GURL();
 }
 
 void AutofillManager::OnDidUploadCard(
@@ -1069,10 +1099,29 @@ void AutofillManager::OnFullCardRequestFailed() {
   driver_->RendererShouldClearPreviewedForm();
 }
 
+void AutofillManager::ShowUnmaskPrompt(
+    const CreditCard& card,
+    AutofillClient::UnmaskCardReason reason,
+    base::WeakPtr<CardUnmaskDelegate> delegate) {
+  client_->ShowUnmaskPrompt(card, reason, delegate);
+}
+
+void AutofillManager::OnUnmaskVerificationResult(
+    AutofillClient::PaymentsRpcResult result) {
+  client_->OnUnmaskVerificationResult(result);
+}
+
 void AutofillManager::OnUserDidAcceptUpload() {
   user_did_accept_upload_prompt_ = true;
   if (!upload_request_.risk_data.empty()) {
     upload_request_.app_locale = app_locale_;
+    // If the upload request does not have card CVC, populate it with the
+    // value provided by the user:
+    if (upload_request_.cvc.empty()) {
+      DCHECK(client_->GetSaveCardBubbleController());
+      upload_request_.cvc =
+          client_->GetSaveCardBubbleController()->GetCvcEnteredByUser();
+    }
     payments_client_->UploadCard(upload_request_);
   }
 }
@@ -1081,6 +1130,13 @@ void AutofillManager::OnDidGetUploadRiskData(const std::string& risk_data) {
   upload_request_.risk_data = risk_data;
   if (user_did_accept_upload_prompt_) {
     upload_request_.app_locale = app_locale_;
+    // If the upload request does not have card CVC, populate it with the
+    // value provided by the user:
+    if (upload_request_.cvc.empty()) {
+      DCHECK(client_->GetSaveCardBubbleController());
+      upload_request_.cvc =
+          client_->GetSaveCardBubbleController()->GetCvcEnteredByUser();
+    }
     payments_client_->UploadCard(upload_request_);
   }
 }
@@ -1100,7 +1156,7 @@ bool AutofillManager::IsCreditCardUploadEnabled() {
 }
 
 bool AutofillManager::ShouldUploadForm(const FormStructure& form) {
-  return IsAutofillEnabled() && !driver_->IsOffTheRecord() &&
+  return IsAutofillEnabled() && !driver_->IsIncognito() &&
          form.ShouldBeParsed() &&
          (form.active_field_count() >= kRequiredFieldsForUpload ||
           (form.all_fields_are_passwords() &&
@@ -1165,10 +1221,19 @@ void AutofillManager::ImportFormData(const FormStructure& submitted_form) {
     upload_request_ = payments::PaymentsClient::UploadRequestDetails();
     upload_request_.card = *imported_credit_card;
 
+    // In order to prompt the user to upload their card, we must have both:
+    //  1) Card with CVC
+    //  2) 1+ recently-used or modified addresses that meet the client-side
+    //     validation rules
+    // Here we perform both checks before returning or logging anything,
+    // because if only one of the two is missing, it may be fixable.
+
     // Check for a CVC to determine whether we can prompt the user to upload
-    // their card. If no CVC is present, do nothing. We could fall back to a
-    // local save but we believe that sometimes offering upload and sometimes
-    // offering local save is a confusing user experience.
+    // their card. If no CVC is present and the experiment is off, do nothing.
+    // We could fall back to a local save but we believe that sometimes offering
+    // upload and sometimes offering local save is a confusing user experience.
+    // If no CVC and the experiment is on, request CVC from the user in the
+    // bubble and save using the provided value.
     for (const auto& field : submitted_form) {
       if (field->Type().GetStorableType() == CREDIT_CARD_VERIFICATION_CODE &&
           IsValidCreditCardSecurityCode(field->value,
@@ -1177,19 +1242,45 @@ void AutofillManager::ImportFormData(const FormStructure& submitted_form) {
         break;
       }
     }
-    if (upload_request_.cvc.empty()) {
-      AutofillMetrics::LogCardUploadDecisionMetric(
-          AutofillMetrics::UPLOAD_NOT_OFFERED_NO_CVC);
-      CollectRapportSample(submitted_form.source_url(),
-                           "Autofill.CardUploadNotOfferedNoCvc");
-      return;
-    }
 
-    // Upload also requires recently used or modified addresses that meet the
+    // Upload requires that recently used or modified addresses meet the
     // client-side validation rules.
-    if (!GetProfilesForCreditCardUpload(*imported_credit_card,
-                                        &upload_request_.profiles,
-                                        submitted_form.source_url())) {
+    autofill::AutofillMetrics::CardUploadDecisionMetric
+        get_profiles_decision_metric = AutofillMetrics::UPLOAD_OFFERED;
+    std::string rappor_metric_name;
+    bool get_profiles_succeeded =
+        GetProfilesForCreditCardUpload(*imported_credit_card,
+                                       &upload_request_.profiles,
+                                       &get_profiles_decision_metric,
+                                       &rappor_metric_name);
+
+    pending_upload_request_url_ = GURL(submitted_form.source_url());
+
+    // Both the CVC and address checks are done.  Conform to the legacy order of
+    // reporting on CVC then address.
+    should_cvc_be_requested_ = false;
+    if (upload_request_.cvc.empty()) {
+      if (IsAutofillUpstreamRequestCvcIfMissingExperimentEnabled()) {
+        should_cvc_be_requested_ = true;
+      } else {
+        AutofillMetrics::LogCardUploadDecisionMetric(
+            AutofillMetrics::UPLOAD_NOT_OFFERED_NO_CVC);
+        LogCardUploadDecisionUkm(AutofillMetrics::UPLOAD_NOT_OFFERED_NO_CVC);
+        pending_upload_request_url_ = GURL();
+        CollectRapportSample(submitted_form.source_url(),
+                             "Autofill.CardUploadNotOfferedNoCvc");
+        return;
+      }
+    }
+    if (!get_profiles_succeeded) {
+      DCHECK(get_profiles_decision_metric != AutofillMetrics::UPLOAD_OFFERED);
+      AutofillMetrics::LogCardUploadDecisionMetric(
+          get_profiles_decision_metric);
+      LogCardUploadDecisionUkm(get_profiles_decision_metric);
+      pending_upload_request_url_ = GURL();
+      if (!rappor_metric_name.empty()) {
+        CollectRapportSample(submitted_form.source_url(), rappor_metric_name);
+      }
       return;
     }
 
@@ -1201,9 +1292,11 @@ void AutofillManager::ImportFormData(const FormStructure& submitted_form) {
 bool AutofillManager::GetProfilesForCreditCardUpload(
     const CreditCard& card,
     std::vector<AutofillProfile>* profiles,
-    const GURL& source_url) const {
+    autofill::AutofillMetrics::CardUploadDecisionMetric*
+        address_upload_decision_metric,
+    std::string* rappor_metric_name) const {
   std::vector<AutofillProfile> candidate_profiles;
-  const base::Time now = base::Time::Now();
+  const base::Time now = AutofillClock::Now();
   const base::TimeDelta fifteen_minutes = base::TimeDelta::FromMinutes(15);
 
   // First, collect all of the addresses used recently.
@@ -1214,9 +1307,9 @@ bool AutofillManager::GetProfilesForCreditCardUpload(
     }
   }
   if (candidate_profiles.empty()) {
-    AutofillMetrics::LogCardUploadDecisionMetric(
-        AutofillMetrics::UPLOAD_NOT_OFFERED_NO_ADDRESS);
-    CollectRapportSample(source_url, "Autofill.CardUploadNotOfferedNoAddress");
+    *address_upload_decision_metric =
+        AutofillMetrics::UPLOAD_NOT_OFFERED_NO_ADDRESS;
+    *rappor_metric_name = "Autofill.CardUploadNotOfferedNoAddress";
     return false;
   }
 
@@ -1244,10 +1337,9 @@ bool AutofillManager::GetProfilesForCreditCardUpload(
         // countries, we'll need to make the name comparison more sophisticated.
         if (!base::EqualsCaseInsensitiveASCII(
                 verified_name, RemoveMiddleInitial(address_name))) {
-          AutofillMetrics::LogCardUploadDecisionMetric(
-              AutofillMetrics::UPLOAD_NOT_OFFERED_CONFLICTING_NAMES);
-          CollectRapportSample(source_url,
-                               "Autofill.CardUploadNotOfferedConflictingNames");
+          *address_upload_decision_metric =
+              AutofillMetrics::UPLOAD_NOT_OFFERED_CONFLICTING_NAMES;
+          *rappor_metric_name = "Autofill.CardUploadNotOfferedConflictingNames";
           return false;
         }
       }
@@ -1256,9 +1348,9 @@ bool AutofillManager::GetProfilesForCreditCardUpload(
   // If neither the card nor any of the addresses have a name associated with
   // them, the candidate set is invalid.
   if (verified_name.empty()) {
-    AutofillMetrics::LogCardUploadDecisionMetric(
-        AutofillMetrics::UPLOAD_NOT_OFFERED_NO_NAME);
-    CollectRapportSample(source_url, "Autofill.CardUploadNotOfferedNoName");
+    *address_upload_decision_metric =
+        AutofillMetrics::UPLOAD_NOT_OFFERED_NO_NAME;
+    *rappor_metric_name = "Autofill.CardUploadNotOfferedNoName";
     return false;
   }
 
@@ -1284,8 +1376,8 @@ bool AutofillManager::GetProfilesForCreditCardUpload(
         // likely to fail.
         if (!(StartsWith(verified_zip, zip, base::CompareCase::SENSITIVE) ||
               StartsWith(zip, verified_zip, base::CompareCase::SENSITIVE))) {
-          AutofillMetrics::LogCardUploadDecisionMetric(
-              AutofillMetrics::UPLOAD_NOT_OFFERED_CONFLICTING_ZIPS);
+          *address_upload_decision_metric =
+              AutofillMetrics::UPLOAD_NOT_OFFERED_CONFLICTING_ZIPS;
           return false;
         }
       }
@@ -1295,8 +1387,8 @@ bool AutofillManager::GetProfilesForCreditCardUpload(
   // If none of the candidate addresses have a zip, the candidate set is
   // invalid.
   if (verified_zip.empty()) {
-    AutofillMetrics::LogCardUploadDecisionMetric(
-        AutofillMetrics::UPLOAD_NOT_OFFERED_NO_ZIP_CODE);
+    *address_upload_decision_metric =
+        AutofillMetrics::UPLOAD_NOT_OFFERED_NO_ZIP_CODE;
     return false;
   }
 
@@ -1305,7 +1397,8 @@ bool AutofillManager::GetProfilesForCreditCardUpload(
 }
 
 void AutofillManager::CollectRapportSample(const GURL& source_url,
-                                           const char* metric_name) const {
+                                           const std::string& metric_name)
+    const {
   if (source_url.is_valid() && client_->GetRapporServiceImpl()) {
     rappor::SampleDomainAndRegistryFromGURL(client_->GetRapporServiceImpl(),
                                             metric_name, source_url);
@@ -1322,11 +1415,10 @@ void AutofillManager::UploadFormDataAsyncCallback(
     const TimeTicks& interaction_time,
     const TimeTicks& submission_time,
     bool observed_submission) {
-  submitted_form->LogQualityMetrics(load_time, interaction_time,
-                                    submission_time,
-                                    client_->GetRapporServiceImpl(),
-                                    did_show_suggestions_, observed_submission);
-
+  submitted_form->LogQualityMetrics(
+      load_time, interaction_time, submission_time,
+      client_->GetRapporServiceImpl(), form_interactions_ukm_logger_.get(),
+      did_show_suggestions_, observed_submission);
   if (submitted_form->ShouldBeCrowdsourced())
     UploadFormData(*submitted_form, observed_submission);
 }
@@ -1360,10 +1452,12 @@ void AutofillManager::Reset() {
   ProcessPendingFormForUpload();
   DCHECK(!pending_form_data_);
   form_structures_.clear();
-  address_form_event_logger_.reset(
-      new AutofillMetrics::FormEventLogger(false /* is_for_credit_card */));
-  credit_card_form_event_logger_.reset(
-      new AutofillMetrics::FormEventLogger(true /* is_for_credit_card */));
+  form_interactions_ukm_logger_.reset(
+      new AutofillMetrics::FormInteractionsUkmLogger(client_->GetUkmService()));
+  address_form_event_logger_.reset(new AutofillMetrics::FormEventLogger(
+      false /* is_for_credit_card */, form_interactions_ukm_logger_.get()));
+  credit_card_form_event_logger_.reset(new AutofillMetrics::FormEventLogger(
+      true /* is_for_credit_card */, form_interactions_ukm_logger_.get()));
 #if defined(OS_ANDROID) || defined(OS_IOS)
   autofill_assistant_.Reset();
 #endif
@@ -1387,16 +1481,24 @@ AutofillManager::AutofillManager(AutofillDriver* driver,
                                  PersonalDataManager* personal_data)
     : driver_(driver),
       client_(client),
-      payments_client_(
-          new payments::PaymentsClient(driver->GetURLRequestContext(), this)),
+      payments_client_(base::MakeUnique<payments::PaymentsClient>(
+          driver->GetURLRequestContext(),
+          this)),
       app_locale_("en-US"),
       personal_data_(personal_data),
       autocomplete_history_manager_(
-          new AutocompleteHistoryManager(driver, client)),
+          base::MakeUnique<AutocompleteHistoryManager>(driver, client)),
+      form_interactions_ukm_logger_(
+          base::MakeUnique<AutofillMetrics::FormInteractionsUkmLogger>(
+              client->GetUkmService())),
       address_form_event_logger_(
-          new AutofillMetrics::FormEventLogger(false /* is_for_credit_card */)),
+          base::MakeUnique<AutofillMetrics::FormEventLogger>(
+              false /* is_for_credit_card */,
+              form_interactions_ukm_logger_.get())),
       credit_card_form_event_logger_(
-          new AutofillMetrics::FormEventLogger(true /* is_for_credit_card */)),
+          base::MakeUnique<AutofillMetrics::FormEventLogger>(
+              true /* is_for_credit_card */,
+              form_interactions_ukm_logger_.get())),
       has_logged_autofill_enabled_(false),
       has_logged_address_suggestions_count_(false),
       did_show_suggestions_(false),
@@ -1427,34 +1529,34 @@ bool AutofillManager::RefreshDataModels() {
 
   // Updating the FormEventLoggers for addresses and credit cards.
   {
-    bool is_server_data_available = false;
-    bool is_local_data_available = false;
+    size_t server_record_type_count = 0;
+    size_t local_record_type_count = 0;
     for (CreditCard* credit_card : credit_cards) {
       if (credit_card->record_type() == CreditCard::LOCAL_CARD)
-        is_local_data_available = true;
+        local_record_type_count++;
       else
-        is_server_data_available = true;
+        server_record_type_count++;
     }
-    credit_card_form_event_logger_->set_is_server_data_available(
-        is_server_data_available);
-    credit_card_form_event_logger_->set_is_local_data_available(
-        is_local_data_available);
+    credit_card_form_event_logger_->set_server_record_type_count(
+        server_record_type_count);
+    credit_card_form_event_logger_->set_local_record_type_count(
+        local_record_type_count);
     credit_card_form_event_logger_->set_is_context_secure(
         client_->IsContextSecure());
   }
   {
-    bool is_server_data_available = false;
-    bool is_local_data_available = false;
+    size_t server_record_type_count = 0;
+    size_t local_record_type_count = 0;
     for (AutofillProfile* profile : profiles) {
       if (profile->record_type() == AutofillProfile::LOCAL_PROFILE)
-        is_local_data_available = true;
+        local_record_type_count++;
       else if (profile->record_type() == AutofillProfile::SERVER_PROFILE)
-        is_server_data_available = true;
+        server_record_type_count++;
     }
-    address_form_event_logger_->set_is_server_data_available(
-        is_server_data_available);
-    address_form_event_logger_->set_is_local_data_available(
-        is_local_data_available);
+    address_form_event_logger_->set_server_record_type_count(
+        server_record_type_count);
+    address_form_event_logger_->set_local_record_type_count(
+        local_record_type_count);
   }
 
   if (profiles.empty() && credit_cards.empty())
@@ -1573,7 +1675,7 @@ void AutofillManager::FillOrPreviewDataModelForm(
     } else if (is_credit_card && IsCreditCardExpirationType(
                                      cached_field->Type().GetStorableType()) &&
                static_cast<const CreditCard*>(&data_model)
-                   ->IsExpired(base::Time::Now())) {
+                   ->IsExpired(AutofillClock::Now())) {
       // Don't fill expired cards expiration date.
       value = base::string16();
     }
@@ -1623,7 +1725,8 @@ void AutofillManager::FillOrPreviewDataModelForm(
 
 std::unique_ptr<FormStructure> AutofillManager::ValidateSubmittedForm(
     const FormData& form) {
-  std::unique_ptr<FormStructure> submitted_form(new FormStructure(form));
+  std::unique_ptr<FormStructure> submitted_form(
+      base::MakeUnique<FormStructure>(form));
   if (!ShouldUploadForm(*submitted_form))
     return std::unique_ptr<FormStructure>();
 
@@ -1633,7 +1736,7 @@ std::unique_ptr<FormStructure> AutofillManager::ValidateSubmittedForm(
   if (!FindCachedForm(form, &cached_submitted_form))
     return std::unique_ptr<FormStructure>();
 
-  submitted_form->UpdateFromCache(*cached_submitted_form);
+  submitted_form->UpdateFromCache(*cached_submitted_form, false);
   return submitted_form;
 }
 
@@ -1646,8 +1749,9 @@ bool AutofillManager::FindCachedForm(const FormData& form,
   // protocol with the crowdsourcing server does not permit us to discard the
   // original versions of the forms.
   *form_structure = NULL;
+  const auto& form_signature = autofill::CalculateFormSignature(form);
   for (auto& cur_form : base::Reversed(form_structures_)) {
-    if (*cur_form == form) {
+    if (cur_form->form_signature() == form_signature || *cur_form == form) {
       *form_structure = cur_form.get();
 
       // The same form might be cached with multiple field counts: in some
@@ -1729,41 +1833,17 @@ bool AutofillManager::UpdateCachedForm(const FormData& live_form,
   if (!needs_update)
     return true;
 
-  if (form_structures_.size() >= kMaxFormCacheSize)
+  // Note: We _must not_ remove the original version of the cached form from
+  // the list of |form_structures_|. Otherwise, we break parsing of the
+  // crowdsourcing server's response to our query.
+  if (!ParseForm(live_form, updated_form))
     return false;
 
-  // Add the new or updated form to our cache.
-  form_structures_.push_back(base::MakeUnique<FormStructure>(live_form));
-  *updated_form = form_structures_.rbegin()->get();
-  (*updated_form)->DetermineHeuristicTypes();
-
-  // If we have cached data, propagate it to the updated form.
-  if (cached_form) {
-    std::map<base::string16, const AutofillField*> cached_fields;
-    for (size_t i = 0; i < cached_form->field_count(); ++i) {
-      const AutofillField* field = cached_form->field(i);
-      cached_fields[field->unique_name()] = field;
-    }
-
-    for (size_t i = 0; i < (*updated_form)->field_count(); ++i) {
-      AutofillField* field = (*updated_form)->field(i);
-      auto cached_field = cached_fields.find(field->unique_name());
-      if (cached_field != cached_fields.end()) {
-        field->set_server_type(cached_field->second->server_type());
-        field->is_autofilled = cached_field->second->is_autofilled;
-        field->set_previously_autofilled(
-            cached_field->second->previously_autofilled());
-      }
-    }
-
-    // Note: We _must not_ remove the original version of the cached form from
-    // the list of |form_structures_|.  Otherwise, we break parsing of the
-    // crowdsourcing server's response to our query.
-  }
+  if (cached_form)
+    (*updated_form)->UpdateFromCache(*cached_form, true);
 
   // Annotate the updated form with its predicted types.
-  std::vector<FormStructure*> forms(1, *updated_form);
-  driver_->SendAutofillTypePredictionsToRenderer(forms);
+  driver_->SendAutofillTypePredictionsToRenderer({*updated_form});
 
   return true;
 }
@@ -1822,27 +1902,21 @@ void AutofillManager::ParseForms(const std::vector<FormData>& forms) {
   std::vector<FormStructure*> non_queryable_forms;
   std::vector<FormStructure*> queryable_forms;
   for (const FormData& form : forms) {
-    const auto parse_form_start_time = base::TimeTicks::Now();
+    const auto parse_form_start_time = TimeTicks::Now();
 
-    std::unique_ptr<FormStructure> form_structure =
-        base::MakeUnique<FormStructure>(form);
-    form_structure->ParseFieldTypesFromAutocompleteAttributes();
-    if (!form_structure->ShouldBeParsed())
+    FormStructure* form_structure = nullptr;
+    if (!ParseForm(form, &form_structure))
       continue;
+    DCHECK(form_structure);
 
-    form_structure->DetermineHeuristicTypes();
-
-    // Ownership is transferred to |form_structures_| which maintains it until
-    // the manager is Reset() or destroyed. It is safe to use references below
-    // as long as receivers don't take ownership.
-    form_structures_.push_back(std::move(form_structure));
-
-    if (form_structures_.back()->ShouldBeCrowdsourced())
-      queryable_forms.push_back(form_structures_.back().get());
+    // Set aside forms with method GET or author-specified types, so that they
+    // are not included in the query to the server.
+    if (form_structure->ShouldBeCrowdsourced())
+      queryable_forms.push_back(form_structure);
     else
-      non_queryable_forms.push_back(form_structures_.back().get());
+      non_queryable_forms.push_back(form_structure);
 
-    AutofillMetrics::LogParseFormTiming(base::TimeTicks::Now() -
+    AutofillMetrics::LogParseFormTiming(TimeTicks::Now() -
                                         parse_form_start_time);
   }
 
@@ -1853,6 +1927,9 @@ void AutofillManager::ParseForms(const std::vector<FormData>& forms) {
 
   if (!queryable_forms.empty() || !non_queryable_forms.empty()) {
     AutofillMetrics::LogUserHappinessMetric(AutofillMetrics::FORMS_LOADED);
+    // Setup the url for metrics that we will collect for this form.
+    form_interactions_ukm_logger_->OnFormsLoaded(forms[0].origin);
+
 #if defined(OS_IOS)
     // Log this from same location as AutofillMetrics::FORMS_LOADED to ensure
     // that KeyboardAccessoryButtonsIOS and UserHappiness UMA metrics will be
@@ -1871,7 +1948,7 @@ void AutofillManager::ParseForms(const std::vector<FormData>& forms) {
         personal_data_->GetCreditCardsToSuggest();
     // Expired cards are last in the sorted order, so if the first one is
     // expired, they all are.
-    if (!cards.empty() && !cards.front()->IsExpired(base::Time::Now()))
+    if (!cards.empty() && !cards.front()->IsExpired(AutofillClock::Now()))
       autofill_assistant_.ShowAssistForCreditCard(*cards.front());
   }
 #endif
@@ -1880,6 +1957,26 @@ void AutofillManager::ParseForms(const std::vector<FormData>& forms) {
   // going to get about them.  For the other forms, we'll wait until we get a
   // response from the server.
   driver_->SendAutofillTypePredictionsToRenderer(non_queryable_forms);
+}
+
+bool AutofillManager::ParseForm(const FormData& form,
+                                FormStructure** parsed_form_structure) {
+  DCHECK(parsed_form_structure);
+  if (form_structures_.size() >= kMaxFormCacheSize)
+    return false;
+
+  auto form_structure = base::MakeUnique<FormStructure>(form);
+  form_structure->ParseFieldTypesFromAutocompleteAttributes();
+  if (!form_structure->ShouldBeParsed())
+    return false;
+
+  // Ownership is transferred to |form_structures_| which maintains it until
+  // the manager is Reset() or destroyed. It is safe to use references below
+  // as long as receivers don't take ownership.
+  form_structures_.push_back(std::move(form_structure));
+  *parsed_form_structure = form_structures_.back().get();
+  (*parsed_form_structure)->DetermineHeuristicTypes(client_->GetUkmService());
+  return true;
 }
 
 int AutofillManager::BackendIDToInt(const std::string& backend_id) const {
@@ -1960,7 +2057,7 @@ void AutofillManager::DeterminePossibleFieldTypesForUpload(
   // profile or credit card, identify any stored types that match the value.
   for (size_t i = 0; i < submitted_form->field_count(); ++i) {
     AutofillField* field = submitted_form->field(i);
-    ServerFieldTypeSet matching_types;
+    ServerFieldTypeSet matching_types = field->possible_types();
 
     base::string16 value;
     base::TrimWhitespace(field->value, base::TRIM_ALL, &value);
@@ -2150,5 +2247,11 @@ void AutofillManager::DumpAutofillData(bool imported_cc) const {
   fclose(file);
 }
 #endif  // ENABLE_FORM_DEBUG_DUMP
+
+void AutofillManager::LogCardUploadDecisionUkm(
+    AutofillMetrics::CardUploadDecisionMetric upload_decision) {
+  AutofillMetrics::LogCardUploadDecisionUkm(
+      client_->GetUkmService(), pending_upload_request_url_, upload_decision);
+}
 
 }  // namespace autofill

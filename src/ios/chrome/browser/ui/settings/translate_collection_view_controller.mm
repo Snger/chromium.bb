@@ -23,11 +23,12 @@
 #import "ios/chrome/browser/ui/collection_view/collection_view_model.h"
 #import "ios/chrome/browser/ui/settings/settings_utils.h"
 #import "ios/chrome/browser/ui/settings/utils/pref_backed_boolean.h"
+#include "ios/chrome/browser/ui/uikit_ui_util.h"
 #include "ios/chrome/grit/ios_chromium_strings.h"
 #include "ios/chrome/grit/ios_strings.h"
 #import "ios/third_party/material_components_ios/src/components/Palettes/src/MaterialPalettes.h"
 #import "ios/third_party/material_components_ios/src/components/Snackbar/src/MaterialSnackbar.h"
-#import "ios/third_party/material_roboto_font_loader_ios/src/src/MaterialRobotoFontLoader.h"
+#import "ios/third_party/material_components_ios/src/components/Typography/src/MaterialTypography.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "url/gurl.h"
 
@@ -106,6 +107,7 @@ NSString* const kTranslateSettingsCategory = @"ChromeTranslateSettings";
       initWithType:ItemTypeResetTranslate] autorelease];
   resetTranslate.text = l10n_util::GetNSString(IDS_IOS_TRANSLATE_SETTING_RESET);
   resetTranslate.accessibilityTraits |= UIAccessibilityTraitButton;
+  resetTranslate.textFont = [MDCTypography body2Font];
   [model addItem:resetTranslate
       toSectionWithIdentifier:SectionIdentifierTranslate];
 
@@ -139,13 +141,6 @@ NSString* const kTranslateSettingsCategory = @"ChromeTranslateSettings";
                       forControlEvents:UIControlEventValueChanged];
       break;
     }
-    case ItemTypeResetTranslate: {
-      MDCCollectionViewTextCell* textCell =
-          base::mac::ObjCCastStrict<MDCCollectionViewTextCell>(cell);
-      textCell.textLabel.font =
-          [[MDFRobotoFontLoader sharedInstance] mediumFontOfSize:14];
-      break;
-    }
     default:
       break;
   }
@@ -165,6 +160,7 @@ NSString* const kTranslateSettingsCategory = @"ChromeTranslateSettings";
     std::unique_ptr<translate::TranslatePrefs> translatePrefs(
         ChromeIOSTranslateClient::CreateTranslatePrefs(_prefs));
     translatePrefs->ResetToDefaults();
+    TriggerHapticFeedbackForNotification(UINotificationFeedbackTypeSuccess);
     NSString* messageText =
         l10n_util::GetNSString(IDS_IOS_TRANSLATE_SETTING_RESET_NOTIFICATION);
     MDCSnackbarMessage* message =

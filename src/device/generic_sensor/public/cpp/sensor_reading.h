@@ -39,13 +39,14 @@ class SensorReadingField {
   Storage storage_;
 };
 
-// This structure represents sensor reading data: timestamp and 3 values.
+// This structure represents sensor reading data: timestamp and 4 values.
 struct DEVICE_GENERIC_SENSOR_PUBLIC_EXPORT SensorReading {
   SensorReading();
   ~SensorReading();
   SensorReading(const SensorReading& other);
   SensorReadingField<double> timestamp;
-  SensorReadingField<double> values[3];
+  constexpr static int kValuesCount = 4;
+  SensorReadingField<double> values[kValuesCount];
 };
 
 // This structure represents sensor reading buffer: sensor reading and seqlock

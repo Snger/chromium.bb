@@ -408,7 +408,8 @@ IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest, PRE_SessionCookies) {
   StoreDataWithPage("session_cookies.html");
 }
 
-IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest, SessionCookies) {
+// Flaky(crbug.com/700696)
+IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest, DISABLED_SessionCookies) {
   // The browsing session will be continued; just wait for the page to reload
   // and check the stored data.
   CheckReloadedPageRestored();
@@ -418,7 +419,8 @@ IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest, PRE_SessionStorage) {
   StoreDataWithPage("session_storage.html");
 }
 
-IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest, SessionStorage) {
+// Flaky(crbug.com/700699)
+IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest, DISABLED_SessionStorage) {
   CheckReloadedPageRestored();
 }
 
@@ -547,7 +549,7 @@ IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest,
   // which stores a session cookie.
   StoreDataWithPage("session_cookies.html");
   Browser* popup = new Browser(
-      Browser::CreateParams(Browser::TYPE_POPUP, browser()->profile()));
+      Browser::CreateParams(Browser::TYPE_POPUP, browser()->profile(), true));
   popup->window()->Show();
 
   Browser* new_browser = QuitBrowserAndRestore(browser(), false);
@@ -592,9 +594,16 @@ IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest,
   CheckFormRestored(new_browser, false, false);
 }
 
+// Flaky on Mac: https://crbug.com/709504
+#if defined(OS_MACOSX)
+#define MAYBE_SessionCookiesCloseAllBrowsers \
+  DISABLED_SessionCookiesCloseAllBrowsers
+#else
+#define MAYBE_SessionCookiesCloseAllBrowsers SessionCookiesCloseAllBrowsers
+#endif
 // Check that session cookies are cleared on a wrench menu quit.
 IN_PROC_BROWSER_TEST_F(ContinueWhereILeftOffTest,
-                       SessionCookiesCloseAllBrowsers) {
+                       MAYBE_SessionCookiesCloseAllBrowsers) {
   // Set the startup preference to "continue where I left off" and visit a page
   // which stores a session cookie.
   StoreDataWithPage("session_cookies.html");
@@ -826,7 +835,7 @@ IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest,
                        SessionCookiesBrowserCloseWithPopupOpen) {
   StoreDataWithPage("session_cookies.html");
   Browser* popup = new Browser(
-      Browser::CreateParams(Browser::TYPE_POPUP, browser()->profile()));
+      Browser::CreateParams(Browser::TYPE_POPUP, browser()->profile(), true));
   popup->window()->Show();
   Browser* new_browser = QuitBrowserAndRestore(browser(), false);
   NavigateAndCheckStoredData(new_browser, "session_cookies.html");
@@ -838,7 +847,7 @@ IN_PROC_BROWSER_TEST_F(NoSessionRestoreTest,
                        SessionCookiesBrowserClosePopupLast) {
   StoreDataWithPage("session_cookies.html");
   Browser* popup = new Browser(
-      Browser::CreateParams(Browser::TYPE_POPUP, browser()->profile()));
+      Browser::CreateParams(Browser::TYPE_POPUP, browser()->profile(), true));
   popup->window()->Show();
   CloseBrowserSynchronously(browser());
   Browser* new_browser = QuitBrowserAndRestore(popup, false);

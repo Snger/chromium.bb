@@ -42,6 +42,7 @@ class AndroidBrowserBackend(chrome_browser_backend.ChromeBrowserBackend):
     # Initialize fields so that an explosion during init doesn't break in Close.
     self._backend_settings = backend_settings
     self._saved_sslflag = ''
+    self._app_ui = None
 
     # Stop old browser, if any.
     self._StopBrowser()
@@ -67,13 +68,22 @@ class AndroidBrowserBackend(chrome_browser_backend.ChromeBrowserBackend):
   def device(self):
     return self.platform_backend.device
 
+  @property
+  def supports_app_ui_interactions(self):
+    return True
+
+  def GetAppUi(self):
+    if self._app_ui is None:
+      self._app_ui = app_ui.AppUi(self.device, package=self.package)
+    return self._app_ui
+
   def _StopBrowser(self):
     # Note: it's important to stop and _not_ kill the browser app, since
     # stopping also clears the app state in Android's activity manager.
     self.platform_backend.StopApplication(self._backend_settings.package)
 
   def Start(self):
-    self.device.RunShellCommand('logcat -c')
+    self.device.adb.Logcat(clear=True)
     if self.browser_options.startup_url:
       url = self.browser_options.startup_url
     elif self.browser_options.profile_dir:

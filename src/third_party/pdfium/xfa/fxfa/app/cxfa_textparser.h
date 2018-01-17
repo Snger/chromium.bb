@@ -33,15 +33,17 @@ class CXFA_TextParser {
   void Reset();
   void DoParse(CFDE_XMLNode* pXMLContainer, CXFA_TextProvider* pTextProvider);
 
-  CFDE_CSSComputedStyle* CreateRootStyle(CXFA_TextProvider* pTextProvider);
-  CFDE_CSSComputedStyle* ComputeStyle(CFDE_XMLNode* pXMLNode,
-                                      CFDE_CSSComputedStyle* pParentStyle);
+  CFX_RetainPtr<CFDE_CSSComputedStyle> CreateRootStyle(
+      CXFA_TextProvider* pTextProvider);
+  CFX_RetainPtr<CFDE_CSSComputedStyle> ComputeStyle(
+      CFDE_XMLNode* pXMLNode,
+      CFDE_CSSComputedStyle* pParentStyle);
 
   bool IsParsed() const { return m_bParsed; }
 
   int32_t GetVAlign(CXFA_TextProvider* pTextProvider) const;
 
-  FX_FLOAT GetTabInterval(CFDE_CSSComputedStyle* pStyle) const;
+  float GetTabInterval(CFDE_CSSComputedStyle* pStyle) const;
   int32_t CountTabs(CFDE_CSSComputedStyle* pStyle) const;
 
   bool IsSpaceRun(CFDE_CSSComputedStyle* pStyle) const;
@@ -50,8 +52,8 @@ class CXFA_TextParser {
 
   CFX_RetainPtr<CFGAS_GEFont> GetFont(CXFA_TextProvider* pTextProvider,
                                       CFDE_CSSComputedStyle* pStyle) const;
-  FX_FLOAT GetFontSize(CXFA_TextProvider* pTextProvider,
-                       CFDE_CSSComputedStyle* pStyle) const;
+  float GetFontSize(CXFA_TextProvider* pTextProvider,
+                    CFDE_CSSComputedStyle* pStyle) const;
 
   int32_t GetHorScale(CXFA_TextProvider* pTextProvider,
                       CFDE_CSSComputedStyle* pStyle,
@@ -68,12 +70,12 @@ class CXFA_TextParser {
                       int32_t& iLinethrough) const;
   FX_ARGB GetColor(CXFA_TextProvider* pTextProvider,
                    CFDE_CSSComputedStyle* pStyle) const;
-  FX_FLOAT GetBaseline(CXFA_TextProvider* pTextProvider,
-                       CFDE_CSSComputedStyle* pStyle) const;
-  FX_FLOAT GetLineHeight(CXFA_TextProvider* pTextProvider,
-                         CFDE_CSSComputedStyle* pStyle,
-                         bool bFirst,
-                         FX_FLOAT fVerScale) const;
+  float GetBaseline(CXFA_TextProvider* pTextProvider,
+                    CFDE_CSSComputedStyle* pStyle) const;
+  float GetLineHeight(CXFA_TextProvider* pTextProvider,
+                      CFDE_CSSComputedStyle* pStyle,
+                      bool bFirst,
+                      float fVerScale) const;
 
   bool GetEmbbedObj(CXFA_TextProvider* pTextProvider,
                     CFDE_XMLNode* pXMLNode,
@@ -87,14 +89,16 @@ class CXFA_TextParser {
   void InitCSSData(CXFA_TextProvider* pTextProvider);
   void ParseRichText(CFDE_XMLNode* pXMLNode,
                      CFDE_CSSComputedStyle* pParentStyle);
-  void ParseTagInfo(CFDE_XMLNode* pXMLNode, CXFA_CSSTagProvider& tagProvider);
-  CFDE_CSSStyleSheet* LoadDefaultSheetStyle();
-  CFDE_CSSComputedStyle* CreateStyle(CFDE_CSSComputedStyle* pParentStyle);
+  std::unique_ptr<CXFA_CSSTagProvider> ParseTagInfo(CFDE_XMLNode* pXMLNode);
+  std::unique_ptr<CFDE_CSSStyleSheet> LoadDefaultSheetStyle();
+  CFX_RetainPtr<CFDE_CSSComputedStyle> CreateStyle(
+      CFDE_CSSComputedStyle* pParentStyle);
 
-  std::unique_ptr<CFDE_CSSStyleSelector> m_pSelector;
-  CFDE_CSSStyleSheet* m_pUASheet;
-  std::map<CFDE_XMLNode*, CXFA_TextParseContext*> m_mapXMLNodeToParseContext;
   bool m_bParsed;
+  bool m_cssInitialized;
+  std::unique_ptr<CFDE_CSSStyleSelector> m_pSelector;
+  std::map<CFDE_XMLNode*, std::unique_ptr<CXFA_TextParseContext>>
+      m_mapXMLNodeToParseContext;
 };
 
 #endif  // XFA_FXFA_APP_CXFA_TEXTPARSER_H_

@@ -13,6 +13,7 @@
 
 #include "base/macros.h"
 #include "base/optional.h"
+#include "base/strings/string_piece.h"
 #include "v8/include/v8.h"
 
 namespace base {
@@ -21,6 +22,7 @@ class Value;
 }
 
 namespace extensions {
+class APITypeReferenceMap;
 
 enum class ArgumentType {
   INTEGER,
@@ -29,6 +31,7 @@ enum class ArgumentType {
   STRING,
   OBJECT,
   LIST,
+  BINARY,
   FUNCTION,
   ANY,
   REF,
@@ -38,14 +41,13 @@ enum class ArgumentType {
 // A description of a given Argument to an Extension.
 class ArgumentSpec {
  public:
-  // A map from name -> definition for type definitions. This is used when an
-  // argument is declared to be a reference to a type defined elsewhere.
-  using RefMap = std::map<std::string, std::unique_ptr<ArgumentSpec>>;
+  using PropertiesMap = std::map<std::string, std::unique_ptr<ArgumentSpec>>;
 
   // Reads the description from |value| and sets associated fields.
   // TODO(devlin): We should strongly think about generating these instead of
   // populating them at runtime.
   explicit ArgumentSpec(const base::Value& value);
+  explicit ArgumentSpec(ArgumentType type);
   ~ArgumentSpec();
 
   // Returns true if the passed |value| matches this specification. If
@@ -53,7 +55,7 @@ class ArgumentSpec {
   // |out_value|. Otherwise, no conversion is performed.
   bool ParseArgument(v8::Local<v8::Context> context,
                      v8::Local<v8::Value> value,
-                     const RefMap& refs,
+                     const APITypeReferenceMap& refs,
                      std::unique_ptr<base::Value>* out_value,
                      std::string* error) const;
 
@@ -61,6 +63,27 @@ class ArgumentSpec {
   bool optional() const { return optional_; }
   ArgumentType type() const { return type_; }
   const std::set<std::string>& enum_values() const { return enum_values_; }
+
+  void set_name(base::StringPiece name) { name_ = name.as_string(); }
+  void set_optional(bool optional) { optional_ = optional; }
+  void set_ref(base::StringPiece ref) { ref_ = ref.as_string(); }
+  void set_minimum(int minimum) { minimum_ = minimum; }
+  void set_properties(PropertiesMap properties) {
+    properties_ = std::move(properties);
+  }
+  void set_list_element_type(std::unique_ptr<ArgumentSpec> list_element_type) {
+    list_element_type_ = std::move(list_element_type);
+  }
+  void set_choices(std::vector<std::unique_ptr<ArgumentSpec>> choices) {
+    choices_ = std::move(choices);
+  }
+  void set_enum_values(std::set<std::string> enum_values) {
+    enum_values_ = std::move(enum_values);
+  }
+  void set_additional_properties(
+      std::unique_ptr<ArgumentSpec> additional_properties) {
+    additional_properties_ = std::move(additional_properties);
+  }
 
  private:
   // Initializes this object according to |type_string| and |dict|.
@@ -77,12 +100,12 @@ class ArgumentSpec {
                                   std::string* error) const;
   bool ParseArgumentToObject(v8::Local<v8::Context> context,
                              v8::Local<v8::Object> object,
-                             const RefMap& refs,
+                             const APITypeReferenceMap& refs,
                              std::unique_ptr<base::Value>* out_value,
                              std::string* error) const;
   bool ParseArgumentToArray(v8::Local<v8::Context> context,
                             v8::Local<v8::Array> value,
-                            const RefMap& refs,
+                            const APITypeReferenceMap& refs,
                             std::unique_ptr<base::Value>* out_value,
                             std::string* error) const;
   bool ParseArgumentToAny(v8::Local<v8::Context> context,
@@ -103,8 +126,19 @@ class ArgumentSpec {
   // none of the following fields describing the argument will be.
   base::Optional<std::string> ref_;
 
+  // The type of instance an object should be, if any. Only applicable for
+  // ArgumentType::OBJECT. If specified, the argument must contain the instance
+  // type in its prototype chain.
+  base::Optional<std::string> instance_of_;
+
   // A minimum, if any.
   base::Optional<int> minimum_;
+
+  // A minimium length for strings or arrays.
+  base::Optional<size_t> min_length_;
+
+  // A maximum length for strings or arrays.
+  base::Optional<size_t> max_length_;
 
   // A map of required properties; present only for objects. Note that any
   // properties *not* defined in this map will be dropped during conversion.
@@ -119,6 +153,11 @@ class ArgumentSpec {
 
   // The possible enum values, if defined for this argument.
   std::set<std::string> enum_values_;
+
+  // The specification for 'additional properties'. This is used when we want
+  // to allow the API to pass an object with arbitrary properties. Only
+  // applicable for ArgumentType::OBJECT.
+  std::unique_ptr<ArgumentSpec> additional_properties_;
 
   DISALLOW_COPY_AND_ASSIGN(ArgumentSpec);
 };

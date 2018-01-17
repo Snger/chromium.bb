@@ -5,11 +5,20 @@
 #include <memory>
 
 #include "base/command_line.h"
+#include "base/files/file_enumerator.h"
 #include "base/files/file_util.h"
 #include "base/memory/ptr_util.h"
 #include "base/strings/stringprintf.h"
+#include "base/strings/utf_string_conversions.h"
 #include "base/threading/thread_restrictions.h"
+#include "content/public/browser/permission_manager.h"
+#include "content/public/browser/permission_type.h"
+#include "content/public/common/url_constants.h"
 #include "content/public/test/browser_test.h"
+#include "headless/lib/browser/headless_browser_context_impl.h"
+#include "headless/lib/browser/headless_web_contents_impl.h"
+#include "headless/lib/headless_macros.h"
+#include "headless/public/devtools/domains/inspector.h"
 #include "headless/public/devtools/domains/network.h"
 #include "headless/public/devtools/domains/page.h"
 #include "headless/public/headless_browser.h"
@@ -25,6 +34,8 @@
 #include "net/url_request/url_request_context.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
+#include "ui/base/clipboard/clipboard.h"
+#include "ui/base/clipboard/scoped_clipboard_writer.h"
 #include "ui/gfx/geometry/size.h"
 
 using testing::UnorderedElementsAre;
@@ -316,6 +327,26 @@ IN_PROC_BROWSER_TEST_F(HeadlessBrowserTest, WebGLSupported) {
   EXPECT_TRUE(webgl_supported);
 }
 
+IN_PROC_BROWSER_TEST_F(HeadlessBrowserTest, ClipboardCopyPasteText) {
+  // Tests copy-pasting text with the clipboard in headless mode.
+  ui::Clipboard* clipboard = ui::Clipboard::GetForCurrentThread();
+  ASSERT_TRUE(clipboard);
+  base::string16 paste_text = base::ASCIIToUTF16("Clippy!");
+  for (ui::ClipboardType type :
+       {ui::CLIPBOARD_TYPE_COPY_PASTE, ui::CLIPBOARD_TYPE_SELECTION,
+        ui::CLIPBOARD_TYPE_DRAG}) {
+    if (!ui::Clipboard::IsSupportedClipboardType(type))
+      continue;
+    {
+      ui::ScopedClipboardWriter writer(type);
+      writer.WriteText(paste_text);
+    }
+    base::string16 copy_text;
+    clipboard->ReadText(type, &copy_text);
+    EXPECT_EQ(paste_text, copy_text);
+  }
+}
+
 IN_PROC_BROWSER_TEST_F(HeadlessBrowserTest, DefaultSizes) {
   HeadlessBrowserContext* browser_context =
       browser()->CreateBrowserContextBuilder().Build();
@@ -348,8 +379,12 @@ IN_PROC_BROWSER_TEST_F(HeadlessBrowserTest, DefaultSizes) {
                   ->GetValue()
                   ->GetAsInteger(&window_height));
 
+#if !defined(OS_MACOSX)
+  // On Mac headless does not override the screen dimensions, so they are
+  // left with the actual screen values.
   EXPECT_EQ(kDefaultOptions.window_size.width(), screen_width);
   EXPECT_EQ(kDefaultOptions.window_size.height(), screen_height);
+#endif  // !defined(OS_MACOSX)
   EXPECT_EQ(kDefaultOptions.window_size.width(), window_width);
   EXPECT_EQ(kDefaultOptions.window_size.height(), window_height);
 }
@@ -574,7 +609,7 @@ IN_PROC_BROWSER_TEST_F(HeadlessBrowserTest, SetCookiesWithDevTools) {
             .SetPath("")
             .SetSecure(true)
             .SetHttpOnly(true)
-            .SetSameSite(network::CookieSameSite::STRICT)
+            .SetSameSite(network::CookieSameSite::EXACT)
             .SetExpirationDate(0)
             .Build();
     CookieSetter cookie_setter(this, web_contents,
@@ -640,6 +675,113 @@ IN_PROC_BROWSER_TEST_F(HeadlessBrowserTest, MAYBE_RendererCommandPrefixTest) {
 
   base::DeleteFile(launcher_script, false);
   base::DeleteFile(launcher_stamp, false);
+}
+
+class CrashReporterTest : public HeadlessBrowserTest,
+                          public HeadlessWebContents::Observer,
+                          inspector::ExperimentalObserver {
+ public:
+  CrashReporterTest() : devtools_client_(HeadlessDevToolsClient::Create()) {}
+  ~CrashReporterTest() override {}
+
+  void SetUp() override {
+    base::ThreadRestrictions::SetIOAllowed(true);
+    base::CreateNewTempDirectory("CrashReporterTest", &crash_dumps_dir_);
+    EXPECT_FALSE(options()->enable_crash_reporter);
+    options()->enable_crash_reporter = true;
+    options()->crash_dumps_dir = crash_dumps_dir_;
+    HeadlessBrowserTest::SetUp();
+  }
+
+  void TearDown() override {
+    base::ThreadRestrictions::SetIOAllowed(true);
+    base::DeleteFile(crash_dumps_dir_, /* recursive */ false);
+  }
+
+  // HeadlessWebContents::Observer implementation:
+  void DevToolsTargetReady() override {
+    EXPECT_TRUE(web_contents_->GetDevToolsTarget());
+    web_contents_->GetDevToolsTarget()->AttachClient(devtools_client_.get());
+    devtools_client_->GetInspector()->GetExperimental()->AddObserver(this);
+  }
+
+  // inspector::ExperimentalObserver implementation:
+  void OnTargetCrashed(const inspector::TargetCrashedParams&) override {
+    FinishAsynchronousTest();
+  }
+
+ protected:
+  HeadlessBrowserContext* browser_context_ = nullptr;
+  HeadlessWebContents* web_contents_ = nullptr;
+  std::unique_ptr<HeadlessDevToolsClient> devtools_client_;
+  base::FilePath crash_dumps_dir_;
+};
+
+// TODO(skyostil): Minidump generation currently is only supported on Linux.
+#if defined(HEADLESS_USE_BREAKPAD)
+#define MAYBE_GenerateMinidump GenerateMinidump
+#else
+#define MAYBE_GenerateMinidump DISABLED_GenerateMinidump
+#endif  // defined(HEADLESS_USE_BREAKPAD)
+IN_PROC_BROWSER_TEST_F(CrashReporterTest, MAYBE_GenerateMinidump) {
+  // Navigates a tab to chrome://crash and checks that a minidump is generated.
+  // Note that we only test renderer crashes here -- browser crashes need to be
+  // tested with a separate harness.
+  //
+  // The case where crash reporting is disabled is covered by
+  // HeadlessCrashObserverTest.
+  browser_context_ = browser()->CreateBrowserContextBuilder().Build();
+
+  web_contents_ = browser_context_->CreateWebContentsBuilder()
+                      .SetInitialURL(GURL(content::kChromeUICrashURL))
+                      .Build();
+
+  web_contents_->AddObserver(this);
+  RunAsynchronousTest();
+
+  // The target has crashed and should no longer be there.
+  EXPECT_FALSE(web_contents_->GetDevToolsTarget());
+
+  // Check that one minidump got created.
+  {
+    base::ThreadRestrictions::SetIOAllowed(true);
+    base::FileEnumerator it(crash_dumps_dir_, /* recursive */ false,
+                            base::FileEnumerator::FILES);
+    base::FilePath minidump = it.Next();
+    EXPECT_FALSE(minidump.empty());
+    EXPECT_EQ(".dmp", minidump.Extension());
+    EXPECT_TRUE(it.Next().empty());
+  }
+
+  web_contents_->RemoveObserver(this);
+  web_contents_->Close();
+  web_contents_ = nullptr;
+
+  browser_context_->Close();
+  browser_context_ = nullptr;
+}
+
+IN_PROC_BROWSER_TEST_F(HeadlessBrowserTest, PermissionManagerAlwaysASK) {
+  GURL url("https://example.com");
+
+  HeadlessBrowserContext* browser_context =
+      browser()->CreateBrowserContextBuilder().Build();
+
+  HeadlessWebContents* headless_web_contents =
+      browser_context->CreateWebContentsBuilder().Build();
+  EXPECT_TRUE(headless_web_contents);
+
+  HeadlessWebContentsImpl* web_contents =
+      HeadlessWebContentsImpl::From(headless_web_contents);
+
+  content::PermissionManager* permission_manager =
+      web_contents->browser_context()->GetPermissionManager();
+  EXPECT_NE(nullptr, permission_manager);
+
+  // Check that the permission manager returns ASK for a given permission type.
+  EXPECT_EQ(blink::mojom::PermissionStatus::ASK,
+            permission_manager->GetPermissionStatus(
+                content::PermissionType::NOTIFICATIONS, url, url));
 }
 
 }  // namespace headless

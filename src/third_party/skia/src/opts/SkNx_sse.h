@@ -271,6 +271,22 @@ public:
         *b = ba;
         *a = _mm_srli_si128(ba, 8);
     }
+    AI static void Load3(const void* ptr, SkNx* r, SkNx* g, SkNx* b) {
+        // The idea here is to get 4 vectors that are R G B _ _ _ _ _.
+        // The second load is at a funny location to make sure we don't read past
+        // the bounds of memory.  This is fine, we just need to shift it a little bit.
+        const uint8_t* ptr8 = (const uint8_t*) ptr;
+        __m128i rgb0 = _mm_loadu_si128((const __m128i*) (ptr8 + 0));
+        __m128i rgb1 = _mm_srli_si128(rgb0, 3*2);
+        __m128i rgb2 = _mm_srli_si128(_mm_loadu_si128((const __m128i*) (ptr8 + 4*2)), 2*2);
+        __m128i rgb3 = _mm_srli_si128(rgb2, 3*2);
+
+        __m128i rrggbb01 = _mm_unpacklo_epi16(rgb0, rgb1);
+        __m128i rrggbb23 = _mm_unpacklo_epi16(rgb2, rgb3);
+        *r = _mm_unpacklo_epi32(rrggbb01, rrggbb23);
+        *g = _mm_srli_si128(r->fVec, 4*2);
+        *b = _mm_unpackhi_epi32(rrggbb01, rrggbb23);
+    }
     AI static void Store4(void* dst, const SkNx& r, const SkNx& g, const SkNx& b, const SkNx& a) {
         __m128i rg = _mm_unpacklo_epi16(r.fVec, g.fVec);
         __m128i ba = _mm_unpacklo_epi16(b.fVec, a.fVec);
@@ -313,7 +329,6 @@ public:
     AI void store(void* ptr) const { _mm_storeu_si128((__m128i*)ptr, fVec); }
 
     AI static void Load4(const void* ptr, SkNx* r, SkNx* g, SkNx* b, SkNx* a) {
-        // TODO: AVX2 version
         __m128i _01 = _mm_loadu_si128(((__m128i*)ptr) + 0),
                 _23 = _mm_loadu_si128(((__m128i*)ptr) + 1),
                 _45 = _mm_loadu_si128(((__m128i*)ptr) + 2),
@@ -334,8 +349,32 @@ public:
         *b = _mm_unpacklo_epi64(ba0123, ba4567);
         *a = _mm_unpackhi_epi64(ba0123, ba4567);
     }
+    AI static void Load3(const void* ptr, SkNx* r, SkNx* g, SkNx* b) {
+        const uint8_t* ptr8 = (const uint8_t*) ptr;
+        __m128i rgb0 = _mm_loadu_si128((const __m128i*) (ptr8 +  0*2));
+        __m128i rgb1 = _mm_srli_si128(rgb0, 3*2);
+        __m128i rgb2 = _mm_loadu_si128((const __m128i*) (ptr8 +  6*2));
+        __m128i rgb3 = _mm_srli_si128(rgb2, 3*2);
+        __m128i rgb4 = _mm_loadu_si128((const __m128i*) (ptr8 + 12*2));
+        __m128i rgb5 = _mm_srli_si128(rgb4, 3*2);
+        __m128i rgb6 = _mm_srli_si128(_mm_loadu_si128((const __m128i*) (ptr8 + 16*2)), 2*2);
+        __m128i rgb7 = _mm_srli_si128(rgb6, 3*2);
+
+        __m128i rgb01 = _mm_unpacklo_epi16(rgb0, rgb1);
+        __m128i rgb23 = _mm_unpacklo_epi16(rgb2, rgb3);
+        __m128i rgb45 = _mm_unpacklo_epi16(rgb4, rgb5);
+        __m128i rgb67 = _mm_unpacklo_epi16(rgb6, rgb7);
+
+        __m128i rg03 = _mm_unpacklo_epi32(rgb01, rgb23);
+        __m128i bx03 = _mm_unpackhi_epi32(rgb01, rgb23);
+        __m128i rg47 = _mm_unpacklo_epi32(rgb45, rgb67);
+        __m128i bx47 = _mm_unpackhi_epi32(rgb45, rgb67);
+
+        *r = _mm_unpacklo_epi64(rg03, rg47);
+        *g = _mm_unpackhi_epi64(rg03, rg47);
+        *b = _mm_unpacklo_epi64(bx03, bx47);
+    }
     AI static void Store4(void* ptr, const SkNx& r, const SkNx& g, const SkNx& b, const SkNx& a) {
-        // TODO: AVX2 version
         __m128i rg0123 = _mm_unpacklo_epi16(r.fVec, g.fVec),  // r0 g0 r1 g1 r2 g2 r3 g3
                 rg4567 = _mm_unpackhi_epi16(r.fVec, g.fVec),  // r4 g4 r5 g5 r6 g6 r7 g7
                 ba0123 = _mm_unpacklo_epi16(b.fVec, a.fVec),
@@ -443,228 +482,6 @@ public:
 
     __m128i fVec;
 };
-
-#if SK_CPU_SSE_LEVEL >= SK_CPU_SSE_LEVEL_AVX2
-
-    template <>
-    class SkNx<8, uint8_t> {
-    public:
-        AI SkNx(const __m128i& vec) : fVec(vec) {}
-
-        AI SkNx() {}
-        AI SkNx(uint8_t v) : fVec(_mm_set1_epi8(v)) {}
-        AI SkNx(uint8_t a, uint8_t b, uint8_t c, uint8_t d,
-                uint8_t e, uint8_t f, uint8_t g, uint8_t h)
-            : fVec(_mm_setr_epi8(a,b,c,d, e,f,g,h, 0,0,0,0, 0,0,0,0)) {}
-
-
-        AI static SkNx Load(const void* ptr) { return _mm_loadl_epi64((const __m128i*)ptr); }
-        AI void store(void* ptr) const { _mm_storel_epi64((__m128i*)ptr, fVec); }
-
-        AI uint8_t operator[](int k) const {
-            SkASSERT(0 <= k && k < 8);
-            union { __m128i v; uint8_t us[16]; } pun = {fVec};
-            return pun.us[k&7];
-        }
-
-        __m128i fVec;
-    };
-
-    template <>
-    class SkNx<8, int32_t> {
-    public:
-        AI SkNx(const __m256i& vec) : fVec(vec) {}
-
-        AI SkNx() {}
-        AI SkNx(int32_t v) : fVec(_mm256_set1_epi32(v)) {}
-        AI SkNx(int32_t a, int32_t b, int32_t c, int32_t d,
-                int32_t e, int32_t f, int32_t g, int32_t h)
-            : fVec(_mm256_setr_epi32(a,b,c,d, e,f,g,h)) {}
-
-        AI static SkNx Load(const void* ptr) { return _mm256_loadu_si256((const __m256i*)ptr); }
-        AI void store(void* ptr) const { _mm256_storeu_si256((__m256i*)ptr, fVec); }
-
-        AI SkNx operator + (const SkNx& o) const { return _mm256_add_epi32(fVec, o.fVec); }
-        AI SkNx operator - (const SkNx& o) const { return _mm256_sub_epi32(fVec, o.fVec); }
-        AI SkNx operator * (const SkNx& o) const { return _mm256_mullo_epi32(fVec, o.fVec); }
-
-        AI SkNx operator & (const SkNx& o) const { return _mm256_and_si256(fVec, o.fVec); }
-        AI SkNx operator | (const SkNx& o) const { return _mm256_or_si256(fVec, o.fVec); }
-        AI SkNx operator ^ (const SkNx& o) const { return _mm256_xor_si256(fVec, o.fVec); }
-
-        AI SkNx operator << (int bits) const { return _mm256_slli_epi32(fVec, bits); }
-        AI SkNx operator >> (int bits) const { return _mm256_srai_epi32(fVec, bits); }
-
-        AI int32_t operator[](int k) const {
-            SkASSERT(0 <= k && k < 8);
-            union { __m256i v; int32_t is[8]; } pun = {fVec};
-            return pun.is[k&7];
-        }
-
-        __m256i fVec;
-    };
-
-    template <>
-    class SkNx<8, uint32_t> {
-    public:
-        AI SkNx(const __m256i& vec) : fVec(vec) {}
-
-        AI SkNx() {}
-        AI SkNx(uint32_t v) : fVec(_mm256_set1_epi32(v)) {}
-        AI SkNx(uint32_t a, uint32_t b, uint32_t c, uint32_t d,
-                uint32_t e, uint32_t f, uint32_t g, uint32_t h)
-            : fVec(_mm256_setr_epi32(a,b,c,d, e,f,g,h)) {}
-
-        AI static SkNx Load(const void* ptr) { return _mm256_loadu_si256((const __m256i*)ptr); }
-        AI void store(void* ptr) const { _mm256_storeu_si256((__m256i*)ptr, fVec); }
-
-        AI SkNx operator + (const SkNx& o) const { return _mm256_add_epi32(fVec, o.fVec); }
-        AI SkNx operator - (const SkNx& o) const { return _mm256_sub_epi32(fVec, o.fVec); }
-        AI SkNx operator * (const SkNx& o) const { return _mm256_mullo_epi32(fVec, o.fVec); }
-
-        AI SkNx operator & (const SkNx& o) const { return _mm256_and_si256(fVec, o.fVec); }
-        AI SkNx operator | (const SkNx& o) const { return _mm256_or_si256(fVec, o.fVec); }
-        AI SkNx operator ^ (const SkNx& o) const { return _mm256_xor_si256(fVec, o.fVec); }
-
-        AI SkNx operator << (int bits) const { return _mm256_slli_epi32(fVec, bits); }
-        AI SkNx operator >> (int bits) const { return _mm256_srli_epi32(fVec, bits); }
-
-        AI uint32_t operator[](int k) const {
-            SkASSERT(0 <= k && k < 8);
-            union { __m256i v; uint32_t us[8]; } pun = {fVec};
-            return pun.us[k&7];
-        }
-
-        __m256i fVec;
-    };
-
-    // _mm256_unpack{lo,hi}_pd() auto-casting to and from __m256d.
-    AI static __m256 unpacklo_pd(__m256 x, __m256 y) {
-        return _mm256_castpd_ps(_mm256_unpacklo_pd(_mm256_castps_pd(x), _mm256_castps_pd(y)));
-    }
-    AI static __m256 unpackhi_pd(__m256 x, __m256 y) {
-        return _mm256_castpd_ps(_mm256_unpackhi_pd(_mm256_castps_pd(x), _mm256_castps_pd(y)));
-    }
-
-    template <>
-    class SkNx<8, float> {
-    public:
-        AI SkNx(const __m256& vec) : fVec(vec) {}
-
-        AI SkNx() {}
-        AI SkNx(float val) : fVec(_mm256_set1_ps(val)) {}
-        AI SkNx(float a, float b, float c, float d,
-                float e, float f, float g, float h) : fVec(_mm256_setr_ps(a,b,c,d,e,f,g,h)) {}
-
-        AI static SkNx Load(const void* ptr) { return _mm256_loadu_ps((const float*)ptr); }
-        AI void store(void* ptr) const { _mm256_storeu_ps((float*)ptr, fVec); }
-
-        AI static void Store4(void* ptr,
-                              const SkNx& r, const SkNx& g, const SkNx& b, const SkNx& a) {
-            __m256 rg0145 = _mm256_unpacklo_ps(r.fVec, g.fVec),  // r0 g0 r1 g1 | r4 g4 r5 g5
-                   rg2367 = _mm256_unpackhi_ps(r.fVec, g.fVec),  // r2 ...      | r6 ...
-                   ba0145 = _mm256_unpacklo_ps(b.fVec, a.fVec),  // b0 a0 b1 a1 | b4 a4 b5 a5
-                   ba2367 = _mm256_unpackhi_ps(b.fVec, a.fVec);  // b2 ...      | b6 ...
-
-            __m256 _04 = unpacklo_pd(rg0145, ba0145),  // r0 g0 b0 a0 | r4 g4 b4 a4
-                   _15 = unpackhi_pd(rg0145, ba0145),  // r1 ...      | r5 ...
-                   _26 = unpacklo_pd(rg2367, ba2367),  // r2 ...      | r6 ...
-                   _37 = unpackhi_pd(rg2367, ba2367);  // r3 ...      | r7 ...
-
-            __m256 _01 = _mm256_permute2f128_ps(_04, _15, 32),  // 32 == 0010 0000 == lo, lo
-                   _23 = _mm256_permute2f128_ps(_26, _37, 32),
-                   _45 = _mm256_permute2f128_ps(_04, _15, 49),  // 49 == 0011 0001 == hi, hi
-                   _67 = _mm256_permute2f128_ps(_26, _37, 49);
-
-            _mm256_storeu_ps((float*)ptr + 0*8, _01);
-            _mm256_storeu_ps((float*)ptr + 1*8, _23);
-            _mm256_storeu_ps((float*)ptr + 2*8, _45);
-            _mm256_storeu_ps((float*)ptr + 3*8, _67);
-        }
-
-        AI SkNx operator+(const SkNx& o) const { return _mm256_add_ps(fVec, o.fVec); }
-        AI SkNx operator-(const SkNx& o) const { return _mm256_sub_ps(fVec, o.fVec); }
-        AI SkNx operator*(const SkNx& o) const { return _mm256_mul_ps(fVec, o.fVec); }
-        AI SkNx operator/(const SkNx& o) const { return _mm256_div_ps(fVec, o.fVec); }
-
-        AI SkNx operator==(const SkNx& o) const { return _mm256_cmp_ps(fVec, o.fVec, _CMP_EQ_OQ); }
-        AI SkNx operator!=(const SkNx& o) const { return _mm256_cmp_ps(fVec, o.fVec, _CMP_NEQ_OQ); }
-        AI SkNx operator <(const SkNx& o) const { return _mm256_cmp_ps(fVec, o.fVec, _CMP_LT_OQ); }
-        AI SkNx operator >(const SkNx& o) const { return _mm256_cmp_ps(fVec, o.fVec, _CMP_GT_OQ); }
-        AI SkNx operator<=(const SkNx& o) const { return _mm256_cmp_ps(fVec, o.fVec, _CMP_LE_OQ); }
-        AI SkNx operator>=(const SkNx& o) const { return _mm256_cmp_ps(fVec, o.fVec, _CMP_GE_OQ); }
-
-        AI static SkNx Min(const SkNx& l, const SkNx& r) { return _mm256_min_ps(l.fVec, r.fVec); }
-        AI static SkNx Max(const SkNx& l, const SkNx& r) { return _mm256_max_ps(l.fVec, r.fVec); }
-
-        AI SkNx   sqrt() const { return _mm256_sqrt_ps (fVec); }
-        AI SkNx  rsqrt() const { return _mm256_rsqrt_ps(fVec); }
-        AI SkNx invert() const { return _mm256_rcp_ps  (fVec); }
-
-        AI SkNx abs() const { return _mm256_andnot_ps(_mm256_set1_ps(-0.0f), fVec); }
-        AI SkNx floor() const { return _mm256_floor_ps(fVec); }
-
-        AI float operator[](int k) const {
-            SkASSERT(0 <= k && k < 8);
-            union { __m256 v; float fs[8]; } pun = {fVec};
-            return pun.fs[k&7];
-        }
-
-        AI SkNx thenElse(const SkNx& t, const SkNx& e) const {
-            return _mm256_blendv_ps(e.fVec, t.fVec, fVec);
-        }
-
-        __m256 fVec;
-    };
-
-    AI static void SkNx_split(const Sk8f& v, Sk4f* lo, Sk4f* hi) {
-        *lo = _mm256_extractf128_ps(v.fVec, 0);
-        *hi = _mm256_extractf128_ps(v.fVec, 1);
-    }
-
-    AI static Sk8f SkNx_join(const Sk4f& lo, const Sk4f& hi) {
-        return _mm256_insertf128_ps(_mm256_castps128_ps256(lo.fVec), hi.fVec, 1);
-    }
-
-    AI static Sk8f SkNx_fma(const Sk8f& a, const Sk8f& b, const Sk8f& c) {
-        return _mm256_fmadd_ps(a.fVec, b.fVec, c.fVec);
-    }
-
-    template<> AI /*static*/ Sk8i SkNx_cast<int>(const Sk8b& src) {
-        return _mm256_cvtepu8_epi32(src.fVec);
-    }
-
-    template<> AI /*static*/ Sk8f SkNx_cast<float>(const Sk8b& src) {
-        return _mm256_cvtepi32_ps(SkNx_cast<int>(src).fVec);
-    }
-
-    template<> AI /*static*/ Sk8i SkNx_cast<int>(const Sk8h& src) {
-        return _mm256_cvtepu16_epi32(src.fVec);
-    }
-
-    template<> AI /*static*/ Sk8f SkNx_cast<float>(const Sk8h& src) {
-        return _mm256_cvtepi32_ps(SkNx_cast<int>(src).fVec);
-    }
-
-    template<> AI /*static*/ Sk8f SkNx_cast<float>(const Sk8i& src) {
-        return _mm256_cvtepi32_ps(src.fVec);
-    }
-
-    template<> AI /*static*/ Sk8i SkNx_cast<int>(const Sk8f& src) {
-        return _mm256_cvttps_epi32(src.fVec);
-    }
-
-    template<> AI /*static*/ Sk8h SkNx_cast<uint16_t>(const Sk8i& src) {
-        __m128i lo = _mm256_extractf128_si256(src.fVec, 0),
-                hi = _mm256_extractf128_si256(src.fVec, 1);
-        return _mm_packus_epi32(lo, hi);
-    }
-    template<> AI /*static*/ Sk8b SkNx_cast<uint8_t>(const Sk8i& src) {
-        auto _16 = SkNx_cast<uint16_t>(src);
-        return _mm_packus_epi16(_16.fVec, _16.fVec);
-    }
-
-#endif
 
 template<> AI /*static*/ Sk4f SkNx_cast<float, int32_t>(const Sk4i& src) {
     return _mm_cvtepi32_ps(src.fVec);

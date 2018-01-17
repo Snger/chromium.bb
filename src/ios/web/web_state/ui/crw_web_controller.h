@@ -9,7 +9,6 @@
 
 #import "ios/web/net/crw_request_tracker_delegate.h"
 #import "ios/web/public/navigation_manager.h"
-#import "ios/web/public/web_state/crw_web_user_interface_delegate.h"
 #import "ios/web/public/web_state/js/crw_js_injection_evaluator.h"
 #import "ios/web/public/web_state/ui/crw_web_delegate.h"
 #include "ios/web/public/web_state/url_verification_constants.h"
@@ -30,9 +29,6 @@ enum LoadPhase {
   PAGE_LOADED = 2
 };
 
-// The accessibility identifier of the top-level container view.
-extern NSString* const kContainerViewID;
-
 }  // namespace web
 
 @class CRWJSInjectionReceiver;
@@ -45,6 +41,7 @@ extern NSString* const kContainerViewID;
 class GURL;
 
 namespace web {
+class NavigationItemImpl;
 class WebState;
 class WebStateImpl;
 }
@@ -57,7 +54,6 @@ class WebStateImpl;
 // This is an abstract class which must not be instantiated directly.
 // TODO(stuartmorgan): Move all of the navigation APIs out of this class.
 @interface CRWWebController : NSObject<CRWJSInjectionEvaluator,
-                                       CRWRequestTrackerDelegate,
                                        CRWTouchTrackingDelegate,
                                        UIGestureRecognizerDelegate>
 
@@ -66,7 +62,6 @@ class WebStateImpl;
 @property(nonatomic, assign) BOOL webUsageEnabled;
 
 @property(nonatomic, assign) id<CRWWebDelegate> delegate;
-@property(nonatomic, weak) id<CRWWebUserInterfaceDelegate> UIDelegate;
 @property(nonatomic, assign) id<CRWNativeContentProvider> nativeProvider;
 @property(nonatomic, assign)
     id<CRWSwipeRecognizerProvider> swipeRecognizerProvider;
@@ -103,7 +98,7 @@ class WebStateImpl;
 
 // YES if JavaScript dialogs, HTTP authentication dialogs and window.open
 // calls should be suppressed. Default is NO. When dialog is suppressed
-// |CRWWebDelegate webControllerDidSuppressDialog:| will be called.
+// |WebStateObserver::DidSuppressDialog| will be called.
 @property(nonatomic, assign) BOOL shouldSuppressDialogs;
 
 // Designated initializer. Initializes web controller with |webState|. The
@@ -158,8 +153,10 @@ class WebStateImpl;
 // to generate an overlay placeholder view.
 - (BOOL)canUseViewForGeneratingOverlayPlaceholderView;
 
-// Start loading the URL specified in |originalParams|, with the specified
+// Start loading the URL specified in |params|, with the specified
 // settings.  Always resets the openedByScript property to NO.
+// NOTE: |params.transition_type| should never be PAGE_TRANSITION_RELOAD except
+// for transient items, if one needs to reload, call |-reload| explicitly.
 - (void)loadWithParams:(const web::NavigationManager::WebLoadParams&)params;
 
 // Loads the URL indicated by current session state.
@@ -229,6 +226,10 @@ class WebStateImpl;
 // containing a password field.
 - (void)didShowPasswordInputOnHTTP;
 
+// Notifies the CRWWebController that the current page is an HTTP page
+// containing a credit card field.
+- (void)didShowCreditCardInputOnHTTP;
+
 // Notifies the CRWWebController that it has been hidden.
 - (void)wasHidden;
 
@@ -288,7 +289,6 @@ class WebStateImpl;
 - (NSUInteger)observerCount;
 - (void)setURLOnStartLoading:(const GURL&)url;
 - (void)simulateLoadRequestWithURL:(const GURL&)URL;
-- (NSString*)externalRequestWindowName;
 
 // Returns the header height.
 - (CGFloat)headerHeight;
@@ -298,7 +298,7 @@ class WebStateImpl;
 
 // Caches request POST data in the given session entry.  Exposed for testing.
 - (void)cachePOSTDataForRequest:(NSURLRequest*)request
-                 inSessionEntry:(CRWSessionEntry*)currentSessionEntry;
+               inNavigationItem:(web::NavigationItemImpl*)item;
 
 // Acts on a single message from the JS object, parsed from JSON into a
 // DictionaryValue. Returns NO if the format for the message was invalid.

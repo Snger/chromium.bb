@@ -54,9 +54,8 @@ class TabCaptureApiTest : public ExtensionApiTest {
  protected:
   void SimulateMouseClickInCurrentTab() {
     content::SimulateMouseClick(
-        browser()->tab_strip_model()->GetActiveWebContents(),
-        0,
-        blink::WebMouseEvent::Button::Left);
+        browser()->tab_strip_model()->GetActiveWebContents(), 0,
+        blink::WebMouseEvent::Button::kLeft);
   }
 };
 
@@ -75,8 +74,8 @@ class TabCaptureApiPixelTest : public TabCaptureApiTest {
       return true;
 #endif
 
-    // The tests are too slow to succeed with OSMesa on the bots.
-    if (UsingOSMesa())
+    // The tests are too slow to succeed with software GL on the bots.
+    if (UsingSoftwareGL())
       return true;
 
 #if defined(NDEBUG)

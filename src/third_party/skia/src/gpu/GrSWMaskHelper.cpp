@@ -97,8 +97,9 @@ bool GrSWMaskHelper::init(const SkIRect& resultBounds, const SkMatrix* matrix) {
     return true;
 }
 
-sk_sp<GrTextureProxy> GrSWMaskHelper::toTexture(GrContext* context, SkBackingFit fit) {
+sk_sp<GrTextureProxy> GrSWMaskHelper::toTextureProxy(GrContext* context, SkBackingFit fit) {
     GrSurfaceDesc desc;
+    desc.fOrigin = kTopLeft_GrSurfaceOrigin;
     desc.fWidth = fPixels.width();
     desc.fHeight = fPixels.height();
     desc.fConfig = kAlpha_8_GrPixelConfig;
@@ -107,20 +108,16 @@ sk_sp<GrTextureProxy> GrSWMaskHelper::toTexture(GrContext* context, SkBackingFit
                                                                                 desc,
                                                                                 fit,
                                                                                 SkBudgeted::kYes);
-    if (!sContext || !sContext->asDeferredTexture()) {
+    if (!sContext || !sContext->asTextureProxy()) {
         return nullptr;
     }
 
-    // TODO: can skip this step when writePixels is moved
-    GrTexture* tex = sContext->asDeferredTexture()->instantiate(context->textureProvider());
-    if (!tex) {
+    SkImageInfo ii = SkImageInfo::MakeA8(desc.fWidth, desc.fHeight);
+    if (!sContext->writePixels(ii, fPixels.addr(), fPixels.rowBytes(), 0, 0)) {
         return nullptr;
     }
 
-    tex->writePixels(0, 0, fPixels.width(), fPixels.height(), kAlpha_8_GrPixelConfig,
-                     fPixels.addr(), fPixels.rowBytes());
-
-    return sk_ref_sp(sContext->asDeferredTexture());
+    return sContext->asTextureProxyRef();
 }
 
 /**
@@ -136,12 +133,12 @@ void GrSWMaskHelper::toSDF(unsigned char* sdf) {
  * Software rasterizes shape to A8 mask and uploads the result to a scratch texture. Returns the
  * resulting texture on success; nullptr on failure.
  */
-sk_sp<GrTexture> GrSWMaskHelper::DrawShapeMaskToTexture(GrContext* context,
-                                                        const GrShape& shape,
-                                                        const SkIRect& resultBounds,
-                                                        GrAA aa,
-                                                        SkBackingFit fit,
-                                                        const SkMatrix* matrix) {
+sk_sp<GrTextureProxy> GrSWMaskHelper::DrawShapeMaskToTexture(GrContext* context,
+                                                             const GrShape& shape,
+                                                             const SkIRect& resultBounds,
+                                                             GrAA aa,
+                                                             SkBackingFit fit,
+                                                             const SkMatrix* matrix) {
     GrSWMaskHelper helper;
 
     if (!helper.init(resultBounds, matrix)) {
@@ -150,15 +147,10 @@ sk_sp<GrTexture> GrSWMaskHelper::DrawShapeMaskToTexture(GrContext* context,
 
     helper.drawShape(shape, SkRegion::kReplace_Op, aa, 0xFF);
 
-    sk_sp<GrTextureProxy> tProxy = helper.toTexture(context, fit);
-    if (!tProxy) {
-        return nullptr;
-    }
-
-    return sk_ref_sp(tProxy->instantiate(context->textureProvider()));
+    return helper.toTextureProxy(context, fit);
 }
 
-void GrSWMaskHelper::DrawToTargetWithShapeMask(GrTexture* texture,
+void GrSWMaskHelper::DrawToTargetWithShapeMask(sk_sp<GrTextureProxy> proxy,
                                                GrRenderTargetContext* renderTargetContext,
                                                GrPaint&& paint,
                                                const GrUserStencilSettings& userStencilSettings,
@@ -171,21 +163,22 @@ void GrSWMaskHelper::DrawToTargetWithShapeMask(GrTexture* texture,
         return;
     }
 
+    GrResourceProvider* resourceProvider = renderTargetContext->resourceProvider();
+
     SkRect dstRect = SkRect::Make(deviceSpaceRectToDraw);
 
     // We use device coords to compute the texture coordinates. We take the device coords and apply
     // a translation so that the top-left of the device bounds maps to 0,0, and then a scaling
     // matrix to normalized coords.
-    SkMatrix maskMatrix;
-    maskMatrix.setIDiv(texture->width(), texture->height());
-    maskMatrix.preTranslate(SkIntToScalar(-textureOriginInDeviceSpace.fX),
-                            SkIntToScalar(-textureOriginInDeviceSpace.fY));
+    SkMatrix maskMatrix = SkMatrix::MakeTrans(SkIntToScalar(-textureOriginInDeviceSpace.fX),
+                                              SkIntToScalar(-textureOriginInDeviceSpace.fY));
     maskMatrix.preConcat(viewMatrix);
-    std::unique_ptr<GrDrawOp> op = GrRectOpFactory::MakeNonAAFill(paint.getColor(), SkMatrix::I(),
-                                                                  dstRect, nullptr, &invert);
+    std::unique_ptr<GrLegacyMeshDrawOp> op = GrRectOpFactory::MakeNonAAFill(
+            paint.getColor(), SkMatrix::I(), dstRect, nullptr, &invert);
     paint.addCoverageFragmentProcessor(GrSimpleTextureEffect::Make(
-            texture, nullptr, maskMatrix, GrSamplerParams::kNone_FilterMode));
+            resourceProvider, std::move(proxy), nullptr, maskMatrix,
+            GrSamplerParams::kNone_FilterMode));
     GrPipelineBuilder pipelineBuilder(std::move(paint), GrAAType::kNone);
     pipelineBuilder.setUserStencil(&userStencilSettings);
-    renderTargetContext->addDrawOp(pipelineBuilder, clip, std::move(op));
+    renderTargetContext->addLegacyMeshDrawOp(std::move(pipelineBuilder), clip, std::move(op));
 }

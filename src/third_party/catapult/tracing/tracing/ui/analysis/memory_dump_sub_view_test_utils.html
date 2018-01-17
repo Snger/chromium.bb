@@ -7,6 +7,7 @@ found in the LICENSE file.
 
 <link rel="import" href="/tracing/base/color.html">
 <link rel="import" href="/tracing/base/color_scheme.html">
+<link rel="import" href="/tracing/base/scalar.html">
 <link rel="import" href="/tracing/base/unit.html">
 <link rel="import" href="/tracing/core/test_utils.html">
 <link rel="import" href="/tracing/model/global_memory_dump.html">
@@ -14,7 +15,6 @@ found in the LICENSE file.
 <link rel="import" href="/tracing/model/memory_dump_test_utils.html">
 <link rel="import" href="/tracing/model/process_memory_dump.html">
 <link rel="import" href="/tracing/model/vm_region.html">
-<link rel="import" href="/tracing/value/numeric.html">
 
 <script>
 'use strict';
@@ -29,7 +29,7 @@ tr.exportTo('tr.ui.analysis', function() {
   var ProcessMemoryDump = tr.model.ProcessMemoryDump;
   var VMRegion = tr.model.VMRegion;
   var VMRegionClassificationNode = tr.model.VMRegionClassificationNode;
-  var ScalarNumeric = tr.v.ScalarNumeric;
+  var Scalar = tr.b.Scalar;
   var sizeInBytes_smallerIsBetter =
       tr.b.Unit.byName.sizeInBytes_smallerIsBetter;
   var unitlessNumber_smallerIsBetter =
@@ -120,12 +120,12 @@ tr.exportTo('tr.ui.analysis', function() {
         var oilpanDump = newAllocatorDump(pmd1C, 'oilpan', {numerics: {
           size: 3221225472 /* 3 GiB */,
           inner_size: 5242880 /* 5 MiB */,
-          objects_count: new ScalarNumeric(unitlessNumber_smallerIsBetter, 2015)
+          objects_count: new Scalar(unitlessNumber_smallerIsBetter, 2015)
         }});
         var v8Dump = newAllocatorDump(pmd1C, 'v8', {numerics: {
           size: 1073741824 /* 1 GiB */,
           inner_size: 2097152 /* 2 MiB */,
-          objects_count: new ScalarNumeric(unitlessNumber_smallerIsBetter, 204)
+          objects_count: new Scalar(unitlessNumber_smallerIsBetter, 204)
         }});
 
         addOwnershipLink(v8Dump, oilpanDump);
@@ -278,12 +278,12 @@ tr.exportTo('tr.ui.analysis', function() {
         var oilpanDump = newAllocatorDump(pmd3C, 'oilpan', {numerics: {
           size: 3221225472 /* 3 GiB */,
           inner_size: 5242880 /* 5 MiB */,
-          objects_count: new ScalarNumeric(unitlessNumber_smallerIsBetter, 2015)
+          objects_count: new Scalar(unitlessNumber_smallerIsBetter, 2015)
         }});
         var v8Dump = newAllocatorDump(pmd3C, 'v8', {numerics: {
           size: 2147483648 /* 2 GiB */,
           inner_size: 2097152 /* 2 MiB */,
-          objects_count: new ScalarNumeric(unitlessNumber_smallerIsBetter, 204)
+          objects_count: new Scalar(unitlessNumber_smallerIsBetter, 204)
         }});
 
         addOwnershipLink(v8Dump, oilpanDump);
@@ -334,10 +334,11 @@ tr.exportTo('tr.ui.analysis', function() {
 
   function checkNumericFields(row, column, expectedValues, expectedUnit) {
     var fields;
-    if (column === undefined)
+    if (column === undefined) {
       fields = row;
-    else
+    } else {
       fields = column.fields(row);
+    }
 
     if (expectedValues === undefined) {
       assert.isUndefined(fields);
@@ -352,9 +353,9 @@ tr.exportTo('tr.ui.analysis', function() {
         assert.isUndefined(field);
       } else {
         assert.isDefined(expectedUnit);  // Test sanity check.
-        assert.instanceOf(field, ScalarNumeric);
-        assert.equal(field.value, expectedValue);
-        assert.equal(field.unit, expectedUnit);
+        assert.instanceOf(field, Scalar);
+        assert.strictEqual(field.value, expectedValue);
+        assert.strictEqual(field.unit, expectedUnit);
       }
     }
   }
@@ -409,15 +410,17 @@ tr.exportTo('tr.ui.analysis', function() {
       column, fields, contexts, expectedInfos, expectedColorReservedName) {
     // Test sanity checks.
     assert.isDefined(fields);
-    if (contexts !== undefined)
+    if (contexts !== undefined) {
       assert.lengthOf(contexts, fields.length);
+    }
 
     // Check infos.
     var infos = [];
     column.addInfos(fields, contexts, infos);
     assert.lengthOf(infos, expectedInfos.length);
-    for (var i = 0; i < expectedInfos.length; i++)
+    for (var i = 0; i < expectedInfos.length; i++) {
       assert.deepEqual(infos[i], expectedInfos[i]);
+    }
 
     // Check color.
     var actualColor = typeof column.color === 'function' ?
@@ -426,15 +429,13 @@ tr.exportTo('tr.ui.analysis', function() {
     checkColor(actualColor, expectedColorReservedName);
   }
 
-  function checkColor(actualColorString, expectedColorReservedName) {
-    if (expectedColorReservedName === undefined) {
-      assert.isUndefined(actualColorString);
+  function checkColor(actualColorString, expectedColorString) {
+    if (actualColorString === undefined) {
+      assert.isUndefined(expectedColor);
       return;
     }
-
     var actualColor = Color.fromString(actualColorString);
-    var expectedColor = ColorScheme.colors[
-        ColorScheme.getColorIdForReservedName(expectedColorReservedName)];
+    var expectedColor = Color.fromString(expectedColorString);
     assert.deepEqual(actualColor, expectedColor);
   }
 
@@ -464,10 +465,10 @@ tr.exportTo('tr.ui.analysis', function() {
     var unsetBounds = unsetViewEl.getBoundingClientRect();
     var undefinedBounds = undefinedViewEl.getBoundingClientRect();
     var emptyBounds = emptyViewEl.getBoundingClientRect();
-    assert.equal(undefinedBounds.width, unsetBounds.width);
-    assert.equal(emptyBounds.width, unsetBounds.width);
-    assert.equal(undefinedBounds.height, unsetBounds.height);
-    assert.equal(emptyBounds.height, unsetBounds.height);
+    assert.strictEqual(undefinedBounds.width, unsetBounds.width);
+    assert.strictEqual(emptyBounds.width, unsetBounds.width);
+    assert.strictEqual(undefinedBounds.height, unsetBounds.height);
+    assert.strictEqual(emptyBounds.height, unsetBounds.height);
 
     // Custom checks (if provided).
     if (opt_callback) {
@@ -488,8 +489,7 @@ tr.exportTo('tr.ui.analysis', function() {
 
     paneEl.createChildPane = function() {
       var childPaneBuilder = this.childPaneBuilder;
-      if (childPaneBuilder === undefined)
-        return undefined;
+      if (childPaneBuilder === undefined) return undefined;
       return childPaneBuilder();
     };
 
@@ -500,8 +500,7 @@ tr.exportTo('tr.ui.analysis', function() {
   function isElementDisplayed(element) {
     var style = getComputedStyle(element);
     var displayed = style['display'];
-    if (displayed === undefined)
-      return true;
+    if (displayed === undefined) return true;
     return displayed.indexOf('none') === -1;
   }
 
@@ -532,8 +531,7 @@ tr.exportTo('tr.ui.analysis', function() {
   function extractVmRegions(processMemoryDumps, pid) {
     return processMemoryDumps.map(function(memoryDumps) {
       var processMemoryDump = memoryDumps[pid];
-      if (processMemoryDump === undefined)
-        return undefined;
+      if (processMemoryDump === undefined) return undefined;
       return processMemoryDump.mostRecentVmRegions;
     });
   }
@@ -546,8 +544,7 @@ tr.exportTo('tr.ui.analysis', function() {
   function extractMemoryAllocatorDumps(processMemoryDumps, pid, allocatorName) {
     return processMemoryDumps.map(function(memoryDumps) {
       var processMemoryDump = memoryDumps[pid];
-      if (processMemoryDump === undefined)
-        return undefined;
+      if (processMemoryDump === undefined) return undefined;
       return processMemoryDump.getMemoryAllocatorDumpByFullName(allocatorName);
     });
   }
@@ -561,8 +558,9 @@ tr.exportTo('tr.ui.analysis', function() {
     return processMemoryDumps.map(function(memoryDumps) {
       var processMemoryDump = memoryDumps[pid];
       if (processMemoryDump === undefined ||
-          processMemoryDump.heapDumps === undefined)
+          processMemoryDump.heapDumps === undefined) {
         return undefined;
+      }
       return processMemoryDump.heapDumps[allocatorName];
     });
   }

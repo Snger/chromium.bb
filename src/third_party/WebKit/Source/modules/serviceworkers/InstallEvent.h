@@ -16,19 +16,19 @@ class MODULES_EXPORT InstallEvent : public ExtendableEvent {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  static InstallEvent* create(const AtomicString& type,
+  static InstallEvent* Create(const AtomicString& type,
                               const ExtendableEventInit&);
-  static InstallEvent* create(const AtomicString& type,
+  static InstallEvent* Create(const AtomicString& type,
                               const ExtendableEventInit&,
                               WaitUntilObserver*);
 
   ~InstallEvent() override;
 
-  void registerForeignFetch(ExecutionContext*,
+  void registerForeignFetch(ScriptState*,
                             const ForeignFetchOptions&,
                             ExceptionState&);
 
-  const AtomicString& interfaceName() const override;
+  const AtomicString& InterfaceName() const override;
 
  protected:
   InstallEvent(const AtomicString& type, const ExtendableEventInit&);

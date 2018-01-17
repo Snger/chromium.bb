@@ -71,46 +71,46 @@ tr.b.unittest.testSuite(function() {
       var startTs = i * 10000;
       var endTs = startTs + 1000 * (i % 2);
       events.push(
-        {
-          'cat': 'benchmark',
-          'pid': 3507,
-          'tid': 3507,
-          'ts': startTs,
-          'ph': 'S',
-          'name': 'InputLatency',
-          'id': i
-        });
+          {
+            'cat': 'benchmark',
+            'pid': 3507,
+            'tid': 3507,
+            'ts': startTs,
+            'ph': 'S',
+            'name': 'InputLatency',
+            'id': i
+          });
       events.push(
-        {
-          'cat': 'benchmark',
-          'pid': 3507,
-          'tid': 3507,
-          'ts': endTs,
-          'ph': 'T',
-          'name': 'InputLatency',
-          'args': {'step': 'GestureScrollUpdate'},
-          'id': i
-        });
+          {
+            'cat': 'benchmark',
+            'pid': 3507,
+            'tid': 3507,
+            'ts': endTs,
+            'ph': 'T',
+            'name': 'InputLatency',
+            'args': {'step': 'GestureScrollUpdate'},
+            'id': i
+          });
       events.push(
-        {
-          'cat': 'benchmark',
-          'pid': 3507,
-          'tid': 3507,
-          'ts': endTs,
-          'ph': 'F',
-          'name': 'InputLatency',
-          'args': {
-            'data': {
-              'INPUT_EVENT_LATENCY_ORIGINAL_COMPONENT': {
-                'time': startTs
-              },
-              'INPUT_EVENT_LATENCY_TERMINATED_FRAME_SWAP_COMPONENT': {
-                'time': endTs
+          {
+            'cat': 'benchmark',
+            'pid': 3507,
+            'tid': 3507,
+            'ts': endTs,
+            'ph': 'F',
+            'name': 'InputLatency',
+            'args': {
+              'data': {
+                'INPUT_EVENT_LATENCY_ORIGINAL_COMPONENT': {
+                  'time': startTs
+                },
+                'INPUT_EVENT_LATENCY_TERMINATED_FRAME_SWAP_COMPONENT': {
+                  'time': endTs
+                }
               }
-            }
-          },
-          'id': i
-        });
+            },
+            'id': i
+          });
     }
     events.push({'cat': '__metadata',
       'pid': 3507,
@@ -128,11 +128,12 @@ tr.b.unittest.testSuite(function() {
     panel.model = tr.c.TestUtils.newModelWithEvents([events]);
     function listener(e) {
       selectionChanged = true;
-      assert.equal(e.selection.length, 3);
+      assert.strictEqual(e.selection.length, 3);
       var predictedStarts = [20, 31, 40];
       var i = 0;
-      for (var event of e.selection)
-        assert.equal(event.start, predictedStarts[i++]);
+      for (var event of e.selection) {
+        assert.strictEqual(event.start, predictedStarts[i++]);
+      }
     }
     panel.ownerDocument.addEventListener('requestSelectionChange', listener);
     try {

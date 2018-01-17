@@ -16,6 +16,7 @@ from chromite.lib import constants
 from chromite.lib import cidb
 from chromite.lib import commandline
 from chromite.lib import cros_build_lib
+from chromite.cli.cros import cros_cidbcreds  # TODO: Move into lib???
 from chromite.lib import cros_logging as logging
 
 
@@ -375,6 +376,10 @@ class CLStatsEngine(object):
         'mean_good_patch_rejections': numpy.mean(rejection_counts),
         'good_patch_rejection_breakdown': good_patch_rejection_breakdown,
         'good_patch_rejection_count': false_rejection_count,
+        'good_patch_rejections_50': numpy.percentile(rejection_counts, 50),
+        'good_patch_rejections_90': numpy.percentile(rejection_counts, 90),
+        'good_patch_rejections_95': numpy.percentile(rejection_counts, 95),
+        'good_patch_rejections_99': numpy.percentile(rejection_counts, 99),
         'false_rejection_rate': false_rejection_rate,
         'median_handling_time': numpy.median(patch_handle_times),
         'patch_handling_time': patch_handle_times,
@@ -399,35 +404,42 @@ class CLStatsEngine(object):
         'patch_blame_counts': patch_blame_counts,
     }
 
-    logging.info('CQ committed %s changes', summary['submitted_patches'])
+    s = summary
+
+    logging.info('CQ committed %s changes', s['submitted_patches'])
     logging.info('CQ correctly rejected %s unique changes',
                  summary['unique_blames_change_count'])
     logging.info('pre-CQ and CQ incorrectly rejected %s changes a total of '
                  '%s times (pre-CQ: %s; CQ: %s)',
-                 summary['patch_flake_rejections'],
-                 summary['false_rejection_total'],
-                 summary['false_rejection_pre_cq'],
-                 summary['false_rejection_cq'])
+                 s['patch_flake_rejections'],
+                 s['false_rejection_total'],
+                 s['false_rejection_pre_cq'],
+                 s['false_rejection_cq'])
 
-    logging.info('      Total CL actions: %d.', summary['total_cl_actions'])
-    logging.info('    Unique CLs touched: %d.', summary['unique_cls'])
-    logging.info('Unique patches touched: %d.', summary['unique_patches'])
-    logging.info('   Total CLs submitted: %d.', summary['submitted_patches'])
-    logging.info('      Total rejections: %d.', summary['rejections'])
-    logging.info(' Total submit failures: %d.', summary['submit_fails'])
+    logging.info('      Total CL actions: %d.', s['total_cl_actions'])
+    logging.info('    Unique CLs touched: %d.', s['unique_cls'])
+    logging.info('Unique patches touched: %d.', s['unique_patches'])
+    logging.info('   Total CLs submitted: %d.', s['submitted_patches'])
+    logging.info('      Total rejections: %d.', s['rejections'])
+    logging.info(' Total submit failures: %d.', s['submit_fails'])
     logging.info(' Good patches rejected: %d.',
-                 summary['patch_flake_rejections'])
+                 s['patch_flake_rejections'])
     logging.info('   Mean rejections per')
     logging.info('            good patch: %.2f',
-                 summary['mean_good_patch_rejections'])
+                 s['mean_good_patch_rejections'])
+    logging.info('Good patch rejections')
+    logging.info('                 50ile: %d', s['good_patch_rejections_50'])
+    logging.info('                 90ile: %d', s['good_patch_rejections_90'])
+    logging.info('                 95ile: %d', s['good_patch_rejections_95'])
+    logging.info('                 99ile: %d', s['good_patch_rejections_99'])
     logging.info(' False rejection rate for CQ: %.1f%%',
-                 summary['false_rejection_rate'].get(constants.CQ, 0))
+                 s['false_rejection_rate'].get(constants.CQ, 0))
     logging.info(' False rejection rate for Pre-CQ: %.1f%%',
-                 summary['false_rejection_rate'].get(constants.PRE_CQ, 0))
+                 s['false_rejection_rate'].get(constants.PRE_CQ, 0))
     logging.info(' Combined false rejection rate: %.1f%%',
-                 summary['false_rejection_rate']['combined'])
+                 s['false_rejection_rate']['combined'])
 
-    for x, p in summary['good_patch_rejection_breakdown']:
+    for x, p in s['good_patch_rejection_breakdown']:
       logging.info('%d good patches were rejected %d times.', p, x)
     logging.info('')
     logging.info('Good patch handling time:')
@@ -436,7 +448,7 @@ class CLStatsEngine(object):
     logging.info('  25th percentile: %.2f hours',
                  numpy.percentile(patch_handle_times, 25) / 3600.0)
     logging.info('  50th percentile: %.2f hours',
-                 summary['median_handling_time'] / 3600.0)
+                 s['median_handling_time'] / 3600.0)
     logging.info('  75th percentile: %.2f hours',
                  numpy.percentile(patch_handle_times, 75) / 3600.0)
     logging.info('  90th percentile: %.2f hours',
@@ -561,6 +573,7 @@ class CLStatsEngine(object):
 ReportHTMLTemplate = """
 <head>
 <style>
+  body {{font-family: "sans serif"}}
   table {{border-collapse: collapse; width: 50%}}
   table, td, th {{border: 1px solid black}}
   th, td {{padding: 5px}}
@@ -617,27 +630,6 @@ CQ run time was <b>{cq_run_time_50:.2f} hours</b> 50%ile <b>{cq_run_time_90:.2f}
 </table>
 </p>
 
-The tree <b>was:</b><br>
-<p id="note">
-Get this value from <a href="https://chromiumos-status.appspot.com/status_viewer?curView=stats&startTime=TODAY&numDays=7">here</a> (subtract 100% - %open - %throttled)
-</p>
-<b>
-<table>
-  <tr>
-    <td>Open</td>
-    <td>_<replace>REPLACE</replace>_</td>
-  </tr>
-  <tr>
-    <td>Throttle</td>
-    <td>_<replace>REPLACE</replace>_</td>
-  </tr>
-  <tr>
-    <td>Close</td>
-    <td>_<replace>REPLACE</replace>_</td>
-  </tr>
-</table>
-</b>
-
 <p>
 The pre-CQ + CQ <b>incorrectly rejected [{patch_flake_rejections}] unique changes a total of [{false_rejection_total}] times</b> this week. (Pre-CQ:[{false_rejection_pre_cq}]; CQ: [{false_rejection_cq}])<br>
 The probability of a good patch being incorrectly rejected by the CQ or Pre-CQ is [{false_rejection_rate[combined]:.2f}]%. (Pre-CQ:[{false_rejection_rate[pre-cq]:.2f}]%; CQ: [{false_rejection_rate[cq]:.2f}])<br>
@@ -667,17 +659,17 @@ The probability of a good patch being incorrectly rejected by the CQ or Pre-CQ i
  </tr>
 </table>
 
-<h2>What issues caused the most CQ flakiness this week?</h2>
+<h2>Which issues or CLs caused the most false rejections this week?</h2>
 <i>Note: test flake may be caused by flake in the test itself, or flake in the product.</i><br>
 <p id="note">At your discretion, pick the top few which caused the most failures</p>
 <ul>
-{cq_flakes_html}
+{false_rejections_html}
 </ul>
 
-<h2>What CLs caused issues for other developers?</h2>
+<h2>Which issues or CLs caused the most CQ run failures this week?</h2>
 <p id="note">At your discretion, pull the top blamed CLs from the summarize_build_stats output. When appropriate, summarize what action we plan to take to block these changes in the pre-CQ.</p>
 <ul>
-{cl_flakes_html}
+{build_failures_html}
 </ul>
 
 <h2>What was the patch turnaround time?</h2>
@@ -708,23 +700,24 @@ def GenerateReport(file_out, summary):
   sorted_blame_counts = sorted([(v, k) for (k, v) in
                                 summary['patch_blame_counts'].iteritems()],
                                reverse=True)
-  cq_flakes = [{'id': b_id, 'rejections': rejs}
-               for rejs, b_id in sorted_blame_counts]
-  flake_fmt = ('  <li><a href="http://{id}">{id}</a> (<b>[{rejections}] false '
-               'rejections</b>): _<replace>Brief explanation of bug. If '
+  false_rejections = [{'id': blame, 'rejections': rejs}
+                      for rejs, blame in sorted_blame_counts]
+  flake_fmt = ('  <li><a href="http://{id}">{id}</a> (<b>{rejections} </b> '
+               'false rejections): _<replace>Brief explanation of bug. If '
                'fixed, or describe workarounds</replace>_</li>')
-  report['cq_flakes_html'] = '\n'.join([flake_fmt.format(**x)
-                                        for x in cq_flakes])
+  report['false_rejections_html'] = '\n'.join([flake_fmt.format(**x)
+                                               for x in false_rejections])
 
   sorted_fails = sorted([(v, k) for (k, v) in
                          summary['build_blame_counts'].iteritems()],
                         reverse=True)
-  cl_fails = [{'id': b_id, 'rejections': rejs} for rejs, b_id in sorted_fails]
+  build_fails = [{'id': blame, 'fails': fails}
+                 for fails, blame in sorted_fails]
   cl_flake_fmt = ('  <li><a href="http://{id}">{id}</a> '
-                  '(<b>[{rejections}] build failures</b>): '
+                  '(<b>{fails}</b> build failures): '
                   '_<replace>explanation</replace>_</li>')
-  report['cl_flakes_html'] = '\n'.join([cl_flake_fmt.format(**x)
-                                        for x in cl_fails])
+  report['build_failures_html'] = '\n'.join([cl_flake_fmt.format(**x)
+                                             for x in build_fails])
 
   file_out.write(ReportHTMLTemplate.format(**report))
 
@@ -755,7 +748,7 @@ def GetParser():
   ex_group.add_argument('--past-day', action='store_true', default=False,
                         help='Limit scope to the past day up to now.')
 
-  parser.add_argument('--cred-dir', action='store', required=True,
+  parser.add_argument('--cred-dir', action='store',
                       metavar='CIDB_CREDENTIALS_DIR',
                       help='Database credentials directory with certificates '
                            'and other connection information. Obtain your '
@@ -788,7 +781,11 @@ def main(argv):
   if not _CheckOptions(options):
     sys.exit(1)
 
-  db = cidb.CIDBConnection(options.cred_dir)
+  credentials = options.cred_dir
+  if not credentials:
+    credentials = cros_cidbcreds.CheckAndGetCIDBCreds()
+
+  db = cidb.CIDBConnection(credentials)
 
   if options.end_date:
     end_date = options.end_date

@@ -13,6 +13,7 @@
 #include <stdlib.h>
 
 #include "webrtc/api/video/i420_buffer.h"
+#include "webrtc/base/logging.h"
 #include "webrtc/base/refcount.h"
 #include "webrtc/base/timeutils.h"
 #include "webrtc/base/trace_event.h"
@@ -20,8 +21,6 @@
 #include "webrtc/modules/include/module_common_types.h"
 #include "webrtc/modules/video_capture/video_capture_config.h"
 #include "webrtc/system_wrappers/include/clock.h"
-#include "webrtc/system_wrappers/include/critical_section_wrapper.h"
-#include "webrtc/system_wrappers/include/logging.h"
 
 namespace webrtc {
 namespace videocapturemodule {
@@ -81,8 +80,6 @@ int32_t VideoCaptureImpl::RotationInDegrees(VideoRotation rotation,
 
 VideoCaptureImpl::VideoCaptureImpl()
     : _deviceUniqueId(NULL),
-      _apiCs(*CriticalSectionWrapper::CreateCriticalSection()),
-      _captureDelay(0),
       _requestedCapability(),
       _lastProcessTimeNanos(rtc::TimeNanos()),
       _lastFrameRateCallbackTimeNanos(rtc::TimeNanos()),
@@ -94,27 +91,24 @@ VideoCaptureImpl::VideoCaptureImpl()
     _requestedCapability.height = kDefaultHeight;
     _requestedCapability.maxFPS = 30;
     _requestedCapability.rawType = kVideoI420;
-    _requestedCapability.codecType = kVideoCodecUnknown;
     memset(_incomingFrameTimesNanos, 0, sizeof(_incomingFrameTimesNanos));
 }
 
 VideoCaptureImpl::~VideoCaptureImpl()
 {
     DeRegisterCaptureDataCallback();
-    delete &_apiCs;
-
     if (_deviceUniqueId)
         delete[] _deviceUniqueId;
 }
 
 void VideoCaptureImpl::RegisterCaptureDataCallback(
     rtc::VideoSinkInterface<VideoFrame>* dataCallBack) {
-    CriticalSectionScoped cs(&_apiCs);
+    rtc::CritScope cs(&_apiCs);
     _dataCallBack = dataCallBack;
 }
 
 void VideoCaptureImpl::DeRegisterCaptureDataCallback() {
-    CriticalSectionScoped cs(&_apiCs);
+    rtc::CritScope cs(&_apiCs);
     _dataCallBack = NULL;
 }
 int32_t VideoCaptureImpl::DeliverCapturedFrame(VideoFrame& captureFrame) {
@@ -133,80 +127,72 @@ int32_t VideoCaptureImpl::IncomingFrame(
     const VideoCaptureCapability& frameInfo,
     int64_t captureTime/*=0*/)
 {
-    CriticalSectionScoped cs(&_apiCs);
+    rtc::CritScope cs(&_apiCs);
 
     const int32_t width = frameInfo.width;
     const int32_t height = frameInfo.height;
 
     TRACE_EVENT1("webrtc", "VC::IncomingFrame", "capture_time", captureTime);
 
-    if (frameInfo.codecType == kVideoCodecUnknown)
+    // Not encoded, convert to I420.
+    const VideoType commonVideoType =
+              RawVideoTypeToCommonVideoVideoType(frameInfo.rawType);
+
+    if (frameInfo.rawType != kVideoMJPEG &&
+        CalcBufferSize(commonVideoType, width,
+                       abs(height)) != videoFrameLength)
     {
-        // Not encoded, convert to I420.
-        const VideoType commonVideoType =
-                  RawVideoTypeToCommonVideoVideoType(frameInfo.rawType);
-
-        if (frameInfo.rawType != kVideoMJPEG &&
-            CalcBufferSize(commonVideoType, width,
-                           abs(height)) != videoFrameLength)
-        {
-            LOG(LS_ERROR) << "Wrong incoming frame length.";
-            return -1;
-        }
-
-        int stride_y = width;
-        int stride_uv = (width + 1) / 2;
-        int target_width = width;
-        int target_height = height;
-
-        // SetApplyRotation doesn't take any lock. Make a local copy here.
-        bool apply_rotation = apply_rotation_;
-
-        if (apply_rotation) {
-          // Rotating resolution when for 90/270 degree rotations.
-          if (_rotateFrame == kVideoRotation_90 ||
-              _rotateFrame == kVideoRotation_270) {
-            target_width = abs(height);
-            target_height = width;
-          }
-        }
-
-        // Setting absolute height (in case it was negative).
-        // In Windows, the image starts bottom left, instead of top left.
-        // Setting a negative source height, inverts the image (within LibYuv).
-
-        // TODO(nisse): Use a pool?
-        rtc::scoped_refptr<I420Buffer> buffer = I420Buffer::Create(
-            target_width, abs(target_height), stride_y, stride_uv, stride_uv);
-        const int conversionResult = ConvertToI420(
-            commonVideoType, videoFrame, 0, 0,  // No cropping
-            width, height, videoFrameLength,
-            apply_rotation ? _rotateFrame : kVideoRotation_0, buffer.get());
-        if (conversionResult < 0)
-        {
-          LOG(LS_ERROR) << "Failed to convert capture frame from type "
-                        << frameInfo.rawType << "to I420.";
-            return -1;
-        }
-
-        VideoFrame captureFrame(
-            buffer, 0, rtc::TimeMillis(),
-            !apply_rotation ? _rotateFrame : kVideoRotation_0);
-        captureFrame.set_ntp_time_ms(captureTime);
-
-        DeliverCapturedFrame(captureFrame);
-    }
-    else // Encoded format
-    {
-        assert(false);
+        LOG(LS_ERROR) << "Wrong incoming frame length.";
         return -1;
     }
+
+    int stride_y = width;
+    int stride_uv = (width + 1) / 2;
+    int target_width = width;
+    int target_height = height;
+
+    // SetApplyRotation doesn't take any lock. Make a local copy here.
+    bool apply_rotation = apply_rotation_;
+
+    if (apply_rotation) {
+      // Rotating resolution when for 90/270 degree rotations.
+      if (_rotateFrame == kVideoRotation_90 ||
+          _rotateFrame == kVideoRotation_270) {
+        target_width = abs(height);
+        target_height = width;
+      }
+    }
+
+    // Setting absolute height (in case it was negative).
+    // In Windows, the image starts bottom left, instead of top left.
+    // Setting a negative source height, inverts the image (within LibYuv).
+
+    // TODO(nisse): Use a pool?
+    rtc::scoped_refptr<I420Buffer> buffer = I420Buffer::Create(
+        target_width, abs(target_height), stride_y, stride_uv, stride_uv);
+    const int conversionResult = ConvertToI420(
+        commonVideoType, videoFrame, 0, 0,  // No cropping
+        width, height, videoFrameLength,
+        apply_rotation ? _rotateFrame : kVideoRotation_0, buffer.get());
+    if (conversionResult < 0)
+    {
+      LOG(LS_ERROR) << "Failed to convert capture frame from type "
+                    << frameInfo.rawType << "to I420.";
+        return -1;
+    }
+
+    VideoFrame captureFrame(
+        buffer, 0, rtc::TimeMillis(),
+        !apply_rotation ? _rotateFrame : kVideoRotation_0);
+    captureFrame.set_ntp_time_ms(captureTime);
+
+    DeliverCapturedFrame(captureFrame);
 
     return 0;
 }
 
 int32_t VideoCaptureImpl::SetCaptureRotation(VideoRotation rotation) {
-  CriticalSectionScoped cs(&_apiCs);
+  rtc::CritScope cs(&_apiCs);
   _rotateFrame = rotation;
   return 0;
 }

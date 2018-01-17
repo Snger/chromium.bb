@@ -285,7 +285,15 @@ void PrintConnectionInfo(const SSL *ssl) {
     size_t ocsp_staple_len;
     SSL_get0_ocsp_response(ssl, &ocsp_staple, &ocsp_staple_len);
     fprintf(stderr, "  OCSP staple: %s\n", ocsp_staple_len > 0 ? "yes" : "no");
+
+    const uint8_t *sct_list;
+    size_t sct_list_len;
+    SSL_get0_signed_cert_timestamp_list(ssl, &sct_list, &sct_list_len);
+    fprintf(stderr, "  SCT list: %s\n", sct_list_len > 0 ? "yes" : "no");
   }
+
+  fprintf(stderr, "  Early data: %s\n",
+          SSL_early_data_accepted(ssl) ? "yes" : "no");
 
   // Print the server cert subject and issuer names.
   bssl::UniquePtr<X509> peer(SSL_get_peer_certificate(ssl));

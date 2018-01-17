@@ -6,9 +6,11 @@
  */
 
 #include "GrTextureDomain.h"
-#include "GrInvariantOutput.h"
+
+#include "GrResourceProvider.h"
 #include "GrShaderCaps.h"
 #include "GrSimpleTextureEffect.h"
+#include "GrSurfaceProxyPriv.h"
 #include "SkFloatingPoint.h"
 #include "glsl/GrGLSLColorSpaceXformHelper.h"
 #include "glsl/GrGLSLFragmentProcessor.h"
@@ -16,6 +18,16 @@
 #include "glsl/GrGLSLProgramDataManager.h"
 #include "glsl/GrGLSLShaderBuilder.h"
 #include "glsl/GrGLSLUniformHandler.h"
+
+static bool can_ignore_rect(GrTextureProxy* proxy, const SkRect& domain) {
+    if (GrResourceProvider::IsFunctionallyExact(proxy)) {
+        const SkIRect kFullRect = SkIRect::MakeWH(proxy->width(), proxy->height());
+
+        return domain.contains(kFullRect);
+    }
+
+    return false;
+}
 
 static bool can_ignore_rect(GrTexture* tex, const SkRect& domain) {
     // This logic is relying on the instantiated size of 'tex'. In the deferred world it
@@ -28,7 +40,8 @@ static bool can_ignore_rect(GrTexture* tex, const SkRect& domain) {
 }
 
 GrTextureDomain::GrTextureDomain(GrTexture* tex, const SkRect& domain, Mode mode, int index)
-    : fMode(mode), fIndex(index) {
+    : fMode(mode)
+    , fIndex(index) {
 
     if (kIgnore_Mode == fMode) {
         return;
@@ -40,6 +53,34 @@ GrTextureDomain::GrTextureDomain(GrTexture* tex, const SkRect& domain, Mode mode
     }
 
     const SkRect kFullRect = SkRect::MakeIWH(tex->width(), tex->height());
+
+    // We don't currently handle domains that are empty or don't intersect the texture.
+    // It is OK if the domain rect is a line or point, but it should not be inverted. We do not
+    // handle rects that do not intersect the [0..1]x[0..1] rect.
+    SkASSERT(domain.fLeft <= domain.fRight);
+    SkASSERT(domain.fTop <= domain.fBottom);
+    fDomain.fLeft = SkScalarPin(domain.fLeft, 0.0f, kFullRect.fRight);
+    fDomain.fRight = SkScalarPin(domain.fRight, fDomain.fLeft, kFullRect.fRight);
+    fDomain.fTop = SkScalarPin(domain.fTop, 0.0f, kFullRect.fBottom);
+    fDomain.fBottom = SkScalarPin(domain.fBottom, fDomain.fTop, kFullRect.fBottom);
+    SkASSERT(fDomain.fLeft <= fDomain.fRight);
+    SkASSERT(fDomain.fTop <= fDomain.fBottom);
+}
+
+GrTextureDomain::GrTextureDomain(GrTextureProxy* proxy, const SkRect& domain, Mode mode, int index)
+    : fMode(mode)
+    , fIndex(index) {
+
+    if (kIgnore_Mode == fMode) {
+        return;
+    }
+
+    if (kClamp_Mode == mode && can_ignore_rect(proxy, domain)) {
+        fMode = kIgnore_Mode;
+        return;
+    }
+
+    const SkRect kFullRect = SkRect::MakeIWH(proxy->width(), proxy->height());
 
     // We don't currently handle domains that are empty or don't intersect the texture.
     // It is OK if the domain rect is a line or point, but it should not be inverted. We do not
@@ -191,33 +232,47 @@ void GrTextureDomain::GLDomain::setData(const GrGLSLProgramDataManager& pdman,
 }
 
 ///////////////////////////////////////////////////////////////////////////////
+inline GrFragmentProcessor::OptimizationFlags GrTextureDomainEffect::OptFlags(
+        GrPixelConfig config, GrTextureDomain::Mode mode) {
+    if (mode == GrTextureDomain::kDecal_Mode || !GrPixelConfigIsOpaque(config)) {
+        return GrFragmentProcessor::kCompatibleWithCoverageAsAlpha_OptimizationFlag;
+    } else {
+        return GrFragmentProcessor::kCompatibleWithCoverageAsAlpha_OptimizationFlag |
+               GrFragmentProcessor::kPreservesOpaqueInput_OptimizationFlag;
+    }
+}
 
-sk_sp<GrFragmentProcessor> GrTextureDomainEffect::Make(GrTexture* texture,
+sk_sp<GrFragmentProcessor> GrTextureDomainEffect::Make(GrResourceProvider* resourceProvider,
+                                                       sk_sp<GrTextureProxy> proxy,
                                                        sk_sp<GrColorSpaceXform> colorSpaceXform,
                                                        const SkMatrix& matrix,
                                                        const SkRect& domain,
                                                        GrTextureDomain::Mode mode,
                                                        GrSamplerParams::FilterMode filterMode) {
     if (GrTextureDomain::kIgnore_Mode == mode ||
-        (GrTextureDomain::kClamp_Mode == mode && can_ignore_rect(texture, domain))) {
-        return GrSimpleTextureEffect::Make(texture, std::move(colorSpaceXform), matrix, filterMode);
+        (GrTextureDomain::kClamp_Mode == mode && can_ignore_rect(proxy.get(), domain))) {
+        return GrSimpleTextureEffect::Make(resourceProvider, std::move(proxy),
+                                           std::move(colorSpaceXform), matrix, filterMode);
     } else {
         return sk_sp<GrFragmentProcessor>(
-            new GrTextureDomainEffect(texture, std::move(colorSpaceXform), matrix, domain, mode,
-                                      filterMode));
+            new GrTextureDomainEffect(resourceProvider, std::move(proxy),
+                                      std::move(colorSpaceXform),
+                                      matrix, domain, mode, filterMode));
     }
 }
 
-GrTextureDomainEffect::GrTextureDomainEffect(GrTexture* texture,
+GrTextureDomainEffect::GrTextureDomainEffect(GrResourceProvider* resourceProvider,
+                                             sk_sp<GrTextureProxy> proxy,
                                              sk_sp<GrColorSpaceXform> colorSpaceXform,
                                              const SkMatrix& matrix,
                                              const SkRect& domain,
                                              GrTextureDomain::Mode mode,
                                              GrSamplerParams::FilterMode filterMode)
-    : GrSingleTextureEffect(texture, std::move(colorSpaceXform), matrix, filterMode)
-    , fTextureDomain(texture, domain, mode) {
+    : GrSingleTextureEffect(resourceProvider, OptFlags(proxy->config(), mode), proxy,
+                            std::move(colorSpaceXform), matrix, filterMode)
+    , fTextureDomain(proxy.get(), domain, mode) {
     SkASSERT(mode != GrTextureDomain::kRepeat_Mode ||
-            filterMode == GrSamplerParams::kNone_FilterMode);
+             filterMode == GrSamplerParams::kNone_FilterMode);
     this->initClassID<GrTextureDomainEffect>();
 }
 
@@ -237,9 +292,7 @@ GrGLSLFragmentProcessor* GrTextureDomainEffect::onCreateGLSLInstance() const  {
             GrGLSLFPFragmentBuilder* fragBuilder = args.fFragBuilder;
             SkString coords2D = fragBuilder->ensureCoords2D(args.fTransformedCoords[0]);
 
-            GrGLSLColorSpaceXformHelper colorSpaceHelper(args.fUniformHandler,
-                                                         tde.colorSpaceXform(),
-                                                         &fColorSpaceXformUni);
+            fColorSpaceHelper.emitCode(args.fUniformHandler, tde.colorSpaceXform());
             fGLDomain.sampleTexture(fragBuilder,
                                     args.fUniformHandler,
                                     args.fShaderCaps,
@@ -248,22 +301,23 @@ GrGLSLFragmentProcessor* GrTextureDomainEffect::onCreateGLSLInstance() const  {
                                     coords2D,
                                     args.fTexSamplers[0],
                                     args.fInputColor,
-                                    &colorSpaceHelper);
+                                    &fColorSpaceHelper);
         }
 
     protected:
-        void onSetData(const GrGLSLProgramDataManager& pdman, const GrProcessor& fp) override {
+        void onSetData(const GrGLSLProgramDataManager& pdman,
+                       const GrFragmentProcessor& fp) override {
             const GrTextureDomainEffect& tde = fp.cast<GrTextureDomainEffect>();
             const GrTextureDomain& domain = tde.fTextureDomain;
             fGLDomain.setData(pdman, domain, tde.textureSampler(0).texture());
             if (SkToBool(tde.colorSpaceXform())) {
-                pdman.setSkMatrix44(fColorSpaceXformUni, tde.colorSpaceXform()->srcToDst());
+                fColorSpaceHelper.setData(pdman, tde.colorSpaceXform());
             }
         }
 
     private:
         GrTextureDomain::GLDomain         fGLDomain;
-        UniformHandle                     fColorSpaceXformUni;
+        GrGLSLColorSpaceXformHelper       fColorSpaceHelper;
     };
 
     return new GLSLProcessor;
@@ -274,63 +328,59 @@ bool GrTextureDomainEffect::onIsEqual(const GrFragmentProcessor& sBase) const {
     return this->fTextureDomain == s.fTextureDomain;
 }
 
-void GrTextureDomainEffect::onComputeInvariantOutput(GrInvariantOutput* inout) const {
-    if (GrTextureDomain::kDecal_Mode == fTextureDomain.mode()) {
-        if (GrPixelConfigIsAlphaOnly(this->textureSampler(0).texture()->config())) {
-            inout->mulByUnknownSingleComponent();
-        } else {
-            inout->mulByUnknownFourComponents();
-        }
-    } else {
-        this->updateInvariantOutputForModulation(inout);
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 GR_DEFINE_FRAGMENT_PROCESSOR_TEST(GrTextureDomainEffect);
 
+#if GR_TEST_UTILS
 sk_sp<GrFragmentProcessor> GrTextureDomainEffect::TestCreate(GrProcessorTestData* d) {
-    int texIdx = d->fRandom->nextBool() ? GrProcessorUnitTest::kSkiaPMTextureIdx :
-                                          GrProcessorUnitTest::kAlphaTextureIdx;
-    GrTexture* tex = d->fTextures[texIdx];
+    int texIdx = d->fRandom->nextBool() ? GrProcessorUnitTest::kSkiaPMTextureIdx
+                                        : GrProcessorUnitTest::kAlphaTextureIdx;
+    sk_sp<GrTextureProxy> proxy = d->textureProxy(texIdx);
     SkRect domain;
-    domain.fLeft = d->fRandom->nextRangeScalar(0, tex->width());
-    domain.fRight = d->fRandom->nextRangeScalar(domain.fLeft, tex->width());
-    domain.fTop = d->fRandom->nextRangeScalar(0, tex->height());
-    domain.fBottom = d->fRandom->nextRangeScalar(domain.fTop, tex->height());
+    domain.fLeft = d->fRandom->nextRangeScalar(0, proxy->width());
+    domain.fRight = d->fRandom->nextRangeScalar(domain.fLeft, proxy->width());
+    domain.fTop = d->fRandom->nextRangeScalar(0, proxy->height());
+    domain.fBottom = d->fRandom->nextRangeScalar(domain.fTop, proxy->height());
     GrTextureDomain::Mode mode =
         (GrTextureDomain::Mode) d->fRandom->nextULessThan(GrTextureDomain::kModeCount);
     const SkMatrix& matrix = GrTest::TestMatrix(d->fRandom);
     bool bilerp = mode != GrTextureDomain::kRepeat_Mode ? d->fRandom->nextBool() : false;
-    auto colorSpaceXform = GrTest::TestColorXform(d->fRandom);
-    return GrTextureDomainEffect::Make(
-        tex,
-        colorSpaceXform,
-        matrix,
-        domain,
-        mode,
-        bilerp ? GrSamplerParams::kBilerp_FilterMode : GrSamplerParams::kNone_FilterMode);
+    sk_sp<GrColorSpaceXform> colorSpaceXform = GrTest::TestColorXform(d->fRandom);
+    return GrTextureDomainEffect::Make(d->resourceProvider(),
+                                       std::move(proxy),
+                                       std::move(colorSpaceXform),
+                                       matrix,
+                                       domain,
+                                       mode,
+                                       bilerp ? GrSamplerParams::kBilerp_FilterMode
+                                              : GrSamplerParams::kNone_FilterMode);
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
-
-sk_sp<GrFragmentProcessor> GrDeviceSpaceTextureDecalFragmentProcessor::Make(GrTexture* texture,
-        const SkIRect& subset, const SkIPoint& deviceSpaceOffset) {
+sk_sp<GrFragmentProcessor> GrDeviceSpaceTextureDecalFragmentProcessor::Make(
+        GrResourceProvider* resourceProvider,
+        sk_sp<GrTextureProxy> proxy,
+        const SkIRect& subset,
+        const SkIPoint& deviceSpaceOffset) {
     return sk_sp<GrFragmentProcessor>(new GrDeviceSpaceTextureDecalFragmentProcessor(
-            texture, subset, deviceSpaceOffset));
+            resourceProvider, std::move(proxy), subset, deviceSpaceOffset));
 }
 
 GrDeviceSpaceTextureDecalFragmentProcessor::GrDeviceSpaceTextureDecalFragmentProcessor(
-        GrTexture* texture, const SkIRect& subset, const SkIPoint& deviceSpaceOffset)
-        : fTextureSampler(texture, GrSamplerParams::ClampNoFilter())
-        , fTextureDomain(texture, GrTextureDomain::MakeTexelDomain(subset),
+        GrResourceProvider* resourceProvider,
+        sk_sp<GrTextureProxy> proxy,
+        const SkIRect& subset,
+        const SkIPoint& deviceSpaceOffset)
+        : INHERITED(kCompatibleWithCoverageAsAlpha_OptimizationFlag)
+        , fTextureSampler(resourceProvider, proxy, GrSamplerParams::ClampNoFilter())
+        , fTextureDomain(proxy.get(), GrTextureDomain::MakeTexelDomain(subset),
                          GrTextureDomain::kDecal_Mode) {
     this->addTextureSampler(&fTextureSampler);
     fDeviceSpaceOffset.fX = deviceSpaceOffset.fX - subset.fLeft;
     fDeviceSpaceOffset.fY = deviceSpaceOffset.fY - subset.fTop;
     this->initClassID<GrDeviceSpaceTextureDecalFragmentProcessor>();
-    this->setWillReadFragmentPosition();
 }
 
 GrGLSLFragmentProcessor* GrDeviceSpaceTextureDecalFragmentProcessor::onCreateGLSLInstance() const  {
@@ -345,8 +395,7 @@ GrGLSLFragmentProcessor* GrDeviceSpaceTextureDecalFragmentProcessor::onCreateGLS
                                                                      kDefault_GrSLPrecision,
                                                                      "scaleAndTranslate",
                                                                      &scaleAndTranslateName);
-            args.fFragBuilder->codeAppendf("vec2 coords = %s.xy * %s.xy + %s.zw;",
-                                           args.fFragBuilder->fragmentPosition(),
+            args.fFragBuilder->codeAppendf("vec2 coords = sk_FragCoord.xy * %s.xy + %s.zw;",
                                            scaleAndTranslateName, scaleAndTranslateName);
             fGLDomain.sampleTexture(args.fFragBuilder,
                                     args.fUniformHandler,
@@ -359,7 +408,8 @@ GrGLSLFragmentProcessor* GrDeviceSpaceTextureDecalFragmentProcessor::onCreateGLS
         }
 
     protected:
-        void onSetData(const GrGLSLProgramDataManager& pdman, const GrProcessor& fp) override {
+        void onSetData(const GrGLSLProgramDataManager& pdman,
+                       const GrFragmentProcessor& fp) override {
             const GrDeviceSpaceTextureDecalFragmentProcessor& dstdfp =
                     fp.cast<GrDeviceSpaceTextureDecalFragmentProcessor>();
             GrTexture* texture = dstdfp.textureSampler(0).texture();
@@ -393,30 +443,25 @@ bool GrDeviceSpaceTextureDecalFragmentProcessor::onIsEqual(const GrFragmentProce
            dstdfp.fTextureDomain == fTextureDomain;
 }
 
-void GrDeviceSpaceTextureDecalFragmentProcessor::onComputeInvariantOutput(
-        GrInvariantOutput* inout) const {
-    if (GrPixelConfigIsAlphaOnly(this->textureSampler(0).texture()->config())) {
-        inout->mulByUnknownSingleComponent();
-    } else {
-        inout->mulByUnknownFourComponents();
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////
 
 GR_DEFINE_FRAGMENT_PROCESSOR_TEST(GrDeviceSpaceTextureDecalFragmentProcessor);
 
+#if GR_TEST_UTILS
 sk_sp<GrFragmentProcessor> GrDeviceSpaceTextureDecalFragmentProcessor::TestCreate(
         GrProcessorTestData* d) {
     int texIdx = d->fRandom->nextBool() ? GrProcessorUnitTest::kSkiaPMTextureIdx
                                         : GrProcessorUnitTest::kAlphaTextureIdx;
+    sk_sp<GrTextureProxy> proxy = d->textureProxy(texIdx);
     SkIRect subset;
-    subset.fLeft = d->fRandom->nextULessThan(d->fTextures[texIdx]->width() - 1);
-    subset.fRight = d->fRandom->nextRangeU(subset.fLeft, d->fTextures[texIdx]->width());
-    subset.fTop = d->fRandom->nextULessThan(d->fTextures[texIdx]->height() - 1);
-    subset.fBottom = d->fRandom->nextRangeU(subset.fTop, d->fTextures[texIdx]->height());
+    subset.fLeft = d->fRandom->nextULessThan(proxy->width() - 1);
+    subset.fRight = d->fRandom->nextRangeU(subset.fLeft, proxy->width());
+    subset.fTop = d->fRandom->nextULessThan(proxy->height() - 1);
+    subset.fBottom = d->fRandom->nextRangeU(subset.fTop, proxy->height());
     SkIPoint pt;
     pt.fX = d->fRandom->nextULessThan(2048);
     pt.fY = d->fRandom->nextULessThan(2048);
-    return GrDeviceSpaceTextureDecalFragmentProcessor::Make(d->fTextures[texIdx], subset, pt);
+    return GrDeviceSpaceTextureDecalFragmentProcessor::Make(d->resourceProvider(),
+                                                            std::move(proxy), subset, pt);
 }
+#endif

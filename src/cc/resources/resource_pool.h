@@ -16,7 +16,7 @@
 #include "base/memory/memory_coordinator_client.h"
 #include "base/memory/ptr_util.h"
 #include "base/trace_event/memory_dump_provider.h"
-#include "cc/base/cc_export.h"
+#include "cc/cc_export.h"
 #include "cc/resources/resource.h"
 #include "cc/resources/resource_format.h"
 #include "cc/resources/scoped_resource.h"
@@ -85,7 +85,7 @@ class CC_EXPORT ResourcePool : public base::trace_event::MemoryDumpProvider,
                     base::trace_event::ProcessMemoryDump* pmd) override;
 
   // Overriden from base::MemoryCoordinatorClient.
-  void OnMemoryStateChange(base::MemoryState state) override;
+  void OnPurgeMemory() override;
 
   size_t GetTotalMemoryUsageForTesting() const {
     return total_memory_usage_bytes_;

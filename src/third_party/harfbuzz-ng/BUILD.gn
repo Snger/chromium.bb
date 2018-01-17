@@ -101,7 +101,9 @@ if (use_system_harfbuzz) {
       "src/hb-ot-layout.h",
       "src/hb-ot-map-private.hh",
       "src/hb-ot-map.cc",
+      "src/hb-ot-math-table.hh",
       "src/hb-ot-math.cc",
+      "src/hb-ot-math.h",
       "src/hb-ot-maxp-table.hh",
       "src/hb-ot-name-table.hh",
       "src/hb-ot-shape-complex-arabic-fallback.hh",
@@ -133,6 +135,11 @@ if (use_system_harfbuzz) {
       "src/hb-ot-shape.h",
       "src/hb-ot-tag.cc",
       "src/hb-ot-tag.h",
+      "src/hb-ot-var-avar-table.hh",
+      "src/hb-ot-var-fvar-table.hh",
+      "src/hb-ot-var-hvar-table.hh",
+      "src/hb-ot-var.cc",
+      "src/hb-ot-var.h",
       "src/hb-ot.h",
       "src/hb-private.hh",
       "src/hb-set-private.hh",
@@ -196,7 +203,7 @@ if (use_system_harfbuzz) {
     # See crbug.com/462689.
     if (is_linux && use_pango && !is_chromeos && !is_official_build &&
         current_cpu != "arm" && current_cpu != "mipsel") {
-      deps += [ "//build/linux:freetype2" ]
+      deps += [ "//build/config/freetype" ]
       configs -= [ "//build/config/gcc:symbol_visibility_hidden" ]
       configs += [ "//build/config/gcc:symbol_visibility_default" ]
       sources += [

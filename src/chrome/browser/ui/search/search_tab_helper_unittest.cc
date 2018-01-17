@@ -60,10 +60,14 @@ class MockSearchIPCRouterDelegate : public SearchIPCRouter::Delegate {
   MOCK_METHOD0(OnUndoAllMostVisitedDeletions, void());
   MOCK_METHOD2(OnLogEvent, void(NTPLoggingEventType event,
                                 base::TimeDelta time));
-  MOCK_METHOD2(OnLogMostVisitedImpression,
-               void(int position, ntp_tiles::NTPTileSource tile_source));
-  MOCK_METHOD2(OnLogMostVisitedNavigation,
-               void(int position, ntp_tiles::NTPTileSource tile_source));
+  MOCK_METHOD3(OnLogMostVisitedImpression,
+               void(int position,
+                    ntp_tiles::TileSource tile_source,
+                    ntp_tiles::TileVisualType tile_type));
+  MOCK_METHOD3(OnLogMostVisitedNavigation,
+               void(int position,
+                    ntp_tiles::TileSource tile_source,
+                    ntp_tiles::TileVisualType tile_type));
   MOCK_METHOD1(PasteIntoOmnibox, void(const base::string16&));
   MOCK_METHOD1(OnChromeIdentityCheck, void(const base::string16& identity));
   MOCK_METHOD0(OnHistorySyncCheck, void());
@@ -84,7 +88,7 @@ class SearchTabHelperTest : public ChromeRenderViewHostTestHarness {
   void SetUp() override {
     ChromeRenderViewHostTestHarness::SetUp();
     SearchTabHelper::CreateForWebContents(web_contents());
-    auto search_tab = SearchTabHelper::FromWebContents(web_contents());
+    auto* search_tab = SearchTabHelper::FromWebContents(web_contents());
     auto factory = base::MakeUnique<MockSearchBoxClientFactory>();
     ON_CALL(*factory, GetSearchBox()).WillByDefault(Return(&mock_search_box_));
     search_tab->ipc_router_for_testing()

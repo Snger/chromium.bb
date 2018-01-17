@@ -9,7 +9,6 @@
 
 #include "GrDrawOpTest.h"
 #include "GrGeometryProcessor.h"
-#include "GrInvariantOutput.h"
 #include "GrOpFlushState.h"
 #include "GrProcessor.h"
 #include "GrResourceProvider.h"
@@ -104,7 +103,7 @@ public:
 
     bool implementsDistanceVector() const override { return !fInClipPlane; }
 
-    virtual ~CircleGeometryProcessor() {}
+    ~CircleGeometryProcessor() override {}
 
     const char* name() const override { return "CircleEdge"; }
 
@@ -246,11 +245,13 @@ private:
 
 GR_DEFINE_GEOMETRY_PROCESSOR_TEST(CircleGeometryProcessor);
 
+#if GR_TEST_UTILS
 sk_sp<GrGeometryProcessor> CircleGeometryProcessor::TestCreate(GrProcessorTestData* d) {
     return sk_sp<GrGeometryProcessor>(new CircleGeometryProcessor(
             d->fRandom->nextBool(), d->fRandom->nextBool(), d->fRandom->nextBool(),
             d->fRandom->nextBool(), GrTest::TestMatrix(d->fRandom)));
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -273,7 +274,7 @@ public:
         fStroke = stroke;
     }
 
-    virtual ~EllipseGeometryProcessor() {}
+    ~EllipseGeometryProcessor() override {}
 
     const char* name() const override { return "EllipseEdge"; }
 
@@ -382,10 +383,12 @@ private:
 
 GR_DEFINE_GEOMETRY_PROCESSOR_TEST(EllipseGeometryProcessor);
 
+#if GR_TEST_UTILS
 sk_sp<GrGeometryProcessor> EllipseGeometryProcessor::TestCreate(GrProcessorTestData* d) {
     return sk_sp<GrGeometryProcessor>(
             new EllipseGeometryProcessor(d->fRandom->nextBool(), GrTest::TestMatrix(d->fRandom)));
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -413,7 +416,7 @@ public:
         fStyle = style;
     }
 
-    virtual ~DIEllipseGeometryProcessor() {}
+    ~DIEllipseGeometryProcessor() override {}
 
     const char* name() const override { return "DIEllipseEdge"; }
 
@@ -548,10 +551,12 @@ private:
 
 GR_DEFINE_GEOMETRY_PROCESSOR_TEST(DIEllipseGeometryProcessor);
 
+#if GR_TEST_UTILS
 sk_sp<GrGeometryProcessor> DIEllipseGeometryProcessor::TestCreate(GrProcessorTestData* d) {
     return sk_sp<GrGeometryProcessor>(new DIEllipseGeometryProcessor(
             GrTest::TestMatrix(d->fRandom), (DIEllipseStyle)(d->fRandom->nextRangeU(0, 2))));
 }
+#endif
 
 ///////////////////////////////////////////////////////////////////////////////
 
@@ -603,7 +608,7 @@ static const uint16_t* circle_type_to_indices(bool stroked) {
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class CircleOp final : public GrMeshDrawOp {
+class CircleOp final : public GrLegacyMeshDrawOp {
 public:
     DEFINE_OP_CLASS_ID
 
@@ -613,9 +618,10 @@ public:
         SkScalar fSweepAngleRadians;
         bool fUseCenter;
     };
-    static std::unique_ptr<GrDrawOp> Make(GrColor color, const SkMatrix& viewMatrix, SkPoint center,
-                                          SkScalar radius, const GrStyle& style,
-                                          const ArcParams* arcParams = nullptr) {
+    static std::unique_ptr<GrLegacyMeshDrawOp> Make(GrColor color, const SkMatrix& viewMatrix,
+                                                    SkPoint center, SkScalar radius,
+                                                    const GrStyle& style,
+                                                    const ArcParams* arcParams = nullptr) {
         SkASSERT(circle_stays_circle(viewMatrix));
         const SkStrokeRec& stroke = style.strokeRec();
         if (style.hasPathEffect()) {
@@ -800,12 +806,13 @@ public:
 private:
     CircleOp() : INHERITED(ClassID()) {}
 
-    void getPipelineAnalysisInput(GrPipelineAnalysisDrawOpInput* input) const override {
-        input->pipelineColorInput()->setKnownFourComponents(fGeoData[0].fColor);
-        input->pipelineCoverageInput()->setUnknownSingleComponent();
+    void getProcessorAnalysisInputs(GrProcessorAnalysisColor* color,
+                                    GrProcessorAnalysisCoverage* coverage) const override {
+        color->setToConstant(fGeoData[0].fColor);
+        *coverage = GrProcessorAnalysisCoverage::kSingleChannel;
     }
 
-    void applyPipelineOptimizations(const GrPipelineOptimizations& optimizations) override {
+    void applyPipelineOptimizations(const PipelineOptimizations& optimizations) override {
         optimizations.getOverrideColorIfSet(&fGeoData[0].fColor);
         if (!optimizations.readsLocalCoords()) {
             fViewMatrixIfUsingLocalCoords.reset();
@@ -1092,14 +1099,14 @@ private:
         GrMesh mesh;
         mesh.initIndexed(kTriangles_GrPrimitiveType, vertexBuffer, indexBuffer, firstVertex,
                          firstIndex, fVertCount, fIndexCount);
-        target->draw(gp.get(), mesh);
+        target->draw(gp.get(), this->pipeline(), mesh);
     }
 
     bool onCombineIfPossible(GrOp* t, const GrCaps& caps) override {
         CircleOp* that = t->cast<CircleOp>();
 
         // can only represent 65535 unique vertices with 16-bit indices
-        if (fVertCount + that->fVertCount > 65535) {
+        if (fVertCount + that->fVertCount > 65536) {
             return false;
         }
 
@@ -1146,16 +1153,17 @@ private:
     bool fClipPlaneIsect;
     bool fClipPlaneUnion;
 
-    typedef GrMeshDrawOp INHERITED;
+    typedef GrLegacyMeshDrawOp INHERITED;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
-class EllipseOp : public GrMeshDrawOp {
+class EllipseOp : public GrLegacyMeshDrawOp {
 public:
     DEFINE_OP_CLASS_ID
-    static std::unique_ptr<GrDrawOp> Make(GrColor color, const SkMatrix& viewMatrix,
-                                          const SkRect& ellipse, const SkStrokeRec& stroke) {
+    static std::unique_ptr<GrLegacyMeshDrawOp> Make(GrColor color, const SkMatrix& viewMatrix,
+                                                    const SkRect& ellipse,
+                                                    const SkStrokeRec& stroke) {
         SkASSERT(viewMatrix.rectStaysRect());
 
         // do any matrix crunching before we reset the draw state for device coords
@@ -1251,12 +1259,13 @@ public:
 private:
     EllipseOp() : INHERITED(ClassID()) {}
 
-    void getPipelineAnalysisInput(GrPipelineAnalysisDrawOpInput* input) const override {
-        input->pipelineColorInput()->setKnownFourComponents(fGeoData[0].fColor);
-        input->pipelineCoverageInput()->setUnknownSingleComponent();
+    void getProcessorAnalysisInputs(GrProcessorAnalysisColor* color,
+                                    GrProcessorAnalysisCoverage* coverage) const override {
+        color->setToConstant(fGeoData[0].fColor);
+        *coverage = GrProcessorAnalysisCoverage::kSingleChannel;
     }
 
-    void applyPipelineOptimizations(const GrPipelineOptimizations& optimizations) override {
+    void applyPipelineOptimizations(const PipelineOptimizations& optimizations) override {
         if (!optimizations.readsLocalCoords()) {
             fViewMatrixIfUsingLocalCoords.reset();
         }
@@ -1327,7 +1336,7 @@ private:
 
             verts += kVerticesPerQuad;
         }
-        helper.recordDraw(target, gp.get());
+        helper.recordDraw(target, gp.get(), this->pipeline());
     }
 
     bool onCombineIfPossible(GrOp* t, const GrCaps& caps) override {
@@ -1364,19 +1373,19 @@ private:
     SkMatrix fViewMatrixIfUsingLocalCoords;
     SkSTArray<1, Geometry, true> fGeoData;
 
-    typedef GrMeshDrawOp INHERITED;
+    typedef GrLegacyMeshDrawOp INHERITED;
 };
 
 /////////////////////////////////////////////////////////////////////////////////////////////////
 
-class DIEllipseOp : public GrMeshDrawOp {
+class DIEllipseOp : public GrLegacyMeshDrawOp {
 public:
     DEFINE_OP_CLASS_ID
 
-    static std::unique_ptr<GrDrawOp> Make(GrColor color,
-                                          const SkMatrix& viewMatrix,
-                                          const SkRect& ellipse,
-                                          const SkStrokeRec& stroke) {
+    static std::unique_ptr<GrLegacyMeshDrawOp> Make(GrColor color,
+                                                    const SkMatrix& viewMatrix,
+                                                    const SkRect& ellipse,
+                                                    const SkStrokeRec& stroke) {
         SkPoint center = SkPoint::Make(ellipse.centerX(), ellipse.centerY());
         SkScalar xRadius = SkScalarHalf(ellipse.width());
         SkScalar yRadius = SkScalarHalf(ellipse.height());
@@ -1465,12 +1474,13 @@ public:
 private:
     DIEllipseOp() : INHERITED(ClassID()) {}
 
-    void getPipelineAnalysisInput(GrPipelineAnalysisDrawOpInput* input) const override {
-        input->pipelineColorInput()->setKnownFourComponents(fGeoData[0].fColor);
-        input->pipelineCoverageInput()->setUnknownSingleComponent();
+    void getProcessorAnalysisInputs(GrProcessorAnalysisColor* color,
+                                    GrProcessorAnalysisCoverage* coverage) const override {
+        color->setToConstant(fGeoData[0].fColor);
+        *coverage = GrProcessorAnalysisCoverage::kSingleChannel;
     }
 
-    void applyPipelineOptimizations(const GrPipelineOptimizations& optimizations) override {
+    void applyPipelineOptimizations(const PipelineOptimizations& optimizations) override {
         optimizations.getOverrideColorIfSet(&fGeoData[0].fColor);
         fUsesLocalCoords = optimizations.readsLocalCoords();
     }
@@ -1528,7 +1538,7 @@ private:
 
             verts += kVerticesPerQuad;
         }
-        helper.recordDraw(target, gp.get());
+        helper.recordDraw(target, gp.get(), this->pipeline());
     }
 
     bool onCombineIfPossible(GrOp* t, const GrCaps& caps) override {
@@ -1571,7 +1581,7 @@ private:
     bool fUsesLocalCoords;
     SkSTArray<1, Geometry, true> fGeoData;
 
-    typedef GrMeshDrawOp INHERITED;
+    typedef GrLegacyMeshDrawOp INHERITED;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -1704,7 +1714,7 @@ static const uint16_t* rrect_type_to_indices(RRectType type) {
 //   each vertex is also given the normalized x & y distance from the interior rect's edge
 //      the GP takes the min of those depths +1 to get the normalized distance to the outer edge
 
-class CircularRRectOp : public GrMeshDrawOp {
+class CircularRRectOp : public GrLegacyMeshDrawOp {
 public:
     DEFINE_OP_CLASS_ID
 
@@ -1780,12 +1790,13 @@ public:
     }
 
 private:
-    void getPipelineAnalysisInput(GrPipelineAnalysisDrawOpInput* input) const override {
-        input->pipelineColorInput()->setKnownFourComponents(fGeoData[0].fColor);
-        input->pipelineCoverageInput()->setUnknownSingleComponent();
+    void getProcessorAnalysisInputs(GrProcessorAnalysisColor* color,
+                                    GrProcessorAnalysisCoverage* coverage) const override {
+        color->setToConstant(fGeoData[0].fColor);
+        *coverage = GrProcessorAnalysisCoverage::kSingleChannel;
     }
 
-    void applyPipelineOptimizations(const GrPipelineOptimizations& optimizations) override {
+    void applyPipelineOptimizations(const PipelineOptimizations& optimizations) override {
         optimizations.getOverrideColorIfSet(&fGeoData[0].fColor);
         if (!optimizations.readsLocalCoords()) {
             fViewMatrixIfUsingLocalCoords.reset();
@@ -1989,14 +2000,14 @@ private:
         GrMesh mesh;
         mesh.initIndexed(kTriangles_GrPrimitiveType, vertexBuffer, indexBuffer, firstVertex,
                          firstIndex, fVertCount, fIndexCount);
-        target->draw(gp.get(), mesh);
+        target->draw(gp.get(), this->pipeline(), mesh);
     }
 
     bool onCombineIfPossible(GrOp* t, const GrCaps& caps) override {
         CircularRRectOp* that = t->cast<CircularRRectOp>();
 
         // can only represent 65535 unique vertices with 16-bit indices
-        if (fVertCount + that->fVertCount > 65535) {
+        if (fVertCount + that->fVertCount > 65536) {
             return false;
         }
 
@@ -2031,7 +2042,7 @@ private:
     int fIndexCount;
     bool fAllFill;
 
-    typedef GrMeshDrawOp INHERITED;
+    typedef GrLegacyMeshDrawOp INHERITED;
 };
 
 static const int kNumRRectsInIndexBuffer = 256;
@@ -2057,15 +2068,16 @@ static const GrBuffer* ref_rrect_index_buffer(RRectType type,
     };
 }
 
-class EllipticalRRectOp : public GrMeshDrawOp {
+class EllipticalRRectOp : public GrLegacyMeshDrawOp {
 public:
     DEFINE_OP_CLASS_ID
 
     // If devStrokeWidths values are <= 0 indicates then fill only. Otherwise, strokeOnly indicates
     // whether the rrect is only stroked or stroked and filled.
-    static std::unique_ptr<GrDrawOp> Make(GrColor color, const SkMatrix& viewMatrix,
-                                          const SkRect& devRect, float devXRadius, float devYRadius,
-                                          SkVector devStrokeWidths, bool strokeOnly) {
+    static std::unique_ptr<GrLegacyMeshDrawOp> Make(GrColor color, const SkMatrix& viewMatrix,
+                                                    const SkRect& devRect, float devXRadius,
+                                                    float devYRadius, SkVector devStrokeWidths,
+                                                    bool strokeOnly) {
         SkASSERT(devXRadius > 0.5);
         SkASSERT(devYRadius > 0.5);
         SkASSERT((devStrokeWidths.fX > 0) == (devStrokeWidths.fY > 0));
@@ -2142,12 +2154,13 @@ public:
 private:
     EllipticalRRectOp() : INHERITED(ClassID()) {}
 
-    void getPipelineAnalysisInput(GrPipelineAnalysisDrawOpInput* input) const override {
-        input->pipelineColorInput()->setKnownFourComponents(fGeoData[0].fColor);
-        input->pipelineCoverageInput()->setUnknownSingleComponent();
+    void getProcessorAnalysisInputs(GrProcessorAnalysisColor* color,
+                                    GrProcessorAnalysisCoverage* coverage) const override {
+        color->setToConstant(fGeoData[0].fColor);
+        *coverage = GrProcessorAnalysisCoverage::kSingleChannel;
     }
 
-    void applyPipelineOptimizations(const GrPipelineOptimizations& optimizations) override {
+    void applyPipelineOptimizations(const PipelineOptimizations& optimizations) override {
         optimizations.getOverrideColorIfSet(&fGeoData[0].fColor);
         if (!optimizations.readsLocalCoords()) {
             fViewMatrixIfUsingLocalCoords.reset();
@@ -2235,7 +2248,7 @@ private:
                 verts++;
             }
         }
-        helper.recordDraw(target, gp.get());
+        helper.recordDraw(target, gp.get(), this->pipeline());
     }
 
     bool onCombineIfPossible(GrOp* t, const GrCaps& caps) override {
@@ -2272,14 +2285,14 @@ private:
     SkMatrix fViewMatrixIfUsingLocalCoords;
     SkSTArray<1, Geometry, true> fGeoData;
 
-    typedef GrMeshDrawOp INHERITED;
+    typedef GrLegacyMeshDrawOp INHERITED;
 };
 
-static std::unique_ptr<GrDrawOp> make_rrect_op(GrColor color,
-                                               bool needsDistance,
-                                               const SkMatrix& viewMatrix,
-                                               const SkRRect& rrect,
-                                               const SkStrokeRec& stroke) {
+static std::unique_ptr<GrLegacyMeshDrawOp> make_rrect_op(GrColor color,
+                                                         bool needsDistance,
+                                                         const SkMatrix& viewMatrix,
+                                                         const SkRRect& rrect,
+                                                         const SkStrokeRec& stroke) {
     SkASSERT(viewMatrix.rectStaysRect());
     SkASSERT(rrect.isSimple());
     SkASSERT(!rrect.isOval());
@@ -2337,7 +2350,7 @@ static std::unique_ptr<GrDrawOp> make_rrect_op(GrColor color,
 
     // if the corners are circles, use the circle renderer
     if (isCircular) {
-        return std::unique_ptr<GrDrawOp>(new CircularRRectOp(
+        return std::unique_ptr<GrLegacyMeshDrawOp>(new CircularRRectOp(
                 color, needsDistance, viewMatrix, bounds, xRadius, scaledStroke.fX, isStrokeOnly));
         // otherwise we use the ellipse renderer
     } else {
@@ -2346,12 +2359,12 @@ static std::unique_ptr<GrDrawOp> make_rrect_op(GrColor color,
     }
 }
 
-std::unique_ptr<GrDrawOp> GrOvalOpFactory::MakeRRectOp(GrColor color,
-                                                       bool needsDistance,
-                                                       const SkMatrix& viewMatrix,
-                                                       const SkRRect& rrect,
-                                                       const SkStrokeRec& stroke,
-                                                       const GrShaderCaps* shaderCaps) {
+std::unique_ptr<GrLegacyMeshDrawOp> GrOvalOpFactory::MakeRRectOp(GrColor color,
+                                                                 bool needsDistance,
+                                                                 const SkMatrix& viewMatrix,
+                                                                 const SkRRect& rrect,
+                                                                 const SkStrokeRec& stroke,
+                                                                 const GrShaderCaps* shaderCaps) {
     if (rrect.isOval()) {
         return MakeOvalOp(color, viewMatrix, rrect.getBounds(), stroke, shaderCaps);
     }
@@ -2365,11 +2378,11 @@ std::unique_ptr<GrDrawOp> GrOvalOpFactory::MakeRRectOp(GrColor color,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<GrDrawOp> GrOvalOpFactory::MakeOvalOp(GrColor color,
-                                                      const SkMatrix& viewMatrix,
-                                                      const SkRect& oval,
-                                                      const SkStrokeRec& stroke,
-                                                      const GrShaderCaps* shaderCaps) {
+std::unique_ptr<GrLegacyMeshDrawOp> GrOvalOpFactory::MakeOvalOp(GrColor color,
+                                                                const SkMatrix& viewMatrix,
+                                                                const SkRect& oval,
+                                                                const SkStrokeRec& stroke,
+                                                                const GrShaderCaps* shaderCaps) {
     // we can draw circles
     SkScalar width = oval.width();
     if (SkScalarNearlyEqual(width, oval.height()) && circle_stays_circle(viewMatrix)) {
@@ -2377,14 +2390,14 @@ std::unique_ptr<GrDrawOp> GrOvalOpFactory::MakeOvalOp(GrColor color,
         return CircleOp::Make(color, viewMatrix, center, width / 2.f, GrStyle(stroke, nullptr));
     }
 
-    // if we have shader derivative support, render as device-independent
-    if (shaderCaps->shaderDerivativeSupport()) {
-        return DIEllipseOp::Make(color, viewMatrix, oval, stroke);
-    }
-
-    // otherwise axis-aligned ellipses only
+    // prefer the device space ellipse op for batchability
     if (viewMatrix.rectStaysRect()) {
         return EllipseOp::Make(color, viewMatrix, oval, stroke);
+    }
+
+    // Otherwise, if we have shader derivative support, render as device-independent
+    if (shaderCaps->shaderDerivativeSupport()) {
+        return DIEllipseOp::Make(color, viewMatrix, oval, stroke);
     }
 
     return nullptr;
@@ -2392,11 +2405,9 @@ std::unique_ptr<GrDrawOp> GrOvalOpFactory::MakeOvalOp(GrColor color,
 
 ///////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<GrDrawOp> GrOvalOpFactory::MakeArcOp(GrColor color, const SkMatrix& viewMatrix,
-                                                     const SkRect& oval, SkScalar startAngle,
-                                                     SkScalar sweepAngle, bool useCenter,
-                                                     const GrStyle& style,
-                                                     const GrShaderCaps* shaderCaps) {
+std::unique_ptr<GrLegacyMeshDrawOp> GrOvalOpFactory::MakeArcOp(
+        GrColor color, const SkMatrix& viewMatrix, const SkRect& oval, SkScalar startAngle,
+        SkScalar sweepAngle, bool useCenter, const GrStyle& style, const GrShaderCaps* shaderCaps) {
     SkASSERT(!oval.isEmpty());
     SkASSERT(sweepAngle);
     SkScalar width = oval.width();
@@ -2414,7 +2425,7 @@ std::unique_ptr<GrDrawOp> GrOvalOpFactory::MakeArcOp(GrColor color, const SkMatr
 
 ///////////////////////////////////////////////////////////////////////////////
 
-#ifdef GR_TEST_UTILS
+#if GR_TEST_UTILS
 
 DRAW_OP_TEST_DEFINE(CircleOp) {
     do {
@@ -2439,8 +2450,8 @@ DRAW_OP_TEST_DEFINE(CircleOp) {
             arcParamsTmp.fUseCenter = random->nextBool();
             arcParams = &arcParamsTmp;
         }
-        std::unique_ptr<GrDrawOp> op = CircleOp::Make(color, viewMatrix, center, radius,
-                                                      GrStyle(stroke, nullptr), arcParams);
+        std::unique_ptr<GrLegacyMeshDrawOp> op = CircleOp::Make(
+                color, viewMatrix, center, radius, GrStyle(stroke, nullptr), arcParams);
         if (op) {
             return op;
         }

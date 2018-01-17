@@ -19,7 +19,7 @@ namespace rx
 {
 class RendererVk;
 
-class ContextVk : public ContextImpl
+class ContextVk : public ContextImpl, public ResourceVk
 {
   public:
     ContextVk(const gl::ContextState &state, RendererVk *renderer);
@@ -72,7 +72,7 @@ class ContextVk : public ContextImpl
     void popGroupMarker() override;
 
     // State sync with dirty bits.
-    void syncState(const gl::State &state, const gl::State::DirtyBits &dirtyBits) override;
+    void syncState(const gl::State::DirtyBits &dirtyBits) override;
 
     // Disjoint timer queries
     GLint getGPUDisjoint() override;
@@ -128,8 +128,17 @@ class ContextVk : public ContextImpl
 
     RendererVk *getRenderer() { return mRenderer; }
 
+    // TODO(jmadill): Use pipeline cache.
+    void invalidateCurrentPipeline();
+
+    gl::Error dispatchCompute(GLuint numGroupsX, GLuint numGroupsY, GLuint numGroupsZ) override;
+
   private:
+    gl::Error initPipeline();
+
     RendererVk *mRenderer;
+    vk::Pipeline mCurrentPipeline;
+    GLenum mCurrentDrawMode;
 };
 
 }  // namespace rx

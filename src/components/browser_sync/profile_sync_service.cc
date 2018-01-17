@@ -116,27 +116,7 @@ namespace browser_sync {
 
 namespace {
 
-typedef GoogleServiceAuthError AuthError;
-
-// Events in ClearServerData flow to be recorded in histogram. Existing
-// constants should not be deleted or reordered. New ones shold be added at the
-// end, before CLEAR_SERVER_DATA_MAX.
-enum ClearServerDataEvents {
-  // ClearServerData started after user switched to custom passphrase.
-  CLEAR_SERVER_DATA_STARTED,
-  // DataTypeManager reported that catchup configuration failed.
-  CLEAR_SERVER_DATA_CATCHUP_FAILED,
-  // ClearServerData flow restarted after browser restart.
-  CLEAR_SERVER_DATA_RETRIED,
-  // Success.
-  CLEAR_SERVER_DATA_SUCCEEDED,
-  // Client received RECET_LOCAL_SYNC_DATA after custom passphrase was enabled
-  // on different client.
-  CLEAR_SERVER_DATA_RESET_LOCAL_DATA_RECEIVED,
-  CLEAR_SERVER_DATA_MAX
-};
-
-const char kClearServerDataEventsHistogramName[] = "Sync.ClearServerDataEvents";
+using AuthError = GoogleServiceAuthError;
 
 const char kSyncUnrecoverableErrorHistogram[] = "Sync.UnrecoverableErrors";
 
@@ -168,9 +148,6 @@ const net::BackoffEntry::Policy kRequestAccessTokenBackoffPolicy = {
     false,
 };
 
-const base::FilePath::CharType kLevelDBFolderName[] =
-    FILE_PATH_LITERAL("LevelDB");
-
 }  // namespace
 
 ProfileSyncService::InitParams::InitParams() = default;
@@ -185,25 +162,18 @@ ProfileSyncService::ProfileSyncService(InitParams init_params)
                       init_params.debug_identifier),
       OAuth2TokenService::Consumer("sync"),
       last_auth_error_(AuthError::AuthErrorNone()),
-      passphrase_required_reason_(syncer::REASON_PASSPHRASE_NOT_REQUIRED),
       sync_service_url_(
           syncer::GetSyncServiceURL(*base::CommandLine::ForCurrentProcess(),
                                     init_params.channel)),
       network_time_update_callback_(
           std::move(init_params.network_time_update_callback)),
       url_request_context_(init_params.url_request_context),
-      blocking_task_runner_(std::move(init_params.blocking_task_runner)),
       is_first_time_sync_configure_(false),
       engine_initialized_(false),
       sync_disabled_by_admin_(false),
       is_auth_in_progress_(false),
-      local_sync_backend_folder_(init_params.local_sync_backend_folder),
       unrecoverable_error_reason_(ERROR_REASON_UNSET),
       expect_sync_configuration_aborted_(false),
-      encrypted_types_(syncer::SyncEncryptionHandler::SensitiveTypes()),
-      encrypt_everything_allowed_(true),
-      encrypt_everything_(false),
-      encryption_pending_(false),
       configure_status_(DataTypeManager::UNKNOWN),
       oauth2_token_service_(init_params.oauth2_token_service),
       request_access_token_backoff_(&kRequestAccessTokenBackoffPolicy),
@@ -212,7 +182,6 @@ ProfileSyncService::ProfileSyncService(InitParams init_params)
       gaia_cookie_manager_service_(init_params.gaia_cookie_manager_service),
       network_resources_(new syncer::HttpBridgeNetworkResources),
       start_behavior_(init_params.start_behavior),
-      catch_up_configure_in_progress_(false),
       passphrase_prompt_triggered_by_version_(false),
       sync_enabled_weak_factory_(this),
       weak_factory_(this) {
@@ -256,8 +225,8 @@ void ProfileSyncService::Initialize() {
       base::Bind(&ProfileSyncService::CanEngineStart, base::Unretained(this)),
       base::Bind(&ProfileSyncService::StartUpSlowEngineComponents,
                  weak_factory_.GetWeakPtr()));
-  std::unique_ptr<sync_sessions::LocalSessionEventRouter> router(
-      sync_client_->GetSyncSessionsClient()->GetLocalSessionEventRouter());
+  sync_sessions::LocalSessionEventRouter* router =
+      sync_client_->GetSyncSessionsClient()->GetLocalSessionEventRouter();
   local_device_ = sync_client_->GetSyncApiComponentFactory()
                       ->CreateLocalDeviceInfoProvider();
   sync_stopped_reporter_ = base::MakeUnique<syncer::SyncStoppedReporter>(
@@ -276,8 +245,11 @@ void ProfileSyncService::Initialize() {
     // TODO(skym): Stop creating leveldb files when signed out.
     // TODO(skym): Verify using AsUTF8Unsafe is okay here. Should work as long
     // as the Local State file is guaranteed to be UTF-8.
+    const syncer::ModelTypeStoreFactory& store_factory =
+        GetModelTypeStoreFactory(syncer::DEVICE_INFO, base_directory_,
+                                 sync_client_->GetBlockingPool());
     device_info_sync_bridge_ = base::MakeUnique<DeviceInfoSyncBridge>(
-        local_device_.get(), GetModelTypeStoreFactory(syncer::DEVICE_INFO),
+        local_device_.get(), store_factory,
         base::BindRepeating(
             &ModelTypeChangeProcessor::Create,
             base::BindRepeating(&syncer::ReportUnrecoverableError, channel_)));
@@ -374,10 +346,11 @@ void ProfileSyncService::StartSyncingWithServer() {
           switches::kSyncClearDataOnPassphraseEncryption) &&
       sync_prefs_.GetPassphraseEncryptionTransitionInProgress()) {
     // We are restarting catchup configuration after browser restart.
-    UMA_HISTOGRAM_ENUMERATION(kClearServerDataEventsHistogramName,
-                              CLEAR_SERVER_DATA_RETRIED, CLEAR_SERVER_DATA_MAX);
+    UMA_HISTOGRAM_ENUMERATION("Sync.ClearServerDataEvents",
+                              syncer::CLEAR_SERVER_DATA_RETRIED,
+                              syncer::CLEAR_SERVER_DATA_MAX);
 
-    BeginConfigureCatchUpBeforeClear();
+    crypto_->BeginConfigureCatchUpBeforeClear();
     return;
   }
 
@@ -503,11 +476,6 @@ ProfileSyncService::MakeHttpPostProviderFactoryGetter() {
                     url_request_context_, network_time_update_callback_);
 }
 
-std::unique_ptr<syncer::SyncEncryptionHandler::NigoriState>
-ProfileSyncService::MoveSavedNigoriState() {
-  return std::move(saved_nigori_state_);
-}
-
 syncer::WeakHandle<syncer::UnrecoverableErrorHandler>
 ProfileSyncService::GetUnrecoverableErrorHandler() {
   return syncer::MakeWeakHandle(sync_enabled_weak_factory_.GetWeakPtr());
@@ -589,7 +557,7 @@ void ProfileSyncService::StartUpSlowEngineComponents() {
 
   engine_.reset(sync_client_->GetSyncApiComponentFactory()->CreateSyncEngine(
       debug_identifier_, invalidator, sync_prefs_.AsWeakPtr(),
-      sync_data_folder_));
+      FormatSyncDataPath(base_directory_)));
 
   // Clear any old errors the first time sync starts.
   if (!IsFirstSetupComplete())
@@ -706,6 +674,7 @@ void ProfileSyncService::Shutdown() {
   UnregisterAuthNotifications();
 
   ShutdownImpl(syncer::BROWSER_SHUTDOWN);
+  NotifyShutdown();
   if (sync_error_controller_) {
     // Destroy the SyncErrorController when the service shuts down for good.
     RemoveObserver(sync_error_controller_.get());
@@ -724,7 +693,7 @@ void ProfileSyncService::ShutdownImpl(syncer::ShutdownReason reason) {
       sync_thread_->task_runner()->PostTask(
           FROM_HERE,
           base::Bind(&syncer::syncable::Directory::DeleteDirectoryFiles,
-                     sync_data_folder_));
+                     FormatSyncDataPath(base_directory_)));
     }
     return;
   }
@@ -776,15 +745,10 @@ void ProfileSyncService::ShutdownImpl(syncer::ShutdownReason reason) {
   }
 
   // Clear various state.
+  ResetCryptoState();
   expect_sync_configuration_aborted_ = false;
   is_auth_in_progress_ = false;
   engine_initialized_ = false;
-  cached_passphrase_.clear();
-  encryption_pending_ = false;
-  encrypt_everything_ = false;
-  encrypted_types_ = syncer::SyncEncryptionHandler::SensitiveTypes();
-  passphrase_required_reason_ = syncer::REASON_PASSPHRASE_NOT_REQUIRED;
-  catch_up_configure_in_progress_ = false;
   access_token_.clear();
   request_access_token_retry_timer_.Stop();
   last_snapshot_ = syncer::SyncCycleSnapshot();
@@ -830,19 +794,19 @@ void ProfileSyncService::UpdateLastSyncedTime() {
   sync_prefs_.SetLastSyncedTime(base::Time::Now());
 }
 
-void ProfileSyncService::NotifyObservers() {
-  for (auto& observer : observers_)
-    observer.OnStateChanged();
-}
-
 void ProfileSyncService::NotifySyncCycleCompleted() {
   for (auto& observer : observers_)
-    observer.OnSyncCycleCompleted();
+    observer.OnSyncCycleCompleted(this);
 }
 
 void ProfileSyncService::NotifyForeignSessionUpdated() {
   for (auto& observer : observers_)
-    observer.OnForeignSessionUpdated();
+    observer.OnForeignSessionUpdated(this);
+}
+
+void ProfileSyncService::NotifyShutdown() {
+  for (auto& observer : observers_)
+    observer.OnSyncShutdown(this);
 }
 
 void ProfileSyncService::ClearStaleErrors() {
@@ -965,7 +929,7 @@ void ProfileSyncService::OnEngineInitialized(
 
   // Initialize local device info.
   local_device_->Initialize(cache_guid, signin_scoped_device_id,
-                            blocking_task_runner_);
+                            sync_client_->GetBlockingPool());
 
   if (protocol_event_observers_.might_have_observers()) {
     engine_->RequestBufferedProtocolEventsAndEnableForwarding();
@@ -974,11 +938,6 @@ void ProfileSyncService::OnEngineInitialized(
   if (type_debug_info_observers_.might_have_observers()) {
     engine_->EnableDirectoryTypeDebugInfoForwarding();
   }
-
-  // If we have a cached passphrase use it to decrypt/encrypt data now that the
-  // backend is initialized. We want to call this before notifying observers in
-  // case this operation affects the "passphrase required" status.
-  ConsumeCachedPassphraseIfPossible();
 
   // The very first time the backend initializes is effectively the first time
   // we can say we successfully "synced".  LastSyncedTime will only be null in
@@ -991,6 +950,14 @@ void ProfileSyncService::OnEngineInitialized(
       sync_client_->GetSyncApiComponentFactory()->CreateDataTypeManager(
           initial_types, debug_info_listener_, &data_type_controllers_, this,
           engine_.get(), this));
+
+  crypto_->SetSyncEngine(engine_.get());
+  crypto_->SetDataTypeManager(data_type_manager_.get());
+
+  // If we have a cached passphrase use it to decrypt/encrypt data now that the
+  // backend is initialized. We want to call this before notifying observers in
+  // case this operation affects the "passphrase required" status.
+  crypto_->ConsumeCachedPassphraseIfPossible();
 
   // Auto-start means IsFirstSetupComplete gets set automatically.
   if (start_behavior_ == AUTO_START && !IsFirstSetupComplete()) {
@@ -1141,86 +1108,6 @@ void ProfileSyncService::OnConnectionStatusChange(
   }
 }
 
-void ProfileSyncService::OnPassphraseRequired(
-    syncer::PassphraseRequiredReason reason,
-    const sync_pb::EncryptedData& pending_keys) {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  DCHECK(engine_);
-  DCHECK(engine_->IsNigoriEnabled());
-
-  // TODO(lipalani) : add this check to other locations as well.
-  if (HasUnrecoverableError()) {
-    // When unrecoverable error is detected we post a task to shutdown the
-    // engine. The task might not have executed yet.
-    return;
-  }
-
-  DVLOG(1) << "Passphrase required with reason: "
-           << syncer::PassphraseRequiredReasonToString(reason);
-  passphrase_required_reason_ = reason;
-
-  const syncer::ModelTypeSet types = GetPreferredDataTypes();
-  if (data_type_manager_) {
-    // Reconfigure without the encrypted types (excluded implicitly via the
-    // failed datatypes handler).
-    data_type_manager_->Configure(types, syncer::CONFIGURE_REASON_CRYPTO);
-  }
-
-  // Notify observers that the passphrase status may have changed.
-  NotifyObservers();
-}
-
-void ProfileSyncService::OnPassphraseAccepted() {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  DVLOG(1) << "Received OnPassphraseAccepted.";
-
-  // If the pending keys were resolved via keystore, it's possible we never
-  // consumed our cached passphrase. Clear it now.
-  if (!cached_passphrase_.empty())
-    cached_passphrase_.clear();
-
-  // Reset passphrase_required_reason_ since we know we no longer require the
-  // passphrase.
-  passphrase_required_reason_ = syncer::REASON_PASSPHRASE_NOT_REQUIRED;
-
-  // Make sure the data types that depend on the passphrase are started at
-  // this time.
-  const syncer::ModelTypeSet types = GetPreferredDataTypes();
-  if (data_type_manager_) {
-    // Re-enable any encrypted types if necessary.
-    data_type_manager_->Configure(types, syncer::CONFIGURE_REASON_CRYPTO);
-  }
-
-  NotifyObservers();
-}
-
-void ProfileSyncService::OnEncryptedTypesChanged(
-    syncer::ModelTypeSet encrypted_types,
-    bool encrypt_everything) {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  encrypted_types_ = encrypted_types;
-  encrypt_everything_ = encrypt_everything;
-  DCHECK(encrypt_everything_allowed_ || !encrypt_everything_);
-  DVLOG(1) << "Encrypted types changed to "
-           << syncer::ModelTypeSetToString(encrypted_types_)
-           << " (encrypt everything is set to "
-           << (encrypt_everything_ ? "true" : "false") << ")";
-  DCHECK(encrypted_types_.Has(syncer::PASSWORDS));
-
-  NotifyObservers();
-}
-
-void ProfileSyncService::OnEncryptionComplete() {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  DVLOG(1) << "Encryption complete";
-  if (encryption_pending_ && encrypt_everything_) {
-    encryption_pending_ = false;
-    // This is to nudge the integration tests when encryption is
-    // finished.
-    NotifyObservers();
-  }
-}
-
 void ProfileSyncService::OnMigrationNeededForTypes(syncer::ModelTypeSet types) {
   DCHECK(thread_checker_.CalledOnValidThread());
   DCHECK(engine_initialized_);
@@ -1275,44 +1162,15 @@ void ProfileSyncService::OnActionableError(const SyncProtocolError& error) {
     case syncer::RESET_LOCAL_SYNC_DATA:
       ShutdownImpl(syncer::DISABLE_SYNC);
       startup_controller_->TryStart();
-      UMA_HISTOGRAM_ENUMERATION(kClearServerDataEventsHistogramName,
-                                CLEAR_SERVER_DATA_RESET_LOCAL_DATA_RECEIVED,
-                                CLEAR_SERVER_DATA_MAX);
+      UMA_HISTOGRAM_ENUMERATION(
+          "Sync.ClearServerDataEvents",
+          syncer::CLEAR_SERVER_DATA_RESET_LOCAL_DATA_RECEIVED,
+          syncer::CLEAR_SERVER_DATA_MAX);
       break;
     default:
       NOTREACHED();
   }
   NotifyObservers();
-}
-
-void ProfileSyncService::OnLocalSetPassphraseEncryption(
-    const syncer::SyncEncryptionHandler::NigoriState& nigori_state) {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  if (!base::FeatureList::IsEnabled(
-          switches::kSyncClearDataOnPassphraseEncryption))
-    return;
-
-  // At this point the user has set a custom passphrase and we have received the
-  // updated nigori state. Time to cache the nigori state, and catch up the
-  // active data types.
-  UMA_HISTOGRAM_ENUMERATION(kClearServerDataEventsHistogramName,
-                            CLEAR_SERVER_DATA_STARTED, CLEAR_SERVER_DATA_MAX);
-  sync_prefs_.SetNigoriSpecificsForPassphraseTransition(
-      nigori_state.nigori_specifics);
-  sync_prefs_.SetPassphraseEncryptionTransitionInProgress(true);
-  BeginConfigureCatchUpBeforeClear();
-}
-
-void ProfileSyncService::BeginConfigureCatchUpBeforeClear() {
-  DCHECK(data_type_manager_);
-  DCHECK(!saved_nigori_state_);
-  saved_nigori_state_ =
-      base::MakeUnique<syncer::SyncEncryptionHandler::NigoriState>();
-  sync_prefs_.GetNigoriSpecificsForPassphraseTransition(
-      &saved_nigori_state_->nigori_specifics);
-  const syncer::ModelTypeSet types = GetActiveDataTypes();
-  catch_up_configure_in_progress_ = true;
-  data_type_manager_->Configure(types, syncer::CONFIGURE_REASON_CATCH_UP);
 }
 
 void ProfileSyncService::ClearAndRestartSyncForPassphraseEncryption() {
@@ -1334,8 +1192,17 @@ void ProfileSyncService::OnClearServerDataDone() {
   // nigori state.
   ShutdownImpl(syncer::DISABLE_SYNC);
   startup_controller_->TryStart();
-  UMA_HISTOGRAM_ENUMERATION(kClearServerDataEventsHistogramName,
-                            CLEAR_SERVER_DATA_SUCCEEDED, CLEAR_SERVER_DATA_MAX);
+  UMA_HISTOGRAM_ENUMERATION("Sync.ClearServerDataEvents",
+                            syncer::CLEAR_SERVER_DATA_SUCCEEDED,
+                            syncer::CLEAR_SERVER_DATA_MAX);
+}
+
+void ProfileSyncService::ClearServerDataForTest(const base::Closure& callback) {
+  DCHECK(thread_checker_.CalledOnValidThread());
+  // Sync has a restriction that the engine must be in configuration mode
+  // in order to run clear server data.
+  engine_->StartConfiguration();
+  engine_->ClearServerData(callback);
 }
 
 void ProfileSyncService::OnConfigureDone(
@@ -1346,7 +1213,7 @@ void ProfileSyncService::OnConfigureDone(
 
   // We should have cleared our cached passphrase before we get here (in
   // OnEngineInitialized()).
-  DCHECK(cached_passphrase_.empty());
+  DCHECK(crypto_->cached_passphrase().empty());
 
   if (!sync_configure_start_time_.is_null()) {
     if (configure_status_ == DataTypeManager::OK) {
@@ -1364,7 +1231,7 @@ void ProfileSyncService::OnConfigureDone(
 
   // Notify listeners that configuration is done.
   for (auto& observer : observers_)
-    observer.OnSyncConfigurationCompleted();
+    observer.OnSyncConfigurationCompleted(this);
 
   DVLOG(1) << "PSS OnConfigureDone called with status: " << configure_status_;
   // The possible status values:
@@ -1383,11 +1250,11 @@ void ProfileSyncService::OnConfigureDone(
 
   // Handle unrecoverable error.
   if (configure_status_ != DataTypeManager::OK) {
-    if (catch_up_configure_in_progress_) {
+    if (result.was_catch_up_configure) {
       // Record catchup configuration failure.
-      UMA_HISTOGRAM_ENUMERATION(kClearServerDataEventsHistogramName,
-                                CLEAR_SERVER_DATA_CATCHUP_FAILED,
-                                CLEAR_SERVER_DATA_MAX);
+      UMA_HISTOGRAM_ENUMERATION("Sync.ClearServerDataEvents",
+                                syncer::CLEAR_SERVER_DATA_CATCHUP_FAILED,
+                                syncer::CLEAR_SERVER_DATA_MAX);
     }
     // Something catastrophic had happened. We should only have one
     // error representing it.
@@ -1415,7 +1282,7 @@ void ProfileSyncService::OnConfigureDone(
 
   // This must be done before we start syncing with the server to avoid
   // sending unencrypted data up on a first time sync.
-  if (encryption_pending_)
+  if (crypto_->encryption_pending())
     engine_->EnableEncryptEverything();
   NotifyObservers();
 
@@ -1427,8 +1294,7 @@ void ProfileSyncService::OnConfigureDone(
     return;
   }
 
-  if (catch_up_configure_in_progress_) {
-    catch_up_configure_in_progress_ = false;
+  if (result.was_catch_up_configure) {
     ClearAndRestartSyncForPassphraseEncryption();
     return;
   }
@@ -1439,6 +1305,7 @@ void ProfileSyncService::OnConfigureDone(
 void ProfileSyncService::OnConfigureStart() {
   DCHECK(thread_checker_.CalledOnValidThread());
   sync_configure_start_time_ = base::Time::Now();
+  engine_->StartConfiguration();
   NotifyObservers();
 }
 
@@ -1525,6 +1392,7 @@ bool ProfileSyncService::IsFirstSetupInProgress() const {
 std::unique_ptr<syncer::SyncSetupInProgressHandle>
 ProfileSyncService::GetSetupInProgressHandle() {
   DCHECK(thread_checker_.CalledOnValidThread());
+
   if (++outstanding_setup_in_progress_handles_ == 1) {
     DCHECK(!startup_controller_->IsSetupInProgress());
     startup_controller_->SetSetupInProgress(true);
@@ -1601,7 +1469,8 @@ bool ProfileSyncService::HasUnrecoverableError() const {
 
 bool ProfileSyncService::IsPassphraseRequired() const {
   DCHECK(thread_checker_.CalledOnValidThread());
-  return passphrase_required_reason_ != syncer::REASON_PASSPHRASE_NOT_REQUIRED;
+  return crypto_->passphrase_required_reason() !=
+         syncer::REASON_PASSPHRASE_NOT_REQUIRED;
 }
 
 bool ProfileSyncService::IsPassphraseRequiredForDecryption() const {
@@ -1655,8 +1524,10 @@ void ProfileSyncService::UpdateSelectedTypesHistogram(
         syncer::user_selectable_type::PROXY_TABS,
       };
 
-  static_assert(39 == syncer::MODEL_TYPE_COUNT,
-                "custom config histogram must be updated");
+  static_assert(40 == syncer::MODEL_TYPE_COUNT,
+                "If adding a user selectable type, update "
+                "UserSelectableSyncType in user_selectable_sync_type.h and "
+                "histograms.xml.");
 
   if (!sync_everything) {
     const syncer::ModelTypeSet current_types = GetPreferredDataTypes();
@@ -1730,12 +1601,9 @@ void ProfileSyncService::ChangePreferredDataTypes(
 
 syncer::ModelTypeSet ProfileSyncService::GetActiveDataTypes() const {
   DCHECK(thread_checker_.CalledOnValidThread());
-  if (!IsSyncActive() || !ConfigurationDone())
+  if (!data_type_manager_)
     return syncer::ModelTypeSet();
-  const syncer::ModelTypeSet preferred_types = GetPreferredDataTypes();
-  const syncer::ModelTypeSet failed_types =
-      data_type_status_table_.GetFailedTypes();
-  return Difference(preferred_types, failed_types);
+  return data_type_manager_->GetActiveDataTypes();
 }
 
 syncer::SyncClient* ProfileSyncService::GetSyncClient() const {
@@ -1777,10 +1645,7 @@ syncer::ModelTypeSet ProfileSyncService::GetRegisteredDataTypes() const {
 
 bool ProfileSyncService::IsUsingSecondaryPassphrase() const {
   DCHECK(thread_checker_.CalledOnValidThread());
-  syncer::PassphraseType passphrase_type = GetPassphraseType();
-  return passphrase_type ==
-             syncer::PassphraseType::FROZEN_IMPLICIT_PASSPHRASE ||
-         passphrase_type == syncer::PassphraseType::CUSTOM_PASSPHRASE;
+  return crypto_->IsUsingSecondaryPassphrase();
 }
 
 std::string ProfileSyncService::GetCustomPassphraseKey() const {
@@ -1793,12 +1658,12 @@ std::string ProfileSyncService::GetCustomPassphraseKey() const {
 
 syncer::PassphraseType ProfileSyncService::GetPassphraseType() const {
   DCHECK(thread_checker_.CalledOnValidThread());
-  return engine_->GetPassphraseType();
+  return crypto_->GetPassphraseType();
 }
 
 base::Time ProfileSyncService::GetExplicitPassphraseTime() const {
   DCHECK(thread_checker_.CalledOnValidThread());
-  return engine_->GetExplicitPassphraseTime();
+  return crypto_->GetExplicitPassphraseTime();
 }
 
 bool ProfileSyncService::IsCryptographerReady(
@@ -1813,12 +1678,21 @@ void ProfileSyncService::SetPlatformSyncAllowedProvider(
   platform_sync_allowed_provider_ = platform_sync_allowed_provider;
 }
 
+// static
 syncer::ModelTypeStoreFactory ProfileSyncService::GetModelTypeStoreFactory(
-    ModelType type) {
-  return base::Bind(&ModelTypeStore::CreateStore, type,
-                    sync_data_folder_.Append(base::FilePath(kLevelDBFolderName))
-                        .AsUTF8Unsafe(),
-                    blocking_task_runner_);
+    ModelType type,
+    const base::FilePath& base_path,
+    base::SequencedWorkerPool* blocking_pool) {
+  // TODO(skym): Verify using AsUTF8Unsafe is okay here. Should work as long
+  // as the Local State file is guaranteed to be UTF-8.
+  std::string path = FormatSharedModelTypeStorePath(base_path).AsUTF8Unsafe();
+  base::SequencedWorkerPool::SequenceToken sequence_token =
+      blocking_pool->GetNamedSequenceToken(path);
+  scoped_refptr<base::SequencedTaskRunner> task_runner =
+      blocking_pool->GetSequencedTaskRunnerWithShutdownBehavior(
+          blocking_pool->GetNamedSequenceToken(path),
+          base::SequencedWorkerPool::SKIP_ON_SHUTDOWN);
+  return base::Bind(&ModelTypeStore::CreateStore, type, path, task_runner);
 }
 
 void ProfileSyncService::ConfigureDataTypeManager() {
@@ -2007,32 +1881,6 @@ std::unique_ptr<base::Value> ProfileSyncService::GetTypeStatusMap() {
   return std::move(result);
 }
 
-void ProfileSyncService::ConsumeCachedPassphraseIfPossible() {
-  // If no cached passphrase, or sync engine hasn't started up yet, just exit.
-  // If the engine isn't running yet, OnEngineInitialized() will call this
-  // method again after the engine starts up.
-  if (cached_passphrase_.empty() || !IsEngineInitialized())
-    return;
-
-  // Engine is up and running, so we can consume the cached passphrase.
-  std::string passphrase = cached_passphrase_;
-  cached_passphrase_.clear();
-
-  // If we need a passphrase to decrypt data, try the cached passphrase.
-  if (passphrase_required_reason() == syncer::REASON_DECRYPTION) {
-    if (SetDecryptionPassphrase(passphrase)) {
-      DVLOG(1) << "Cached passphrase successfully decrypted pending keys";
-      return;
-    }
-  }
-
-  // If we get here, we don't have pending keys (or at least, the passphrase
-  // doesn't decrypt them) - just try to re-encrypt using the encryption
-  // passphrase.
-  if (!IsUsingSecondaryPassphrase())
-    SetEncryptionPassphrase(passphrase, IMPLICIT);
-}
-
 void ProfileSyncService::RequestAccessToken() {
   // Only one active request at a time.
   if (access_token_request_ != nullptr)
@@ -2061,26 +1909,7 @@ void ProfileSyncService::RequestAccessToken() {
 void ProfileSyncService::SetEncryptionPassphrase(const std::string& passphrase,
                                                  PassphraseType type) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  // This should only be called when the engine has been initialized.
-  DCHECK(IsEngineInitialized());
-  DCHECK(!(type == IMPLICIT && IsUsingSecondaryPassphrase()))
-      << "Data is already encrypted using an explicit passphrase";
-  DCHECK(!(type == EXPLICIT &&
-           passphrase_required_reason_ == syncer::REASON_DECRYPTION))
-      << "Can not set explicit passphrase when decryption is needed.";
-
-  DVLOG(1) << "Setting " << (type == EXPLICIT ? "explicit" : "implicit")
-           << " passphrase for encryption.";
-  if (passphrase_required_reason_ == syncer::REASON_ENCRYPTION) {
-    // REASON_ENCRYPTION implies that the cryptographer does not have pending
-    // keys. Hence, as long as we're not trying to do an invalid passphrase
-    // change (e.g. explicit -> explicit or explicit -> implicit), we know this
-    // will succeed. If for some reason a new encryption key arrives via
-    // sync later, the SBH will trigger another OnPassphraseRequired().
-    passphrase_required_reason_ = syncer::REASON_PASSPHRASE_NOT_REQUIRED;
-    NotifyObservers();
-  }
-  engine_->SetEncryptionPassphrase(passphrase, type == EXPLICIT);
+  crypto_->SetEncryptionPassphrase(passphrase, type == EXPLICIT);
 }
 
 bool ProfileSyncService::SetDecryptionPassphrase(
@@ -2088,7 +1917,7 @@ bool ProfileSyncService::SetDecryptionPassphrase(
   DCHECK(thread_checker_.CalledOnValidThread());
   if (IsPassphraseRequired()) {
     DVLOG(1) << "Setting passphrase for decryption.";
-    bool result = engine_->SetDecryptionPassphrase(passphrase);
+    bool result = crypto_->SetDecryptionPassphrase(passphrase);
     UMA_HISTOGRAM_BOOLEAN("Sync.PassphraseDecryptionSucceeded", result);
     return result;
   } else {
@@ -2100,27 +1929,17 @@ bool ProfileSyncService::SetDecryptionPassphrase(
 
 bool ProfileSyncService::IsEncryptEverythingAllowed() const {
   DCHECK(thread_checker_.CalledOnValidThread());
-  return encrypt_everything_allowed_;
+  return crypto_->IsEncryptEverythingAllowed();
 }
 
 void ProfileSyncService::SetEncryptEverythingAllowed(bool allowed) {
   DCHECK(thread_checker_.CalledOnValidThread());
-  DCHECK(allowed || !IsEngineInitialized() || !IsEncryptEverythingEnabled());
-  encrypt_everything_allowed_ = allowed;
+  crypto_->SetEncryptEverythingAllowed(allowed);
 }
 
 void ProfileSyncService::EnableEncryptEverything() {
   DCHECK(thread_checker_.CalledOnValidThread());
-  DCHECK(IsEncryptEverythingAllowed());
-
-  // Tests override IsEngineInitialized() to always return true, so we
-  // must check that instead of |engine_initialized_|.
-  // TODO(akalin): Fix the above. :/
-  DCHECK(IsEngineInitialized());
-  // TODO(atwilson): Persist the encryption_pending_ flag to address the various
-  // problems around cancelling encryption in the background (crbug.com/119649).
-  if (!encrypt_everything_)
-    encryption_pending_ = true;
+  crypto_->EnableEncryptEverything();
 }
 
 bool ProfileSyncService::encryption_pending() const {
@@ -2128,21 +1947,17 @@ bool ProfileSyncService::encryption_pending() const {
   // We may be called during the setup process before we're
   // initialized (via IsEncryptedDatatypeEnabled and
   // IsPassphraseRequiredForDecryption).
-  return encryption_pending_;
+  return crypto_->encryption_pending();
 }
 
 bool ProfileSyncService::IsEncryptEverythingEnabled() const {
   DCHECK(thread_checker_.CalledOnValidThread());
-  DCHECK(engine_initialized_);
-  return encrypt_everything_ || encryption_pending_;
+  return crypto_->IsEncryptEverythingEnabled();
 }
 
 syncer::ModelTypeSet ProfileSyncService::GetEncryptedDataTypes() const {
   DCHECK(thread_checker_.CalledOnValidThread());
-  DCHECK(encrypted_types_.Has(syncer::PASSWORDS));
-  // We may be called during the setup process before we're
-  // initialized.  In this case, we default to the sensitive types.
-  return encrypted_types_;
+  return crypto_->GetEncryptedDataTypes();
 }
 
 void ProfileSyncService::OnSyncManagedPrefChange(bool is_sync_managed) {
@@ -2160,11 +1975,11 @@ void ProfileSyncService::GoogleSigninSucceeded(const std::string& account_id,
                                                const std::string& password) {
   DCHECK(thread_checker_.CalledOnValidThread());
   if (IsSyncRequested() && !password.empty()) {
-    cached_passphrase_ = password;
+    crypto_->CachePassphrase(password);
     // Try to consume the passphrase we just cached. If the sync engine
     // is not running yet, the passphrase will remain cached until the
     // engine starts up.
-    ConsumeCachedPassphraseIfPossible();
+    crypto_->ConsumeCachedPassphraseIfPossible();
   }
 #if defined(OS_CHROMEOS)
   RefreshSpareBootstrapToken(password);
@@ -2188,6 +2003,15 @@ void ProfileSyncService::OnGaiaAccountsInCookieUpdated(
     const std::vector<gaia::ListedAccount>& accounts,
     const std::vector<gaia::ListedAccount>& signed_out_accounts,
     const GoogleServiceAuthError& error) {
+  OnGaiaAccountsInCookieUpdatedWithCallback(accounts, signed_out_accounts,
+                                            error, base::Closure());
+}
+
+void ProfileSyncService::OnGaiaAccountsInCookieUpdatedWithCallback(
+    const std::vector<gaia::ListedAccount>& accounts,
+    const std::vector<gaia::ListedAccount>& signed_out_accounts,
+    const GoogleServiceAuthError& error,
+    const base::Closure& callback) {
   DCHECK(thread_checker_.CalledOnValidThread());
   if (!IsEngineInitialized())
     return;
@@ -2206,17 +2030,7 @@ void ProfileSyncService::OnGaiaAccountsInCookieUpdated(
 
   DVLOG(1) << "Cookie jar mismatch: " << cookie_jar_mismatch;
   DVLOG(1) << "Cookie jar empty: " << cookie_jar_empty;
-  engine_->OnCookieJarChanged(cookie_jar_mismatch, cookie_jar_empty);
-}
-
-void ProfileSyncService::AddObserver(syncer::SyncServiceObserver* observer) {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  observers_.AddObserver(observer);
-}
-
-void ProfileSyncService::RemoveObserver(syncer::SyncServiceObserver* observer) {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  observers_.RemoveObserver(observer);
+  engine_->OnCookieJarChanged(cookie_jar_mismatch, cookie_jar_empty, callback);
 }
 
 void ProfileSyncService::AddProtocolEventObserver(
@@ -2296,9 +2110,11 @@ class GetAllNodesRequestHelper
   virtual ~GetAllNodesRequestHelper();
 
   std::unique_ptr<base::ListValue> result_accumulator_;
-
   syncer::ModelTypeSet awaiting_types_;
   base::Callback<void(std::unique_ptr<base::ListValue>)> callback_;
+  base::ThreadChecker thread_checker_;
+
+  DISALLOW_COPY_AND_ASSIGN(GetAllNodesRequestHelper);
 };
 
 GetAllNodesRequestHelper::GetAllNodesRequestHelper(
@@ -2321,6 +2137,8 @@ GetAllNodesRequestHelper::~GetAllNodesRequestHelper() {
 void GetAllNodesRequestHelper::OnReceivedNodesForType(
     const syncer::ModelType type,
     std::unique_ptr<base::ListValue> node_list) {
+  DCHECK(thread_checker_.CalledOnValidThread());
+
   // Add these results to our list.
   std::unique_ptr<base::DictionaryValue> type_dict(new base::DictionaryValue());
   type_dict->SetString("type", ModelTypeToString(type));
@@ -2368,12 +2186,6 @@ void ProfileSyncService::GetAllNodes(
               it.Get(), GetUserShare()->directory.get()));
     }
   }
-}
-
-bool ProfileSyncService::HasObserver(
-    const syncer::SyncServiceObserver* observer) const {
-  DCHECK(thread_checker_.CalledOnValidThread());
-  return observers_.HasObserver(observer);
 }
 
 base::WeakPtr<syncer::JsController> ProfileSyncService::GetJsController() {
@@ -2548,7 +2360,7 @@ void ProfileSyncService::FlushDirectory() const {
 
 base::FilePath ProfileSyncService::GetDirectoryPathForTest() const {
   DCHECK(thread_checker_.CalledOnValidThread());
-  return sync_data_folder_;
+  return FormatSyncDataPath(base_directory_);
 }
 
 base::MessageLoop* ProfileSyncService::GetSyncLoopForTest() const {
@@ -2558,6 +2370,11 @@ base::MessageLoop* ProfileSyncService::GetSyncLoopForTest() const {
   } else {
     return nullptr;
   }
+}
+
+syncer::SyncEncryptionHandler::Observer*
+ProfileSyncService::GetEncryptionObserverForTest() const {
+  return crypto_.get();
 }
 
 void ProfileSyncService::RefreshTypesForTest(syncer::ModelTypeSet types) {
@@ -2639,5 +2456,4 @@ void ProfileSyncService::OnSetupInProgressHandleDestroyed() {
     ReconfigureDatatypeManager();
   NotifyObservers();
 }
-
 }  // namespace browser_sync

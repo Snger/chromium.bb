@@ -111,7 +111,11 @@ void GrGLGetDriverInfo(GrGLStandard standard,
         versionString = "";
     }
 
-    if (0 == strcmp(rendererString, "Chromium")) {
+    static const char kChromium[] = "Chromium";
+    char suffix[SK_ARRAY_COUNT(kChromium)];
+    if (0 == strcmp(rendererString, kChromium) ||
+        (3 == sscanf(versionString, "OpenGL ES %d.%d %8s", &major, &minor, suffix) &&
+         0 == strcmp(kChromium, suffix))) {
         *outDriver = kChromium_GrGLDriver;
         return;
     }
@@ -309,7 +313,17 @@ GrGLRenderer GrGLGetRendererFromString(const char* rendererString) {
                 }
             }
         }
-        if (strcmp("Mesa Offscreen", rendererString)) {
+        int intelNumber;
+        n = sscanf(rendererString, "Intel(R) Iris(TM) Graphics %d", &intelNumber);
+        if (1 != n) {
+            n = sscanf(rendererString, "Intel(R) HD Graphics %d", &intelNumber);
+        }
+        if (1 == n) {
+            if (intelNumber >= 6000 && intelNumber < 7000) {
+                return kIntel6xxx_GrGLRenderer;
+            }
+        }
+        if (0 == strcmp("Mesa Offscreen", rendererString)) {
             return kOSMesa_GrGLRenderer;
         }
     }

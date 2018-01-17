@@ -43,6 +43,8 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
 
     this._gutterContainer = this.listItemElement.createChild('div', 'gutter-container');
     this._gutterContainer.addEventListener('click', this._showContextMenu.bind(this));
+    var gutterMenuIcon = UI.Icon.create('largeicon-menu', 'gutter-menu-icon');
+    this._gutterContainer.appendChild(gutterMenuIcon);
     this._decorationsElement = this._gutterContainer.createChild('div', 'hidden');
 
     this._elementCloseTag = elementCloseTag;
@@ -104,7 +106,7 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
    */
   static populateForcedPseudoStateItems(subMenu, node) {
     const pseudoClasses = ['active', 'hover', 'focus', 'visited'];
-    var forcedPseudoState = SDK.CSSModel.fromNode(node).pseudoState(node);
+    var forcedPseudoState = node.domModel().cssModel().pseudoState(node);
     for (var i = 0; i < pseudoClasses.length; ++i) {
       var pseudoClassForced = forcedPseudoState.indexOf(pseudoClasses[i]) >= 0;
       subMenu.appendCheckboxItem(
@@ -117,7 +119,7 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
      * @param {boolean} enabled
      */
     function setPseudoStateCallback(pseudoState, enabled) {
-      SDK.CSSModel.fromNode(node).forcePseudoState(node, pseudoState, enabled);
+      node.domModel().cssModel().forcePseudoState(node, pseudoState, enabled);
     }
   }
 
@@ -237,6 +239,13 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
     }
   }
 
+  _createHint() {
+    if (this.listItemElement && !this._hintElement) {
+      this._hintElement = this.listItemElement.createChild('span', 'selected-hint');
+      this._hintElement.title = Common.UIString('Use $0 in the console to refer to this element.');
+    }
+  }
+
   /**
    * @override
    */
@@ -321,9 +330,12 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
   onselect(selectedByUser) {
     this.treeOutline.suppressRevealAndSelect = true;
     this.treeOutline.selectDOMNode(this._node, selectedByUser);
-    if (selectedByUser)
+    if (selectedByUser) {
       this._node.highlight();
+      Host.userMetrics.actionTaken(Host.UserMetrics.Action.ChangeInspectedNodeInElementsPanel);
+    }
     this._createSelection();
+    this._createHint();
     this.treeOutline.suppressRevealAndSelect = false;
     return true;
   }
@@ -637,7 +649,7 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
 
     this._editing = UI.InplaceEditor.startEditing(attribute, config);
 
-    this.listItemElement.getComponentSelection().setBaseAndExtent(elementForSelection, 0, elementForSelection, 1);
+    this.listItemElement.getComponentSelection().selectAllChildren(elementForSelection);
 
     return true;
   }
@@ -661,7 +673,7 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
     var config = new UI.InplaceEditor.Config(
         this._textNodeEditingCommitted.bind(this, textNode), this._editingCancelled.bind(this));
     this._editing = UI.InplaceEditor.startEditing(textNodeElement, config);
-    this.listItemElement.getComponentSelection().setBaseAndExtent(textNodeElement, 0, textNodeElement, 1);
+    this.listItemElement.getComponentSelection().selectAllChildren(textNodeElement);
 
     return true;
   }
@@ -715,7 +727,7 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
 
     var config = new UI.InplaceEditor.Config(editingComitted.bind(this), editingCancelled.bind(this), tagName);
     this._editing = UI.InplaceEditor.startEditing(tagNameElement, config);
-    this.listItemElement.getComponentSelection().setBaseAndExtent(tagNameElement, 0, tagNameElement, 1);
+    this.listItemElement.getComponentSelection().selectAllChildren(tagNameElement);
     return true;
   }
 
@@ -752,16 +764,48 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
       this.childrenListElement.style.display = 'none';
     // Append editor.
     this.listItemElement.appendChild(this._htmlEditElement);
-    this.listItemElement.classList.add('editing-as-html');
     this.treeOutline.element.addEventListener('mousedown', consume, false);
 
+    self.runtime.extension(UI.TextEditorFactory).instance().then(gotFactory.bind(this));
+
     /**
-     * @param {!Element} element
-     * @param {string} newValue
+     * @param {!UI.TextEditorFactory} factory
      * @this {Elements.ElementsTreeElement}
      */
-    function commit(element, newValue) {
-      commitCallback(initialValue, newValue);
+    function gotFactory(factory) {
+      var editor = factory.createEditor({
+        lineNumbers: false,
+        lineWrapping: Common.moduleSetting('domWordWrap').get(),
+        mimeType: 'text/html',
+        autoHeight: false,
+        padBottom: false
+      });
+      this._editing =
+          {commit: commit.bind(this), cancel: dispose.bind(this), editor: editor, resize: resize.bind(this)};
+      resize.call(this);
+
+      editor.widget().show(this._htmlEditElement);
+      editor.setText(initialValue);
+      editor.widget().focus();
+      editor.widget().element.addEventListener('blur', this._editing.commit, true);
+      editor.widget().element.addEventListener('keydown', keydown.bind(this), true);
+
+      this.treeOutline.setMultilineEditing(this._editing);
+    }
+
+    /**
+     * @this {Elements.ElementsTreeElement}
+     */
+    function resize() {
+      this._htmlEditElement.style.width = this.treeOutline.visibleWidth() - this._computeLeftIndent() - 30 + 'px';
+      this._editing.editor.onResize();
+    }
+
+    /**
+     * @this {Elements.ElementsTreeElement}
+     */
+    function commit() {
+      commitCallback(initialValue, this._editing.editor.text());
       dispose.call(this);
     }
 
@@ -769,11 +813,10 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
      * @this {Elements.ElementsTreeElement}
      */
     function dispose() {
-      disposeCallback();
+      this._editing.editor.widget().element.removeEventListener('blur', this._editing.commit, true);
+      this._editing.editor.widget().detach();
       delete this._editing;
-      this.treeOutline.setMultilineEditing(null);
 
-      this.listItemElement.classList.remove('editing-as-html');
       // Remove editor.
       this.listItemElement.removeChild(this._htmlEditElement);
       delete this._htmlEditElement;
@@ -787,24 +830,29 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
         child = child.nextSibling;
       }
 
-      this.treeOutline.element.removeEventListener('mousedown', consume, false);
-      this.treeOutline.focus();
+      if (this.treeOutline) {
+        this.treeOutline.setMultilineEditing(null);
+        this.treeOutline.element.removeEventListener('mousedown', consume, false);
+        this.treeOutline.focus();
+      }
+
+      disposeCallback();
     }
 
-    var config = new UI.InplaceEditor.Config(commit.bind(this), dispose.bind(this));
-    config.setMultilineOptions(
-        initialValue, {name: 'xml', htmlMode: true}, 'web-inspector-html', Common.moduleSetting('domWordWrap').get(),
-        true);
-    UI.InplaceEditor.startMultilineEditing(this._htmlEditElement, config).then(markAsBeingEdited.bind(this));
-
     /**
-     * @param {!Object} controller
-     * @this {Elements.ElementsTreeElement}
+     * @param {!Event} event
+     * @this {!Elements.ElementsTreeElement}
      */
-    function markAsBeingEdited(controller) {
-      this._editing = /** @type {!UI.InplaceEditor.Controller} */ (controller);
-      this._editing.setWidth(this.treeOutline.visibleWidth() - this._computeLeftIndent());
-      this.treeOutline.setMultilineEditing(this._editing);
+    function keydown(event) {
+      var isMetaOrCtrl = UI.KeyboardShortcut.eventHasCtrlOrMeta(/** @type {!KeyboardEvent} */ (event)) &&
+          !event.altKey && !event.shiftKey;
+      if (isEnterKey(event) && (isMetaOrCtrl || event.isMetaOrCtrlForTest)) {
+        event.consume(true);
+        this._editing.commit();
+      } else if (event.keyCode === UI.KeyboardShortcut.Keys.Esc.code || event.key === 'Escape') {
+        event.consume(true);
+        this._editing.cancel();
+      }
     }
   }
 
@@ -825,6 +873,7 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
         return;
 
       treeOutline.runPendingUpdates();
+      treeOutline.focus();
 
       // Search for the attribute's position, and then decide where to move to.
       var attributes = this._node.attributes();
@@ -1005,11 +1054,14 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
       this.updateDecorations();
       this.listItemElement.insertBefore(this._gutterContainer, this.listItemElement.firstChild);
       delete this._highlightResult;
+      delete this.selectionElement;
+      delete this._hintElement;
+      if (this.selected) {
+        this._createSelection();
+        this._createHint();
+      }
     }
 
-    delete this.selectionElement;
-    if (this.selected)
-      this._createSelection();
     this._highlightSearchResults();
   }
 
@@ -1300,7 +1352,7 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
 
   /**
    * @param {string} text
-   * @return {!{text: string, entityRanges: !Array.<!Common.SourceRange>}}
+   * @return {!{text: string, entityRanges: !Array.<!TextUtils.SourceRange>}}
    */
   _convertWhitespaceToEntities(text) {
     var result = '';
@@ -1385,14 +1437,14 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
           var text = node.nodeValue();
           newNode.textContent = text.startsWith('\n') ? text.substring(1) : text;
 
-          var javascriptSyntaxHighlighter = new UI.DOMSyntaxHighlighter('text/javascript', true);
+          var javascriptSyntaxHighlighter = new UI.SyntaxHighlighter('text/javascript', true);
           javascriptSyntaxHighlighter.syntaxHighlightNode(newNode).then(updateSearchHighlight.bind(this));
         } else if (node.parentNode && node.parentNode.nodeName().toLowerCase() === 'style') {
           var newNode = titleDOM.createChild('span', 'webkit-html-text-node webkit-html-css-node');
           var text = node.nodeValue();
           newNode.textContent = text.startsWith('\n') ? text.substring(1) : text;
 
-          var cssSyntaxHighlighter = new UI.DOMSyntaxHighlighter('text/css', true);
+          var cssSyntaxHighlighter = new UI.SyntaxHighlighter('text/css', true);
           cssSyntaxHighlighter.syntaxHighlightNode(newNode).then(updateSearchHighlight.bind(this));
         } else {
           titleDOM.createTextChild('"');
@@ -1469,7 +1521,7 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
    * @param {boolean=} startEditing
    */
   toggleEditAsHTML(callback, startEditing) {
-    if (this._editing && this._htmlEditElement && UI.isBeingEdited(this._htmlEditElement)) {
+    if (this._editing && this._htmlEditElement) {
       this._editing.commit();
       return;
     }
@@ -1522,13 +1574,13 @@ Elements.ElementsTreeElement = class extends UI.TreeElement {
     var match = regexObject.exec(text);
     var matchRanges = [];
     while (match) {
-      matchRanges.push(new Common.SourceRange(match.index, match[0].length));
+      matchRanges.push(new TextUtils.SourceRange(match.index, match[0].length));
       match = regexObject.exec(text);
     }
 
     // Fall back for XPath, etc. matches.
     if (!matchRanges.length)
-      matchRanges.push(new Common.SourceRange(0, text.length));
+      matchRanges.push(new TextUtils.SourceRange(0, text.length));
 
     this._highlightResult = [];
     UI.highlightSearchResults(this.listItemElement, matchRanges, this._highlightResult);
@@ -1570,3 +1622,6 @@ Elements.ElementsTreeElement.ForbiddenClosingTagElements = new Set([
 
 // These tags we do not allow editing their tag name.
 Elements.ElementsTreeElement.EditTagBlacklist = new Set(['html', 'head', 'body']);
+
+/** @typedef {{cancel: function(), commit: function(), resize: function(), editor:!UI.TextEditor}} */
+Elements.MultilineEditorController;

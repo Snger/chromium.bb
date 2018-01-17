@@ -11,6 +11,7 @@
 #include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/threading/thread_checker.h"
+#include "components/arc/common/notifications.mojom.h"
 #include "components/signin/core/account_id/account_id.h"
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/arc/notification/arc_notification_manager.h"
@@ -38,11 +39,15 @@ class ArcNotificationItem {
   void Close(bool by_user);
   void Click();
   void ButtonClick(int button_index);
+  void OpenSettings();
+  bool IsOpeningSettingsSupported() const;
+  void ToggleExpansion();
 
   const std::string& notification_key() const { return notification_key_; }
 
  protected:
-  static int ConvertAndroidPriority(int android_priority);
+  static int ConvertAndroidPriority(
+      mojom::ArcNotificationPriority android_priority);
 
   // Checks whether there is on-going |notification_|.
   bool HasPendingNotification();

@@ -32,9 +32,8 @@
 #define UnacceleratedImageBufferSurface_h
 
 #include "platform/graphics/ImageBufferSurface.h"
+#include "platform/graphics/paint/PaintCanvas.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
-
-class SkSurface;
 
 namespace blink {
 
@@ -46,19 +45,20 @@ class PLATFORM_EXPORT UnacceleratedImageBufferSurface
  public:
   UnacceleratedImageBufferSurface(
       const IntSize&,
-      OpacityMode = NonOpaque,
-      ImageInitializationMode = InitializeImagePixels,
+      OpacityMode = kNonOpaque,
+      ImageInitializationMode = kInitializeImagePixels,
       sk_sp<SkColorSpace> = nullptr,
       SkColorType = kN32_SkColorType);
   ~UnacceleratedImageBufferSurface() override;
 
-  SkCanvas* canvas() override;
-  bool isValid() const override;
+  PaintCanvas* Canvas() override;
+  bool IsValid() const override;
 
-  sk_sp<SkImage> newImageSnapshot(AccelerationHint, SnapshotReason) override;
+  sk_sp<SkImage> NewImageSnapshot(AccelerationHint, SnapshotReason) override;
 
  private:
-  sk_sp<SkSurface> m_surface;
+  sk_sp<SkSurface> surface_;
+  std::unique_ptr<PaintCanvas> canvas_;
 };
 
 }  // namespace blink

@@ -121,6 +121,7 @@ int frame_bits_per_raw_sample = 0;
 float max_error_rate  = 2.0/3;
 int filter_nbthreads = 0;
 int filter_complex_nbthreads = 0;
+int vstats_version = 2;
 
 
 static int intra_only         = 0;
@@ -735,10 +736,6 @@ static void add_input_streams(OptionsContext *o, AVFormatContext *ic)
             // avformat_find_stream_info() doesn't set this for us anymore.
             ist->dec_ctx->framerate = st->avg_frame_rate;
 
-            ist->resample_height  = ist->dec_ctx->height;
-            ist->resample_width   = ist->dec_ctx->width;
-            ist->resample_pix_fmt = ist->dec_ctx->pix_fmt;
-
             MATCH_PER_STREAM_OPT(frame_rates, str, framerate, ic, st);
             if (framerate && av_parse_video_rate(&ist->framerate,
                                                  framerate) < 0) {
@@ -803,12 +800,6 @@ static void add_input_streams(OptionsContext *o, AVFormatContext *ic)
             ist->guess_layout_max = INT_MAX;
             MATCH_PER_STREAM_OPT(guess_layout_max, i, ist->guess_layout_max, ic, st);
             guess_input_channel_layout(ist);
-
-            ist->resample_sample_fmt     = ist->dec_ctx->sample_fmt;
-            ist->resample_sample_rate    = ist->dec_ctx->sample_rate;
-            ist->resample_channels       = ist->dec_ctx->channels;
-            ist->resample_channel_layout = ist->dec_ctx->channel_layout;
-
             break;
         case AVMEDIA_TYPE_DATA:
         case AVMEDIA_TYPE_SUBTITLE: {
@@ -1231,7 +1222,7 @@ static OutputStream *new_output_stream(OptionsContext *o, AVFormatContext *oc, e
     OutputStream *ost;
     AVStream *st = avformat_new_stream(oc, NULL);
     int idx      = oc->nb_streams - 1, ret = 0;
-    const char *bsfs = NULL;
+    const char *bsfs = NULL, *time_base = NULL;
     char *next, *codec_tag = NULL;
     double qscale = -1;
     int i;
@@ -1306,6 +1297,17 @@ static OutputStream *new_output_stream(OptionsContext *o, AVFormatContext *oc, e
         }
     } else {
         ost->encoder_opts = filter_codec_opts(o->g->codec_opts, AV_CODEC_ID_NONE, oc, st, NULL);
+    }
+
+    MATCH_PER_STREAM_OPT(time_bases, str, time_base, oc, st);
+    if (time_base) {
+        AVRational q;
+        if (av_parse_ratio(&q, time_base, INT_MAX, 0, NULL) < 0 ||
+            q.num <= 0 || q.den <= 0) {
+            av_log(NULL, AV_LOG_FATAL, "Invalid time base: %s\n", time_base);
+            exit_program(1);
+        }
+        st->time_base = q;
     }
 
     ost->max_frames = INT64_MAX;
@@ -2003,33 +2005,6 @@ static int init_complex_filters(void)
 
     for (i = 0; i < nb_filtergraphs; i++) {
         ret = init_complex_filtergraph(filtergraphs[i]);
-        if (ret < 0)
-            return ret;
-    }
-    return 0;
-}
-
-static int configure_complex_filters(void)
-{
-    int i, j, ret = 0;
-
-    for (i = 0; i < nb_filtergraphs; i++) {
-        FilterGraph *fg = filtergraphs[i];
-
-        if (filtergraph_is_simple(fg))
-            continue;
-
-        for (j = 0; j < fg->nb_inputs; j++) {
-            ret = ifilter_parameters_from_decoder(fg->inputs[j],
-                                                  fg->inputs[j]->ist->dec_ctx);
-            if (ret < 0) {
-                av_log(NULL, AV_LOG_ERROR,
-                       "Error initializing filtergraph %d input %d\n", i, j);
-                return ret;
-            }
-        }
-
-        ret = configure_filtergraph(filtergraphs[i]);
         if (ret < 0)
             return ret;
     }
@@ -3279,13 +3254,6 @@ int ffmpeg_parse_options(int argc, char **argv)
         goto fail;
     }
 
-    /* configure the complex filtergraphs */
-    ret = configure_complex_filters();
-    if (ret < 0) {
-        av_log(NULL, AV_LOG_FATAL, "Error configuring complex filters.\n");
-        goto fail;
-    }
-
 fail:
     uninit_parse_context(&octx);
     if (ret < 0) {
@@ -3536,6 +3504,8 @@ const OptionDef options[] = {
         "dump video coding statistics to file" },
     { "vstats_file",  OPT_VIDEO | HAS_ARG | OPT_EXPERT ,                         { .func_arg = opt_vstats_file },
         "dump video coding statistics to file", "file" },
+    { "vstats_version",  OPT_VIDEO | OPT_INT | HAS_ARG | OPT_EXPERT ,            { &vstats_version },
+        "Version of the vstats format to use."},
     { "vf",           OPT_VIDEO | HAS_ARG  | OPT_PERFILE | OPT_OUTPUT,           { .func_arg = opt_video_filters },
         "set video filters", "filter_graph" },
     { "intra_matrix", OPT_VIDEO | HAS_ARG | OPT_EXPERT  | OPT_STRING | OPT_SPEC |
@@ -3649,6 +3619,9 @@ const OptionDef options[] = {
     { "sdp_file", HAS_ARG | OPT_EXPERT | OPT_OUTPUT, { .func_arg = opt_sdp_file },
         "specify a file in which to print sdp information", "file" },
 
+    { "time_base", HAS_ARG | OPT_STRING | OPT_EXPERT | OPT_SPEC | OPT_OUTPUT, { .off = OFFSET(time_bases) },
+        "set the desired time base hint for output stream (1:24, 1:48000 or 0.04166, 2.0833e-5)", "ratio" },
+
     { "bsf", HAS_ARG | OPT_STRING | OPT_SPEC | OPT_EXPERT | OPT_OUTPUT, { .off = OFFSET(bitstream_filters) },
         "A comma-separated list of bitstream filters", "bitstream_filters" },
     { "absf", HAS_ARG | OPT_AUDIO | OPT_EXPERT| OPT_PERFILE | OPT_OUTPUT, { .func_arg = opt_old2new },
@@ -3677,6 +3650,11 @@ const OptionDef options[] = {
 #if CONFIG_VAAPI
     { "vaapi_device", HAS_ARG | OPT_EXPERT, { .func_arg = opt_vaapi_device },
         "set VAAPI hardware device (DRM path or X11 display name)", "device" },
+#endif
+
+#if CONFIG_QSV
+    { "qsv_device", HAS_ARG | OPT_STRING | OPT_EXPERT, { &qsv_device },
+        "set QSV hardware device (DirectX adapter index, DRM path or X11 display name)", "device"},
 #endif
 
     { NULL, },

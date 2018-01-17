@@ -6,16 +6,16 @@
 
 #include "xfa/fxfa/parser/cxfa_script.h"
 
-#include "xfa/fxfa/parser/xfa_object.h"
+#include "xfa/fxfa/parser/cxfa_node.h"
 
 CXFA_Script::CXFA_Script(CXFA_Node* pNode) : CXFA_Data(pNode) {}
 
 XFA_SCRIPTTYPE CXFA_Script::GetContentType() {
   CFX_WideStringC cData;
   if (m_pNode->TryCData(XFA_ATTRIBUTE_ContentType, cData, false)) {
-    if (cData == FX_WSTRC(L"application/x-javascript"))
+    if (cData == L"application/x-javascript")
       return XFA_SCRIPTTYPE_Javascript;
-    if (cData == FX_WSTRC(L"application/x-formcalc"))
+    if (cData == L"application/x-formcalc")
       return XFA_SCRIPTTYPE_Formcalc;
     return XFA_SCRIPTTYPE_Unkown;
   }

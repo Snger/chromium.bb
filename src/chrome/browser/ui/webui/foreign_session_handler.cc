@@ -229,11 +229,12 @@ void ForeignSessionHandler::RegisterMessages() {
                  base::Unretained(this)));
 }
 
-void ForeignSessionHandler::OnSyncConfigurationCompleted() {
+void ForeignSessionHandler::OnSyncConfigurationCompleted(
+    syncer::SyncService* sync) {
   HandleGetForeignSessions(nullptr);
 }
 
-void ForeignSessionHandler::OnForeignSessionUpdated() {
+void ForeignSessionHandler::OnForeignSessionUpdated(syncer::SyncService* sync) {
   HandleGetForeignSessions(nullptr);
 }
 
@@ -300,7 +301,7 @@ void ForeignSessionHandler::HandleGetForeignSessions(
         // Order tabs by visual order within window.
         for (const auto& window_pair : session->windows) {
           std::unique_ptr<base::DictionaryValue> window_data(
-              SessionWindowToValue(*window_pair.second.get()));
+              SessionWindowToValue(window_pair.second->wrapped_window));
           if (window_data.get())
             window_list->Append(std::move(window_data));
         }

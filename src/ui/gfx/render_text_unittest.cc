@@ -62,8 +62,9 @@ class RenderTextTestApi {
  public:
   RenderTextTestApi(RenderText* render_text) : render_text_(render_text) {}
 
-  static SkPaint& GetRendererPaint(internal::SkiaTextRenderer* renderer) {
-    return renderer->paint_;
+  static cc::PaintFlags& GetRendererPaint(
+      internal::SkiaTextRenderer* renderer) {
+    return renderer->flags_;
   }
 
   // Callers should ensure that the associated RenderText object is a
@@ -113,6 +114,10 @@ class RenderTextTestApi {
 
   Vector2d GetAlignmentOffset(size_t line_number) {
     return render_text_->GetAlignmentOffset(line_number);
+  }
+
+  int GetDisplayTextBaseline() {
+    return render_text_->GetDisplayTextBaseline();
   }
 
  private:
@@ -443,7 +448,7 @@ class RenderTextTest : public testing::Test,
     return nullptr;
   }
 
-  SkPaint& GetRendererPaint() {
+  cc::PaintFlags& GetRendererPaint() {
     return test::RenderTextTestApi::GetRendererPaint(renderer());
   }
 
@@ -473,10 +478,14 @@ class RenderTextTest : public testing::Test,
   }
 #endif
 
-  Rect GetSelectionBoundsUnion() {
+  Rect GetSubstringBoundsUnion(const Range& range) {
     const std::vector<Rect> bounds =
-        render_text_->GetSubstringBoundsForTesting(render_text_->selection());
+        render_text_->GetSubstringBoundsForTesting(range);
     return std::accumulate(bounds.begin(), bounds.end(), Rect(), UnionRects);
+  }
+
+  Rect GetSelectionBoundsUnion() {
+    return GetSubstringBoundsUnion(render_text_->selection());
   }
 
   Canvas* canvas() { return &canvas_; }
@@ -2335,6 +2344,45 @@ TEST_P(RenderTextTest, MinLineHeight) {
   EXPECT_EQ(default_size.width(), taller_size.width());
 }
 
+// Check that, for Latin characters, typesetting text in the default fonts and
+// sizes does not discover any glyphs that would exceed the line spacing
+// recommended by gfx::Font.
+// Disabled since this relies on machine configuration. http://crbug.com/701241.
+TEST_P(RenderTextTest, DISABLED_DefaultLineHeights) {
+  RenderText* render_text = GetRenderText();
+  render_text->SetText(
+      ASCIIToUTF16("A quick brown fox jumped over the lazy dog!"));
+
+#if defined(OS_MACOSX)
+  const FontList body2_font = FontList().DeriveWithSizeDelta(-1);
+#else
+  const FontList body2_font;
+#endif
+
+  const FontList headline_font = body2_font.DeriveWithSizeDelta(8);
+  const FontList title_font = body2_font.DeriveWithSizeDelta(3);
+  const FontList body1_font = body2_font.DeriveWithSizeDelta(1);
+#if defined(OS_WIN)
+  const FontList button_font =
+      body2_font.DeriveWithWeight(gfx::Font::Weight::BOLD);
+#else
+  const FontList button_font =
+      body2_font.DeriveWithWeight(gfx::Font::Weight::MEDIUM);
+#endif
+
+  EXPECT_EQ(12, body2_font.GetFontSize());
+  EXPECT_EQ(20, headline_font.GetFontSize());
+  EXPECT_EQ(15, title_font.GetFontSize());
+  EXPECT_EQ(13, body1_font.GetFontSize());
+  EXPECT_EQ(12, button_font.GetFontSize());
+
+  for (const auto& font :
+       {headline_font, title_font, body1_font, body2_font, button_font}) {
+    render_text->SetFontList(font);
+    EXPECT_EQ(font.GetHeight(), render_text->GetStringSizeF().height());
+  }
+}
+
 TEST_P(RenderTextTest, SetFontList) {
   RenderText* render_text = GetRenderText();
   render_text->SetFontList(
@@ -3429,7 +3477,7 @@ TEST_P(RenderTextHarfBuzzTest, HarfBuzz_SubglyphGraphemeCases) {
     test_api()->EnsureLayout();
     internal::TextRunList* run_list = GetHarfBuzzRunList();
     ASSERT_EQ(1U, run_list->size());
-    internal::TextRunHarfBuzz* run = run_list->runs()[0];
+    internal::TextRunHarfBuzz* run = run_list->runs()[0].get();
 
     auto first_grapheme_bounds = run->GetGraphemeBounds(render_text, 0);
     EXPECT_EQ(first_grapheme_bounds, run->GetGraphemeBounds(render_text, 1));
@@ -3608,7 +3656,7 @@ TEST_P(RenderTextHarfBuzzTest, HarfBuzz_NonExistentFont) {
   test_api()->EnsureLayout();
   internal::TextRunList* run_list = GetHarfBuzzRunList();
   ASSERT_EQ(1U, run_list->size());
-  internal::TextRunHarfBuzz* run = run_list->runs()[0];
+  internal::TextRunHarfBuzz* run = run_list->runs()[0].get();
   ShapeRunWithFont(render_text->text(), Font("TheFontThatDoesntExist", 13),
                    FontRenderParams(), run);
 }
@@ -3754,15 +3802,17 @@ TEST_P(RenderTextTest, TextDoesntClip) {
   const Size kCanvasSize(300, 50);
   const int kTestSize = 10;
 
-  sk_sp<SkSurface> surface =
-      SkSurface::MakeRasterN32Premul(kCanvasSize.width(), kCanvasSize.height());
-  Canvas canvas(surface->getCanvas(), 1.0f);
+  SkBitmap bitmap;
+  bitmap.allocPixels(
+      SkImageInfo::MakeN32Premul(kCanvasSize.width(), kCanvasSize.height()));
+  cc::SkiaPaintCanvas paint_canvas(bitmap);
+  Canvas canvas(&paint_canvas, 1.0f);
   RenderText* render_text = GetRenderText();
   render_text->SetHorizontalAlignment(ALIGN_LEFT);
   render_text->SetColor(SK_ColorBLACK);
 
   for (auto* string : kTestStrings) {
-    surface->getCanvas()->clear(SK_ColorWHITE);
+    paint_canvas.clear(SK_ColorWHITE);
     render_text->SetText(WideToUTF16(string));
     const Size string_size = render_text->GetStringSize();
     render_text->ApplyBaselineStyle(SUPERSCRIPT, Range(1, 2));
@@ -3778,9 +3828,7 @@ TEST_P(RenderTextTest, TextDoesntClip) {
 
     render_text->Draw(&canvas);
     ASSERT_LT(string_size.width() + kTestSize, kCanvasSize.width());
-    SkPixmap pixmap;
-    surface->peekPixels(&pixmap);
-    const uint32_t* buffer = static_cast<const uint32_t*>(pixmap.addr());
+    const uint32_t* buffer = static_cast<const uint32_t*>(bitmap.getPixels());
     ASSERT_NE(nullptr, buffer);
     TestRectangleBuffer rect_buffer(string, buffer, kCanvasSize.width(),
                                     kCanvasSize.height());
@@ -3847,15 +3895,17 @@ TEST_P(RenderTextTest, TextDoesClip) {
   const Size kCanvasSize(300, 50);
   const int kTestSize = 10;
 
-  sk_sp<SkSurface> surface =
-      SkSurface::MakeRasterN32Premul(kCanvasSize.width(), kCanvasSize.height());
-  Canvas canvas(surface->getCanvas(), 1.0f);
+  SkBitmap bitmap;
+  bitmap.allocPixels(
+      SkImageInfo::MakeN32Premul(kCanvasSize.width(), kCanvasSize.height()));
+  cc::SkiaPaintCanvas paint_canvas(bitmap);
+  Canvas canvas(&paint_canvas, 1.0f);
   RenderText* render_text = GetRenderText();
   render_text->SetHorizontalAlignment(ALIGN_LEFT);
   render_text->SetColor(SK_ColorBLACK);
 
   for (auto* string : kTestStrings) {
-    surface->getCanvas()->clear(SK_ColorWHITE);
+    paint_canvas.clear(SK_ColorWHITE);
     render_text->SetText(WideToUTF16(string));
     const Size string_size = render_text->GetStringSize();
     int fake_width = string_size.width() / 2;
@@ -3865,9 +3915,7 @@ TEST_P(RenderTextTest, TextDoesClip) {
     render_text->set_clip_to_display_rect(true);
     render_text->Draw(&canvas);
     ASSERT_LT(string_size.width() + kTestSize, kCanvasSize.width());
-    SkPixmap pixmap;
-    surface->peekPixels(&pixmap);
-    const uint32_t* buffer = static_cast<const uint32_t*>(pixmap.addr());
+    const uint32_t* buffer = static_cast<const uint32_t*>(bitmap.getPixels());
     ASSERT_NE(nullptr, buffer);
     TestRectangleBuffer rect_buffer(string, buffer, kCanvasSize.width(),
                                     kCanvasSize.height());
@@ -4160,6 +4208,85 @@ TEST_P(RenderTextHarfBuzzTest, GetDecoratedWordAtPoint_RTL) {
   }
 }
 
+// Test that GetDecoratedWordAtPoint behaves correctly for multiline text.
+TEST_P(RenderTextHarfBuzzTest, GetDecoratedWordAtPoint_Multiline) {
+  const base::string16 text = ASCIIToUTF16("a b\n..\ncd.");
+  const size_t kWordOneIndex = 0;    // Index of character 'a'.
+  const size_t kWordTwoIndex = 2;    // Index of character 'b'.
+  const size_t kWordThreeIndex = 7;  // Index of character 'c'.
+
+  // Set up render text.
+  RenderText* render_text = GetRenderText();
+  render_text->SetMultiline(true);
+  render_text->SetDisplayRect(Rect(500, 500));
+  render_text->SetText(text);
+  render_text->ApplyWeight(Font::Weight::SEMIBOLD, Range(0, 3));
+  render_text->ApplyStyle(UNDERLINE, true, Range(1, 7));
+  render_text->ApplyStyle(STRIKE, true, Range(1, 8));
+  render_text->ApplyStyle(ITALIC, true, Range(5, 9));
+
+  // Set up test expectations.
+  const std::vector<RenderText::FontSpan> font_spans =
+      render_text->GetFontSpansForTesting();
+
+  DecoratedText expected_word_1;
+  expected_word_1.text = ASCIIToUTF16("a");
+  expected_word_1.attributes.push_back(CreateRangedAttribute(
+      font_spans, 0, kWordOneIndex, Font::Weight::SEMIBOLD, 0));
+  const Rect left_glyph_word_1 =
+      GetSubstringBoundsUnion(Range(kWordOneIndex, kWordOneIndex + 1));
+
+  DecoratedText expected_word_2;
+  expected_word_2.text = ASCIIToUTF16("b");
+  expected_word_2.attributes.push_back(CreateRangedAttribute(
+      font_spans, 0, kWordTwoIndex, Font::Weight::SEMIBOLD,
+      UNDERLINE_MASK | STRIKE_MASK));
+  const Rect left_glyph_word_2 =
+      GetSubstringBoundsUnion(Range(kWordTwoIndex, kWordTwoIndex + 1));
+
+  DecoratedText expected_word_3;
+  expected_word_3.text = ASCIIToUTF16("cd");
+  expected_word_3.attributes.push_back(
+      CreateRangedAttribute(font_spans, 0, kWordThreeIndex,
+                            Font::Weight::NORMAL, STRIKE_MASK | ITALIC_MASK));
+  expected_word_3.attributes.push_back(CreateRangedAttribute(
+      font_spans, 1, kWordThreeIndex + 1, Font::Weight::NORMAL, ITALIC_MASK));
+
+  const Rect left_glyph_word_3 =
+      GetSubstringBoundsUnion(Range(kWordThreeIndex, kWordThreeIndex + 1));
+
+  DecoratedText decorated_word;
+  Point baseline_point;
+  {
+    // Query to the left of the first line.
+    EXPECT_TRUE(render_text->GetDecoratedWordAtPoint(
+        Point(-5, GetCursorYForTesting(0)), &decorated_word, &baseline_point));
+    VerifyDecoratedWordsAreEqual(expected_word_1, decorated_word);
+    EXPECT_TRUE(left_glyph_word_1.Contains(baseline_point));
+  }
+  {
+    // Query on the second line.
+    EXPECT_TRUE(render_text->GetDecoratedWordAtPoint(
+        Point(5, GetCursorYForTesting(1)), &decorated_word, &baseline_point));
+    VerifyDecoratedWordsAreEqual(expected_word_2, decorated_word);
+    EXPECT_TRUE(left_glyph_word_2.Contains(baseline_point));
+  }
+  {
+    // Query at the center point of the character 'c'.
+    EXPECT_TRUE(render_text->GetDecoratedWordAtPoint(
+        left_glyph_word_3.CenterPoint(), &decorated_word, &baseline_point));
+    VerifyDecoratedWordsAreEqual(expected_word_3, decorated_word);
+    EXPECT_TRUE(left_glyph_word_3.Contains(baseline_point));
+  }
+  {
+    // Query to the right of the third line.
+    EXPECT_TRUE(render_text->GetDecoratedWordAtPoint(
+        Point(505, GetCursorYForTesting(2)), &decorated_word, &baseline_point));
+    VerifyDecoratedWordsAreEqual(expected_word_3, decorated_word);
+    EXPECT_TRUE(left_glyph_word_3.Contains(baseline_point));
+  }
+}
+
 // Verify the boolean return value of GetDecoratedWordAtPoint.
 TEST_P(RenderTextHarfBuzzTest, GetDecoratedWordAtPoint_Return) {
   RenderText* render_text = GetRenderText();
@@ -4280,6 +4407,100 @@ TEST_P(RenderTextTest, InvalidFont) {
   render_text->SetText(ASCIIToUTF16("abc"));
 
   DrawVisualText();
+}
+
+// Ensures that text is centered vertically and consistently when either the
+// display rectangle height changes, or when the minimum line height changes.
+// The difference between the two is the selection rectangle, which should match
+// the line height.
+TEST_P(RenderTextHarfBuzzTest, BaselineWithLineHeight) {
+  RenderText* render_text = GetRenderText();
+  const int font_height = render_text->font_list().GetHeight();
+  render_text->SetDisplayRect(Rect(500, font_height));
+  render_text->SetText(ASCIIToUTF16("abc"));
+
+  // Select everything so the test can use GetSelectionBoundsUnion().
+  render_text->SelectAll(false);
+
+  const int normal_baseline = test_api()->GetDisplayTextBaseline();
+  ASSERT_EQ(1u, test_api()->lines().size());
+  EXPECT_EQ(font_height, test_api()->lines()[0].size.height());
+
+  // With a matching display height, the baseline calculated using font metrics
+  // and the baseline from the layout engine should agree. This works because
+  // the text string is simple (exotic glyphs may use fonts with different
+  // metrics).
+  EXPECT_EQ(normal_baseline, render_text->GetBaseline());
+  EXPECT_EQ(0, render_text->GetLineOffset(0).y());
+
+  const gfx::Rect normal_selection_bounds = GetSelectionBoundsUnion();
+
+  // Sanity check: selection should start from (0,0).
+  EXPECT_EQ(gfx::Vector2d(), normal_selection_bounds.OffsetFromOrigin());
+
+  constexpr int kDelta = 16;
+
+  // Grow just the display rectangle.
+  render_text->SetDisplayRect(Rect(500, font_height + kDelta));
+
+  // The display text baseline does not move: GetLineOffset() moves it instead.
+  EXPECT_EQ(normal_baseline, test_api()->GetDisplayTextBaseline());
+
+  ASSERT_EQ(1u, test_api()->lines().size());
+  EXPECT_EQ(font_height, test_api()->lines()[0].size.height());
+
+  // Save the baseline calculated using the display rectangle before enabling
+  // multi-line or SetMinLineHeight().
+  const int reported_baseline = render_text->GetBaseline();
+  const int baseline_shift = reported_baseline - normal_baseline;
+
+  // When line height matches font height, this should match the line offset.
+  EXPECT_EQ(baseline_shift, render_text->GetLineOffset(0).y());
+
+  // The actual shift depends on font metrics, and the calculations done in
+  // RenderText::DetermineBaselineCenteringText(). Do a sanity check that the
+  // "centering" part is happening within some tolerance by ensuring the shift
+  // is within a pixel of (kDelta / 2). That is, 7, 8 or 9 pixels (for a delta
+  // of 16). An unusual font in future may need more leeway.
+  constexpr int kFuzz = 1;  // If the next EXPECT fails, try increasing this.
+  EXPECT_LE(abs(baseline_shift - kDelta / 2), kFuzz);
+
+  // Increasing display height (but not line height) should shift the selection
+  // bounds down by |baseline_shift|, but leave a matching size.
+  gfx::Rect current_selection_bounds = GetSelectionBoundsUnion();
+  EXPECT_EQ(baseline_shift, current_selection_bounds.y());
+  EXPECT_EQ(0, current_selection_bounds.x());
+  EXPECT_EQ(normal_selection_bounds.size(), current_selection_bounds.size());
+
+  // Now increase the line height, but remain single-line. Note the line height
+  // now matches the display rect.
+  render_text->SetMinLineHeight(font_height + kDelta);
+  int display_text_baseline = test_api()->GetDisplayTextBaseline();
+  ASSERT_EQ(1u, test_api()->lines().size());
+  EXPECT_EQ(font_height + kDelta, test_api()->lines()[0].size.height());
+
+  // The line offset should go back to zero, but now the display text baseline
+  // should shift down to compensate, and the shift amount should match.
+  EXPECT_EQ(0, render_text->GetLineOffset(0).y());
+  EXPECT_EQ(normal_baseline + baseline_shift, display_text_baseline);
+
+  // Now selection bounds should grow in height, but not shift its origin.
+  current_selection_bounds = GetSelectionBoundsUnion();
+  EXPECT_EQ(font_height + kDelta, current_selection_bounds.height());
+  EXPECT_EQ(normal_selection_bounds.width(), current_selection_bounds.width());
+  EXPECT_EQ(gfx::Vector2d(), current_selection_bounds.OffsetFromOrigin());
+
+  // Flipping the multiline flag should change nothing.
+  render_text->SetMultiline(true);
+  display_text_baseline = test_api()->GetDisplayTextBaseline();
+  ASSERT_EQ(1u, test_api()->lines().size());
+  EXPECT_EQ(font_height + kDelta, test_api()->lines()[0].size.height());
+  EXPECT_EQ(0, render_text->GetLineOffset(0).y());
+  EXPECT_EQ(normal_baseline + baseline_shift, display_text_baseline);
+  current_selection_bounds = GetSelectionBoundsUnion();
+  EXPECT_EQ(font_height + kDelta, current_selection_bounds.height());
+  EXPECT_EQ(normal_selection_bounds.width(), current_selection_bounds.width());
+  EXPECT_EQ(gfx::Vector2d(), current_selection_bounds.OffsetFromOrigin());
 }
 
 // Prefix for test instantiations intentionally left blank since each test

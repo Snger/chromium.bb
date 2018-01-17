@@ -16,6 +16,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
 #include "build/build_config.h"
+#include "cc/surfaces/frame_sink_id_allocator.h"
 #include "content/browser/compositor/image_transport_factory.h"
 #include "gpu/ipc/client/gpu_channel_host.h"
 #include "ui/compositor/compositor.h"
@@ -33,6 +34,7 @@ class ContextProviderCommandBuffer;
 
 namespace content {
 class OutputDeviceBacking;
+class FrameSinkManagerHost;
 
 class GpuProcessTransportFactory : public ui::ContextFactory,
                                    public ui::ContextFactoryPrivate,
@@ -64,7 +66,8 @@ class GpuProcessTransportFactory : public ui::ContextFactory,
   void ResizeDisplay(ui::Compositor* compositor,
                      const gfx::Size& size) override;
   void SetDisplayColorSpace(ui::Compositor* compositor,
-                            const gfx::ColorSpace& color_space) override;
+                            const gfx::ColorSpace& blending_color_space,
+                            const gfx::ColorSpace& output_color_space) override;
   void SetAuthoritativeVSyncInterval(ui::Compositor* compositor,
                                      base::TimeDelta interval) override;
   void SetDisplayVSyncParameters(ui::Compositor* compositor,
@@ -76,6 +79,7 @@ class GpuProcessTransportFactory : public ui::ContextFactory,
   ui::ContextFactory* GetContextFactory() override;
   ui::ContextFactoryPrivate* GetContextFactoryPrivate() override;
   cc::SurfaceManager* GetSurfaceManager() override;
+  FrameSinkManagerHost* GetFrameSinkManagerHost() override;
   display_compositor::GLHelper* GetGLHelper() override;
   void SetGpuChannelEstablishFactory(
       gpu::GpuChannelEstablishFactory* factory) override;
@@ -102,8 +106,10 @@ class GpuProcessTransportFactory : public ui::ContextFactory,
   scoped_refptr<cc::VulkanInProcessContextProvider>
   SharedVulkanContextProvider();
 
-  std::unique_ptr<cc::SurfaceManager> surface_manager_;
-  uint32_t next_sink_id_ = 1u;
+  // Manages creation and hierarchy of frame sinks.
+  std::unique_ptr<FrameSinkManagerHost> frame_sink_manager_host_;
+
+  cc::FrameSinkIdAllocator frame_sink_id_allocator_;
 
 #if defined(OS_WIN)
   // Used by output surface, stored in PerCompositorData.

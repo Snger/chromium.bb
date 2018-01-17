@@ -53,6 +53,7 @@ GLenum GLInternalFormat(gfx::BufferFormat format) {
       GL_RGBA,                             // RGBA_8888
       GL_RGB,                              // BGRX_8888
       GL_BGRA_EXT,                         // BGRA_8888
+      GL_RGBA,                             // RGBA_F16
       GL_RGB_YCRCB_420_CHROMIUM,           // YVU_420
       GL_RGB_YCBCR_420V_CHROMIUM,          // YUV_420_BIPLANAR
       GL_RGB_YCBCR_422_CHROMIUM,           // UYVY_422
@@ -286,9 +287,9 @@ gpu::SyncToken Buffer::Texture::CopyTexImage(Texture* destination,
     gles2->BindTexture(texture_target_, texture_id_);
     DCHECK_NE(image_id_, 0u);
     gles2->BindTexImage2DCHROMIUM(texture_target_, image_id_);
-    gles2->CopyTextureCHROMIUM(texture_id_, 0, destination->texture_id_, 0,
-                               internalformat_, GL_UNSIGNED_BYTE, false, false,
-                               false);
+    gles2->CopyTextureCHROMIUM(texture_id_, 0, destination->texture_target_,
+                               destination->texture_id_, 0, internalformat_,
+                               GL_UNSIGNED_BYTE, false, false, false);
     DCHECK_NE(query_id_, 0u);
     gles2->BeginQueryEXT(query_type_, query_id_);
     gles2->ReleaseTexImage2DCHROMIUM(texture_target_, image_id_);
@@ -457,6 +458,7 @@ bool Buffer::ProduceTransferableResource(
     resource->mailbox_holder = gpu::MailboxHolder(contents_texture->mailbox(),
                                                   sync_token, texture_target_);
     resource->is_overlay_candidate = is_overlay_candidate_;
+    resource->buffer_format = gpu_memory_buffer_->GetFormat();
 
     // The contents texture will be released when no longer used by the
     // compositor.
@@ -516,6 +518,10 @@ void Buffer::OnDetach() {
 
 gfx::Size Buffer::GetSize() const {
   return gpu_memory_buffer_->GetSize();
+}
+
+gfx::BufferFormat Buffer::GetFormat() const {
+  return gpu_memory_buffer_->GetFormat();
 }
 
 std::unique_ptr<base::trace_event::TracedValue> Buffer::AsTracedValue() const {

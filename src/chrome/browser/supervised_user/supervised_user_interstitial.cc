@@ -267,6 +267,7 @@ void SupervisedUserInterstitial::CommandReceived(const std::string& command) {
     std::string message = l10n_util::GetStringFUTF8(
         IDS_BLOCK_INTERSTITIAL_DEFAULT_FEEDBACK_TEXT, reason);
 #if defined(OS_ANDROID)
+    DCHECK(profile_->IsChild());
     ReportChildAccountFeedback(web_contents_, message, url_);
 #else
     chrome::ShowFeedbackPage(chrome::FindBrowserWithWebContents(web_contents_),
@@ -309,8 +310,8 @@ void SupervisedUserInterstitial::OnAccessRequestAdded(bool success) {
 bool SupervisedUserInterstitial::ShouldProceed() {
   SupervisedUserService* supervised_user_service =
       SupervisedUserServiceFactory::GetForProfile(profile_);
-  SupervisedUserURLFilter* url_filter =
-      supervised_user_service->GetURLFilterForUIThread();
+  const SupervisedUserURLFilter* url_filter =
+      supervised_user_service->GetURLFilter();
   SupervisedUserURLFilter::FilteringBehavior behavior;
   if (url_filter->HasAsyncURLChecker()) {
     if (!url_filter->GetManualFilteringBehaviorForURL(url_, &behavior))

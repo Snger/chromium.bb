@@ -25,7 +25,6 @@
 #include "chrome/common/extensions/chrome_manifest_url_handlers.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/notification_service.h"
-#include "content/public/browser/user_metrics.h"
 #include "extensions/browser/event_router.h"
 #include "extensions/browser/extension_prefs.h"
 #include "extensions/browser/extension_registry.h"
@@ -42,7 +41,6 @@
 #include "extensions/common/manifest_handlers/background_info.h"
 #include "extensions/common/manifest_url_handlers.h"
 
-using base::UserMetricsAction;
 using content::BrowserThread;
 
 namespace extensions {
@@ -134,8 +132,8 @@ void RecordCreationFlags(const Extension* extension) {
   for (int i = 0; i < Extension::kInitFromValueFlagBits; ++i) {
     int flag = 1 << i;
     if (extension->creation_flags() & flag) {
-      UMA_HISTOGRAM_ENUMERATION(
-          "Extensions.LoadCreationFlags", i, Extension::kInitFromValueFlagBits);
+      UMA_HISTOGRAM_EXACT_LINEAR("Extensions.LoadCreationFlags", i,
+                                 Extension::kInitFromValueFlagBits);
     }
   }
 }
@@ -355,6 +353,7 @@ void InstalledLoader::RecordExtensionsMetrics() {
   int file_access_allowed_count = 0;
   int file_access_not_allowed_count = 0;
   int eventless_event_pages_count = 0;
+  int off_store_item_count = 0;
 
   const ExtensionSet& extensions = extension_registry_->enabled_extensions();
   for (ExtensionSet::const_iterator iter = extensions.begin();
@@ -527,6 +526,9 @@ void InstalledLoader::RecordExtensionsMetrics() {
           ++file_access_not_allowed_count;
       }
     }
+
+    if (!ManifestURL::UpdatesFromGallery(extension))
+      ++off_store_item_count;
   }
 
   const ExtensionSet& disabled_extensions =
@@ -615,6 +617,8 @@ void InstalledLoader::RecordExtensionsMetrics() {
                            extension_prefs_->GetCorruptedDisableCount());
   UMA_HISTOGRAM_COUNTS_100("Extensions.EventlessEventPages",
                            eventless_event_pages_count);
+  UMA_HISTOGRAM_COUNTS_100("Extensions.LoadOffStoreItems",
+                           off_store_item_count);
 }
 
 int InstalledLoader::GetCreationFlags(const ExtensionInfo* info) {

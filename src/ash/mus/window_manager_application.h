@@ -14,12 +14,12 @@
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "mojo/public/cpp/bindings/binding.h"
+#include "services/service_manager/public/cpp/binder_registry.h"
 #include "services/service_manager/public/cpp/service.h"
 #include "services/tracing/public/cpp/provider.h"
 #include "services/ui/common/types.h"
 
 namespace aura {
-class MusContextFactory;
 class WindowTreeClient;
 }
 
@@ -37,11 +37,10 @@ namespace views {
 class AuraInit;
 }
 
-namespace ui {
-class Gpu;
-}
-
 namespace ash {
+namespace test {
+class AshTestHelper;
+}
 namespace mus {
 
 class NetworkConnectDelegateMus;
@@ -56,28 +55,30 @@ class WindowManagerApplication : public service_manager::Service {
   WindowManager* window_manager() { return window_manager_.get(); }
 
  private:
+  friend class ash::test::AshTestHelper;
   friend class WmTestBase;
   friend class WmTestHelper;
 
+  // If |init_network_handler| is true, chromeos::NetworkHandler is initialized.
   void InitWindowManager(
       std::unique_ptr<aura::WindowTreeClient> window_tree_client,
-      const scoped_refptr<base::SequencedWorkerPool>& blocking_pool);
+      const scoped_refptr<base::SequencedWorkerPool>& blocking_pool,
+      bool init_network_handler);
 
   // Initializes lower-level OS-specific components (e.g. D-Bus services).
-  void InitializeComponents();
+  void InitializeComponents(bool init_network_handler);
   void ShutdownComponents();
 
   // service_manager::Service:
   void OnStart() override;
-  bool OnConnect(const service_manager::ServiceInfo& remote_info,
-                 service_manager::InterfaceRegistry* registry) override;
+  void OnBindInterface(const service_manager::ServiceInfo& source_info,
+                       const std::string& interface_name,
+                       mojo::ScopedMessagePipeHandle interface_pipe) override;
 
   tracing::Provider tracing_;
 
   std::unique_ptr<views::AuraInit> aura_init_;
 
-  std::unique_ptr<ui::Gpu> gpu_;
-  std::unique_ptr<aura::MusContextFactory> compositor_context_factory_;
   std::unique_ptr<WindowManager> window_manager_;
 
   // A blocking pool used by the WindowManager's shell; not used in tests.
@@ -86,6 +87,8 @@ class WindowManagerApplication : public service_manager::Service {
   std::unique_ptr<NetworkConnectDelegateMus> network_connect_delegate_;
   std::unique_ptr<chromeos::system::ScopedFakeStatisticsProvider>
       statistics_provider_;
+
+  service_manager::BinderRegistry registry_;
 
   DISALLOW_COPY_AND_ASSIGN(WindowManagerApplication);
 };

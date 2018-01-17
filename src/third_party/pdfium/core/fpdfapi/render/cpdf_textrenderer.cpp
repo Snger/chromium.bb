@@ -6,7 +6,7 @@
 
 #include "core/fpdfapi/render/cpdf_textrenderer.h"
 
-#include <vector>
+#include <algorithm>
 
 #include "core/fpdfapi/font/cpdf_font.h"
 #include "core/fpdfapi/render/cpdf_charposlist.h"
@@ -17,11 +17,10 @@
 
 // static
 bool CPDF_TextRenderer::DrawTextPath(CFX_RenderDevice* pDevice,
-                                     int nChars,
-                                     uint32_t* pCharCodes,
-                                     FX_FLOAT* pCharPos,
+                                     const std::vector<uint32_t>& charCodes,
+                                     const std::vector<float>& charPos,
                                      CPDF_Font* pFont,
-                                     FX_FLOAT font_size,
+                                     float font_size,
                                      const CFX_Matrix* pText2User,
                                      const CFX_Matrix* pUser2Device,
                                      const CFX_GraphStateData* pGraphState,
@@ -30,7 +29,7 @@ bool CPDF_TextRenderer::DrawTextPath(CFX_RenderDevice* pDevice,
                                      CFX_PathData* pClippingPath,
                                      int nFlag) {
   CPDF_CharPosList CharPosList;
-  CharPosList.Load(nChars, pCharCodes, pCharPos, pFont, font_size);
+  CharPosList.Load(charCodes, charPos, pFont, font_size);
   if (CharPosList.m_nChars == 0)
     return true;
 
@@ -66,14 +65,13 @@ bool CPDF_TextRenderer::DrawTextPath(CFX_RenderDevice* pDevice,
 
 // static
 void CPDF_TextRenderer::DrawTextString(CFX_RenderDevice* pDevice,
-                                       FX_FLOAT origin_x,
-                                       FX_FLOAT origin_y,
+                                       float origin_x,
+                                       float origin_y,
                                        CPDF_Font* pFont,
-                                       FX_FLOAT font_size,
+                                       float font_size,
                                        const CFX_Matrix* pMatrix,
                                        const CFX_ByteString& str,
                                        FX_ARGB fill_argb,
-                                       FX_ARGB stroke_argb,
                                        const CFX_GraphStateData* pGraphState,
                                        const CPDF_RenderOptions* pOptions) {
   if (pFont->IsType3Font())
@@ -84,26 +82,16 @@ void CPDF_TextRenderer::DrawTextString(CFX_RenderDevice* pDevice,
     return;
 
   int offset = 0;
-  uint32_t* pCharCodes;
-  FX_FLOAT* pCharPos;
   std::vector<uint32_t> codes;
-  std::vector<FX_FLOAT> positions;
-  if (nChars == 1) {
-    pCharCodes = reinterpret_cast<uint32_t*>(
-        pFont->GetNextChar(str.c_str(), str.GetLength(), offset));
-    pCharPos = nullptr;
-  } else {
-    codes.resize(nChars);
-    positions.resize(nChars - 1);
-    FX_FLOAT cur_pos = 0;
-    for (int i = 0; i < nChars; i++) {
-      codes[i] = pFont->GetNextChar(str.c_str(), str.GetLength(), offset);
-      if (i)
-        positions[i - 1] = cur_pos;
-      cur_pos += pFont->GetCharWidthF(codes[i]) * font_size / 1000;
-    }
-    pCharCodes = codes.data();
-    pCharPos = positions.data();
+  std::vector<float> positions;
+  codes.resize(nChars);
+  positions.resize(nChars - 1);
+  float cur_pos = 0;
+  for (int i = 0; i < nChars; i++) {
+    codes[i] = pFont->GetNextChar(str.c_str(), str.GetLength(), offset);
+    if (i)
+      positions[i - 1] = cur_pos;
+    cur_pos += pFont->GetCharWidthF(codes[i]) * font_size / 1000;
   }
   CFX_Matrix matrix;
   if (pMatrix)
@@ -112,28 +100,21 @@ void CPDF_TextRenderer::DrawTextString(CFX_RenderDevice* pDevice,
   matrix.e = origin_x;
   matrix.f = origin_y;
 
-  if (stroke_argb == 0) {
-    DrawNormalText(pDevice, nChars, pCharCodes, pCharPos, pFont, font_size,
-                   &matrix, fill_argb, pOptions);
-  } else {
-    DrawTextPath(pDevice, nChars, pCharCodes, pCharPos, pFont, font_size,
-                 &matrix, nullptr, pGraphState, fill_argb, stroke_argb, nullptr,
-                 0);
-  }
+  DrawNormalText(pDevice, codes, positions, pFont, font_size, &matrix,
+                 fill_argb, pOptions);
 }
 
 // static
 bool CPDF_TextRenderer::DrawNormalText(CFX_RenderDevice* pDevice,
-                                       int nChars,
-                                       uint32_t* pCharCodes,
-                                       FX_FLOAT* pCharPos,
+                                       const std::vector<uint32_t>& charCodes,
+                                       const std::vector<float>& charPos,
                                        CPDF_Font* pFont,
-                                       FX_FLOAT font_size,
+                                       float font_size,
                                        const CFX_Matrix* pText2Device,
                                        FX_ARGB fill_argb,
                                        const CPDF_RenderOptions* pOptions) {
   CPDF_CharPosList CharPosList;
-  CharPosList.Load(nChars, pCharCodes, pCharPos, pFont, font_size);
+  CharPosList.Load(charCodes, charPos, pFont, font_size);
   if (CharPosList.m_nChars == 0)
     return true;
   int FXGE_flags = 0;

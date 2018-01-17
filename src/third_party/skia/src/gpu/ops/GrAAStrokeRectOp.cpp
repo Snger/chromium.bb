@@ -11,6 +11,7 @@
 #include "GrOpFlushState.h"
 #include "GrResourceKey.h"
 #include "GrResourceProvider.h"
+#include "SkStrokeRec.h"
 
 GR_DECLARE_STATIC_UNIQUE_KEY(gMiterIndexBufferKey);
 GR_DECLARE_STATIC_UNIQUE_KEY(gBevelIndexBufferKey);
@@ -57,8 +58,8 @@ static void compute_rects(SkRect* devOutside, SkRect* devOutsideAssist, SkRect* 
 
     const SkScalar dx = devStrokeSize.fX;
     const SkScalar dy = devStrokeSize.fY;
-    const SkScalar rx = SkScalarMul(dx, SK_ScalarHalf);
-    const SkScalar ry = SkScalarMul(dy, SK_ScalarHalf);
+    const SkScalar rx = SkScalarHalf(dx);
+    const SkScalar ry = SkScalarHalf(dy);
 
     *devOutside = devRect;
     *devOutsideAssist = devRect;
@@ -105,10 +106,11 @@ static sk_sp<GrGeometryProcessor> create_stroke_rect_gp(bool tweakAlphaForCovera
     }
     LocalCoords::Type localCoordsType =
             usesLocalCoords ? LocalCoords::kUsePosition_Type : LocalCoords::kUnused_Type;
-    return MakeForDeviceSpace(Color::kAttribute_Type, coverageType, localCoordsType, viewMatrix);
+    return MakeForDeviceSpace(Color::kPremulGrColorAttribute_Type, coverageType, localCoordsType,
+                              viewMatrix);
 }
 
-class AAStrokeRectOp final : public GrMeshDrawOp {
+class AAStrokeRectOp final : public GrLegacyMeshDrawOp {
 public:
     DEFINE_OP_CLASS_ID
 
@@ -123,8 +125,8 @@ public:
         fMiterStroke = true;
     }
 
-    static std::unique_ptr<GrDrawOp> Make(GrColor color, const SkMatrix& viewMatrix,
-                                          const SkRect& rect, const SkStrokeRec& stroke) {
+    static std::unique_ptr<GrLegacyMeshDrawOp> Make(GrColor color, const SkMatrix& viewMatrix,
+                                                    const SkRect& rect, const SkStrokeRec& stroke) {
         bool isMiter;
         if (!allowed_stroke(stroke, &isMiter)) {
             return nullptr;
@@ -136,9 +138,17 @@ public:
         compute_rects(&info.fDevOutside, &info.fDevOutsideAssist, &info.fDevInside,
                       &info.fDegenerate, viewMatrix, rect, stroke.getWidth(), isMiter);
         info.fColor = color;
-        op->setBounds(info.fDevOutside, HasAABloat::kYes, IsZeroArea::kNo);
+        if (isMiter) {
+            op->setBounds(info.fDevOutside, HasAABloat::kYes, IsZeroArea::kNo);
+        } else {
+            // The outer polygon of the bevel stroke is an octagon specified by the points of a
+            // pair of overlapping rectangles where one is wide and the other is narrow.
+            SkRect bounds = info.fDevOutside;
+            bounds.joinPossiblyEmptyRect(info.fDevOutsideAssist);
+            op->setBounds(bounds, HasAABloat::kYes, IsZeroArea::kNo);
+        }
         op->fViewMatrix = viewMatrix;
-        return std::unique_ptr<GrDrawOp>(op);
+        return std::unique_ptr<GrLegacyMeshDrawOp>(op);
     }
 
     const char* name() const override { return "AAStrokeRect"; }
@@ -164,11 +174,12 @@ public:
 private:
     AAStrokeRectOp() : INHERITED(ClassID()) {}
 
-    void getPipelineAnalysisInput(GrPipelineAnalysisDrawOpInput* input) const override {
-        input->pipelineColorInput()->setKnownFourComponents(fRects[0].fColor);
-        input->pipelineCoverageInput()->setUnknownSingleComponent();
+    void getProcessorAnalysisInputs(GrProcessorAnalysisColor* color,
+                                    GrProcessorAnalysisCoverage* coverage) const override {
+        color->setToConstant(fRects[0].fColor);
+        *coverage = GrProcessorAnalysisCoverage::kSingleChannel;
     }
-    void applyPipelineOptimizations(const GrPipelineOptimizations&) override;
+    void applyPipelineOptimizations(const PipelineOptimizations&) override;
     void onPrepareDraws(Target*) const override;
 
     static const int kMiterIndexCnt = 3 * 24;
@@ -216,10 +227,10 @@ private:
     SkMatrix fViewMatrix;
     bool fMiterStroke;
 
-    typedef GrMeshDrawOp INHERITED;
+    typedef GrLegacyMeshDrawOp INHERITED;
 };
 
-void AAStrokeRectOp::applyPipelineOptimizations(const GrPipelineOptimizations& optimizations) {
+void AAStrokeRectOp::applyPipelineOptimizations(const PipelineOptimizations& optimizations) {
     optimizations.getOverrideColorIfSet(&fRects[0].fColor);
 
     fUsesLocalCoords = optimizations.readsLocalCoords();
@@ -275,7 +286,7 @@ void AAStrokeRectOp::onPrepareDraws(Target* target) const {
                                            info.fDegenerate,
                                            canTweakAlphaForCoverage);
     }
-    helper.recordDraw(target, gp.get());
+    helper.recordDraw(target, gp.get(), this->pipeline());
 }
 
 const GrBuffer* AAStrokeRectOp::GetIndexBuffer(GrResourceProvider* resourceProvider,
@@ -560,24 +571,25 @@ void AAStrokeRectOp::generateAAStrokeRectGeometry(void* vertices,
 
 namespace GrAAStrokeRectOp {
 
-std::unique_ptr<GrDrawOp> MakeFillBetweenRects(GrColor color,
-                                               const SkMatrix& viewMatrix,
-                                               const SkRect& devOutside,
-                                               const SkRect& devInside) {
-    return std::unique_ptr<GrDrawOp>(new AAStrokeRectOp(color, viewMatrix, devOutside, devInside));
+std::unique_ptr<GrLegacyMeshDrawOp> MakeFillBetweenRects(GrColor color,
+                                                         const SkMatrix& viewMatrix,
+                                                         const SkRect& devOutside,
+                                                         const SkRect& devInside) {
+    return std::unique_ptr<GrLegacyMeshDrawOp>(
+            new AAStrokeRectOp(color, viewMatrix, devOutside, devInside));
 }
 
-std::unique_ptr<GrDrawOp> Make(GrColor color,
-                               const SkMatrix& viewMatrix,
-                               const SkRect& rect,
-                               const SkStrokeRec& stroke) {
+std::unique_ptr<GrLegacyMeshDrawOp> Make(GrColor color,
+                                         const SkMatrix& viewMatrix,
+                                         const SkRect& rect,
+                                         const SkStrokeRec& stroke) {
     return AAStrokeRectOp::Make(color, viewMatrix, rect, stroke);
 }
 }
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 
-#ifdef GR_TEST_UTILS
+#if GR_TEST_UTILS
 
 #include "GrDrawOpTest.h"
 

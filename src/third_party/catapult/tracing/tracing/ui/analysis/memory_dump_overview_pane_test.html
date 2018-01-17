@@ -20,7 +20,7 @@ found in the LICENSE file.
 'use strict';
 
 tr.b.unittest.testSuite(function() {
-  var ScalarNumeric = tr.v.ScalarNumeric;
+  var Scalar = tr.b.Scalar;
   var sizeInBytes_smallerIsBetter =
       tr.b.Unit.byName.sizeInBytes_smallerIsBetter;
   var MemoryAllocatorDump = tr.model.MemoryAllocatorDump;
@@ -80,23 +80,26 @@ tr.b.unittest.testSuite(function() {
       expectedContexts) {
     // Check title.
     var formattedTitle = columns[0].formatTitle(row);
-    if (typeof expectedTitle === 'function')
+    if (typeof expectedTitle === 'function') {
       expectedTitle(formattedTitle);
-    else
+    } else {
       assert.strictEqual(formattedTitle, expectedTitle);
+    }
 
     // Check all sizes. The first assert below is a test sanity check.
     assert.lengthOf(expectedSizes, columns.length - 1 /* all except title */);
-    for (var i = 0; i < expectedSizes.length; i++)
+    for (var i = 0; i < expectedSizes.length; i++) {
       checkSizeNumericFields(row, columns[i + 1], expectedSizes[i]);
+    }
 
     // There should be no row nesting on the overview pane.
     assert.isUndefined(row.subRows);
 
-    if (expectedContexts)
+    if (expectedContexts) {
       assert.deepEqual(tr.b.asArray(row.contexts), expectedContexts);
-    else
+    } else {
       assert.isUndefined(row.contexts);
+    }
   }
 
   function checkRows(columns, actualRows, expectedRows) {
@@ -113,10 +116,10 @@ tr.b.unittest.testSuite(function() {
     }
   }
 
-  function checkSpanWithColor(span, expectedText, expectedColorReservedName) {
+  function checkSpanWithColor(span, expectedText, expectedColor) {
     assert.strictEqual(span.tagName, 'SPAN');
     assert.strictEqual(Polymer.dom(span).textContent, expectedText);
-    checkColor(span.style.color, expectedColorReservedName);
+    checkColor(span.style.color, expectedColor);
   }
 
   function checkColorLegend(legend, expectedLabel) {
@@ -156,7 +159,7 @@ tr.b.unittest.testSuite(function() {
       dumpCreatedCallback, expectedInfos, expectedColorReservedName) {
     var fields = fieldAndDumpMask.map(function(mask, index) {
       return mask & FIELD ?
-          new ScalarNumeric(sizeInBytes_smallerIsBetter, 1024 + 32 * index) :
+          new Scalar(sizeInBytes_smallerIsBetter, 1024 + 32 * index) :
           undefined;
     });
 
@@ -184,6 +187,15 @@ tr.b.unittest.testSuite(function() {
         column, fields, contexts, expectedInfos, expectedColorReservedName);
   }
 
+  test('colorsAreDefined', function() {
+    // We use these constants in the code and the tests so here we guard
+    // against them being undefined and causing all the tests to still
+    // pass while the we end up with no colors.
+    assert.isDefined(UsedMemoryColumn.COLOR);
+    assert.isDefined(UsedMemoryColumn.OLDER_COLOR);
+    assert.isDefined(TracingColumn.COLOR);
+  });
+
   test('instantiate_empty', function() {
     tr.ui.analysis.createAndCheckEmptyPanes(this,
         'tr-ui-a-memory-dump-overview-pane', 'processMemoryDumps',
@@ -203,8 +215,8 @@ tr.b.unittest.testSuite(function() {
           {
             title: colorLegendMatcher('Process 1'),
             sizes: [[29884416], undefined, [9437184], [5767168], undefined,
-                undefined, undefined, undefined, [7340032], undefined,
-                undefined, [2097152]],
+              undefined, undefined, undefined, [7340032], undefined,
+              undefined, [2097152]],
             contexts: extractProcessMemoryDumps(processMemoryDumps, 1)
           },
           {
@@ -216,8 +228,8 @@ tr.b.unittest.testSuite(function() {
           {
             title: colorLegendMatcher('Process 4'),
             sizes: [undefined, [17825792], undefined, undefined, undefined,
-                undefined, undefined, undefined, undefined, undefined,
-                undefined, undefined],
+              undefined, undefined, undefined, undefined, undefined,
+              undefined, undefined],
             contexts: extractProcessMemoryDumps(processMemoryDumps, 4)
           }
         ],
@@ -243,7 +255,7 @@ tr.b.unittest.testSuite(function() {
             title: colorLegendMatcher('Process 1'),
             sizes: [[31457280, 29884416, undefined], undefined,
                 [10485760, 9437184, undefined], [8388608, 5767168, undefined],
-                undefined, undefined, undefined, undefined,
+              undefined, undefined, undefined, undefined,
                 [undefined, 7340032, undefined], undefined, undefined,
                 [undefined, 2097152, undefined]],
             contexts: extractProcessMemoryDumps(processMemoryDumps, 1)
@@ -261,7 +273,7 @@ tr.b.unittest.testSuite(function() {
           {
             title: colorLegendMatcher('Process 3'),
             sizes: [undefined, undefined, undefined, undefined, undefined,
-                undefined, undefined, undefined, undefined,
+              undefined, undefined, undefined, undefined,
                 [2147483648, undefined, 1073741824],
                 [1073741824, undefined, 2147483648], undefined],
             contexts: extractProcessMemoryDumps(processMemoryDumps, 3)
@@ -269,8 +281,8 @@ tr.b.unittest.testSuite(function() {
           {
             title: colorLegendMatcher('Process 4'),
             sizes: [undefined, [undefined, 17825792, 17825792], undefined,
-                undefined, undefined, undefined, undefined, undefined,
-                undefined, undefined, undefined, undefined],
+              undefined, undefined, undefined, undefined, undefined,
+              undefined, undefined, undefined, undefined],
             contexts: extractProcessMemoryDumps(processMemoryDumps, 4)
           }
         ],
@@ -346,7 +358,7 @@ tr.b.unittest.testSuite(function() {
     table.selectedColumnIndex = 9;
     assert.lengthOf(viewEl.requestedChildPanes, 2);
     var lastChildPane = viewEl.requestedChildPanes[1];
-    assert.equal(
+    assert.strictEqual(
         lastChildPane.tagName, 'TR-UI-A-MEMORY-DUMP-ALLOCATOR-DETAILS-PANE');
     assert.strictEqual(lastChildPane.aggregationMode, AggregationMode.DIFF);
     assert.deepEqual(lastChildPane.memoryAllocatorDumps,
@@ -378,7 +390,7 @@ tr.b.unittest.testSuite(function() {
       var displayedProcessMemoryDumps = processMemoryDumps.map(
           function(memoryDumps) {
             return tr.b.filterItems(memoryDumps, function(pid, pmd) {
-              return pids.indexOf(pmd.process.pid) !== -1;
+              return pids.includes(pmd.process.pid);
             });
           });
       viewEl.processMemoryDumps = displayedProcessMemoryDumps;
@@ -395,10 +407,12 @@ tr.b.unittest.testSuite(function() {
 
       assert.strictEqual(
           table.selectedColumnIndex, expectedSelectedColumnIndex);
-      if (expectedSelectedRowTitle === undefined)
+      if (expectedSelectedRowTitle === undefined) {
         assert.isUndefined(table.selectedTableRow);
-      else
-        assert.equal(table.selectedTableRow.title, expectedSelectedRowTitle);
+      } else {
+        assert.strictEqual(
+            table.selectedTableRow.title, expectedSelectedRowTitle);
+      }
 
       callback(viewEl, viewEl.$.table);
     }
@@ -421,7 +435,7 @@ tr.b.unittest.testSuite(function() {
         [18350080, 18350080, 18350080], 'Process 2', 3, /* PSS */
         function(view, table) {
           var childPane = view.createChildPane();
-          assert.equal(
+          assert.strictEqual(
               childPane.tagName, 'TR-UI-A-MEMORY-DUMP-VM-REGIONS-DETAILS-PANE');
           assert.deepEqual(tr.b.asArray(childPane.vmRegions),
               extractVmRegions(processMemoryDumps, 2));
@@ -442,7 +456,7 @@ tr.b.unittest.testSuite(function() {
         [18350080, 18350080, 18350080], 'Process 2', 3, /* PSS */
         function(view, table) {
           var childPane = view.createChildPane();
-          assert.equal(
+          assert.strictEqual(
               childPane.tagName, 'TR-UI-A-MEMORY-DUMP-VM-REGIONS-DETAILS-PANE');
           assert.deepEqual(tr.b.asArray(childPane.vmRegions),
               extractVmRegions(processMemoryDumps, 2));
@@ -471,7 +485,7 @@ tr.b.unittest.testSuite(function() {
         [31457280, 29884416, undefined], 'Process 1', 1, /* Total resident */
         function(view, table) {
           var childPane = view.createChildPane();
-          assert.equal(
+          assert.strictEqual(
               childPane.tagName, 'TR-UI-A-MEMORY-DUMP-VM-REGIONS-DETAILS-PANE');
           assert.deepEqual(tr.b.asArray(childPane.vmRegions),
               extractVmRegions(processMemoryDumps, 1));
@@ -501,18 +515,18 @@ tr.b.unittest.testSuite(function() {
     var c = new UsedMemoryColumn('Private', 'bytes', tr.b.identity,
         AggregationMode.DIFF);
     checkSpanWithColor(c.title, 'Private',
-        'used_memory_column' /* blue (column title) */);
+        UsedMemoryColumn.COLOR /* blue (column title) */);
     checkColor(c.color(undefined /* contexts */),
-        'used_memory_column' /* blue (column cells) */);
+        UsedMemoryColumn.COLOR /* blue (column cells) */);
   });
 
   test('peakMemoryColumn', function() {
     var c = new PeakMemoryColumn('Peak', 'bytes', tr.b.identity,
         AggregationMode.MAX);
     checkSpanWithColor(c.title, 'Peak',
-        'used_memory_column' /* blue (column title) */);
+        UsedMemoryColumn.COLOR /* blue (column title) */);
     checkColor(c.color(undefined) /* contexts */,
-        'used_memory_column' /* blue (column cells) */);
+        UsedMemoryColumn.COLOR /* blue (column cells) */);
 
     var RESETTABLE_PEAK = 1 << 2;
     var NON_RESETTABLE_PEAK = 1 << 3;
@@ -529,7 +543,7 @@ tr.b.unittest.testSuite(function() {
             }
           },
           expectedInfos,
-          'used_memory_column');
+          UsedMemoryColumn.COLOR);
     }
 
     // No context.
@@ -537,12 +551,12 @@ tr.b.unittest.testSuite(function() {
         [FIELD],
         undefined /* no context */,
         [] /* no infos */,
-        'used_memory_column' /* blue color */);
+        UsedMemoryColumn.COLOR /* blue color */);
     checkOverviewColumnInfosAndColor(c,
         [FIELD, FIELD, 0, FIELD],
         undefined /* no context */,
         [] /* no infos */,
-        'used_memory_column' /* blue color */);
+        UsedMemoryColumn.COLOR /* blue color */);
 
     // All resettable.
     var EXPECTED_RESETTABLE_INFO = {
@@ -594,7 +608,7 @@ tr.b.unittest.testSuite(function() {
     var c = new ByteStatColumn('Stat', 'bytes', tr.b.identity,
         AggregationMode.DIFF);
     checkSpanWithColor(c.title, 'Stat',
-        'used_memory_column' /* blue (column title) */);
+        UsedMemoryColumn.COLOR /* blue (column title) */);
 
     var HAS_OWN_VM_REGIONS = 1 << 2;
     function checkByteStatColumnInfosAndColor(
@@ -602,13 +616,14 @@ tr.b.unittest.testSuite(function() {
       checkOverviewColumnInfosAndColor(c,
           fieldAndDumpMask,
           function(pmd, mask) {
-            if (mask & HAS_OWN_VM_REGIONS)
+            if (mask & HAS_OWN_VM_REGIONS) {
               pmd.vmRegions = [];
+            }
           },
           expectedInfos,
           expectedIsOlderColor ?
-              'older_used_memory_column' /* light blue */ :
-              'used_memory_column' /* blue color */);
+              UsedMemoryColumn.OLDER_COLOR /* light blue */ :
+              UsedMemoryColumn.COLOR /* blue color */);
     }
 
     var EXPECTED_ALL_OLDER_VALUES = {
@@ -627,12 +642,12 @@ tr.b.unittest.testSuite(function() {
         [FIELD],
         undefined /* no context */,
         [] /* no infos */,
-        'used_memory_column' /* blue color */);
+        UsedMemoryColumn.COLOR /* blue color */);
     checkOverviewColumnInfosAndColor(c,
         [FIELD, FIELD, 0, FIELD],
         undefined /* no context */,
         [] /* no infos */,
-        'used_memory_column' /* blue color */);
+        UsedMemoryColumn.COLOR /* blue color */);
 
     // All process memory dumps have own VM regions.
     checkByteStatColumnInfosAndColor([
@@ -682,14 +697,16 @@ tr.b.unittest.testSuite(function() {
       checkOverviewColumnInfosAndColor(c,
           fieldAndDumpMask,
           function(pmd, mask) {
-            if (mask & HAS_HEAP_DUMPS)
+            if (mask & HAS_HEAP_DUMPS) {
               pmd.heapDumps = {};
-            if (mask & HAS_ALLOCATOR_HEAP_DUMP)
+            }
+            if (mask & HAS_ALLOCATOR_HEAP_DUMP) {
               pmd.heapDumps['Allocator'] = new HeapDump(pmd, 'Allocator');
+            }
             var mad = new MemoryAllocatorDump(pmd, 'Allocator');
             if (!(mask & MISSING_SIZE)) {
               mad.addNumeric('size',
-                  new ScalarNumeric(sizeInBytes_smallerIsBetter, 7));
+                  new Scalar(sizeInBytes_smallerIsBetter, 7));
             }
             pmd.memoryAllocatorDumps = [mad];
           },
@@ -804,9 +821,9 @@ tr.b.unittest.testSuite(function() {
     var c = new TracingColumn('Tracing', 'bytes', tr.b.identity,
         AggregationMode.DIFF);
     checkSpanWithColor(c.title, 'Tracing',
-        'tracing_memory_column' /* expected column title gray color */);
+        TracingColumn.COLOR /* expected column title gray color */);
     checkColor(c.color(undefined /* contexts */),
-        'tracing_memory_column' /* expected column cells gray color */);
+        TracingColumn.COLOR /* expected column cells gray color */);
   });
 });
 </script>

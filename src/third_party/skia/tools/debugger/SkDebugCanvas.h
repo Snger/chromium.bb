@@ -16,6 +16,7 @@
 #include "SkPicture.h"
 #include "SkString.h"
 #include "SkTArray.h"
+#include "SkVertices.h"
 #include "UrlDataManager.h"
 
 class GrAuditTrail;
@@ -25,7 +26,7 @@ class SkDebugCanvas : public SkCanvas {
 public:
     SkDebugCanvas(int width, int height);
 
-    virtual ~SkDebugCanvas();
+    ~SkDebugCanvas() override;
 
     void toggleFilter(bool toggle) { fFilter = toggle; }
 
@@ -175,20 +176,12 @@ public:
 
     bool isClipRect() const override { return true; }
 
-    bool getClipBounds(SkRect *bounds) const override {
-        if (bounds) {
-            bounds->setXYWH(0, 0,
-                            SkIntToScalar(this->imageInfo().width()),
-                            SkIntToScalar(this->imageInfo().height()));
-        }
-        return true;
+    SkRect onGetLocalClipBounds() const override {
+        return SkRect::MakeIWH(this->imageInfo().width(), this->imageInfo().height());
     }
 
-    bool getClipDeviceBounds(SkIRect *bounds) const override {
-        if (bounds) {
-            bounds->setLargest();
-        }
-        return true;
+    SkIRect onGetDeviceClipBounds() const override {
+        return SkIRect::MakeWH(this->imageInfo().width(), this->imageInfo().height());
     }
 
 protected:
@@ -232,11 +225,7 @@ protected:
     void onDrawArc(const SkRect&, SkScalar, SkScalar, bool, const SkPaint&) override;
     void onDrawRRect(const SkRRect&, const SkPaint&) override;
     void onDrawPoints(PointMode, size_t count, const SkPoint pts[], const SkPaint&) override;
-    void onDrawVertices(VertexMode vmode, int vertexCount,
-                        const SkPoint vertices[], const SkPoint texs[],
-                        const SkColor colors[], SkBlendMode,
-                        const uint16_t indices[], int indexCount,
-                        const SkPaint&) override;
+    void onDrawVerticesObject(const SkVertices*, SkBlendMode, const SkPaint&) override;
     void onDrawPath(const SkPath&, const SkPaint&) override;
     void onDrawBitmap(const SkBitmap&, SkScalar left, SkScalar top, const SkPaint*) override;
     void onDrawBitmapRect(const SkBitmap&, const SkRect* src, const SkRect& dst, const SkPaint*,

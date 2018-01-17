@@ -33,16 +33,16 @@
 
 #include "platform/heap/Heap.h"
 #include "platform/heap/HeapAllocator.h"
-#include "platform/heap/InlinedGlobalMarkingVisitor.h"
 #include "platform/heap/Member.h"
 #include "platform/heap/Persistent.h"
 #include "platform/heap/ThreadState.h"
 #include "platform/heap/TraceTraits.h"
 #include "platform/heap/Visitor.h"
-#include "wtf/Allocator.h"
+#include "platform/heap/VisitorImpl.h"
+#include "platform/wtf/Allocator.h"
 
 #if defined(LEAK_SANITIZER)
-#include "wtf/LeakAnnotations.h"
+#include "platform/wtf/LeakAnnotations.h"
 #endif
 
 namespace blink {
@@ -60,14 +60,14 @@ class LeakSanitizerDisableScope {
  public:
   LeakSanitizerDisableScope() {
     __lsan_disable();
-    if (ThreadState::current())
-      ThreadState::current()->enterStaticReferenceRegistrationDisabledScope();
+    if (ThreadState::Current())
+      ThreadState::Current()->enterStaticReferenceRegistrationDisabledScope();
   }
 
   ~LeakSanitizerDisableScope() {
     __lsan_enable();
-    if (ThreadState::current())
-      ThreadState::current()->leaveStaticReferenceRegistrationDisabledScope();
+    if (ThreadState::Current())
+      ThreadState::Current()->leaveStaticReferenceRegistrationDisabledScope();
   }
 };
 #define LEAK_SANITIZER_DISABLED_SCOPE \

@@ -7,13 +7,13 @@
 #ifndef XFA_FXFA_APP_XFA_FFBARCODE_H_
 #define XFA_FXFA_APP_XFA_FFBARCODE_H_
 
-#include "xfa/fxbarcode/BC_Library.h"
+#include "fxbarcode/BC_Library.h"
 #include "xfa/fxfa/app/xfa_fftextedit.h"
-#include "xfa/fxfa/xfa_ffpageview.h"
+#include "xfa/fxfa/cxfa_ffpageview.h"
 
 class CXFA_FFBarcode : public CXFA_FFTextEdit {
  public:
-  CXFA_FFBarcode(CXFA_FFPageView* pPageView, CXFA_WidgetAcc* pDataAcc);
+  explicit CXFA_FFBarcode(CXFA_WidgetAcc* pDataAcc);
   ~CXFA_FFBarcode() override;
 
   // CXFA_FFTextEdit
@@ -22,8 +22,8 @@ class CXFA_FFBarcode : public CXFA_FFTextEdit {
                     CFX_Matrix* pMatrix,
                     uint32_t dwStatus) override;
   void UpdateWidgetProperty() override;
-  bool OnLButtonDown(uint32_t dwFlags, FX_FLOAT fx, FX_FLOAT fy) override;
-  bool OnRButtonDown(uint32_t dwFlags, FX_FLOAT fx, FX_FLOAT fy) override;
+  bool OnLButtonDown(uint32_t dwFlags, const CFX_PointF& point) override;
+  bool OnRButtonDown(uint32_t dwFlags, const CFX_PointF& point) override;
 };
 
 enum XFA_BARCODETYPEENUM {
@@ -93,7 +93,7 @@ enum XFA_BARCODETYPEENUM {
 
 struct XFA_BARCODETYPEENUMINFO {
   uint32_t uHash;
-  const FX_WCHAR* pName;
+  const wchar_t* pName;
   XFA_BARCODETYPEENUM eName;
   BC_TYPE eBCType;
 };

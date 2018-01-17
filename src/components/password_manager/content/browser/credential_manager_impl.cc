@@ -104,8 +104,7 @@ void CredentialManagerImpl::OnProvisionalSaveComplete() {
     // If this is a federated credential, check it against the federated matches
     // produced by the PasswordFormManager. If a match is found, update it and
     // return.
-    for (const auto& match :
-         form_manager_->form_fetcher()->GetFederatedMatches()) {
+    for (auto* match : form_manager_->form_fetcher()->GetFederatedMatches()) {
       if (match->username_value == form.username_value &&
           match->federation_origin.IsSameOriginWith(form.federation_origin)) {
         form_manager_->Update(*match);
@@ -123,9 +122,7 @@ void CredentialManagerImpl::OnProvisionalSaveComplete() {
   }
 
   // Otherwise, this is a new form, so as the user if they'd like to save.
-  client_->PromptUserToSaveOrUpdatePassword(
-      std::move(form_manager_), CredentialSourceType::CREDENTIAL_SOURCE_API,
-      false);
+  client_->PromptUserToSaveOrUpdatePassword(std::move(form_manager_), false);
 }
 
 void CredentialManagerImpl::RequireUserMediation(
@@ -203,7 +200,7 @@ void CredentialManagerImpl::Get(bool zero_click_only,
 }
 
 bool CredentialManagerImpl::IsZeroClickAllowed() const {
-  return *auto_signin_enabled_ && !client_->IsOffTheRecord();
+  return *auto_signin_enabled_ && !client_->IsIncognito();
 }
 
 GURL CredentialManagerImpl::GetOrigin() const {

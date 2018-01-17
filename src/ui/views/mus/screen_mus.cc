@@ -8,11 +8,12 @@
 
 #include "ui/views/mus/screen_mus.h"
 
-#include "services/service_manager/public/cpp/connection.h"
 #include "services/service_manager/public/cpp/connector.h"
 #include "services/ui/public/interfaces/constants.mojom.h"
 #include "ui/aura/env.h"
+#include "ui/aura/mus/window_tree_host_mus.h"
 #include "ui/aura/window.h"
+#include "ui/aura/window_tree_host.h"
 #include "ui/views/mus/screen_mus_delegate.h"
 #include "ui/views/mus/window_manager_frame_values.h"
 
@@ -70,6 +71,15 @@ void ScreenMus::Init(service_manager::Connector* connector) {
     display_list().AddDisplay(
         display::Display(0xFFFFFFFF, gfx::Rect(0, 0, 801, 802)), Type::PRIMARY);
   }
+}
+
+display::Display ScreenMus::GetDisplayNearestWindow(
+    gfx::NativeWindow window) const {
+  aura::WindowTreeHostMus* window_tree_host_mus =
+      aura::WindowTreeHostMus::ForWindow(window);
+  if (!window_tree_host_mus)
+    return GetPrimaryDisplay();
+  return window_tree_host_mus->GetDisplay();
 }
 
 gfx::Point ScreenMus::GetCursorScreenPoint() {

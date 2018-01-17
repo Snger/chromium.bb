@@ -12,6 +12,7 @@
 #include "chrome/browser/prerender/prerender_manager.h"
 #include "chrome/browser/prerender/prerender_util.h"
 #include "content/public/browser/browser_thread.h"
+#include "content/public/browser/resource_dispatcher_host.h"
 #include "content/public/browser/web_contents.h"
 #include "net/base/load_flags.h"
 #include "net/http/http_response_headers.h"
@@ -85,14 +86,38 @@ void PrerenderResourceThrottle::OverridePrerenderContentsForTesting(
 PrerenderResourceThrottle::PrerenderResourceThrottle(net::URLRequest* request)
     : request_(request),
       load_flags_(net::LOAD_NORMAL),
-      prerender_throttle_info_(new PrerenderThrottleInfo()) {}
+      prerender_throttle_info_(new PrerenderThrottleInfo()) {
+// Priorities for prerendering requests are lowered, to avoid competing with
+// other page loads, except on Android where this is less likely to be a
+// problem. In some cases, this may negatively impact the performance of
+// prerendering, see https://crbug.com/652746 for details.
+#if !defined(OS_ANDROID)
+  // Requests with the IGNORE_LIMITS flag set (i.e., sync XHRs)
+  // should remain at MAXIMUM_PRIORITY.
+  if (request_->load_flags() & net::LOAD_IGNORE_LIMITS) {
+    DCHECK_EQ(request_->priority(), net::MAXIMUM_PRIORITY);
+  } else if (request_->priority() != net::IDLE) {
+    original_request_priority_ = request_->priority();
+    // In practice, the resource scheduler does not know about the request yet,
+    // and it falls back to calling request_->SetPriority(), so it would be
+    // possible to do just that here. It is cleaner and more robust to go
+    // through the resource dispatcher host though.
+    if (content::ResourceDispatcherHost::Get()) {
+      content::ResourceDispatcherHost::Get()->ReprioritizeRequest(request_,
+                                                                  net::IDLE);
+    }
+  }
+#endif  // OS_ANDROID
+}
 
 PrerenderResourceThrottle::~PrerenderResourceThrottle() {}
 
 void PrerenderResourceThrottle::WillStartRequest(bool* defer) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
   const content::ResourceRequestInfo* info =
       content::ResourceRequestInfo::ForRequest(request_);
   *defer = true;
+
   BrowserThread::PostTask(
       BrowserThread::UI, FROM_HERE,
       base::Bind(&PrerenderResourceThrottle::WillStartRequestOnUI, AsWeakPtr(),
@@ -104,6 +129,7 @@ void PrerenderResourceThrottle::WillStartRequest(bool* defer) {
 void PrerenderResourceThrottle::WillRedirectRequest(
     const net::RedirectInfo& redirect_info,
     bool* defer) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
   const content::ResourceRequestInfo* info =
       content::ResourceRequestInfo::ForRequest(request_);
   *defer = true;
@@ -119,6 +145,7 @@ void PrerenderResourceThrottle::WillRedirectRequest(
 }
 
 void PrerenderResourceThrottle::WillProcessResponse(bool* defer) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
   const content::ResourceRequestInfo* info =
       content::ResourceRequestInfo::ForRequest(request_);
   if (!info)
@@ -141,8 +168,19 @@ const char* PrerenderResourceThrottle::GetNameForLogging() const {
 }
 
 void PrerenderResourceThrottle::ResumeHandler() {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
   request_->SetLoadFlags(request_->load_flags() | load_flags_);
   Resume();
+}
+
+void PrerenderResourceThrottle::ResetResourcePriority() {
+  if (!original_request_priority_)
+    return;
+
+  if (content::ResourceDispatcherHost::Get()) {
+    content::ResourceDispatcherHost::Get()->ReprioritizeRequest(
+        request_, original_request_priority_.value());
+  }
 }
 
 // static
@@ -153,6 +191,7 @@ void PrerenderResourceThrottle::WillStartRequestOnUI(
     const GURL& url,
     const ResourceRequestInfo::WebContentsGetter& web_contents_getter,
     scoped_refptr<PrerenderThrottleInfo> prerender_throttle_info) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   bool cancel = false;
   PrerenderContents* prerender_contents =
       PrerenderContentsFromGetter(web_contents_getter);
@@ -197,9 +236,16 @@ void PrerenderResourceThrottle::WillStartRequestOnUI(
       // Delay icon fetching until the contents are getting swapped in
       // to conserve network usage in mobile devices.
       prerender_contents->AddResourceThrottle(throttle);
+
+      // No need to call AddIdleResource() on Android.
       return;
 #endif
     }
+
+#if !defined(OS_ANDROID)
+    if (!cancel)
+      prerender_contents->AddIdleResource(throttle);
+#endif
   }
 
   BrowserThread::PostTask(
@@ -218,6 +264,7 @@ void PrerenderResourceThrottle::WillRedirectRequestOnUI(
     bool is_no_store,
     const GURL& new_url,
     const ResourceRequestInfo::WebContentsGetter& web_contents_getter) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   bool cancel = false;
   PrerenderContents* prerender_contents =
       PrerenderContentsFromGetter(web_contents_getter);
@@ -261,6 +308,7 @@ void PrerenderResourceThrottle::WillProcessResponseOnUI(
     bool is_no_store,
     int redirect_count,
     scoped_refptr<PrerenderThrottleInfo> prerender_throttle_info) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(prerender_throttle_info);
   if (!prerender_throttle_info->manager())
     return;
@@ -278,12 +326,14 @@ void PrerenderResourceThrottle::WillProcessResponseOnUI(
 // static
 PrerenderContents* PrerenderResourceThrottle::PrerenderContentsFromGetter(
     const ResourceRequestInfo::WebContentsGetter& web_contents_getter) {
+  DCHECK_CURRENTLY_ON(BrowserThread::UI);
   if (g_prerender_contents_for_testing)
     return g_prerender_contents_for_testing;
   return PrerenderContents::FromWebContents(web_contents_getter.Run());
 }
 
 void PrerenderResourceThrottle::SetPrerenderMode(PrerenderMode mode) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
   load_flags_ = (mode == PREFETCH_ONLY) ? net::LOAD_PREFETCH : net::LOAD_NORMAL;
 }
 

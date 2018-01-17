@@ -28,6 +28,7 @@
 #include "content/public/test/test_browser_context.h"
 #include "content/public/test/test_browser_thread_bundle.h"
 #include "content/test/test_content_browser_client.h"
+#include "media/audio/audio_system_impl.h"
 #include "media/audio/mock_audio_manager.h"
 #include "media/base/media_switches.h"
 #include "media/capture/video_capture_types.h"
@@ -38,6 +39,7 @@
 
 using ::testing::_;
 using ::testing::AnyNumber;
+using ::testing::AtMost;
 using ::testing::DoAll;
 using ::testing::InSequence;
 using ::testing::Mock;
@@ -115,6 +117,7 @@ class VideoCaptureTest : public testing::Test,
       : thread_bundle_(content::TestBrowserThreadBundle::IO_MAINLOOP),
         audio_manager_(
             new media::MockAudioManager(base::ThreadTaskRunnerHandle::Get())),
+        audio_system_(media::AudioSystemImpl::Create(audio_manager_.get())),
         task_runner_(base::ThreadTaskRunnerHandle::Get()),
         opened_session_id_(kInvalidMediaCaptureSessionId),
         observer_binding_(this) {}
@@ -126,7 +129,8 @@ class VideoCaptureTest : public testing::Test,
         switches::kUseFakeDeviceForMediaStream);
     base::CommandLine::ForCurrentProcess()->AppendSwitch(
         switches::kUseFakeUIForMediaStream);
-    media_stream_manager_.reset(new MediaStreamManager(audio_manager_.get()));
+    media_stream_manager_ =
+        base::MakeUnique<MediaStreamManager>(audio_system_.get());
 
     // Create a Host and connect it to a simulated IPC channel.
     host_.reset(new VideoCaptureHost(media_stream_manager_.get()));
@@ -244,7 +248,10 @@ class VideoCaptureTest : public testing::Test,
     params.requested_format = media::VideoCaptureFormat(
         gfx::Size(352, 288), 30, media::PIXEL_FORMAT_I420);
 
-    EXPECT_CALL(*this, OnStateChanged(mojom::VideoCaptureState::STARTED));
+    // |STARTED| is reported asynchronously, which may not be received if
+    // capture is stopped immediately.
+    EXPECT_CALL(*this, OnStateChanged(mojom::VideoCaptureState::STARTED))
+        .Times(AtMost(1));
     host_->Start(kDeviceId, opened_session_id_, params,
                  observer_binding_.CreateInterfacePtrAndBind());
 
@@ -307,6 +314,7 @@ class VideoCaptureTest : public testing::Test,
   // |audio_manager_| needs to outlive |thread_bundle_| because it uses the
   // underlying message loop.
   media::ScopedAudioManagerPtr audio_manager_;
+  std::unique_ptr<media::AudioSystem> audio_system_;
   content::TestBrowserContext browser_context_;
   content::TestContentBrowserClient browser_client_;
   const scoped_refptr<base::SingleThreadTaskRunner> task_runner_;

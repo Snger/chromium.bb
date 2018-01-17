@@ -12,7 +12,6 @@
 #include "base/logging.h"
 #include "base/run_loop.h"
 #include "content/browser/browser_thread_impl.h"
-#include "content/browser/fileapi/mock_url_request_delegate.h"
 #include "content/browser/service_worker/embedded_worker_test_helper.h"
 #include "content/browser/service_worker/service_worker_context_core.h"
 #include "content/browser/service_worker/service_worker_provider_host.h"
@@ -30,6 +29,7 @@
 #include "content/public/test/test_browser_thread_bundle.h"
 #include "content/test/test_content_browser_client.h"
 #include "net/url_request/url_request_context.h"
+#include "net/url_request/url_request_test_util.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace content {
@@ -125,12 +125,10 @@ class ServiceWorkerControlleeRequestHandlerTest : public testing::Test {
         EmbeddedWorkerTestHelper::CreateHttpResponseInfo());
 
     // An empty host.
-    std::unique_ptr<ServiceWorkerProviderHost> host(
-        new ServiceWorkerProviderHost(
-            helper_->mock_render_process_id(), MSG_ROUTING_NONE,
-            kMockProviderId, SERVICE_WORKER_PROVIDER_FOR_WINDOW,
-            ServiceWorkerProviderHost::FrameSecurityLevel::SECURE,
-            context()->AsWeakPtr(), NULL));
+    std::unique_ptr<ServiceWorkerProviderHost> host =
+        CreateProviderHostForWindow(
+            helper_->mock_render_process_id(), kMockProviderId,
+            true /* is_parent_frame_secure */, helper_->context()->AsWeakPtr());
     provider_host_ = host->AsWeakPtr();
     context()->AddProviderHost(std::move(host));
 
@@ -153,7 +151,7 @@ class ServiceWorkerControlleeRequestHandlerTest : public testing::Test {
   scoped_refptr<ServiceWorkerVersion> version_;
   base::WeakPtr<ServiceWorkerProviderHost> provider_host_;
   net::URLRequestContext url_request_context_;
-  MockURLRequestDelegate url_request_delegate_;
+  net::TestDelegate url_request_delegate_;
   MockResourceContext mock_resource_context_;
   GURL scope_;
   GURL script_url_;

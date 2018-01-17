@@ -15,8 +15,9 @@
 #include "GrRenderTargetContextPriv.h"
 #include "GrRenderTargetProxy.h"
 #include "GrResourceCache.h"
+#include "GrSemaphore.h"
 
-#include "SkGrPriv.h"
+#include "SkGr.h"
 #include "SkImage_Gpu.h"
 #include "SkMathPriv.h"
 #include "SkString.h"
@@ -55,29 +56,12 @@ void SetupAlwaysEvictAtlas(GrContext* context) {
 }
 };
 
-void GrTestTarget::init(GrContext* ctx, sk_sp<GrRenderTargetContext> renderTargetContext) {
-    SkASSERT(!fContext);
-
-    fContext.reset(SkRef(ctx));
-    fRenderTargetContext = renderTargetContext;
-}
-
 bool GrSurfaceProxy::isWrapped_ForTesting() const {
     return SkToBool(fTarget);
 }
 
 bool GrRenderTargetContext::isWrapped_ForTesting() const {
     return fRenderTargetProxy->isWrapped_ForTesting();
-}
-
-void GrContext::getTestTarget(GrTestTarget* tar, sk_sp<GrRenderTargetContext> renderTargetContext) {
-    this->flush();
-    SkASSERT(renderTargetContext);
-    // We could create a proxy GrOpList that passes through to fGpu until ~GrTextTarget() and
-    // then disconnects. This would help prevent test writers from mixing using the returned
-    // GrOpList and regular drawing. We could also assert or fail in GrContext drawing methods
-    // until ~GrTestTarget().
-    tar->init(this, std::move(renderTargetContext));
 }
 
 void GrContext::setTextBlobCacheLimit_ForTesting(size_t bytes) {
@@ -138,13 +122,17 @@ void GrContext::printGpuStats() const {
     SkDebugf("%s", out.c_str());
 }
 
-sk_sp<SkImage> GrContext::getFontAtlasImage(GrMaskFormat format) {
+sk_sp<SkImage> GrContext::getFontAtlasImage_ForTesting(GrMaskFormat format) {
     GrAtlasGlyphCache* cache = this->getAtlasGlyphCache();
 
-    GrTexture* tex = cache->getTexture(format);
-    sk_sp<SkImage> image(new SkImage_Gpu(tex->width(), tex->height(),
-                                         kNeedNewImageUniqueID, kPremul_SkAlphaType,
-                                         sk_ref_sp(tex), nullptr, SkBudgeted::kNo));
+    sk_sp<GrTextureProxy> proxy = cache->getProxy(format);
+    if (!proxy) {
+        return nullptr;
+    }
+
+    SkASSERT(proxy->priv().isExact());
+    sk_sp<SkImage> image(new SkImage_Gpu(this, kNeedNewImageUniqueID, kPremul_SkAlphaType,
+                                         std::move(proxy), nullptr, SkBudgeted::kNo));
     return image;
 }
 
@@ -238,40 +226,37 @@ int GrResourceCache::countUniqueKeysWithTag(const char* tag) const {
 ///////////////////////////////////////////////////////////////////////////////
 
 #define ASSERT_SINGLE_OWNER \
-    SkDEBUGCODE(GrSingleOwner::AutoEnforce debug_SingleOwner(fRenderTargetContext->fSingleOwner);)
-#define RETURN_IF_ABANDONED        if (fRenderTargetContext->fDrawingManager->wasAbandoned()) { return; }
+    SkDEBUGCODE(GrSingleOwner::AutoEnforce debug_SingleOwner(fRenderTargetContext->singleOwner());)
 
-void GrRenderTargetContextPriv::testingOnly_addDrawOp(GrPaint&& paint,
-                                                      GrAAType aaType,
-                                                      std::unique_ptr<GrDrawOp>
-                                                              op,
-                                                      const GrUserStencilSettings* uss,
-                                                      bool snapToCenters) {
+uint32_t GrRenderTargetContextPriv::testingOnly_addLegacyMeshDrawOp(
+        GrPaint&& paint,
+        GrAAType aaType,
+        std::unique_ptr<GrLegacyMeshDrawOp> op,
+        const GrUserStencilSettings* uss,
+        bool snapToCenters) {
     ASSERT_SINGLE_OWNER
-    RETURN_IF_ABANDONED
-    SkDEBUGCODE(fRenderTargetContext->validate();)
-    GR_AUDIT_TRAIL_AUTO_FRAME(fRenderTargetContext->fAuditTrail,
-                              "GrRenderTargetContext::testingOnly_addDrawOp");
+    if (fRenderTargetContext->drawingManager()->wasAbandoned()) {
+        return SK_InvalidUniqueID;
+    }
+    SkDEBUGCODE(fRenderTargetContext->validate();) GR_AUDIT_TRAIL_AUTO_FRAME(
+            fRenderTargetContext->fAuditTrail, "GrRenderTargetContext::testingOnly_addMeshDrawOp");
 
     GrPipelineBuilder pipelineBuilder(std::move(paint), aaType);
     if (uss) {
         pipelineBuilder.setUserStencil(uss);
     }
-    if (snapToCenters) {
-        pipelineBuilder.setState(GrPipelineBuilder::kSnapVerticesToPixelCenters_Flag, true);
-    }
+    pipelineBuilder.setSnapVerticesToPixelCenters(snapToCenters);
 
-    fRenderTargetContext->getOpList()->addDrawOp(pipelineBuilder, fRenderTargetContext, GrNoClip(),
-                                                 std::move(op));
+    return fRenderTargetContext->addLegacyMeshDrawOp(std::move(pipelineBuilder), GrNoClip(),
+                                                     std::move(op));
 }
 
 #undef ASSERT_SINGLE_OWNER
-#undef RETURN_IF_ABANDONED
 
 ///////////////////////////////////////////////////////////////////////////////
 
 GrRenderTarget::Flags GrRenderTargetProxy::testingOnly_getFlags() const {
-    return fFlags;
+    return fRenderTargetFlags;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -288,6 +273,10 @@ public:
     bool isConfigTexturable(GrPixelConfig config) const override { return false; }
     bool isConfigRenderable(GrPixelConfig config, bool withMSAA) const override { return false; }
     bool canConfigBeImageStorage(GrPixelConfig) const override { return false; }
+    bool initDescForDstCopy(const GrRenderTargetProxy* src, GrSurfaceDesc* desc,
+                            bool* rectsMustMatch, bool* disallowSubrect) const override {
+        return false;
+    }
 
 private:
     typedef GrCaps INHERITED;
@@ -318,10 +307,6 @@ public:
         *effectiveSampleCnt = rt->desc().fSampleCnt;
     }
 
-    bool initDescForDstCopy(const GrRenderTarget* src, GrSurfaceDesc* desc) const override {
-        return false;
-    }
-
     GrGpuCommandBuffer* createCommandBuffer(const GrGpuCommandBuffer::LoadAndStoreInfo&,
                                             const GrGpuCommandBuffer::LoadAndStoreInfo&) override {
         return nullptr;
@@ -329,9 +314,14 @@ public:
 
     void drawDebugWireRect(GrRenderTarget*, const SkIRect&, GrColor) override {}
 
-    GrFence SK_WARN_UNUSED_RESULT insertFence() const override { return 0; }
-    bool waitFence(GrFence, uint64_t) const override { return true; }
+    GrFence SK_WARN_UNUSED_RESULT insertFence() override { return 0; }
+    bool waitFence(GrFence, uint64_t) override { return true; }
     void deleteFence(GrFence) const override {}
+    void flush() override {}
+
+    sk_sp<GrSemaphore> SK_WARN_UNUSED_RESULT makeSemaphore() override { return nullptr; }
+    void insertSemaphore(sk_sp<GrSemaphore> semaphore) override {}
+    void waitSemaphore(sk_sp<GrSemaphore> semaphore) override {}
 
 private:
     void onResetContext(uint32_t resetBits) override {}
@@ -352,8 +342,7 @@ private:
         return nullptr;
     }
 
-    sk_sp<GrRenderTarget> onWrapBackendRenderTarget(const GrBackendRenderTargetDesc&,
-                                                    GrWrapOwnership) override {
+    sk_sp<GrRenderTarget> onWrapBackendRenderTarget(const GrBackendRenderTargetDesc&) override {
         return nullptr;
     }
 

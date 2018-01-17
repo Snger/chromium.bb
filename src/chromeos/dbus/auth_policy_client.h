@@ -9,6 +9,7 @@
 
 #include "base/callback.h"
 #include "chromeos/chromeos_export.h"
+#include "chromeos/dbus/authpolicy/active_directory_account_data.pb.h"
 #include "chromeos/dbus/dbus_client.h"
 #include "third_party/cros_system_api/dbus/service_constants.h"
 
@@ -23,10 +24,11 @@ class CHROMEOS_EXPORT AuthPolicyClient : public DBusClient {
  public:
   // |user_id| is a unique id for the users. Using objectGUID from Active
   // Directory server.
-  using AuthCallback = base::Callback<void(authpolicy::ErrorType error,
-                                           const std::string& user_id)>;
-  using JoinCallback = base::Callback<void(authpolicy::ErrorType error)>;
-  using RefreshPolicyCallback = base::Callback<void(bool success)>;
+  using AuthCallback = base::OnceCallback<void(
+      authpolicy::ErrorType error,
+      const authpolicy::ActiveDirectoryAccountData& account_data)>;
+  using JoinCallback = base::OnceCallback<void(authpolicy::ErrorType error)>;
+  using RefreshPolicyCallback = base::OnceCallback<void(bool success)>;
 
   ~AuthPolicyClient() override;
 
@@ -44,7 +46,7 @@ class CHROMEOS_EXPORT AuthPolicyClient : public DBusClient {
   virtual void JoinAdDomain(const std::string& machine_name,
                             const std::string& user_principal_name,
                             int password_fd,
-                            const JoinCallback& callback) = 0;
+                            JoinCallback callback) = 0;
 
   // Calls AuthenticateUser. It runs "kinit <user_principal_name> .. " which
   // does kerberos authentication against Active Directory server.
@@ -52,17 +54,17 @@ class CHROMEOS_EXPORT AuthPolicyClient : public DBusClient {
   // |callback| is called after getting (or failing to get) D-BUS response.
   virtual void AuthenticateUser(const std::string& user_principal_name,
                                 int password_fd,
-                                const AuthCallback& callback) = 0;
+                                AuthCallback callback) = 0;
 
   // Calls RefreshDevicePolicy - handle policy for the device.
   // Fetch GPO files from Active directory server, parse it, encode it into
   // protobuf and send to SessionManager. Callback is called after that.
-  virtual void RefreshDevicePolicy(const RefreshPolicyCallback& callback) = 0;
+  virtual void RefreshDevicePolicy(RefreshPolicyCallback callback) = 0;
 
   // Calls RefreshUserPolicy - handle policy for the user specified by
   // |account_id|. Similar to RefreshDevicePolicy.
   virtual void RefreshUserPolicy(const AccountId& account_id,
-                                 const RefreshPolicyCallback& callback) = 0;
+                                 RefreshPolicyCallback callback) = 0;
 
  protected:
   // Create() should be used instead.

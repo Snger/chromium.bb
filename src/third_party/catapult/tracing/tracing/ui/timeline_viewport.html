@@ -6,6 +6,7 @@ found in the LICENSE file.
 -->
 
 <link rel="import" href="/tracing/base/event.html">
+<link rel="import" href="/tracing/base/unit.html">
 <link rel="import" href="/tracing/model/event_set.html">
 <link rel="import" href="/tracing/ui/base/animation.html">
 <link rel="import" href="/tracing/ui/base/animation_controller.html">
@@ -27,6 +28,47 @@ tr.exportTo('tr.ui', function() {
   var TimelineInterestRange = tr.ui.TimelineInterestRange;
 
   var IDEAL_MAJOR_MARK_DISTANCE_PX = 150;
+  // Keep 5 digits of precision when rounding the major mark distances.
+  var MAJOR_MARK_ROUNDING_FACTOR = 100000;
+
+  class AnimationControllerProxy {
+    constructor(target) {
+      this.target_ = target;
+    }
+
+    get panX() {
+      return this.target_.currentDisplayTransform_.panX;
+    }
+
+    set panX(panX) {
+      this.target_.currentDisplayTransform_.panX = panX;
+    }
+
+    get panY() {
+      return this.target_.currentDisplayTransform_.panY;
+    }
+
+    set panY(panY) {
+      this.target_.currentDisplayTransform_.panY = panY;
+    }
+
+    get scaleX() {
+      return this.target_.currentDisplayTransform_.scaleX;
+    }
+
+    set scaleX(scaleX) {
+      this.target_.currentDisplayTransform_.scaleX = scaleX;
+    }
+
+    cloneAnimationState() {
+      return this.target_.currentDisplayTransform_.clone();
+    }
+
+    xPanWorldPosToViewPos(xWorld, xView) {
+      this.target_.currentDisplayTransform_.xPanWorldPosToViewPos(
+          xWorld, xView, this.target_.modelTrackContainer_.canvas.clientWidth);
+    }
+  }
 
   /**
    * The TimelineViewport manages the transform used for navigating
@@ -68,11 +110,11 @@ tr.exportTo('tr.ui', function() {
     this.onModelTrackControllerScroll_ =
         this.onModelTrackControllerScroll_.bind(this);
 
+    this.timeMode_ = TimelineViewport.TimeMode.TIME_IN_MS;
     // Major mark positions are where the gridlines/ruler marks are placed along
     // the x-axis.
     this.majorMarkWorldPositions_ = [];
     this.majorMarkUnit_ = undefined;
-    this.majorMarkUnitDivisor_ = undefined;
     this.interestRange_ = new TimelineInterestRange(this);
 
     this.eventToTrackMap_ = new tr.ui.tracks.EventToTrackMap();
@@ -80,6 +122,11 @@ tr.exportTo('tr.ui', function() {
 
     this.dispatchChangeEvent = this.dispatchChangeEvent.bind(this);
   }
+
+  TimelineViewport.TimeMode = {
+    TIME_IN_MS: 0,
+    REVISIONS: 1
+  };
 
   TimelineViewport.prototype = {
     __proto__: tr.b.EventTarget.prototype,
@@ -90,8 +137,7 @@ tr.exportTo('tr.ui', function() {
      */
     get isAttachedToDocumentOrInTestMode() {
       // Allow not providing a parent element, used by tests.
-      if (this.parentEl_ === undefined)
-        return;
+      if (this.parentEl_ === undefined) return;
       return tr.ui.b.isElementAttachedToDocument(this.parentEl_);
     },
 
@@ -118,41 +164,7 @@ tr.exportTo('tr.ui', function() {
             this.onCurentDisplayTransformChange_(e.oldTargetState);
           }.bind(this));
 
-      var that = this;
-      this.dtAnimationController_.target = {
-        get panX() {
-          return that.currentDisplayTransform_.panX;
-        },
-
-        set panX(panX) {
-          that.currentDisplayTransform_.panX = panX;
-        },
-
-        get panY() {
-          return that.currentDisplayTransform_.panY;
-        },
-
-        set panY(panY) {
-          that.currentDisplayTransform_.panY = panY;
-        },
-
-        get scaleX() {
-          return that.currentDisplayTransform_.scaleX;
-        },
-
-        set scaleX(scaleX) {
-          that.currentDisplayTransform_.scaleX = scaleX;
-        },
-
-        cloneAnimationState: function() {
-          return that.currentDisplayTransform_.clone();
-        },
-
-        xPanWorldPosToViewPos: function(xWorld, xView) {
-          that.currentDisplayTransform_.xPanWorldPosToViewPos(
-              xWorld, xView, that.modelTrackContainer_.canvas.clientWidth);
-        }
-      };
+      this.dtAnimationController_.target = new AnimationControllerProxy(this);
     },
 
     get currentDisplayTransform() {
@@ -169,15 +181,16 @@ tr.exportTo('tr.ui', function() {
     },
 
     queueDisplayTransformAnimation: function(animation) {
-      if (!(animation instanceof tr.ui.b.Animation))
+      if (!(animation instanceof tr.ui.b.Animation)) {
         throw new Error('animation must be instanceof tr.ui.b.Animation');
+      }
       this.dtAnimationController_.queueAnimation(animation);
     },
 
     onCurentDisplayTransformChange_: function(oldDisplayTransform) {
       // Ensure panY stays clamped in the track container's scroll range.
       if (this.modelTrackContainer_) {
-        this.currentDisplayTransform.panY = tr.b.clamp(
+        this.currentDisplayTransform.panY = tr.b.math.clamp(
             this.currentDisplayTransform.panY,
             0,
             this.modelTrackContainer_.scrollHeight -
@@ -187,16 +200,19 @@ tr.exportTo('tr.ui', function() {
       var changed = !this.currentDisplayTransform.equals(oldDisplayTransform);
       var yChanged = this.currentDisplayTransform.panY !==
           oldDisplayTransform.panY;
-      if (yChanged)
+      if (yChanged) {
         this.modelTrackContainer_.scrollTop = this.currentDisplayTransform.panY;
-      if (changed)
+      }
+      if (changed) {
         this.dispatchChangeEvent();
+      }
     },
 
     onModelTrackControllerScroll_: function(e) {
       if (this.dtAnimationController_.activeAnimation &&
-          this.dtAnimationController_.activeAnimation.affectsPanY)
+          this.dtAnimationController_.activeAnimation.affectsPanY) {
         this.dtAnimationController_.cancelActiveAnimation();
+      }
       var panY = this.modelTrackContainer_.scrollTop;
       this.currentDisplayTransform_.panY = panY;
     },
@@ -206,9 +222,10 @@ tr.exportTo('tr.ui', function() {
     },
 
     set modelTrackContainer(m) {
-      if (this.modelTrackContainer_)
+      if (this.modelTrackContainer_) {
         this.modelTrackContainer_.removeEventListener('scroll',
             this.onModelTrackControllerScroll_);
+      }
 
       this.modelTrackContainer_ = m;
       this.modelTrackContainer_.addEventListener('scroll',
@@ -247,8 +264,7 @@ tr.exportTo('tr.ui', function() {
     },
 
     set gridEnabled(enabled) {
-      if (this.gridEnabled_ === enabled)
-        return;
+      if (this.gridEnabled_ === enabled) return;
 
       this.gridEnabled_ = enabled && true;
       this.dispatchChangeEvent();
@@ -259,8 +275,8 @@ tr.exportTo('tr.ui', function() {
     },
 
     set gridTimebase(timebase) {
-      if (this.gridTimebase_ === timebase)
-        return;
+      if (this.gridTimebase_ === timebase) return;
+
       this.gridTimebase_ = timebase;
       this.dispatchChangeEvent();
     },
@@ -278,11 +294,24 @@ tr.exportTo('tr.ui', function() {
     },
 
     get majorMarkUnit() {
-      return this.majorMarkUnit_;
+      switch (this.timeMode_) {
+        case TimelineViewport.TimeMode.TIME_IN_MS:
+          return tr.b.Unit.byName.timeInMsAutoFormat;
+        case TimelineViewport.TimeMode.REVISIONS:
+          return tr.b.Unit.byName.count;
+        default:
+          throw new Error(
+              'Cannot get Unit for unsupported time mode ' + this.timeMode_);
+      }
     },
 
-    get majorMarkUnitDivisor() {
-      return this.majorMarkUnitDivisor_;
+    get timeMode() {
+      return this.timeMode_;
+    },
+
+    set timeMode(mode) {
+      this.timeMode_ = mode;
+      this.dispatchChangeEvent();
     },
 
     updateMajorMarkData: function(viewLWorld, viewRWorld) {
@@ -294,37 +323,8 @@ tr.exportTo('tr.ui', function() {
       var idealMajorMarkDistanceWorld =
           dt.xViewVectorToWorld(idealMajorMarkDistancePix);
 
-      // The conservative guess is the nearest enclosing 0.1, 1, 10, 100, etc.
-      var conservativeGuess = tr.b.greaterPower(idealMajorMarkDistanceWorld);
-
-      // Once we have a conservative guess, consider things that evenly add up
-      // to the conservative guess, e.g. 0.5, 0.2, 0.1. Pick the one that still
-      // exceeds the ideal mark distance.
-      var majorMarkDistanceWorld = conservativeGuess;
-      var divisors = [2, 5, 10];
-      for (var i = 0; i < divisors.length; ++i) {
-        var tightenedGuess = conservativeGuess / divisors[i];
-        if (dt.xWorldVectorToView(tightenedGuess) < idealMajorMarkDistancePix) {
-          break;
-        }
-        majorMarkDistanceWorld = tightenedGuess;
-      }
-
-      // TODO(aiolos): move these conversions to tr.b.Unit and use from there.
-      // https://github.com/catapult-project/catapult/issues/2985
-      if (majorMarkDistanceWorld < 0.0001) {
-        this.majorMarkUnit_ = 'ns';
-        this.majorMarkUnitDivisor_ = 0.000001;
-      } else if (majorMarkDistanceWorld < 0.1) {
-        this.majorMarkUnit_ = 'us';
-        this.majorMarkUnitDivisor_ = 0.001;
-      } else if (majorMarkDistanceWorld < 100) {
-        this.majorMarkUnit_ = 'ms';
-        this.majorMarkUnitDivisor_ = 1;
-      } else {
-        this.majorMarkUnit_ = 's';
-        this.majorMarkUnitDivisor_ = 1000;
-      }
+      var majorMarkDistanceWorld = tr.b.math.preferredNumberLargerThanMin(
+          idealMajorMarkDistanceWorld);
 
       var firstMajorMark = Math.floor(
           viewLWorld / majorMarkDistanceWorld) * majorMarkDistanceWorld;
@@ -333,7 +333,9 @@ tr.exportTo('tr.ui', function() {
       for (var curX = firstMajorMark;
            curX < viewRWorld;
            curX += majorMarkDistanceWorld) {
-        this.majorMarkWorldPositions_.push(Math.floor(curX));
+        this.majorMarkWorldPositions_.push(
+            Math.floor(MAJOR_MARK_ROUNDING_FACTOR * curX) /
+            MAJOR_MARK_ROUNDING_FACTOR);
       }
     },
 
@@ -355,8 +357,7 @@ tr.exportTo('tr.ui', function() {
     },
 
     drawGridLines: function(ctx, viewLWorld, viewRWorld) {
-      if (!this.gridEnabled)
-        return;
+      if (!this.gridEnabled) return;
 
       var dt = this.currentDisplayTransform;
       var x = this.gridTimebase;
@@ -393,7 +394,6 @@ tr.exportTo('tr.ui', function() {
     getShiftedSelection: function(selection, offset) {
       var newSelection = new tr.model.EventSet();
       for (var event of selection) {
-
         // If this is a flow event, then move to its slice based on the
         // offset direction.
         if (event instanceof tr.model.FlowEvent) {
@@ -412,8 +412,8 @@ tr.exportTo('tr.ui', function() {
             event, offset, newSelection);
       }
 
-      if (newSelection.length === 0)
-        return undefined;
+      if (newSelection.length === 0) return undefined;
+
       return newSelection;
     },
 

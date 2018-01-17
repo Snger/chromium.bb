@@ -39,7 +39,7 @@ class TOutputGLSLBase : public TIntermTraverser
     TInfoSinkBase &objSink() { return mObjSink; }
     void writeFloat(TInfoSinkBase &out, float f);
     void writeTriplet(Visit visit, const char *preStr, const char *inStr, const char *postStr);
-    void writeLayoutQualifier(const TType &type);
+    virtual void writeLayoutQualifier(const TType &type);
     void writeInvariantQualifier(const TType &type);
     void writeVariableType(const TType &type);
     virtual bool writeVariablePrecision(TPrecision precision) = 0;
@@ -70,10 +70,10 @@ class TOutputGLSLBase : public TIntermTraverser
 
     // Same as hashName(), but without hashing built-in variables.
     TString hashVariableName(const TName &name);
-    // Same as hashName(), but without hashing built-in functions and with unmangling.
-    TString hashFunctionNameIfNeeded(const TName &mangledName);
+    // Same as hashName(), but without hashing internal functions or "main".
+    TString hashFunctionNameIfNeeded(const TFunctionSymbolInfo &info);
     // Used to translate function names for differences between ESSL and GLSL
-    virtual TString translateTextureFunction(TString &name) { return name; }
+    virtual TString translateTextureFunction(const TString &name) { return name; }
 
   private:
     bool structDeclared(const TStructure *structure) const;

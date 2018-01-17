@@ -127,7 +127,8 @@ class BLINK_PLATFORM_EXPORT RendererSchedulerImpl
   void SetTopLevelBlameContext(
       base::trace_event::BlameContext* blame_context) override;
   void SetRAILModeObserver(RAILModeObserver* observer) override;
-  bool MainThreadSeemsUnresponsive() override;
+  bool MainThreadSeemsUnresponsive(
+      base::TimeDelta main_thread_responsiveness_threshold) override;
 
   // RenderWidgetSignals::Observer implementation:
   void SetAllRenderWidgetsHidden(bool hidden) override;
@@ -140,10 +141,11 @@ class BLINK_PLATFORM_EXPORT RendererSchedulerImpl
                                    const base::PendingTask& task) override;
 
   // TaskTimeObserver implementation:
-  void willProcessTask(TaskQueue* task_queue, double start_time) override;
-  void didProcessTask(TaskQueue* task_queue,
+  void WillProcessTask(TaskQueue* task_queue, double start_time) override;
+  void DidProcessTask(TaskQueue* task_queue,
                       double start_time,
                       double end_time) override;
+  void OnBeginNestedMessageLoop() override;
 
   // QueueingTimeEstimator::Client implementation:
   void OnQueueingTimeForWindowEstimated(base::TimeDelta queueing_time) override;
@@ -156,6 +158,9 @@ class BLINK_PLATFORM_EXPORT RendererSchedulerImpl
 
   // Tells the scheduler that all TaskQueues should use virtual time.
   void EnableVirtualTime();
+
+  // Migrates all task queues to real time.
+  void DisableVirtualTimeForTesting();
 
   void AddWebViewScheduler(WebViewSchedulerImpl* web_view_scheduler);
   void RemoveWebViewScheduler(WebViewSchedulerImpl* web_view_scheduler);
@@ -494,11 +499,11 @@ class BLINK_PLATFORM_EXPORT RendererSchedulerImpl
 
   // Don't access main_thread_only_, instead use MainThreadOnly().
   MainThreadOnly main_thread_only_;
-  MainThreadOnly& MainThreadOnly() {
+  MainThreadOnly& GetMainThreadOnly() {
     helper_.CheckOnValidThread();
     return main_thread_only_;
   }
-  const struct MainThreadOnly& MainThreadOnly() const {
+  const struct MainThreadOnly& GetMainThreadOnly() const {
     helper_.CheckOnValidThread();
     return main_thread_only_;
   }
@@ -506,26 +511,23 @@ class BLINK_PLATFORM_EXPORT RendererSchedulerImpl
   mutable base::Lock any_thread_lock_;
   // Don't access any_thread_, instead use AnyThread().
   AnyThread any_thread_;
-  AnyThread& AnyThread() {
+  AnyThread& GetAnyThread() {
     any_thread_lock_.AssertAcquired();
     return any_thread_;
   }
-  const struct AnyThread& AnyThread() const {
+  const struct AnyThread& GetAnyThread() const {
     any_thread_lock_.AssertAcquired();
     return any_thread_;
   }
 
   // Don't access compositor_thread_only_, instead use CompositorThreadOnly().
   CompositorThreadOnly compositor_thread_only_;
-  CompositorThreadOnly& CompositorThreadOnly() {
+  CompositorThreadOnly& GetCompositorThreadOnly() {
     compositor_thread_only_.CheckOnValidThread();
     return compositor_thread_only_;
   }
 
   PollableThreadSafeFlag policy_may_need_update_;
-  // The maximum expected queueing time before the main thread is considered
-  // unresponsive.
-  base::TimeDelta main_thread_responsiveness_threshold_;
 
   base::WeakPtrFactory<RendererSchedulerImpl> weak_factory_;
 

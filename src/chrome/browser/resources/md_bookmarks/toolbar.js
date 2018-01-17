@@ -5,11 +5,27 @@
 Polymer({
   is: 'bookmarks-toolbar',
 
+  behaviors: [
+    bookmarks.StoreClient,
+  ],
+
   properties: {
-    searchTerm: {
+    /** @private */
+    searchTerm_: {
       type: String,
       observer: 'onSearchTermChanged_',
     },
+
+    sidebarWidth: {
+      type: String,
+      observer: 'onSidebarWidthChanged_',
+    },
+  },
+
+  attached: function() {
+    this.watch('searchTerm_', function(state) {
+      return state.search.term;
+    });
   },
 
   /** @return {CrToolbarSearchFieldElement} */
@@ -28,27 +44,36 @@ Polymer({
   },
 
   /** @private */
-  onBulkEditTap_: function() {
-    this.closeDropdownMenu_();
-  },
-
-  /** @private */
   onSortTap_: function() {
+    chrome.bookmarkManagerPrivate.sortChildren(
+        assert(this.getState().selectedFolder));
     this.closeDropdownMenu_();
   },
 
   /** @private */
   onAddBookmarkTap_: function() {
+    var dialog =
+        /** @type {BookmarksEditDialogElement} */ (this.$.addDialog.get());
+    dialog.showAddDialog(false, assert(this.getState().selectedFolder));
+    this.closeDropdownMenu_();
+  },
+
+  onAddFolderTap_: function() {
+    var dialog =
+        /** @type {BookmarksEditDialogElement} */ (this.$.addDialog.get());
+    dialog.showAddDialog(true, assert(this.getState().selectedFolder));
     this.closeDropdownMenu_();
   },
 
   /** @private */
-  onAddImportTap_: function() {
+  onImportTap_: function() {
+    chrome.bookmarks.import();
     this.closeDropdownMenu_();
   },
 
   /** @private */
-  onAddExportTap_: function() {
+  onExportTap_: function() {
+    chrome.bookmarks.export();
     this.closeDropdownMenu_();
   },
 
@@ -64,12 +89,24 @@ Polymer({
    */
   onSearchChanged_: function(e) {
     var searchTerm = /** @type {string} */ (e.detail);
-    this.fire('search-term-changed', searchTerm);
+    if (searchTerm != this.searchTerm_)
+      this.dispatch(bookmarks.actions.setSearchTerm(searchTerm));
+  },
+
+  onSidebarWidthChanged_: function() {
+    this.style.setProperty('--sidebar-width', this.sidebarWidth);
   },
 
   /** @private */
   onSearchTermChanged_: function() {
-    if (!this.searchTerm)
-      this.searchField.setValue('');
+    this.searchField.setValue(this.searchTerm_ || '');
+  },
+
+  /**
+   * @return {boolean}
+   * @private
+   */
+  hasSearchTerm_: function() {
+    return !!this.searchTerm_;
   },
 });

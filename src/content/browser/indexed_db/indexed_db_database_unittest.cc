@@ -15,6 +15,7 @@
 #include "base/run_loop.h"
 #include "base/strings/string16.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "content/browser/indexed_db/indexed_db.h"
 #include "content/browser/indexed_db/indexed_db_backing_store.h"
 #include "content/browser/indexed_db/indexed_db_callbacks.h"
@@ -139,10 +140,8 @@ TEST_F(IndexedDBDatabaseTest, ForcedClose) {
 
   const int64_t transaction_id = 123;
   const std::vector<int64_t> scope;
-  database->CreateTransaction(transaction_id,
-                              request->connection(),
-                              scope,
-                              blink::WebIDBTransactionModeReadOnly);
+  database->CreateTransaction(transaction_id, request->connection(), scope,
+                              blink::kWebIDBTransactionModeReadOnly);
 
   request->connection()->ForceClose();
 
@@ -152,7 +151,11 @@ TEST_F(IndexedDBDatabaseTest, ForcedClose) {
 
 class MockCallbacks : public IndexedDBCallbacks {
  public:
-  MockCallbacks() : IndexedDBCallbacks(nullptr, url::Origin(), nullptr) {}
+  MockCallbacks()
+      : IndexedDBCallbacks(nullptr,
+                           url::Origin(),
+                           nullptr,
+                           base::ThreadTaskRunnerHandle::Get()) {}
 
   void OnBlocked(int64_t existing_version) override { blocked_called_ = true; }
   void OnSuccess(int64_t result) override { success_called_ = true; }
@@ -204,7 +207,7 @@ TEST_F(IndexedDBDatabaseTest, PendingDelete) {
   EXPECT_FALSE(backing_store->HasOneRef());  // local and db
 
   scoped_refptr<MockCallbacks> request2(new MockCallbacks());
-  db->DeleteDatabase(request2);
+  db->DeleteDatabase(request2, false /* force_delete */);
   EXPECT_EQ(db->ConnectionCount(), 1UL);
   EXPECT_EQ(db->ActiveOpenDeleteCount(), 1UL);
   EXPECT_EQ(db->PendingOpenDeleteCount(), 0UL);
@@ -222,6 +225,47 @@ TEST_F(IndexedDBDatabaseTest, PendingDelete) {
   EXPECT_EQ(db->ConnectionCount(), 0UL);
   EXPECT_EQ(db->ActiveOpenDeleteCount(), 0UL);
   EXPECT_EQ(db->PendingOpenDeleteCount(), 0UL);
+
+  EXPECT_FALSE(db->backing_store());
+  EXPECT_TRUE(backing_store->HasOneRef());  // local
+  EXPECT_TRUE(request2->success_called());
+}
+
+TEST_F(IndexedDBDatabaseTest, ForceDelete) {
+  scoped_refptr<IndexedDBFakeBackingStore> backing_store =
+      new IndexedDBFakeBackingStore();
+  EXPECT_TRUE(backing_store->HasOneRef());  // local
+
+  scoped_refptr<MockIndexedDBFactory> factory = new MockIndexedDBFactory();
+  scoped_refptr<IndexedDBDatabase> db;
+  leveldb::Status s;
+  std::tie(db, s) =
+      IndexedDBDatabase::Create(ASCIIToUTF16("db"), backing_store.get(),
+                                factory.get(), IndexedDBDatabase::Identifier());
+  ASSERT_TRUE(s.ok());
+  EXPECT_FALSE(backing_store->HasOneRef());  // local and db
+
+  scoped_refptr<MockIndexedDBCallbacks> request1(new MockIndexedDBCallbacks());
+  scoped_refptr<MockIndexedDBDatabaseCallbacks> callbacks1(
+      new MockIndexedDBDatabaseCallbacks());
+  const int64_t transaction_id1 = 1;
+  std::unique_ptr<IndexedDBPendingConnection> connection(
+      base::MakeUnique<IndexedDBPendingConnection>(
+          request1, callbacks1, kFakeChildProcessId, transaction_id1,
+          IndexedDBDatabaseMetadata::DEFAULT_VERSION));
+  db->OpenConnection(std::move(connection));
+
+  EXPECT_EQ(db->ConnectionCount(), 1UL);
+  EXPECT_EQ(db->ActiveOpenDeleteCount(), 0UL);
+  EXPECT_EQ(db->PendingOpenDeleteCount(), 0UL);
+  EXPECT_FALSE(backing_store->HasOneRef());  // local and db
+
+  scoped_refptr<MockCallbacks> request2(new MockCallbacks());
+  db->DeleteDatabase(request2, true /* force_delete */);
+  EXPECT_EQ(db->ConnectionCount(), 0UL);
+  EXPECT_EQ(db->ActiveOpenDeleteCount(), 0UL);
+  EXPECT_EQ(db->PendingOpenDeleteCount(), 0UL);
+  EXPECT_FALSE(request2->blocked_called());
 
   EXPECT_FALSE(db->backing_store());
   EXPECT_TRUE(backing_store->HasOneRef());  // local
@@ -260,7 +304,7 @@ class IndexedDBDatabaseOperationTest : public testing::Test {
                                                         db_, callbacks_);
     transaction_ = connection_->CreateTransaction(
         transaction_id, std::set<int64_t>() /*scope*/,
-        blink::WebIDBTransactionModeVersionChange,
+        blink::kWebIDBTransactionModeVersionChange,
         new IndexedDBFakeBackingStore::FakeTransaction(commit_success_));
     db_->TransactionCreated(transaction_);
 
@@ -380,7 +424,7 @@ TEST_F(IndexedDBDatabaseOperationTest, CreatePutDelete) {
   scoped_refptr<MockIndexedDBCallbacks> request(
       new MockIndexedDBCallbacks(false));
   db_->Put(transaction_, store_id, &value, &handles, std::move(key),
-           blink::WebIDBPutModeAddOnly, request, index_keys);
+           blink::kWebIDBPutModeAddOnly, request, index_keys);
 
   // Deletion is asynchronous.
   db_->DeleteObjectStore(transaction_, store_id);

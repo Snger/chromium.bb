@@ -183,8 +183,12 @@ static void LimitVersion(gl::Version *curVersion, const gl::Version &maxVersion)
     }
 }
 
-void GenerateCaps(const FunctionsGL *functions, gl::Caps *caps, gl::TextureCapsMap *textureCapsMap,
-                  gl::Extensions *extensions, gl::Version *maxSupportedESVersion)
+void GenerateCaps(const FunctionsGL *functions,
+                  const WorkaroundsGL &workarounds,
+                  gl::Caps *caps,
+                  gl::TextureCapsMap *textureCapsMap,
+                  gl::Extensions *extensions,
+                  gl::Version *maxSupportedESVersion)
 {
     // Texture format support checks
     const gl::FormatSet &allFormats = gl::GetAllSizedInternalFormats();
@@ -631,7 +635,18 @@ void GenerateCaps(const FunctionsGL *functions, gl::Caps *caps, gl::TextureCapsM
         caps->maxVertexAttribRelativeOffset =
             QuerySingleGLInt(functions, GL_MAX_VERTEX_ATTRIB_RELATIVE_OFFSET);
         caps->maxVertexAttribBindings = QuerySingleGLInt(functions, GL_MAX_VERTEX_ATTRIB_BINDINGS);
-        caps->maxVertexAttribStride   = QuerySingleGLInt(functions, GL_MAX_VERTEX_ATTRIB_STRIDE);
+
+        // OpenGL 4.3 has no limit on maximum value of stride.
+        // [OpenGL 4.3 (Core Profile) - February 14, 2013] Chapter 10.3.1 Page 298
+        if (workarounds.emulateMaxVertexAttribStride ||
+            (functions->standard == STANDARD_GL_DESKTOP && functions->version == gl::Version(4, 3)))
+        {
+            caps->maxVertexAttribStride = 2048;
+        }
+        else
+        {
+            caps->maxVertexAttribStride = QuerySingleGLInt(functions, GL_MAX_VERTEX_ATTRIB_STRIDE);
+        }
     }
     else
     {
@@ -788,13 +803,16 @@ void GenerateCaps(const FunctionsGL *functions, gl::Caps *caps, gl::TextureCapsM
     extensions->readFormatBGRA = functions->isAtLeastGL(gl::Version(1, 2)) || functions->hasGLExtension("GL_EXT_bgra") ||
                                  functions->hasGLESExtension("GL_EXT_read_format_bgra");
     extensions->mapBuffer = functions->isAtLeastGL(gl::Version(1, 5)) ||
+                            functions->isAtLeastGLES(gl::Version(3, 0)) ||
                             functions->hasGLESExtension("GL_OES_mapbuffer");
     extensions->mapBufferRange = functions->isAtLeastGL(gl::Version(3, 0)) || functions->hasGLExtension("GL_ARB_map_buffer_range") ||
                                  functions->isAtLeastGLES(gl::Version(3, 0)) || functions->hasGLESExtension("GL_EXT_map_buffer_range");
     extensions->textureNPOT = functions->standard == STANDARD_GL_DESKTOP ||
                               functions->isAtLeastGLES(gl::Version(3, 0)) || functions->hasGLESExtension("GL_OES_texture_npot");
-    extensions->drawBuffers = functions->isAtLeastGL(gl::Version(2, 0)) || functions->hasGLExtension("ARB_draw_buffers") ||
-                              functions->isAtLeastGLES(gl::Version(3, 0)) || functions->hasGLESExtension("GL_EXT_draw_buffers");
+    // TODO(jmadill): Investigate emulating EXT_draw_buffers on ES 3.0's core functionality.
+    extensions->drawBuffers = functions->isAtLeastGL(gl::Version(2, 0)) ||
+                              functions->hasGLExtension("ARB_draw_buffers") ||
+                              functions->hasGLESExtension("GL_EXT_draw_buffers");
     extensions->textureStorage = true;
     extensions->textureFilterAnisotropic = functions->hasGLExtension("GL_EXT_texture_filter_anisotropic") || functions->hasGLESExtension("GL_EXT_texture_filter_anisotropic");
     extensions->occlusionQueryBoolean    = nativegl::SupportsOcclusionQueries(functions);
@@ -930,6 +948,11 @@ void GenerateWorkarounds(const FunctionsGL *functions, WorkaroundsGL *workaround
 
     workarounds->doesSRGBClearsOnLinearFramebufferAttachments =
         functions->standard == STANDARD_GL_DESKTOP && (IsIntel(vendor) || IsAMD(vendor));
+
+#if defined(ANGLE_PLATFORM_LINUX)
+    workarounds->emulateMaxVertexAttribStride =
+        functions->standard == STANDARD_GL_DESKTOP && IsAMD(vendor);
+#endif
 
 #if defined(ANGLE_PLATFORM_APPLE)
     workarounds->doWhileGLSLCausesGPUHang = true;

@@ -27,6 +27,11 @@ namespace tether {
 
 class LocalDeviceDataProvider;
 
+// Advertises to a given device. When StartAdvertisingToDevice() is called, a
+// device-specific EID value is computed deterministically and is set as the
+// service data of the advertisement. If that device is nearby and scanning,
+// the device will have the same service data and will be able to pick up the
+// advertisement.
 class BleAdvertiser {
  public:
   BleAdvertiser(
@@ -35,11 +40,28 @@ class BleAdvertiser {
       const cryptauth::RemoteBeaconSeedFetcher* remote_beacon_seed_fetcher);
   virtual ~BleAdvertiser();
 
-  bool StartAdvertisingToDevice(const cryptauth::RemoteDevice& remote_device);
-  bool StopAdvertisingToDevice(const cryptauth::RemoteDevice& remote_device);
+  virtual bool StartAdvertisingToDevice(
+      const cryptauth::RemoteDevice& remote_device);
+  virtual bool StopAdvertisingToDevice(
+      const cryptauth::RemoteDevice& remote_device);
 
  private:
   friend class BleAdvertiserTest;
+
+  class BleAdvertisementUnregisterHandler {
+   public:
+    virtual void OnAdvertisementUnregisterSuccess() = 0;
+    virtual void OnAdvertisementUnregisterFailure(
+        device::BluetoothAdvertisement::ErrorCode error_code) = 0;
+  };
+
+  class BleAdvertisementUnregisterHandlerImpl
+      : public BleAdvertiser::BleAdvertisementUnregisterHandler {
+   public:
+    void OnAdvertisementUnregisterSuccess() override;
+    void OnAdvertisementUnregisterFailure(
+        device::BluetoothAdvertisement::ErrorCode error_code) override;
+  };
 
   class IndividualAdvertisement
       : public device::BluetoothAdapter::Observer,
@@ -49,7 +71,8 @@ class BleAdvertiser {
     IndividualAdvertisement(
         scoped_refptr<device::BluetoothAdapter> adapter,
         std::unique_ptr<cryptauth::EidGenerator::DataWithTimestamp>
-            advertisement_data);
+            advertisement_data,
+        std::shared_ptr<BleAdvertisementUnregisterHandler> unregister_handler);
 
     // device::BluetoothAdapter::Observer
     void AdapterPoweredChanged(device::BluetoothAdapter* adapter,
@@ -83,6 +106,7 @@ class BleAdvertiser {
     bool is_initializing_advertising_;
     std::unique_ptr<cryptauth::EidGenerator::DataWithTimestamp>
         advertisement_data_;
+    std::shared_ptr<BleAdvertisementUnregisterHandler> unregister_handler_;
     scoped_refptr<device::BluetoothAdvertisement> advertisement_;
 
     base::WeakPtrFactory<IndividualAdvertisement> weak_ptr_factory_;
@@ -92,11 +116,13 @@ class BleAdvertiser {
 
   BleAdvertiser(
       scoped_refptr<device::BluetoothAdapter> adapter,
+      std::unique_ptr<BleAdvertisementUnregisterHandler> unregister_handler,
       const cryptauth::EidGenerator* eid_generator,
       const cryptauth::RemoteBeaconSeedFetcher* remote_beacon_seed_fetcher,
       const LocalDeviceDataProvider* local_device_data_provider);
 
   scoped_refptr<device::BluetoothAdapter> adapter_;
+  std::shared_ptr<BleAdvertisementUnregisterHandler> unregister_handler_;
 
   // Not owned by this instance and must outlive it.
   const cryptauth::EidGenerator* eid_generator_;

@@ -31,10 +31,6 @@ const int kFormListMultiSelect = 0x100;
 
 const int kFormComboEdit = 0x100;
 
-const int kFormFieldReadOnly = 0x01;
-const int kFormFieldRequired = 0x02;
-const int kFormFieldNoExport = 0x04;
-
 const int kFormRadioNoToggleOff = 0x100;
 const int kFormRadioUnison = 0x200;
 
@@ -52,7 +48,7 @@ bool IsUnison(CPDF_FormField* pField) {
 }  // namespace
 
 CPDF_Object* FPDF_GetFieldAttr(CPDF_Dictionary* pFieldDict,
-                               const FX_CHAR* name,
+                               const char* name,
                                int nLevel) {
   if (nLevel > kMaxRecursion)
     return nullptr;
@@ -108,12 +104,12 @@ void CPDF_FormField::SyncFieldFlags() {
                        ? FPDF_GetFieldAttr(m_pDict, "Ff")->GetInteger()
                        : 0;
   m_Flags = 0;
-  if (flags & 1)
-    m_Flags |= kFormFieldReadOnly;
-  if (flags & 2)
-    m_Flags |= kFormFieldRequired;
-  if (flags & 4)
-    m_Flags |= kFormFieldNoExport;
+  if (flags & FORMFLAG_READONLY)
+    m_Flags |= FORMFLAG_READONLY;
+  if (flags & FORMFLAG_REQUIRED)
+    m_Flags |= FORMFLAG_REQUIRED;
+  if (flags & FORMFLAG_NOEXPORT)
+    m_Flags |= FORMFLAG_NOEXPORT;
 
   if (type_name == "Btn") {
     if (flags & 0x8000) {
@@ -411,7 +407,7 @@ int CPDF_FormField::GetMaxLen() const {
   if (CPDF_Object* pObj = FPDF_GetFieldAttr(m_pDict, "MaxLen"))
     return pObj->GetInteger();
 
-  for (const auto& pControl : m_ControlList) {
+  for (auto* pControl : m_ControlList) {
     if (!pControl)
       continue;
     CPDF_Dictionary* pWidgetDict = pControl->m_pWidgetDict;
@@ -570,7 +566,7 @@ bool CPDF_FormField::SetItemSelection(int index, bool bSelected, bool bNotify) {
           if (pValue->GetUnicodeText() == opt_value)
             m_pDict->RemoveFor("V");
         } else if (pValue->IsArray()) {
-          std::unique_ptr<CPDF_Array> pArray(new CPDF_Array);
+          auto pArray = pdfium::MakeUnique<CPDF_Array>();
           for (int i = 0; i < CountOptions(); i++) {
             if (i != index && IsItemSelected(i)) {
               opt_value = GetOptionValue(i);

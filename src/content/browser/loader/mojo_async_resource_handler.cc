@@ -4,13 +4,16 @@
 
 #include "content/browser/loader/mojo_async_resource_handler.h"
 
+#include <algorithm>
 #include <utility>
 #include <vector>
 
+#include "base/bind.h"
 #include "base/command_line.h"
-#include "base/containers/hash_tables.h"
+#include "base/location.h"
 #include "base/logging.h"
 #include "base/macros.h"
+#include "base/memory/ptr_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/time/time.h"
 #include "content/browser/loader/downloaded_temp_file_impl.h"
@@ -18,15 +21,15 @@
 #include "content/browser/loader/resource_controller.h"
 #include "content/browser/loader/resource_dispatcher_host_impl.h"
 #include "content/browser/loader/resource_request_info_impl.h"
+#include "content/browser/loader/resource_scheduler.h"
+#include "content/browser/loader/upload_progress_tracker.h"
 #include "content/common/resource_request_completion_status.h"
 #include "content/public/browser/global_request_id.h"
-#include "content/public/browser/resource_dispatcher_host_delegate.h"
 #include "content/public/common/resource_response.h"
 #include "mojo/public/c/system/data_pipe.h"
 #include "mojo/public/cpp/bindings/message.h"
-#include "net/base/io_buffer.h"
-#include "net/base/load_flags.h"
 #include "net/base/mime_sniffer.h"
+#include "net/base/net_errors.h"
 #include "net/url_request/redirect_info.h"
 
 namespace content {
@@ -55,6 +58,11 @@ void InitializeResourceBufferConstants() {
   did_init = true;
 
   GetNumericArg("resource-buffer-size", &g_allocation_size);
+}
+
+void NotReached(mojom::URLLoaderAssociatedRequest mojo_request,
+                mojom::URLLoaderClientPtr url_loader_client) {
+  NOTREACHED();
 }
 
 }  // namespace
@@ -108,10 +116,12 @@ MojoAsyncResourceHandler::MojoAsyncResourceHandler(
     net::URLRequest* request,
     ResourceDispatcherHostImpl* rdh,
     mojom::URLLoaderAssociatedRequest mojo_request,
-    mojom::URLLoaderClientAssociatedPtr url_loader_client)
+    mojom::URLLoaderClientPtr url_loader_client,
+    ResourceType resource_type)
     : ResourceHandler(request),
       rdh_(rdh),
       binding_(this, std::move(mojo_request)),
+      handle_watcher_(FROM_HERE, mojo::SimpleWatcher::ArmingPolicy::MANUAL),
       url_loader_client_(std::move(url_loader_client)),
       weak_factory_(this) {
   DCHECK(url_loader_client_);
@@ -121,8 +131,12 @@ MojoAsyncResourceHandler::MojoAsyncResourceHandler(
   binding_.set_connection_error_handler(
       base::Bind(&MojoAsyncResourceHandler::Cancel, base::Unretained(this)));
 
-  GetRequestInfo()->set_on_transfer(base::Bind(
-      &MojoAsyncResourceHandler::OnTransfer, weak_factory_.GetWeakPtr()));
+  if (IsResourceTypeFrame(resource_type)) {
+    GetRequestInfo()->set_on_transfer(base::Bind(
+        &MojoAsyncResourceHandler::OnTransfer, weak_factory_.GetWeakPtr()));
+  } else {
+    GetRequestInfo()->set_on_transfer(base::Bind(&NotReached));
+  }
 }
 
 MojoAsyncResourceHandler::~MojoAsyncResourceHandler() {
@@ -130,16 +144,17 @@ MojoAsyncResourceHandler::~MojoAsyncResourceHandler() {
     rdh_->FinishedWithResourcesForRequest(request());
 }
 
-bool MojoAsyncResourceHandler::OnRequestRedirected(
+void MojoAsyncResourceHandler::OnRequestRedirected(
     const net::RedirectInfo& redirect_info,
     ResourceResponse* response,
-    bool* defer) {
+    std::unique_ptr<ResourceController> controller) {
   // Unlike OnResponseStarted, OnRequestRedirected will NOT be preceded by
   // OnWillRead.
+  DCHECK(!has_controller());
   DCHECK(!shared_writer_);
 
-  *defer = true;
   request()->LogBlockedBy("MojoAsyncResourceHandler");
+  HoldController(std::move(controller));
   did_defer_on_redirect_ = true;
 
   NetLogObserver::PopulateResponseInfo(request(), response);
@@ -151,18 +166,19 @@ bool MojoAsyncResourceHandler::OnRequestRedirected(
   // and hopefully those will eventually all be owned by the browser. It's
   // possible this is still needed while renderer-owned ones exist.
   url_loader_client_->OnReceiveRedirect(redirect_info, response->head);
-  return true;
 }
 
-bool MojoAsyncResourceHandler::OnResponseStarted(ResourceResponse* response,
-                                                 bool* defer) {
-  const ResourceRequestInfoImpl* info = GetRequestInfo();
+void MojoAsyncResourceHandler::OnResponseStarted(
+    ResourceResponse* response,
+    std::unique_ptr<ResourceController> controller) {
+  DCHECK(!has_controller());
 
-  if (rdh_->delegate()) {
-    rdh_->delegate()->OnResponseStarted(request(), info->GetContext(),
-                                        response);
+  if (upload_progress_tracker_) {
+    upload_progress_tracker_->OnUploadCompleted();
+    upload_progress_tracker_ = nullptr;
   }
 
+  const ResourceRequestInfoImpl* info = GetRequestInfo();
   NetLogObserver::PopulateResponseInfo(request(), response);
   response->head.encoded_data_length = request()->raw_header_size();
   reported_total_received_bytes_ = response->head.encoded_data_length;
@@ -189,70 +205,114 @@ bool MojoAsyncResourceHandler::OnResponseStarted(ResourceResponse* response,
     url_loader_client_->OnReceiveCachedMetadata(
         std::vector<uint8_t>(data, data + metadata->size()));
   }
-  return true;
+
+  controller->Resume();
 }
 
-bool MojoAsyncResourceHandler::OnWillStart(const GURL& url, bool* defer) {
-  return true;
+void MojoAsyncResourceHandler::OnWillStart(
+    const GURL& url,
+    std::unique_ptr<ResourceController> controller) {
+  if (GetRequestInfo()->is_upload_progress_enabled() &&
+      request()->has_upload()) {
+    upload_progress_tracker_ = CreateUploadProgressTracker(
+        FROM_HERE,
+        base::BindRepeating(&MojoAsyncResourceHandler::SendUploadProgress,
+                            base::Unretained(this)));
+  }
+
+  controller->Resume();
 }
 
-bool MojoAsyncResourceHandler::OnWillRead(scoped_refptr<net::IOBuffer>* buf,
-                                          int* buf_size,
-                                          int min_size) {
-  DCHECK_EQ(-1, min_size);
+void MojoAsyncResourceHandler::OnWillRead(
+    scoped_refptr<net::IOBuffer>* buf,
+    int* buf_size,
+    std::unique_ptr<ResourceController> controller) {
+  // |buffer_| is set to nullptr on successful read completion (Except for the
+  // final 0-byte read, so this DCHECK will also catch OnWillRead being called
+  // after OnReadCompelted(0)).
+  DCHECK(!buffer_);
+  DCHECK_EQ(0u, buffer_offset_);
 
-  if (!CheckForSufficientResource())
-    return false;
+  if (!CheckForSufficientResource()) {
+    controller->CancelWithError(net::ERR_INSUFFICIENT_RESOURCES);
+    return;
+  }
 
+  bool first_call = false;
   if (!shared_writer_) {
+    first_call = true;
     MojoCreateDataPipeOptions options;
     options.struct_size = sizeof(MojoCreateDataPipeOptions);
     options.flags = MOJO_CREATE_DATA_PIPE_OPTIONS_FLAG_NONE;
     options.element_num_bytes = 1;
     options.capacity_num_bytes = g_allocation_size;
-    mojo::DataPipe data_pipe(options);
+    mojo::ScopedDataPipeProducerHandle producer;
+    mojo::ScopedDataPipeConsumerHandle consumer;
 
-    DCHECK(data_pipe.producer_handle.is_valid());
-    DCHECK(data_pipe.consumer_handle.is_valid());
+    MojoResult result = mojo::CreateDataPipe(&options, &producer, &consumer);
+    if (result != MOJO_RESULT_OK) {
+      controller->CancelWithError(net::ERR_INSUFFICIENT_RESOURCES);
+      return;
+    }
+    DCHECK(producer.is_valid());
+    DCHECK(consumer.is_valid());
 
-    response_body_consumer_handle_ = std::move(data_pipe.consumer_handle);
-    shared_writer_ = new SharedWriter(std::move(data_pipe.producer_handle));
-    handle_watcher_.Start(shared_writer_->writer(), MOJO_HANDLE_SIGNAL_WRITABLE,
+    response_body_consumer_handle_ = std::move(consumer);
+    shared_writer_ = new SharedWriter(std::move(producer));
+    handle_watcher_.Watch(shared_writer_->writer(), MOJO_HANDLE_SIGNAL_WRITABLE,
                           base::Bind(&MojoAsyncResourceHandler::OnWritable,
                                      base::Unretained(this)));
+    handle_watcher_.ArmOrNotify();
+  }
 
-    bool defer = false;
-    scoped_refptr<net::IOBufferWithSize> buffer;
-    if (!AllocateWriterIOBuffer(&buffer, &defer))
-      return false;
-    if (!defer) {
-      if (static_cast<size_t>(buffer->size()) >= kMinAllocationSize) {
-        *buf = buffer_ = buffer;
-        *buf_size = buffer_->size();
-        return true;
-      }
+  bool defer = false;
+  if (!AllocateWriterIOBuffer(&buffer_, &defer)) {
+    controller->CancelWithError(net::ERR_INSUFFICIENT_RESOURCES);
+    return;
+  }
 
-      // The allocated buffer is too small.
-      if (EndWrite(0) != MOJO_RESULT_OK)
-        return false;
+  if (defer) {
+    DCHECK(!buffer_);
+    parent_buffer_ = buf;
+    parent_buffer_size_ = buf_size;
+    HoldController(std::move(controller));
+    request()->LogBlockedBy("MojoAsyncResourceHandler");
+    did_defer_on_will_read_ = true;
+    return;
+  }
+
+  // The first call to OnWillRead must return a buffer of at least
+  // kMinAllocationSize. If the Mojo buffer is too small, need to allocate an
+  // intermediary buffer.
+  if (first_call && static_cast<size_t>(buffer_->size()) < kMinAllocationSize) {
+    // The allocated buffer is too small, so need to create an intermediary one.
+    if (EndWrite(0) != MOJO_RESULT_OK) {
+      controller->CancelWithError(net::ERR_INSUFFICIENT_RESOURCES);
+      return;
     }
     DCHECK(!is_using_io_buffer_not_from_writer_);
     is_using_io_buffer_not_from_writer_ = true;
     buffer_ = new net::IOBufferWithSize(kMinAllocationSize);
   }
 
-  DCHECK_EQ(0u, buffer_offset_);
   *buf = buffer_;
   *buf_size = buffer_->size();
-  return true;
+  controller->Resume();
 }
 
-bool MojoAsyncResourceHandler::OnReadCompleted(int bytes_read, bool* defer) {
+void MojoAsyncResourceHandler::OnReadCompleted(
+    int bytes_read,
+    std::unique_ptr<ResourceController> controller) {
+  DCHECK(!has_controller());
   DCHECK_GE(bytes_read, 0);
   DCHECK(buffer_);
 
-  if (!bytes_read)
-    return true;
+  if (bytes_read == 0) {
+    // Note that |buffer_| is not cleared here, which will cause a DCHECK on
+    // subsequent OnWillRead calls.
+    controller->Resume();
+    return;
+  }
 
   const ResourceRequestInfoImpl* info = GetRequestInfo();
   if (info->ShouldReportRawHeaders()) {
@@ -269,29 +329,31 @@ bool MojoAsyncResourceHandler::OnReadCompleted(int bytes_read, bool* defer) {
   }
 
   if (is_using_io_buffer_not_from_writer_) {
-    // Couldn't allocate a buffer on the data pipe in OnWillRead.
+    // Couldn't allocate a large enough buffer on the data pipe in OnWillRead.
     DCHECK_EQ(0u, buffer_bytes_read_);
     buffer_bytes_read_ = bytes_read;
-    if (!CopyReadDataToDataPipe(defer))
-      return false;
-    if (*defer) {
+    bool defer = false;
+    if (!CopyReadDataToDataPipe(&defer)) {
+      controller->CancelWithError(net::ERR_INSUFFICIENT_RESOURCES);
+      return;
+    }
+    if (defer) {
       request()->LogBlockedBy("MojoAsyncResourceHandler");
       did_defer_on_writing_ = true;
+      HoldController(std::move(controller));
+      return;
     }
-    return true;
+    controller->Resume();
+    return;
   }
 
-  if (EndWrite(bytes_read) != MOJO_RESULT_OK)
-    return false;
-  // Allocate a buffer for the next OnWillRead call here, because OnWillRead
-  // doesn't have |defer| parameter.
-  if (!AllocateWriterIOBuffer(&buffer_, defer))
-    return false;
-  if (*defer) {
-    request()->LogBlockedBy("MojoAsyncResourceHandler");
-    did_defer_on_writing_ = true;
+  if (EndWrite(bytes_read) != MOJO_RESULT_OK) {
+    controller->Cancel();
+    return;
   }
-  return true;
+
+  buffer_ = nullptr;
+  controller->Resume();
 }
 
 void MojoAsyncResourceHandler::OnDataDownloaded(int bytes_downloaded) {
@@ -310,10 +372,17 @@ void MojoAsyncResourceHandler::FollowRedirect() {
     return;
   }
 
+  DCHECK(!did_defer_on_will_read_);
   DCHECK(!did_defer_on_writing_);
   did_defer_on_redirect_ = false;
   request()->LogUnblocked();
-  controller()->Resume();
+  Resume();
+}
+
+void MojoAsyncResourceHandler::SetPriority(net::RequestPriority priority,
+                                           int32_t intra_priority_value) {
+  ResourceDispatcherHostImpl::Get()->scheduler()->ReprioritizeRequest(
+      request(), priority, intra_priority_value);
 }
 
 void MojoAsyncResourceHandler::OnWritableForTesting() {
@@ -330,11 +399,16 @@ MojoResult MojoAsyncResourceHandler::BeginWrite(void** data,
       shared_writer_->writer(), data, available, MOJO_WRITE_DATA_FLAG_NONE);
   if (result == MOJO_RESULT_OK)
     *available = std::min(*available, static_cast<uint32_t>(kMaxChunkSize));
+  else if (result == MOJO_RESULT_SHOULD_WAIT)
+    handle_watcher_.ArmOrNotify();
   return result;
 }
 
 MojoResult MojoAsyncResourceHandler::EndWrite(uint32_t written) {
-  return mojo::EndWriteDataRaw(shared_writer_->writer(), written);
+  MojoResult result = mojo::EndWriteDataRaw(shared_writer_->writer(), written);
+  if (result == MOJO_RESULT_OK)
+    handle_watcher_.ArmOrNotify();
+  return result;
 }
 
 net::IOBufferWithSize* MojoAsyncResourceHandler::GetResponseMetadata(
@@ -344,7 +418,15 @@ net::IOBufferWithSize* MojoAsyncResourceHandler::GetResponseMetadata(
 
 void MojoAsyncResourceHandler::OnResponseCompleted(
     const net::URLRequestStatus& status,
-    bool* defer) {
+    std::unique_ptr<ResourceController> controller) {
+  // Ensure sending the final upload progress message here, since
+  // OnResponseCompleted can be called without OnResponseStarted on cancellation
+  // or error cases.
+  if (upload_progress_tracker_) {
+    upload_progress_tracker_->OnUploadCompleted();
+    upload_progress_tracker_ = nullptr;
+  }
+
   shared_writer_ = nullptr;
   buffer_ = nullptr;
   handle_watcher_.Cancel();
@@ -378,20 +460,16 @@ void MojoAsyncResourceHandler::OnResponseCompleted(
   request_complete_data.encoded_body_length = request()->GetRawBodyBytes();
 
   url_loader_client_->OnComplete(request_complete_data);
+  controller->Resume();
 }
 
 bool MojoAsyncResourceHandler::CopyReadDataToDataPipe(bool* defer) {
-  while (true) {
+  while (buffer_bytes_read_ > 0) {
     scoped_refptr<net::IOBufferWithSize> dest;
     if (!AllocateWriterIOBuffer(&dest, defer))
       return false;
     if (*defer)
       return true;
-    if (buffer_bytes_read_ == 0) {
-      // All bytes are copied. Save the buffer for the next OnWillRead call.
-      buffer_ = std::move(dest);
-      return true;
-    }
 
     size_t copied_size =
         std::min(buffer_bytes_read_, static_cast<size_t>(dest->size()));
@@ -400,13 +478,13 @@ bool MojoAsyncResourceHandler::CopyReadDataToDataPipe(bool* defer) {
     buffer_bytes_read_ -= copied_size;
     if (EndWrite(copied_size) != MOJO_RESULT_OK)
       return false;
-
-    if (buffer_bytes_read_ == 0) {
-      // All bytes are copied.
-      buffer_offset_ = 0;
-      is_using_io_buffer_not_from_writer_ = false;
-    }
   }
+
+  // All bytes are copied.
+  buffer_ = nullptr;
+  buffer_offset_ = 0;
+  is_using_io_buffer_not_from_writer_ = false;
+  return true;
 }
 
 bool MojoAsyncResourceHandler::AllocateWriterIOBuffer(
@@ -421,6 +499,7 @@ bool MojoAsyncResourceHandler::AllocateWriterIOBuffer(
   }
   if (result != MOJO_RESULT_OK)
     return false;
+  DCHECK_GT(available, 0u);
   *buf = new WriterIOBuffer(shared_writer_, data, available);
   return true;
 }
@@ -433,30 +512,40 @@ bool MojoAsyncResourceHandler::CheckForSufficientResource() {
   if (rdh_->HasSufficientResourcesForRequest(request()))
     return true;
 
-  controller()->CancelWithError(net::ERR_INSUFFICIENT_RESOURCES);
   return false;
 }
 
 void MojoAsyncResourceHandler::OnWritable(MojoResult result) {
+  if (did_defer_on_will_read_) {
+    DCHECK(has_controller());
+    DCHECK(!did_defer_on_writing_);
+    DCHECK(!did_defer_on_redirect_);
+
+    did_defer_on_will_read_ = false;
+
+    scoped_refptr<net::IOBuffer>* parent_buffer = parent_buffer_;
+    parent_buffer_ = nullptr;
+    int* parent_buffer_size = parent_buffer_size_;
+    parent_buffer_size_ = nullptr;
+
+    request()->LogUnblocked();
+    OnWillRead(parent_buffer, parent_buffer_size, ReleaseController());
+    return;
+  }
+
   if (!did_defer_on_writing_)
     return;
+  DCHECK(has_controller());
   DCHECK(!did_defer_on_redirect_);
   did_defer_on_writing_ = false;
 
-  if (is_using_io_buffer_not_from_writer_) {
-    // |buffer_| is set to a net::IOBufferWithSize. Write the buffer contents
-    // to the data pipe.
-    DCHECK_GT(buffer_bytes_read_, 0u);
-    if (!CopyReadDataToDataPipe(&did_defer_on_writing_)) {
-      controller()->CancelWithError(net::ERR_FAILED);
-      return;
-    }
-  } else {
-    // Allocate a buffer for the next OnWillRead call here.
-    if (!AllocateWriterIOBuffer(&buffer_, &did_defer_on_writing_)) {
-      controller()->CancelWithError(net::ERR_FAILED);
-      return;
-    }
+  DCHECK(is_using_io_buffer_not_from_writer_);
+  // |buffer_| is set to a net::IOBufferWithSize. Write the buffer contents
+  // to the data pipe.
+  DCHECK_GT(buffer_bytes_read_, 0u);
+  if (!CopyReadDataToDataPipe(&did_defer_on_writing_)) {
+    CancelWithError(net::ERR_INSUFFICIENT_RESOURCES);
+    return;
   }
 
   if (did_defer_on_writing_) {
@@ -464,7 +553,7 @@ void MojoAsyncResourceHandler::OnWritable(MojoResult result) {
     return;
   }
   request()->LogUnblocked();
-  controller()->Resume();
+  Resume();
 }
 
 void MojoAsyncResourceHandler::Cancel() {
@@ -486,14 +575,35 @@ void MojoAsyncResourceHandler::ReportBadMessage(const std::string& error) {
   mojo::ReportBadMessage(error);
 }
 
+std::unique_ptr<UploadProgressTracker>
+MojoAsyncResourceHandler::CreateUploadProgressTracker(
+    const tracked_objects::Location& from_here,
+    UploadProgressTracker::UploadProgressReportCallback callback) {
+  return base::MakeUnique<UploadProgressTracker>(from_here, std::move(callback),
+                                                 request());
+}
+
 void MojoAsyncResourceHandler::OnTransfer(
     mojom::URLLoaderAssociatedRequest mojo_request,
-    mojom::URLLoaderClientAssociatedPtr url_loader_client) {
+    mojom::URLLoaderClientPtr url_loader_client) {
   binding_.Unbind();
   binding_.Bind(std::move(mojo_request));
   binding_.set_connection_error_handler(
       base::Bind(&MojoAsyncResourceHandler::Cancel, base::Unretained(this)));
   url_loader_client_ = std::move(url_loader_client);
+}
+
+void MojoAsyncResourceHandler::SendUploadProgress(
+    const net::UploadProgress& progress) {
+  url_loader_client_->OnUploadProgress(
+      progress.position(), progress.size(),
+      base::Bind(&MojoAsyncResourceHandler::OnUploadProgressACK,
+                 weak_factory_.GetWeakPtr()));
+}
+
+void MojoAsyncResourceHandler::OnUploadProgressACK() {
+  if (upload_progress_tracker_)
+    upload_progress_tracker_->OnAckReceived();
 }
 
 }  // namespace content

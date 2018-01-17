@@ -30,11 +30,12 @@ tr.b.unittest.testSuite(function() {
         DummyEvent, options);
 
     DummyEvent.register(DummyEventSubclass, {typeName: 'dummy-name'});
-    assert.equal(DummyEvent, DummyEvent.getConstructor('cat', 'name'));
-    assert.equal(DummyEvent.getConstructor('dummy', 'dummy-name'),
-                 DummyEventSubclass);
+    assert.strictEqual(DummyEvent, DummyEvent.getConstructor('cat', 'name'));
+    assert.strictEqual(
+        DummyEvent.getConstructor('dummy', 'dummy-name'), DummyEventSubclass);
     DummyEvent.unregister(DummyEventSubclass);
-    assert.equal(DummyEvent, DummyEvent.getConstructor('dummy', 'dummy-name'));
+    assert.strictEqual(
+        DummyEvent, DummyEvent.getConstructor('dummy', 'dummy-name'));
   });
 
   test('tberSimpleCategoryRegistration', function() {
@@ -57,14 +58,15 @@ tr.b.unittest.testSuite(function() {
         DummyEvent, options);
 
     DummyEvent.register(
-      DummyEventSubclass,
-      {categoryParts: ['dummy']
-    });
-    assert.equal(DummyEvent, DummyEvent.getConstructor('cat', 'name'));
-    assert.equal(DummyEvent.getConstructor('dummy', 'dummy-name'),
-                 DummyEventSubclass);
+        DummyEventSubclass,
+        {categoryParts: ['dummy']
+        });
+    assert.strictEqual(DummyEvent, DummyEvent.getConstructor('cat', 'name'));
+    assert.strictEqual(DummyEvent.getConstructor('dummy', 'dummy-name'),
+        DummyEventSubclass);
     DummyEvent.unregister(DummyEventSubclass);
-    assert.equal(DummyEvent, DummyEvent.getConstructor('dummy', 'dummy-name'));
+    assert.strictEqual(
+        DummyEvent, DummyEvent.getConstructor('dummy', 'dummy-name'));
   });
 
   test('tberSimpleCompoundCategory', function() {
@@ -91,10 +93,10 @@ tr.b.unittest.testSuite(function() {
         {
           categoryParts: ['dummy']
         });
-    assert.equal(DummyEvent, DummyEvent.getConstructor('cat', 'name'));
-    assert.equal(DummyEventSubclass,
-                 DummyEvent.getConstructor('dummy,something-else',
-                                           'dummy-name'));
+    assert.strictEqual(DummyEvent, DummyEvent.getConstructor('cat', 'name'));
+    assert.strictEqual(DummyEventSubclass,
+        DummyEvent.getConstructor('dummy,something-else',
+            'dummy-name'));
   });
 
   test('tberDefaultType', function() {
@@ -121,12 +123,10 @@ tr.b.unittest.testSuite(function() {
         {
           categoryParts: ['dummy']
         });
-    assert.equal(DummyEvent, DummyEvent.getConstructor('cat', 'name'));
-    assert.equal(DummyEventSubclass,
-                 DummyEvent.getConstructor('dummy,something-else',
-                                           'dummy-name'));
+    assert.strictEqual(DummyEvent, DummyEvent.getConstructor('cat', 'name'));
+    assert.strictEqual(DummyEventSubclass,
+        DummyEvent.getConstructor('dummy,something-else',
+            'dummy-name'));
   });
-
-
 });
 </script>

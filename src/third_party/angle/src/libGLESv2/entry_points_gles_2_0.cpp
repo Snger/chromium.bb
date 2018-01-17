@@ -278,7 +278,7 @@ GLenum GL_APIENTRY CheckFramebufferStatus(GLenum target)
         Framebuffer *framebuffer = context->getGLState().getTargetFramebuffer(target);
         ASSERT(framebuffer);
 
-        return framebuffer->checkStatus(context->getContextState());
+        return framebuffer->checkStatus(context);
     }
 
     return 0;
@@ -687,6 +687,11 @@ void GL_APIENTRY DepthRangef(GLclampf zNear, GLclampf zFar)
     Context *context = GetValidGlobalContext();
     if (context)
     {
+        if (!context->skipValidation() && !ValidateDepthRangef(context, zNear, zFar))
+        {
+            return;
+        }
+
         context->depthRangef(zNear, zFar);
     }
 }
@@ -710,7 +715,7 @@ void GL_APIENTRY DetachShader(GLuint program, GLuint shader)
             return;
         }
 
-        if (!programObject->detachShader(shaderObject))
+        if (!programObject->detachShader(context, shaderObject))
         {
             context->handleError(Error(GL_INVALID_OPERATION));
             return;
@@ -1144,8 +1149,7 @@ void GL_APIENTRY GetBufferParameteriv(GLenum target, GLenum pname, GLint* params
             return;
         }
 
-        Buffer *buffer = context->getGLState().getTargetBuffer(target);
-        QueryBufferParameteriv(buffer, pname, params);
+        context->getBufferParameteriv(target, pname, params);
     }
 }
 
@@ -1204,8 +1208,7 @@ void GL_APIENTRY GetFramebufferAttachmentParameteriv(GLenum target, GLenum attac
             return;
         }
 
-        const Framebuffer *framebuffer = context->getGLState().getTargetFramebuffer(target);
-        QueryFramebufferAttachmentParameteriv(framebuffer, attachment, pname, params);
+        context->getFramebufferAttachmentParameteriv(target, attachment, pname, params);
     }
 }
 
@@ -1291,8 +1294,7 @@ void GL_APIENTRY GetRenderbufferParameteriv(GLenum target, GLenum pname, GLint* 
             return;
         }
 
-        Renderbuffer *renderbuffer = context->getGLState().getCurrentRenderbuffer();
-        QueryRenderbufferiv(renderbuffer, pname, params);
+        context->getRenderbufferParameteriv(target, pname, params);
     }
 }
 
@@ -1467,8 +1469,7 @@ void GL_APIENTRY GetTexParameterfv(GLenum target, GLenum pname, GLfloat* params)
             return;
         }
 
-        Texture *texture = context->getTargetTexture(target);
-        QueryTexParameterfv(texture, pname, params);
+        context->getTexParameterfv(target, pname, params);
     }
 }
 
@@ -1485,8 +1486,7 @@ void GL_APIENTRY GetTexParameteriv(GLenum target, GLenum pname, GLint* params)
             return;
         }
 
-        Texture *texture = context->getTargetTexture(target);
-        QueryTexParameteriv(texture, pname, params);
+        context->getTexParameteriv(target, pname, params);
     }
 }
 
@@ -1571,11 +1571,7 @@ void GL_APIENTRY GetVertexAttribfv(GLuint index, GLenum pname, GLfloat* params)
             return;
         }
 
-        const VertexAttribCurrentValueData &currentValues =
-            context->getGLState().getVertexAttribCurrentValue(index);
-        const VertexAttribute &attrib =
-            context->getGLState().getVertexArray()->getVertexAttribute(index);
-        QueryVertexAttribfv(attrib, currentValues, pname, params);
+        context->getVertexAttribfv(index, pname, params);
     }
 }
 
@@ -1591,11 +1587,7 @@ void GL_APIENTRY GetVertexAttribiv(GLuint index, GLenum pname, GLint* params)
             return;
         }
 
-        const VertexAttribCurrentValueData &currentValues =
-            context->getGLState().getVertexAttribCurrentValue(index);
-        const VertexAttribute &attrib =
-            context->getGLState().getVertexArray()->getVertexAttribute(index);
-        QueryVertexAttribiv(attrib, currentValues, pname, params);
+        context->getVertexAttribiv(index, pname, params);
     }
 }
 
@@ -1612,9 +1604,7 @@ void GL_APIENTRY GetVertexAttribPointerv(GLuint index, GLenum pname, GLvoid** po
             return;
         }
 
-        const VertexAttribute &attrib =
-            context->getGLState().getVertexArray()->getVertexAttribute(index);
-        QueryVertexAttribPointerv(attrib, pname, pointer);
+        context->getVertexAttribPointerv(index, pname, pointer);
     }
 }
 
@@ -1812,7 +1802,7 @@ void GL_APIENTRY LinkProgram(GLuint program)
             return;
         }
 
-        Error error = programObject->link(context->getContextState());
+        Error error = programObject->link(context);
         if (error.isError())
         {
             context->handleError(error);
@@ -1961,19 +1951,13 @@ void GL_APIENTRY RenderbufferStorage(GLenum target, GLenum internalformat, GLsiz
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!ValidateRenderbufferStorageParametersANGLE(context, target, 0, internalformat,
-                                                        width, height))
+        if (!context->skipValidation() &&
+            !ValidateRenderbufferStorage(context, target, internalformat, width, height))
         {
             return;
         }
 
-        Renderbuffer *renderbuffer = context->getGLState().getCurrentRenderbuffer();
-        Error error = renderbuffer->setStorage(internalformat, width, height);
-        if (error.isError())
-        {
-            context->handleError(error);
-            return;
-        }
+        context->renderbufferStorage(target, internalformat, width, height);
     }
 }
 
@@ -2237,8 +2221,7 @@ void GL_APIENTRY TexParameterf(GLenum target, GLenum pname, GLfloat param)
             return;
         }
 
-        Texture *texture = context->getTargetTexture(target);
-        SetTexParameterf(texture, pname, param);
+        context->texParameterf(target, pname, param);
     }
 }
 
@@ -2255,8 +2238,7 @@ void GL_APIENTRY TexParameterfv(GLenum target, GLenum pname, const GLfloat *para
             return;
         }
 
-        Texture *texture = context->getTargetTexture(target);
-        SetTexParameterfv(texture, pname, params);
+        context->texParameterfv(target, pname, params);
     }
 }
 
@@ -2272,8 +2254,7 @@ void GL_APIENTRY TexParameteri(GLenum target, GLenum pname, GLint param)
             return;
         }
 
-        Texture *texture = context->getTargetTexture(target);
-        SetTexParameteri(texture, pname, param);
+        context->texParameteri(target, pname, param);
     }
 }
 
@@ -2290,8 +2271,7 @@ void GL_APIENTRY TexParameteriv(GLenum target, GLenum pname, const GLint *params
             return;
         }
 
-        Texture *texture = context->getTargetTexture(target);
-        SetTexParameteriv(texture, pname, params);
+        context->texParameteriv(target, pname, params);
     }
 }
 
@@ -2352,7 +2332,7 @@ void GL_APIENTRY Uniform1iv(GLint location, GLsizei count, const GLint* v)
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!ValidateUniform(context, GL_INT, location, count))
+        if (!ValidateUniform1iv(context, location, count, v))
         {
             return;
         }

@@ -90,7 +90,7 @@ void NormalizeInitState(gpu::gles2::GLES2DecoderTestBase::InitState* init) {
 const uint32_t kMaxColorAttachments = 16;
 const uint32_t kMaxDrawBuffers = 16;
 
-}  // namespace Anonymous
+}  // namespace
 
 namespace gpu {
 namespace gles2 {
@@ -193,26 +193,28 @@ void GLES2DecoderTestBase::InitDecoderWithCommandLine(
     feature_info = new FeatureInfo(*command_line, gpu_driver_bug_workaround);
   }
 
-  group_ = scoped_refptr<ContextGroup>(new ContextGroup(
-      gpu_preferences_, NULL, memory_tracker_,
-      new ShaderTranslatorCache(gpu_preferences_),
-      new FramebufferCompletenessCache, feature_info,
-      normalized_init.bind_generates_resource, nullptr, nullptr));
+  group_ = scoped_refptr<ContextGroup>(
+      new ContextGroup(gpu_preferences_, NULL, memory_tracker_,
+                       new ShaderTranslatorCache(gpu_preferences_),
+                       new FramebufferCompletenessCache, feature_info,
+                       normalized_init.bind_generates_resource, nullptr,
+                       nullptr, GpuFeatureInfo()));
   bool use_default_textures = normalized_init.bind_generates_resource;
 
   InSequence sequence;
 
   surface_ = new gl::GLSurfaceStub;
   surface_->SetSize(gfx::Size(kBackBufferWidth, kBackBufferHeight));
+  surface_->set_supports_draw_rectangle(surface_supports_draw_rectangle_);
 
   // Context needs to be created before initializing ContextGroup, which will
   // in turn initialize FeatureInfo, which needs a context to determine
   // extension support.
   context_ = new StrictMock<GLContextMock>();
-  context_->AddExtensionsString(normalized_init.extensions.c_str());
+  context_->SetExtensionsString(normalized_init.extensions.c_str());
   context_->SetGLVersionString(normalized_init.gl_version.c_str());
 
-  context_->GLContextStubWithExtensions::MakeCurrent(surface_.get());
+  context_->GLContextStub::MakeCurrent(surface_.get());
 
   TestHelper::SetupContextGroupInitExpectations(
       gl_.get(),

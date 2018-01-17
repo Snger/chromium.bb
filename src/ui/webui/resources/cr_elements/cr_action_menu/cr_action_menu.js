@@ -20,11 +20,14 @@ Polymer({
   anchorElement_: null,
 
   /**
-   * Reference to the bound window's resize listener, such that it can be
-   * removed on detach.
+   * Bound reference to an event listener function such that it can be removed
+   * on detach.
    * @private {?Function}
    */
-  onWindowResize_: null,
+  boundClose_: null,
+
+  /** @private {boolean} */
+  hasMousemoveListener_: false,
 
   hostAttributes: {
     tabindex: 0,
@@ -32,6 +35,7 @@ Polymer({
 
   listeners: {
     'keydown': 'onKeyDown_',
+    'mouseover': 'onMouseover_',
     'tap': 'onTap_',
   },
 
@@ -42,12 +46,13 @@ Polymer({
 
   /** override */
   detached: function() {
-    this.removeResizeListener_();
+    this.removeListeners_();
   },
 
   /** @private */
-  removeResizeListener_: function() {
-    window.removeEventListener('resize', this.onWindowResize_);
+  removeListeners_: function() {
+    window.removeEventListener('resize', this.boundClose_);
+    window.removeEventListener('popstate', this.boundClose_);
   },
 
   /**
@@ -76,10 +81,38 @@ Polymer({
       return;
 
     var nextOption = this.getNextOption_(e.key == 'ArrowDown' ? 1 : -1);
-    if (nextOption)
+    if (nextOption) {
+      if (!this.hasMousemoveListener_) {
+        this.hasMousemoveListener_ = true;
+        listenOnce(this, 'mousemove', function(e) {
+          this.onMouseover_(e);
+          this.hasMousemoveListener_ = false;
+        }.bind(this));
+      }
       nextOption.focus();
+    }
 
     e.preventDefault();
+  },
+
+  /**
+   * @param {!Event} e
+   * @private
+   */
+  onMouseover_: function(e) {
+    // TODO(scottchen): Using "focus" to determine selected item might mess
+    // with screen readers in some edge cases.
+    var i = 0;
+    do {
+      var target = e.path[i++];
+      if (target.classList && target.classList.contains('dropdown-item')) {
+        target.focus();
+        return;
+      }
+    } while (this != target);
+
+    // The user moved the mouse off the options. Reset focus to the dialog.
+    this.focus();
   },
 
   /**
@@ -98,6 +131,10 @@ Polymer({
     var focusedIndex =
         Array.prototype.indexOf.call(this.options_, this.root.activeElement);
 
+    // Handle case where nothing is focused and up is pressed.
+    if (focusedIndex === -1 && step === -1)
+      focusedIndex = 0;
+
     do {
       focusedIndex = (numOptions + focusedIndex + step) % numOptions;
       nextOption = this.options_[focusedIndex];
@@ -111,8 +148,8 @@ Polymer({
 
   /** @override */
   close: function() {
-    // Removing 'resize' listener when dialog is closed.
-    this.removeResizeListener_();
+    // Removing 'resize' and 'popstate' listeners when dialog is closed.
+    this.removeListeners_();
     HTMLDialogElement.prototype.close.call(this);
     this.anchorElement_.focus();
     this.anchorElement_ = null;
@@ -124,17 +161,19 @@ Polymer({
    */
   showAt: function(anchorElement) {
     this.anchorElement_ = anchorElement;
-    this.onWindowResize_ = this.onWindowResize_ || function() {
+    this.boundClose_ = this.boundClose_ || function() {
       if (this.open)
         this.close();
     }.bind(this);
-    window.addEventListener('resize', this.onWindowResize_);
+    window.addEventListener('resize', this.boundClose_);
+    window.addEventListener('popstate', this.boundClose_);
 
     // Reset position to prevent previous values from affecting layout.
     this.style.left = '';
     this.style.right = '';
     this.style.top = '';
 
+    this.anchorElement_.scrollIntoViewIfNeeded();
     this.showModal();
 
     var rect = this.anchorElement_.getBoundingClientRect();

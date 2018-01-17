@@ -427,9 +427,9 @@ TEST_F(NativeWidgetAuraTest, DontCaptureOnGesture) {
   widget->Show();
 
   ui::TouchEvent press(
-      ui::ET_TOUCH_PRESSED, gfx::Point(41, 51), 1, ui::EventTimeForNow());
-  ui::EventDispatchDetails details =
-      event_processor()->OnEventFromSource(&press);
+      ui::ET_TOUCH_PRESSED, gfx::Point(41, 51), ui::EventTimeForNow(),
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 1));
+  ui::EventDispatchDetails details = event_sink()->OnEventFromSource(&press);
   ASSERT_FALSE(details.dispatcher_destroyed);
   // Both views should get the press.
   EXPECT_TRUE(view->got_gesture_event());
@@ -442,8 +442,9 @@ TEST_F(NativeWidgetAuraTest, DontCaptureOnGesture) {
   // Release touch. Only |view| should get the release since that it consumed
   // the press.
   ui::TouchEvent release(
-      ui::ET_TOUCH_RELEASED, gfx::Point(250, 251), 1, ui::EventTimeForNow());
-  details = event_processor()->OnEventFromSource(&release);
+      ui::ET_TOUCH_RELEASED, gfx::Point(250, 251), ui::EventTimeForNow(),
+      ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 1));
+  details = event_sink()->OnEventFromSource(&release);
   ASSERT_FALSE(details.dispatcher_destroyed);
   EXPECT_TRUE(view->got_gesture_event());
   EXPECT_FALSE(child->got_gesture_event());
@@ -485,7 +486,7 @@ TEST_F(NativeWidgetAuraTest, PreferViewLayersToChildWindows) {
   views::View* view_with_layer = new views::View;
   parent_root->AddChildView(view_with_layer);
   view_with_layer->SetBounds(0, 0, 50, 50);
-  view_with_layer->SetPaintToLayer(true);
+  view_with_layer->SetPaintToLayer();
 
   // Make sure that |child| still gets the event.
   EXPECT_EQ(child->GetNativeWindow(),
@@ -515,6 +516,54 @@ TEST_F(NativeWidgetAuraTest, PreferViewLayersToChildWindows) {
   // Work around for bug in NativeWidgetAura.
   // TODO: fix bug and remove this.
   parent->Close();
+}
+
+// Verifies views with layers are targeted for events properly.
+TEST_F(NativeWidgetAuraTest,
+       ShouldDescendIntoChildForEventHandlingChecksVisibleBounds) {
+  // Create two widgets: |parent| and |child|. |child| is a child of |parent|.
+  View* parent_root_view = new View;
+  Widget parent;
+  Widget::InitParams parent_params(Widget::InitParams::TYPE_WINDOW_FRAMELESS);
+  parent_params.ownership = Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
+  parent_params.context = root_window();
+  parent.Init(parent_params);
+  parent.SetContentsView(parent_root_view);
+  parent.SetBounds(gfx::Rect(0, 0, 400, 400));
+  parent.Show();
+
+  Widget child;
+  Widget::InitParams child_params(Widget::InitParams::TYPE_CONTROL);
+  child_params.ownership = Widget::InitParams::WIDGET_OWNS_NATIVE_WIDGET;
+  child_params.parent = parent.GetNativeWindow();
+  child.Init(child_params);
+  child.SetBounds(gfx::Rect(0, 0, 200, 200));
+  child.Show();
+
+  // Point is over |child|.
+  EXPECT_EQ(
+      child.GetNativeWindow(),
+      parent.GetNativeWindow()->GetEventHandlerForPoint(gfx::Point(50, 50)));
+
+  View* parent_root_view_child = new View;
+  parent_root_view->AddChildView(parent_root_view_child);
+  parent_root_view_child->SetBounds(0, 0, 10, 10);
+
+  // Create a View whose layer extends outside the bounds of its parent. Event
+  // targetting should only consider the visible bounds.
+  View* parent_root_view_child_child = new View;
+  parent_root_view_child->AddChildView(parent_root_view_child_child);
+  parent_root_view_child_child->SetBounds(0, 0, 100, 100);
+  parent_root_view_child_child->SetPaintToLayer();
+  parent_root_view_child_child->layer()->parent()->StackAtTop(
+      parent_root_view_child_child->layer());
+
+  // 20,20 is over |parent_root_view_child_child|'s layer, but not the visible
+  // bounds of |parent_root_view_child_child|, so |child| should be the event
+  // target.
+  EXPECT_EQ(
+      child.GetNativeWindow(),
+      parent.GetNativeWindow()->GetEventHandlerForPoint(gfx::Point(20, 20)));
 }
 
 // Verifies that widget->FlashFrame() sets aura::client::kDrawAttentionKey,

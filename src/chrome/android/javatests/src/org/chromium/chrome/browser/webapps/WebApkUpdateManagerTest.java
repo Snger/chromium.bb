@@ -43,7 +43,7 @@ public class WebApkUpdateManagerTest extends ChromeTabbedActivityTestBase {
     private static final String WEBAPK_SHORT_NAME = "Manifest test app";
     private static final String WEBAPK_ICON_URL = "/chrome/test/data/banners/image-512px.png";
     private static final String WEBAPK_ICON_MURMUR2_HASH = "7742433188808797392";
-    private static final int WEBAPK_DISPLAY_MODE = WebDisplayMode.Standalone;
+    private static final int WEBAPK_DISPLAY_MODE = WebDisplayMode.kStandalone;
     private static final int WEBAPK_ORIENTATION = ScreenOrientationValues.LANDSCAPE;
     private static final long WEBAPK_THEME_COLOR = 2147483648L;
     private static final long WEBAPK_BACKGROUND_COLOR = 2147483648L;
@@ -59,8 +59,8 @@ public class WebApkUpdateManagerTest extends ChromeTabbedActivityTestBase {
         private CallbackHelper mWaiter;
         private boolean mNeedsUpdate = false;
 
-        public TestWebApkUpdateManager(CallbackHelper waiter) {
-            super(null);
+        public TestWebApkUpdateManager(CallbackHelper waiter, WebappDataStorage storage) {
+            super(null, storage);
             mWaiter = waiter;
         }
 
@@ -122,7 +122,7 @@ public class WebApkUpdateManagerTest extends ChromeTabbedActivityTestBase {
     @Override
     protected void setUp() throws Exception {
         super.setUp();
-        RecordHistogram.disableForTests();
+        RecordHistogram.setDisabledForTests(true);
         Context context = getInstrumentation().getTargetContext();
         mTestServer = EmbeddedTestServer.createAndStartServer(context);
         mTab = getActivity().getActivityTab();
@@ -135,6 +135,7 @@ public class WebApkUpdateManagerTest extends ChromeTabbedActivityTestBase {
     @Override
     protected void tearDown() throws Exception {
         mTestServer.stopAndDestroyServer();
+        RecordHistogram.setDisabledForTests(false);
         super.tearDown();
     }
 
@@ -146,17 +147,18 @@ public class WebApkUpdateManagerTest extends ChromeTabbedActivityTestBase {
      /** Checks whether a WebAPK update is needed. */
     private boolean checkUpdateNeeded(final CreationData creationData) throws Exception {
         CallbackHelper waiter = new CallbackHelper();
-        final TestWebApkUpdateManager updateManager = new TestWebApkUpdateManager(waiter);
+        WebappDataStorage storage = WebappRegistry.getInstance().getWebappDataStorage(WEBAPK_ID);
+        final TestWebApkUpdateManager updateManager = new TestWebApkUpdateManager(waiter, storage);
 
         ThreadUtils.runOnUiThreadBlocking(new Runnable() {
             @Override
             public void run() {
-                WebApkInfo info = WebApkInfo.create(WEBAPK_ID, "", creationData.scope, null,
-                        creationData.name, creationData.shortName, creationData.displayMode,
-                        creationData.orientation, 0, creationData.themeColor,
-                        creationData.backgroundColor, "", WebApkVersion.CURRENT_SHELL_APK_VERSION,
-                        creationData.manifestUrl, creationData.startUrl,
-                        creationData.iconUrlToMurmur2HashMap);
+                WebApkInfo info = WebApkInfo.create(WEBAPK_ID, "", false /* forceNavigation */,
+                        creationData.scope, null, creationData.name, creationData.shortName,
+                        creationData.displayMode, creationData.orientation, 0,
+                        creationData.themeColor, creationData.backgroundColor, "",
+                        WebApkVersion.CURRENT_SHELL_APK_VERSION, creationData.manifestUrl,
+                        creationData.startUrl, creationData.iconUrlToMurmur2HashMap);
                 updateManager.updateIfNeeded(mTab, info);
             }
         });

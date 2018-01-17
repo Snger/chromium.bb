@@ -13,6 +13,7 @@
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "build/build_config.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/grit/generated_resources.h"
@@ -23,6 +24,7 @@
 #include "content/public/browser/child_process_data.h"
 #include "content/public/browser/navigation_controller.h"
 #include "content/public/browser/navigation_entry.h"
+#include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
@@ -92,8 +94,10 @@ ProcessMemoryInformation::ProcessMemoryInformation()
     : pid(0),
       num_processes(0),
       process_type(content::PROCESS_TYPE_UNKNOWN),
-      renderer_type(RENDERER_UNKNOWN) {
-}
+      num_open_fds(-1),
+      open_fds_soft_limit(-1),
+      renderer_type(RENDERER_UNKNOWN),
+      phys_footprint(0) {}
 
 ProcessMemoryInformation::ProcessMemoryInformation(
     const ProcessMemoryInformation& other) = default;
@@ -179,6 +183,10 @@ std::string MemoryDetails::ToLogString() {
     log += StringPrintf(", %d MB swapped",
                         static_cast<int>(iter1->working_set.swapped) / 1024);
 #endif
+    if (iter1->num_open_fds != -1 || iter1->open_fds_soft_limit != -1) {
+      log += StringPrintf(", %d FDs open of %d", iter1->num_open_fds,
+                          iter1->open_fds_soft_limit);
+    }
     log += "\n";
   }
   return log;
@@ -221,8 +229,9 @@ void MemoryDetails::CollectChildInfoOnUIThread() {
   std::unique_ptr<content::RenderWidgetHostIterator> widget_it(
       RenderWidgetHost::GetRenderWidgetHosts());
   while (content::RenderWidgetHost* widget = widget_it->GetNextHost()) {
-    // Ignore processes that don't have a connection, such as crashed tabs.
-    if (!widget->GetProcess()->HasConnection())
+    // Ignore processes that don't have a connection, such as crashed tabs,
+    // or processes that are still launching.
+    if (!widget->GetProcess()->IsReady())
       continue;
     base::ProcessId pid = base::GetProcId(widget->GetProcess()->GetHandle());
     widgets_by_pid[pid].push_back(widget);
@@ -297,8 +306,8 @@ void MemoryDetails::CollectChildInfoOnUIThread() {
           chrome_browser->site_data[contents->GetBrowserContext()];
       SiteDetails::CollectSiteInfo(contents, &site_data);
 
-      bool is_webui =
-          rvh->GetEnabledBindings() & content::BINDINGS_POLICY_WEB_UI;
+      bool is_webui = rvh->GetMainFrame()->GetEnabledBindings() &
+                      content::BINDINGS_POLICY_WEB_UI;
 
       if (is_webui) {
         process.renderer_type = ProcessMemoryInformation::RENDERER_CHROME;

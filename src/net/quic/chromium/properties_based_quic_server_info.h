@@ -5,6 +5,7 @@
 #ifndef NET_QUIC_CHROMIUM_PROPERTIES_BASED_QUIC_SERVER_INFO_H_
 #define NET_QUIC_CHROMIUM_PROPERTIES_BASED_QUIC_SERVER_INFO_H_
 
+#include <memory>
 #include <string>
 #include <vector>
 
@@ -37,6 +38,7 @@ class QUIC_EXPORT_PRIVATE PropertiesBasedQuicServerInfo
   bool IsReadyToPersist() override;
   void Persist() override;
   void OnExternalCacheHit() override;
+  size_t EstimateMemoryUsage() const override;
 
  private:
   HttpServerProperties* http_server_properties_;
@@ -51,7 +53,8 @@ class QUIC_EXPORT_PRIVATE PropertiesBasedQuicServerInfoFactory
       HttpServerProperties* http_server_properties);
   ~PropertiesBasedQuicServerInfoFactory() override;
 
-  QuicServerInfo* GetForServer(const QuicServerId& server_id) override;
+  std::unique_ptr<QuicServerInfo> GetForServer(
+      const QuicServerId& server_id) override;
 
  private:
   HttpServerProperties* http_server_properties_;

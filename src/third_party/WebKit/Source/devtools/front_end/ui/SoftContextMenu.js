@@ -40,81 +40,42 @@ UI.SoftContextMenu = class {
 
   /**
    * @param {!Document} document
-   * @param {number} x
-   * @param {number} y
+   * @param {!AnchorBox} anchorBox
    */
-  show(document, x, y) {
+  show(document, anchorBox) {
     if (!this._items.length)
       return;
 
     this._document = document;
-    this._x = x;
-    this._y = y;
-    this._time = new Date().getTime();
 
-    // Create context menu.
-    this.element = createElementWithClass('div', 'soft-context-menu');
-    var root = UI.createShadowRootWithCoreStyles(this.element, 'ui/softContextMenu.css');
-    this._contextMenuElement = root.createChild('div');
-    this.element.style.top = y + 'px';
-    var subMenuOverlap = 3;
-    this.element.style.left = (this._parentMenu ? x - subMenuOverlap : x) + 'px';
+    this._glassPane = new UI.GlassPane();
+    this._glassPane.setBlockPointerEvents(!this._parentMenu);
+    this._glassPane.registerRequiredCSS('ui/softContextMenu.css');
+    this._glassPane.setContentAnchorBox(anchorBox);
+    this._glassPane.setSizeBehavior(UI.GlassPane.SizeBehavior.MeasureContent);
+    this._glassPane.setMarginBehavior(UI.GlassPane.MarginBehavior.NoMargin);
+    this._glassPane.setAnchorBehavior(
+        this._parentMenu ? UI.GlassPane.AnchorBehavior.PreferRight : UI.GlassPane.AnchorBehavior.PreferBottom);
 
+    this._contextMenuElement = this._glassPane.contentElement.createChild('div', 'soft-context-menu');
     this._contextMenuElement.tabIndex = 0;
-    this._contextMenuElement.addEventListener('mouseup', (e) => e.consume(), false);
+    this._contextMenuElement.addEventListener('mouseup', e => e.consume(), false);
     this._contextMenuElement.addEventListener('keydown', this._menuKeyDown.bind(this), false);
 
     for (var i = 0; i < this._items.length; ++i)
       this._contextMenuElement.appendChild(this._createMenuItem(this._items[i]));
 
-    // Install glass pane capturing events.
-    if (!this._parentMenu) {
-      this._glassPaneElement = createElementWithClass('div', 'soft-context-menu-glass-pane fill');
-      this._glassPaneElement.tabIndex = 0;
-      this._glassPaneElement.style.zIndex = '20000';
-      this._glassPaneElement.addEventListener('mouseup', this._glassPaneMouseUp.bind(this), false);
-      this._glassPaneElement.appendChild(this.element);
-      document.body.appendChild(this._glassPaneElement);
-      this._discardMenuOnResizeListener = this._discardMenu.bind(this, true);
-      document.defaultView.addEventListener('resize', this._discardMenuOnResizeListener, false);
-    } else {
-      this._parentMenu._parentGlassPaneElement().appendChild(this.element);
-    }
-
-    // Re-position menu in case it does not fit.
-    if (document.body.offsetWidth < this.element.offsetLeft + this.element.offsetWidth) {
-      this.element.style.left =
-          Math.max(
-              UI.Dialog.modalHostView().element.totalOffsetLeft(), this._parentMenu ?
-                  this._parentMenu.element.offsetLeft - this.element.offsetWidth + subMenuOverlap :
-                  document.body.offsetWidth - this.element.offsetWidth) +
-          'px';
-    }
-
-    // Move submenus upwards if it does not fit.
-    if (this._parentMenu && document.body.offsetHeight < this.element.offsetTop + this.element.offsetHeight) {
-      y = Math.max(
-          UI.Dialog.modalHostView().element.totalOffsetTop(), document.body.offsetHeight - this.element.offsetHeight);
-      this.element.style.top = y + 'px';
-    }
-
-    var maxHeight = UI.Dialog.modalHostView().element.offsetHeight;
-    maxHeight -= y - UI.Dialog.modalHostView().element.totalOffsetTop();
-    this.element.style.maxHeight = maxHeight + 'px';
-
+    this._glassPane.show(document);
     this._focus();
+
+    if (!this._parentMenu) {
+      this._onBodyMouseDown = event => this._discardMenu(true, event);
+      this._document.body.addEventListener('mousedown', this._onBodyMouseDown, false);
+    }
   }
 
   discard() {
     this._discardMenu(true);
-  }
-
-  _parentGlassPaneElement() {
-    if (this._glassPaneElement)
-      return this._glassPaneElement;
-    if (this._parentMenu)
-      return this._parentMenu._parentGlassPaneElement();
-    return null;
   }
 
   _createMenuItem(item) {
@@ -125,7 +86,8 @@ UI.SoftContextMenu = class {
       return this._createSubMenu(item);
 
     var menuItemElement = createElementWithClass('div', 'soft-context-menu-item');
-    var checkMarkElement = menuItemElement.createChild('div', 'checkmark');
+    var checkMarkElement = UI.Icon.create('smallicon-checkmark', 'checkmark');
+    menuItemElement.appendChild(checkMarkElement);
     if (!item.checked)
       checkMarkElement.style.opacity = '0';
 
@@ -157,8 +119,9 @@ UI.SoftContextMenu = class {
     menuItemElement._subItems = item.subItems;
 
     // Occupy the same space on the left in all items.
-    var checkMarkElement = menuItemElement.createChild('span', 'soft-context-menu-item-checkmark checkmark');
-    checkMarkElement.textContent = '\u2713 ';  // Checkmark Unicode symbol
+    var checkMarkElement = UI.Icon.create('smallicon-checkmark', 'soft-context-menu-item-checkmark');
+    checkMarkElement.classList.add('checkmark');
+    menuItemElement.appendChild(checkMarkElement);
     checkMarkElement.style.opacity = '0';
 
     menuItemElement.createTextChild(item.label);
@@ -220,10 +183,13 @@ UI.SoftContextMenu = class {
       return;
 
     this._subMenu = new UI.SoftContextMenu(menuItemElement._subItems, this._itemSelectedCallback, this);
-    var topPadding = 4;
-    this._subMenu.show(
-        this._document, menuItemElement.totalOffsetLeft() + menuItemElement.offsetWidth,
-        menuItemElement.totalOffsetTop() - 1 - topPadding);
+    var anchorBox = menuItemElement.boxInWindow();
+    // Adjust for padding.
+    anchorBox.y -= 5;
+    anchorBox.x += 3;
+    anchorBox.width -= 6;
+    anchorBox.height += 10;
+    this._subMenu.show(this._document, anchorBox);
   }
 
   _hideSubMenu() {
@@ -244,7 +210,7 @@ UI.SoftContextMenu = class {
     }
 
     var relatedTarget = event.relatedTarget;
-    if (relatedTarget.classList.contains('soft-context-menu-glass-pane'))
+    if (relatedTarget === this._contextMenuElement)
       this._highlightMenuItem(null, true);
   }
 
@@ -258,6 +224,7 @@ UI.SoftContextMenu = class {
 
     this._hideSubMenu();
     if (this._highlightedMenuItemElement) {
+      this._highlightedMenuItemElement.classList.remove('force-white-icons');
       this._highlightedMenuItemElement.classList.remove('soft-context-menu-item-mouse-over');
       if (this._highlightedMenuItemElement._subItems && this._highlightedMenuItemElement._subMenuTimer) {
         clearTimeout(this._highlightedMenuItemElement._subMenuTimer);
@@ -266,6 +233,7 @@ UI.SoftContextMenu = class {
     }
     this._highlightedMenuItemElement = menuItemElement;
     if (this._highlightedMenuItemElement) {
+      this._highlightedMenuItemElement.classList.add('force-white-icons');
       this._highlightedMenuItemElement.classList.add('soft-context-menu-item-mouse-over');
       this._contextMenuElement.focus();
       if (scheduleSubMenu && this._highlightedMenuItemElement._subItems &&
@@ -336,16 +304,6 @@ UI.SoftContextMenu = class {
     event.consume(true);
   }
 
-  _glassPaneMouseUp(event) {
-    // Return if this is simple 'click', since dispatched on glass pane, can't use 'click' event.
-    if (new Date().getTime() - this._time < 300)
-      return;
-    if (event.target === this.element)
-      return;
-    this._discardMenu(true, event);
-    event.consume();
-  }
-
   /**
    * @param {boolean} closeParentMenus
    * @param {!Event=} event
@@ -353,41 +311,31 @@ UI.SoftContextMenu = class {
   _discardMenu(closeParentMenus, event) {
     if (this._subMenu && !closeParentMenus)
       return;
-    if (this._glassPaneElement) {
-      var glassPane = this._glassPaneElement;
-      delete this._glassPaneElement;
-      // This can re-enter discardMenu due to blur.
-      this._document.body.removeChild(glassPane);
-      if (this._parentMenu) {
-        delete this._parentMenu._subMenu;
-        if (closeParentMenus)
-          this._parentMenu._discardMenu(closeParentMenus, event);
-        else
-          this._parentMenu._focus();
-      }
 
-      if (event)
-        event.consume(true);
-    } else if (this._parentMenu && this._contextMenuElement.parentElementOrShadowHost()) {
-      this._discardSubMenus();
+    this._discardSubMenus();
+
+    if (this._parentMenu) {
       if (closeParentMenus)
         this._parentMenu._discardMenu(closeParentMenus, event);
       else
         this._parentMenu._focus();
-      if (event)
-        event.consume(true);
     }
-    if (this._discardMenuOnResizeListener) {
-      this._document.defaultView.removeEventListener('resize', this._discardMenuOnResizeListener, false);
-      delete this._discardMenuOnResizeListener;
-    }
+
+    if (event)
+      event.consume(true);
   }
 
   _discardSubMenus() {
     if (this._subMenu)
       this._subMenu._discardSubMenus();
-    if (this.element)
-      this.element.remove();
+    if (this._glassPane) {
+      this._glassPane.hide();
+      delete this._glassPane;
+      if (this._onBodyMouseDown) {
+        this._document.body.removeEventListener('mousedown', this._onBodyMouseDown, false);
+        delete this._onBodyMouseDown;
+      }
+    }
     if (this._parentMenu)
       delete this._parentMenu._subMenu;
   }

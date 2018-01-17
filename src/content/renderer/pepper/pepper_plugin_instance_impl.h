@@ -12,6 +12,7 @@
 #include <memory>
 #include <set>
 #include <string>
+#include <utility>
 #include <vector>
 
 #include "base/callback.h"
@@ -583,9 +584,9 @@ class CONTENT_EXPORT PepperPluginInstanceImpl
     void ReplayReceivedData(WebAssociatedURLLoaderClient* document_loader);
 
     // blink::WebAssociatedURLLoaderClient implementation.
-    void didReceiveData(const char* data, int data_length) override;
-    void didFinishLoading(double finish_time) override;
-    void didFail(const blink::WebURLError& error) override;
+    void DidReceiveData(const char* data, int data_length) override;
+    void DidFinishLoading(double finish_time) override;
+    void DidFail(const blink::WebURLError& error) override;
 
    private:
     std::list<std::string> data_;
@@ -707,8 +708,6 @@ class CONTENT_EXPORT PepperPluginInstanceImpl
                                  int pending_host_id,
                                  const ppapi::URLResponseInfoData& data);
 
-  void RecordFlashJavaScriptUse();
-
   // Converts the PP_Rect between DIP and Viewport.
   void ConvertRectToDIP(PP_Rect* rect) const;
   void ConvertDIPToViewport(gfx::Rect* rect) const;
@@ -768,9 +767,6 @@ class CONTENT_EXPORT PepperPluginInstanceImpl
 
   // Set to true the first time the plugin is clicked. Used to collect metrics.
   bool has_been_clicked_;
-
-  // Used to track if JavaScript has ever been used for this plugin instance.
-  bool javascript_used_;
 
   // Responsible for turning on throttling if Power Saver is on.
   std::unique_ptr<PluginInstanceThrottlerImpl> throttler_;

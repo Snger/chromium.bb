@@ -35,18 +35,16 @@ class GeneralLossAlgorithmTest : public ::testing::Test {
   void SendDataPacket(QuicPacketNumber packet_number) {
     QuicStreamFrame* frame = new QuicStreamFrame();
     frame->stream_id = kHeadersStreamId;
-    SerializedPacket packet(kDefaultPathId, packet_number,
-                            PACKET_1BYTE_PACKET_NUMBER, nullptr, kDefaultLength,
-                            false, false);
+    SerializedPacket packet(packet_number, PACKET_1BYTE_PACKET_NUMBER, nullptr,
+                            kDefaultLength, false, false);
     packet.retransmittable_frames.push_back(QuicFrame(frame));
     unacked_packets_.AddSentPacket(&packet, 0, NOT_RETRANSMISSION, clock_.Now(),
                                    true);
   }
 
   void SendAckPacket(QuicPacketNumber packet_number) {
-    SerializedPacket packet(kDefaultPathId, packet_number,
-                            PACKET_1BYTE_PACKET_NUMBER, nullptr, kDefaultLength,
-                            true, false);
+    SerializedPacket packet(packet_number, PACKET_1BYTE_PACKET_NUMBER, nullptr,
+                            kDefaultLength, true, false);
     unacked_packets_.AddSentPacket(&packet, 0, NOT_RETRANSMISSION, clock_.Now(),
                                    false);
   }
@@ -192,7 +190,6 @@ TEST_F(GeneralLossAlgorithmTest, DontEarlyRetransmitNeuteredPacket) {
 }
 
 TEST_F(GeneralLossAlgorithmTest, EarlyRetransmitWithLargerUnackablePackets) {
-  FLAGS_quic_reloadable_flag_quic_largest_sent_retransmittable = true;
   // Transmit 2 data packets and one ack.
   SendDataPacket(1);
   SendDataPacket(2);

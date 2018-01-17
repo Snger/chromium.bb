@@ -44,7 +44,7 @@ found in the LICENSE file.
   }
 
   document.addEventListener('commentWithUIState',
-                            onCommentWithUIState.bind(this));
+      onCommentWithUIState.bind(this));
 }());
 
 tr.exportTo('tr.ui.e.drive.analysis', function() {
@@ -54,7 +54,7 @@ tr.exportTo('tr.ui.e.drive.analysis', function() {
     attachToElement: function(attachedElement) {
       this.attachedElement_ = attachedElement;
       this.commentsCheckTimer_ = setTimeout(this.checkForComments_.bind(this),
-                                            5000);
+          5000);
     },
 
     detachFromElement: function() {
@@ -64,30 +64,28 @@ tr.exportTo('tr.ui.e.drive.analysis', function() {
     checkForComments_: function() {
       this.updateComments();
       this.commentsCheckTimer_ = setTimeout(this.checkForComments_.bind(this),
-                                            5000);
+          5000);
     },
 
     updateComments: function() {
-      var self = this;
-      gapi.client.load('drive', 'v2', function() {
+      gapi.client.load('drive', 'v2', () => {
         var request = gapi.client.drive.comments.list({
           'fileId': tr.ui.e.drive.getDriveFileId()
         });
-        request.execute(function(results) {
-          self.attachedElement_.comments_ = results.items;
+        request.execute(results => {
+          this.attachedElement_.comments_ = results.items;
         });
       });
     },
 
     addComment: function(body) {
-      var self = this;
-      gapi.client.load('drive', 'v2', function() {
+      gapi.client.load('drive', 'v2', () => {
         var request = gapi.client.drive.comments.insert({
           'fileId': tr.ui.e.drive.getDriveFileId(),
           'resource': {'content': body}
         });
-        request.execute(function(resp) {
-          self.updateComments();
+        request.execute(resp => {
+          this.updateComments();
         });
       });
     }

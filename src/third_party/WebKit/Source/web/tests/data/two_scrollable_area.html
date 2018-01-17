@@ -27,6 +27,15 @@
   clip-path: circle(115px at 20px 20px);
 }
 
+.box-shadow {
+  box-shadow: 10px 10px 5px #888888;
+  will-change:transform; /*This reason is not recorded for root layer*/
+}
+
+.composited {
+  will-change:transform;
+}
+
 .content {
   height: 500px;
 }

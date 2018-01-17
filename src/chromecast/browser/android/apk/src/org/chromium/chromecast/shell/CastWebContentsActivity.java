@@ -58,6 +58,7 @@ public class CastWebContentsActivity extends Activity {
     private WindowAndroid mWindow;
     private ContentViewCore mContentViewCore;
     private ContentView mContentView;
+    private boolean mReceivedUserLeave = false;
 
     private static final int TEARDOWN_GRACE_PERIOD_TIMEOUT_MILLIS = 300;
     public static final String ACTION_DATA_SCHEME = "cast";
@@ -73,6 +74,17 @@ public class CastWebContentsActivity extends Activity {
             "com.google.android.apps.castshell.intent.action.STOP_ACTIVITY";
     public static final String ACTION_ACTIVITY_STOPPED =
             "com.google.android.apps.castshell.intent.action.ACTIVITY_STOPPED";
+
+    /*
+     * Intended to be called from "onStop" to determine if this is a "legitimate" stop or not.
+     * When starting CastShellActivity from the TV in sleep mode, an extra onPause/onStop will be
+     * fired.
+     * Details: http://stackoverflow.com/questions/25369909/
+     * We use onUserLeaveHint to determine if the onPause/onStop called because of user intent.
+     */
+    private boolean isStopping() {
+        return mReceivedUserLeave;
+    }
 
     @Override
     protected void onCreate(final Bundle savedInstanceState) {
@@ -193,9 +205,10 @@ public class CastWebContentsActivity extends Activity {
     @Override
     protected void onStop() {
         if (DEBUG) Log.d(TAG, "onStop");
-
-        detachWebContentsIfAny();
-        releaseStreamMuteIfNecessary();
+        if (isStopping()) {
+            detachWebContentsIfAny();
+            releaseStreamMuteIfNecessary();
+        }
         super.onStop();
     }
 
@@ -223,6 +236,12 @@ public class CastWebContentsActivity extends Activity {
     }
 
     @Override
+    protected void onUserLeaveHint() {
+        if (DEBUG) Log.d(TAG, "onUserLeaveHint");
+        mReceivedUserLeave = true;
+    }
+
+    @Override
     public boolean dispatchKeyEvent(KeyEvent event) {
         if (DEBUG) Log.d(TAG, "dispatchKeyEvent");
         int keyCode = event.getKeyCode();
@@ -240,11 +259,18 @@ public class CastWebContentsActivity extends Activity {
                 Intent intent = new Intent(ACTION_KEY_EVENT, getInstanceUri());
                 intent.putExtra(ACTION_EXTRA_KEY_CODE, keyCode);
                 LocalBroadcastManager.getInstance(this).sendBroadcastSync(intent);
+
+                // Stop key should end the entire session.
+                if (keyCode == KeyEvent.KEYCODE_MEDIA_STOP) {
+                    finish();
+                }
+
                 return true;
             }
         }
 
         if (keyCode == KeyEvent.KEYCODE_BACK) {
+            mReceivedUserLeave = true;
             return super.dispatchKeyEvent(event);
         }
         return false;

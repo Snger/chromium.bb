@@ -7,14 +7,13 @@
 #include <string>
 #include <vector>
 
-#include "ash/common/wallpaper/wallpaper_controller.h"
-#include "ash/common/wm/window_state.h"
-#include "ash/common/wm/wm_event.h"
-#include "ash/common/wm_shell.h"
 #include "ash/shell.h"
+#include "ash/wallpaper/wallpaper_controller.h"
 #include "ash/wm/lock_state_controller.h"
+#include "ash/wm/window_state.h"
 #include "ash/wm/window_state_aura.h"
 #include "ash/wm/window_util.h"
+#include "ash/wm/wm_event.h"
 #include "base/bind.h"
 #include "base/command_line.h"
 #include "base/lazy_instance.h"
@@ -23,6 +22,7 @@
 #include "base/memory/weak_ptr.h"
 #include "base/message_loop/message_loop.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/metrics/user_metrics.h"
 #include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -30,8 +30,8 @@
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/chromeos/accessibility/accessibility_manager.h"
 #include "chrome/browser/chromeos/login/lock/webui_screen_locker.h"
-#include "chrome/browser/chromeos/login/quick_unlock/pin_storage.h"
-#include "chrome/browser/chromeos/login/quick_unlock/pin_storage_factory.h"
+#include "chrome/browser/chromeos/login/quick_unlock/quick_unlock_factory.h"
+#include "chrome/browser/chromeos/login/quick_unlock/quick_unlock_storage.h"
 #include "chrome/browser/chromeos/login/session/user_session_manager.h"
 #include "chrome/browser/chromeos/login/supervised/supervised_user_authentication.h"
 #include "chrome/browser/chromeos/login/ui/user_adding_screen.h"
@@ -40,6 +40,7 @@
 #include "chrome/browser/lifetime/application_lifetime.h"
 #include "chrome/browser/signin/easy_unlock_service.h"
 #include "chrome/browser/signin/signin_manager_factory.h"
+#include "chrome/browser/ui/ash/session_controller_client.h"
 #include "chrome/browser/ui/webui/chromeos/login/screenlock_icon_provider.h"
 #include "chrome/browser/ui/webui/chromeos/login/screenlock_icon_source.h"
 #include "chrome/common/chrome_switches.h"
@@ -58,7 +59,6 @@
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/notification_service.h"
 #include "content/public/browser/url_data_source.h"
-#include "content/public/browser/user_metrics.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_ui.h"
 #include "media/audio/sounds/sounds_manager.h"
@@ -113,9 +113,10 @@ class ScreenLockObserver : public SessionManagerClient::StubDelegate,
       // strong authentication to allow them to use PIN to unlock the device.
       user_manager::User* user =
           content::Details<user_manager::User>(details).ptr();
-      PinStorage* pin_storage = PinStorageFactory::GetForUser(user);
-      if (pin_storage)
-        pin_storage->MarkStrongAuth();
+      quick_unlock::QuickUnlockStorage* quick_unlock_storage =
+          quick_unlock::QuickUnlockFactory::GetForUser(user);
+      if (quick_unlock_storage)
+        quick_unlock_storage->MarkStrongAuth();
     } else {
       NOTREACHED() << "Unexpected notification " << type;
     }
@@ -157,12 +158,11 @@ ScreenLocker::ScreenLocker(const user_manager::UserList& users)
   manager->Initialize(SOUND_UNLOCK,
                       bundle.GetRawDataResource(IDR_SOUND_UNLOCK_WAV));
 
-  ash::Shell::GetInstance()
-      ->lock_state_controller()
-      ->SetLockScreenDisplayedCallback(base::Bind(
-          base::IgnoreResult(&AccessibilityManager::PlayEarcon),
-          base::Unretained(AccessibilityManager::Get()), chromeos::SOUND_LOCK,
-          PlaySoundOption::SPOKEN_FEEDBACK_ENABLED));
+  ash::Shell::Get()->lock_state_controller()->SetLockScreenDisplayedCallback(
+      base::Bind(base::IgnoreResult(&AccessibilityManager::PlayEarcon),
+                 base::Unretained(AccessibilityManager::Get()),
+                 chromeos::SOUND_LOCK,
+                 PlaySoundOption::SPOKEN_FEEDBACK_ENABLED));
 }
 
 void ScreenLocker::Init() {
@@ -185,7 +185,7 @@ void ScreenLocker::Init() {
 }
 
 void ScreenLocker::OnAuthFailure(const AuthFailure& error) {
-  content::RecordAction(UserMetricsAction("ScreenLocker_OnLoginFailure"));
+  base::RecordAction(UserMetricsAction("ScreenLocker_OnLoginFailure"));
   if (authentication_start_time_.is_null()) {
     LOG(ERROR) << "Start time is not set at authentication failure";
   } else {
@@ -244,9 +244,12 @@ void ScreenLocker::OnAuthSuccess(const UserContext& user_context) {
     // 2. If the user signed in with cryptohome keys, then the PIN timeout is
     //    going to be reset as well, so it is safe to reset the unlock attempt
     //    count.
-    PinStorage* pin_storage = PinStorageFactory::GetForUser(user);
-    if (pin_storage)
-      pin_storage->ResetUnlockAttemptCount();
+    quick_unlock::QuickUnlockStorage* quick_unlock_storage =
+        quick_unlock::QuickUnlockFactory::GetForUser(user);
+    if (quick_unlock_storage) {
+      quick_unlock_storage->pin_storage()->ResetUnlockAttemptCount();
+      quick_unlock_storage->fingerprint_storage()->ResetUnlockAttemptCount();
+    }
 
     UserSessionManager::GetInstance()->UpdateEasyUnlockKeys(user_context);
   } else {
@@ -267,10 +270,11 @@ void ScreenLocker::OnAuthSuccess(const UserContext& user_context) {
 
 void ScreenLocker::OnPasswordAuthSuccess(const UserContext& user_context) {
   // The user has signed in using their password, so reset the PIN timeout.
-  PinStorage* pin_storage =
-      PinStorageFactory::GetForAccountId(user_context.GetAccountId());
-  if (pin_storage)
-    pin_storage->MarkStrongAuth();
+  quick_unlock::QuickUnlockStorage* quick_unlock_storage =
+      quick_unlock::QuickUnlockFactory::GetForAccountId(
+          user_context.GetAccountId());
+  if (quick_unlock_storage)
+    quick_unlock_storage->MarkStrongAuth();
 }
 
 void ScreenLocker::UnlockOnLoginSuccess() {
@@ -309,9 +313,10 @@ void ScreenLocker::Authenticate(const UserContext& user_context) {
     // incorrectly more than a few times.
     int dummy_value;
     if (is_pin_attempt_ && base::StringToInt(pin, &dummy_value)) {
-      chromeos::PinStorage* pin_storage =
-          chromeos::PinStorageFactory::GetForUser(user);
-      if (pin_storage && pin_storage->TryAuthenticatePin(pin)) {
+      quick_unlock::QuickUnlockStorage* quick_unlock_storage =
+          quick_unlock::QuickUnlockFactory::GetForUser(user);
+      if (quick_unlock_storage &&
+          quick_unlock_storage->TryAuthenticatePin(pin)) {
         OnAuthSuccess(user_context);
         return;
       }
@@ -356,7 +361,7 @@ void ScreenLocker::ClearErrors() {
 
 void ScreenLocker::Signout() {
   web_ui()->ClearErrors();
-  content::RecordAction(UserMetricsAction("ScreenLocker_Signout"));
+  base::RecordAction(UserMetricsAction("ScreenLocker_Signout"));
   // We expect that this call will not wait for any user input.
   // If it changes at some point, we will need to force exit.
   chrome::AttemptUserExit();
@@ -407,7 +412,7 @@ void ScreenLocker::HandleLockScreenRequest() {
   if (g_screen_lock_observer->session_started() &&
       user_manager::UserManager::Get()->CanCurrentUserLock()) {
     ScreenLocker::Show();
-    ash::Shell::GetInstance()->lock_state_controller()->OnStartingLock();
+    ash::Shell::Get()->lock_state_controller()->OnStartingLock();
   } else {
     // If the current user's session cannot be locked or the user has not
     // completed all sign-in steps yet, log out instead. The latter is done to
@@ -423,7 +428,7 @@ void ScreenLocker::HandleLockScreenRequest() {
 
 // static
 void ScreenLocker::Show() {
-  content::RecordAction(UserMetricsAction("ScreenLocker_Show"));
+  base::RecordAction(UserMetricsAction("ScreenLocker_Show"));
   DCHECK(base::MessageLoopForUI::IsCurrent());
 
   // Check whether the currently logged in user is a guest account and if so,
@@ -467,12 +472,11 @@ void ScreenLocker::Hide() {
   }
 
   DCHECK(screen_locker_);
-  base::Callback<void(void)> callback =
-      base::Bind(&ScreenLocker::ScheduleDeletion);
-  ash::Shell::GetInstance()->lock_state_controller()->
-    OnLockScreenHide(callback);
+  SessionControllerClient::Get()->RunUnlockAnimation(
+      base::Bind(&ScreenLocker::ScheduleDeletion));
 }
 
+// static
 void ScreenLocker::ScheduleDeletion() {
   // Avoid possible multiple calls.
   if (screen_locker_ == NULL)
@@ -498,7 +502,7 @@ ScreenLocker::~ScreenLocker() {
   ClearErrors();
 
   VLOG(1) << "Moving wallpaper to unlocked container";
-  ash::WmShell::Get()->wallpaper_controller()->MoveToUnlockedContainer();
+  ash::Shell::Get()->wallpaper_controller()->MoveToUnlockedContainer();
 
   screen_locker_ = NULL;
   bool state = false;
@@ -532,7 +536,7 @@ void ScreenLocker::ScreenLockReady() {
   UMA_HISTOGRAM_TIMES("ScreenLocker.ScreenLockTime", delta);
 
   VLOG(1) << "Moving wallpaper to locked container";
-  ash::WmShell::Get()->wallpaper_controller()->MoveToLockedContainer();
+  ash::Shell::Get()->wallpaper_controller()->MoveToLockedContainer();
 
   bool state = true;
   VLOG(1) << "Emitting SCREEN_LOCK_STATE_CHANGED with state=" << state;

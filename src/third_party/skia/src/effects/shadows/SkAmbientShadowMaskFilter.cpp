@@ -14,14 +14,9 @@
 #include "GrContext.h"
 #include "GrRenderTargetContext.h"
 #include "GrFragmentProcessor.h"
-#include "GrInvariantOutput.h"
 #include "GrStyle.h"
 #include "GrTexture.h"
 #include "GrTextureProxy.h"
-#include "glsl/GrGLSLFragmentProcessor.h"
-#include "glsl/GrGLSLFragmentShaderBuilder.h"
-#include "glsl/GrGLSLProgramDataManager.h"
-#include "glsl/GrGLSLUniformHandler.h"
 #include "SkStrokeRec.h"
 #endif
 
@@ -39,7 +34,7 @@ public:
                           const SkIRect& clipBounds,
                           const SkMatrix& ctm,
                           SkRect* maskRect) const override;
-    bool directFilterMaskGPU(GrTextureProvider* texProvider,
+    bool directFilterMaskGPU(GrContext*,
                              GrRenderTargetContext* drawContext,
                              GrPaint&&,
                              const GrClip&,
@@ -141,26 +136,42 @@ bool SkAmbientShadowMaskFilterImpl::canFilterMaskGPU(const SkRRect& devRRect,
     return true;
 }
 
-bool SkAmbientShadowMaskFilterImpl::directFilterMaskGPU(GrTextureProvider* texProvider,
-                                                        GrRenderTargetContext* drawContext,
+static const float kHeightFactor = 1.0f / 128.0f;
+static const float kGeomFactor = 64.0f;
+
+bool SkAmbientShadowMaskFilterImpl::directFilterMaskGPU(GrContext* context,
+                                                        GrRenderTargetContext* rtContext,
                                                         GrPaint&& paint,
                                                         const GrClip& clip,
                                                         const SkMatrix& viewMatrix,
                                                         const SkStrokeRec& strokeRec,
                                                         const SkPath& path) const {
-    SkASSERT(drawContext);
+    SkASSERT(rtContext);
     // TODO: this will not handle local coordinates properly
+
+    if (fAmbientAlpha <= 0.0f) {
+        return true;
+    }
+
+    // only convex paths for now
+    if (!path.isConvex()) {
+        return false;
+    }
+
+    if (strokeRec.getStyle() != SkStrokeRec::kFill_Style) {
+        return false;
+    }
 
     // if circle
     // TODO: switch to SkScalarNearlyEqual when either oval renderer is updated or we
     // have our own GeometryProc.
     if (path.isOval(nullptr) && path.getBounds().width() == path.getBounds().height()) {
         SkRRect rrect = SkRRect::MakeOval(path.getBounds());
-        return this->directFilterRRectMaskGPU(nullptr, drawContext, std::move(paint), clip,
+        return this->directFilterRRectMaskGPU(context, rtContext, std::move(paint), clip,
                                               SkMatrix::I(), strokeRec, rrect, rrect);
     } else if (path.isRect(nullptr)) {
         SkRRect rrect = SkRRect::MakeRect(path.getBounds());
-        return this->directFilterRRectMaskGPU(nullptr, drawContext, std::move(paint), clip,
+        return this->directFilterRRectMaskGPU(context, rtContext, std::move(paint), clip,
                                               SkMatrix::I(), strokeRec, rrect, rrect);
     }
 
@@ -207,17 +218,14 @@ bool SkAmbientShadowMaskFilterImpl::directFilterRRectMaskGPU(GrContext*,
     // TODO: take flags into account when generating shadow data
 
     if (fAmbientAlpha > 0.0f) {
-        static const float kHeightFactor = 1.0f / 128.0f;
-        static const float kGeomFactor = 64.0f;
-
         SkScalar srcSpaceAmbientRadius = fOccluderHeight * kHeightFactor * kGeomFactor;
         const float umbraAlpha = (1.0f + SkTMax(fOccluderHeight * kHeightFactor, 0.0f));
-        const SkScalar ambientOffset = srcSpaceAmbientRadius * umbraAlpha;
+        const SkScalar strokeWidth = srcSpaceAmbientRadius * umbraAlpha;
 
-        // For the ambient rrect, we inset the offset rect by half the srcSpaceAmbientRadius
-        // to get our stroke shape.
-        SkScalar ambientPathOutset = SkTMax(ambientOffset - srcSpaceAmbientRadius * 0.5f,
-                                              minRadius);
+        // For the ambient rrect, we outset the offset rect by srcSpaceAmbientRadius
+        // minus half the strokeWidth to get our stroke shape.
+        SkScalar ambientPathOutset = SkTMax(srcSpaceAmbientRadius - strokeWidth * 0.5f,
+                                            minRadius);
 
         SkRRect ambientRRect;
         if (isRect) {
@@ -227,14 +235,14 @@ bool SkAmbientShadowMaskFilterImpl::directFilterRRectMaskGPU(GrContext*,
              rrect.outset(ambientPathOutset, ambientPathOutset, &ambientRRect);
         }
 
-        const SkScalar devSpaceAmbientRadius = srcSpaceAmbientRadius * scaleFactor;
+        const SkScalar devSpaceAmbientRadius = strokeWidth * scaleFactor;
 
         GrPaint newPaint(paint);
         GrColor4f color = newPaint.getColor4f();
         color.fRGBA[3] *= fAmbientAlpha;
         newPaint.setColor4f(color);
         SkStrokeRec ambientStrokeRec(SkStrokeRec::kHairline_InitStyle);
-        ambientStrokeRec.setStrokeStyle(srcSpaceAmbientRadius, false);
+        ambientStrokeRec.setStrokeStyle(strokeWidth, false);
 
         rtContext->drawShadowRRect(clip, std::move(newPaint), viewMatrix, ambientRRect,
                                    devSpaceAmbientRadius,
@@ -252,7 +260,7 @@ sk_sp<GrTextureProxy> SkAmbientShadowMaskFilterImpl::filterMaskGPU(GrContext*,
     return nullptr;
 }
 
-#endif
+#endif // SK_SUPPORT_GPU
 
 #ifndef SK_IGNORE_TO_STRING
 void SkAmbientShadowMaskFilterImpl::toString(SkString* str) const {

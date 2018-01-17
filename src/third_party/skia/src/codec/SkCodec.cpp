@@ -9,7 +9,7 @@
 #include "SkCodec.h"
 #include "SkCodecPriv.h"
 #include "SkColorSpace.h"
-#include "SkColorSpaceXform.h"
+#include "SkColorSpaceXform_Base.h"
 #include "SkData.h"
 #include "SkGifCodec.h"
 #include "SkHalf.h"
@@ -215,9 +215,7 @@ SkCodec::Result SkCodec::getPixels(const SkImageInfo& info, void* pixels, size_t
     }
 
     fDstInfo = info;
-    // FIXME: fOptions should be updated to options here, since fillIncompleteImage (called below
-    // in this method) accesses it. Without updating, it uses the old value.
-    //fOptions = *options;
+    fOptions = *options;
 
     // On an incomplete decode, the subclass will specify the number of scanlines that it decoded
     // successfully.
@@ -235,6 +233,12 @@ SkCodec::Result SkCodec::getPixels(const SkImageInfo& info, void* pixels, size_t
     // their own.  They indicate that all of the memory has been filled by
     // setting rowsDecoded equal to the height.
     if (kIncompleteInput == result && rowsDecoded != info.height()) {
+        // FIXME: (skbug.com/5772) fillIncompleteImage will fill using the swizzler's width, unless
+        // there is a subset. In that case, it will use the width of the subset. From here, the
+        // subset will only be non-null in the case of SkWebpCodec, but it treats the subset
+        // differenty from the other codecs, and it needs to use the width specified by the info.
+        // Set the subset to null so SkWebpCodec uses the correct width.
+        fOptions.fSubset = nullptr;
         this->fillIncompleteImage(info, pixels, rowBytes, options->fZeroInitialized, info.height(),
                 rowsDecoded);
     }
@@ -470,15 +474,39 @@ void SkCodec::fillIncompleteImage(const SkImageInfo& info, void* dst, size_t row
     }
 }
 
-bool SkCodec::initializeColorXform(const SkImageInfo& dstInfo) {
+bool SkCodec::initializeColorXform(const SkImageInfo& dstInfo,
+                                   SkTransferFunctionBehavior premulBehavior) {
     fColorXform = nullptr;
-    bool needsPremul = needs_premul(dstInfo, fEncodedInfo);
-    if (needs_color_xform(dstInfo, fSrcInfo, needsPremul)) {
-        fColorXform = SkColorSpaceXform::New(fSrcInfo.colorSpace(), dstInfo.colorSpace());
+    bool needsColorCorrectPremul = needs_premul(dstInfo, fEncodedInfo) &&
+                                   SkTransferFunctionBehavior::kRespect == premulBehavior;
+    if (needs_color_xform(dstInfo, fSrcInfo, needsColorCorrectPremul)) {
+        fColorXform = SkColorSpaceXform_Base::New(fSrcInfo.colorSpace(), dstInfo.colorSpace(),
+                                                  premulBehavior);
         if (!fColorXform) {
             return false;
         }
     }
 
     return true;
+}
+
+std::vector<SkCodec::FrameInfo> SkCodec::getFrameInfo() {
+    const size_t frameCount = this->getFrameCount();
+    switch (frameCount) {
+        case 0:
+            return std::vector<FrameInfo>{};
+        case 1:
+            if (!this->onGetFrameInfo(0, nullptr)) {
+                // Not animated.
+                return std::vector<FrameInfo>{};
+            }
+            // fall through
+        default: {
+            std::vector<FrameInfo> result(frameCount);
+            for (size_t i = 0; i < frameCount; ++i) {
+                SkAssertResult(this->onGetFrameInfo(i, &result[i]));
+            }
+            return result;
+        }
+    }
 }

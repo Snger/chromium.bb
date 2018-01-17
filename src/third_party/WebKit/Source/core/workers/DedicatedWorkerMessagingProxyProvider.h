@@ -34,8 +34,8 @@
 #include "core/CoreExport.h"
 #include "core/page/Page.h"
 #include "platform/Supplementable.h"
-#include "wtf/Forward.h"
-#include "wtf/Noncopyable.h"
+#include "platform/wtf/Forward.h"
+#include "platform/wtf/Noncopyable.h"
 
 namespace blink {
 
@@ -43,21 +43,22 @@ class InProcessWorkerMessagingProxy;
 class Page;
 class Worker;
 
-class DedicatedWorkerMessagingProxyProvider : public Supplement<Page> {
+class CORE_EXPORT DedicatedWorkerMessagingProxyProvider
+    : public Supplement<Page> {
   WTF_MAKE_NONCOPYABLE(DedicatedWorkerMessagingProxyProvider);
 
  public:
-  DedicatedWorkerMessagingProxyProvider() {}
+  explicit DedicatedWorkerMessagingProxyProvider(Page&);
   virtual ~DedicatedWorkerMessagingProxyProvider() {}
 
-  virtual InProcessWorkerMessagingProxy* createWorkerMessagingProxy(
+  virtual InProcessWorkerMessagingProxy* CreateWorkerMessagingProxy(
       Worker*) = 0;
 
-  static DedicatedWorkerMessagingProxyProvider* from(Page&);
-  static const char* supplementName();
+  static DedicatedWorkerMessagingProxyProvider* From(Page&);
+  static const char* SupplementName();
 };
 
-CORE_EXPORT void provideDedicatedWorkerMessagingProxyProviderTo(
+CORE_EXPORT void ProvideDedicatedWorkerMessagingProxyProviderTo(
     Page&,
     DedicatedWorkerMessagingProxyProvider*);
 

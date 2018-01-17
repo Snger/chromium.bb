@@ -6,6 +6,7 @@ package org.chromium.chrome.browser.snackbar;
 
 import android.graphics.Bitmap;
 
+import org.chromium.base.VisibleForTesting;
 import org.chromium.chrome.browser.snackbar.SnackbarManager.SnackbarController;
 
 /**
@@ -53,6 +54,7 @@ public class Snackbar {
     public static final int UMA_SPECIAL_LOCALE = 14;
     // Obsolete; don't use: UMA_BLIMP = 15;
     public static final int UMA_DATA_REDUCTION_PROMO = 16;
+    public static final int UMA_HISTORY_LINK_COPIED = 17;
 
     private SnackbarController mController;
     private CharSequence mText;
@@ -145,7 +147,11 @@ public class Snackbar {
         return this;
     }
 
-    SnackbarController getController() {
+    /**
+     * @return The {@link SnackbarController} that controls this snackbar.
+     */
+    @VisibleForTesting
+    public SnackbarController getController() {
         return mController;
     }
 

@@ -12,7 +12,6 @@
 #include "base/mac/objc_property_releaser.h"
 #include "base/mac/scoped_nsobject.h"
 #include "base/metrics/field_trial.h"
-#include "components/reading_list/core/reading_list_switches.h"
 #include "components/strings/grit/components_strings.h"
 #include "ios/chrome/browser/experimental_flags.h"
 #import "ios/chrome/browser/ui/animation_util.h"
@@ -20,11 +19,11 @@
 #include "ios/chrome/browser/ui/commands/ios_command_ids.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_menu_notification_delegate.h"
 #import "ios/chrome/browser/ui/reading_list/reading_list_menu_notifier.h"
-#include "ios/chrome/browser/ui/rtl_geometry.h"
-#include "ios/chrome/browser/ui/toolbar/toolbar_resource_macros.h"
 #import "ios/chrome/browser/ui/tools_menu/reading_list_menu_view_item.h"
-#import "ios/chrome/browser/ui/tools_menu/tools_menu_context.h"
+#import "ios/chrome/browser/ui/tools_menu/tools_menu_constants.h"
+#import "ios/chrome/browser/ui/tools_menu/tools_menu_model.h"
 #import "ios/chrome/browser/ui/tools_menu/tools_menu_view_item.h"
+#import "ios/chrome/browser/ui/tools_menu/tools_menu_view_tools_cell.h"
 #import "ios/chrome/browser/ui/tools_menu/tools_popup_controller.h"
 #include "ios/chrome/browser/ui/ui_util.h"
 #import "ios/chrome/browser/ui/uikit_ui_util.h"
@@ -32,27 +31,13 @@
 #include "ios/chrome/grit/ios_strings.h"
 #include "ios/public/provider/chrome/browser/chrome_browser_provider.h"
 #import "ios/public/provider/chrome/browser/user_feedback/user_feedback_provider.h"
+#import "ios/shared/chrome/browser/ui/tools_menu/tools_menu_configuration.h"
 #import "ios/third_party/material_components_ios/src/components/Ink/src/MaterialInk.h"
+#include "ios/web/public/user_agent.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/l10n/l10n_util_mac.h"
 
 using ios::material::TimingFunction;
-
-NSString* const kToolsMenuNewTabId = @"kToolsMenuNewTabId";
-NSString* const kToolsMenuNewIncognitoTabId = @"kToolsMenuNewIncognitoTabId";
-NSString* const kToolsMenuCloseAllTabsId = @"kToolsMenuCloseAllTabsId";
-NSString* const kToolsMenuCloseAllIncognitoTabsId =
-    @"kToolsMenuCloseAllIncognitoTabsId";
-NSString* const kToolsMenuBookmarksId = @"kToolsMenuBookmarksId";
-NSString* const kToolsMenuReadingListId = @"kToolsMenuReadingListId";
-NSString* const kToolsMenuOtherDevicesId = @"kToolsMenuOtherDevicesId";
-NSString* const kToolsMenuHistoryId = @"kToolsMenuHistoryId";
-NSString* const kToolsMenuReportAnIssueId = @"kToolsMenuReportAnIssueId";
-NSString* const kToolsMenuFindInPageId = @"kToolsMenuFindInPageId";
-NSString* const kToolsMenuReaderMode = @"kToolsMenuReaderMode";
-NSString* const kToolsMenuRequestDesktopId = @"kToolsMenuRequestDesktopId";
-NSString* const kToolsMenuSettingsId = @"kToolsMenuSettingsId";
-NSString* const kToolsMenuHelpId = @"kToolsMenuHelpId";
 
 namespace {
 
@@ -63,130 +48,6 @@ static const CGFloat kMenuItemHeight = 48;
 
 static NSString* const kToolsItemCellID = @"ToolsItemCellID";
 
-// Menu items can be marked as visible or not when Incognito is enabled.
-// The following bits are used for |visibility| field in |MenuItemInfo|.
-const NSInteger kVisibleIncognitoOnly = 1 << 0;
-const NSInteger kVisibleNotIncognitoOnly = 1 << 1;
-
-// Initialization table for all possible commands to initialize the
-// tools menu at run time. Data initialized into this structure is not mutable.
-struct MenuItemInfo {
-  int title_id;
-  NSString* accessibility_id;
-  int command_id;
-  int toolbar_types;
-  // |visibility| is applied if a menu item is included for a given
-  // |toolbar_types|. A value of 0 means the menu item is always visible for
-  // the given |toolbar_types|.
-  int visibility;
-  // Custom class, if any, for the menu item, or |nil|.
-  Class item_class;
-};
-
-// Flags for different toolbar types
-typedef NS_OPTIONS(NSUInteger, kToolbarType) {
-  // clang-format off
-    kToolbarTypeNone            = 0,
-    kToolbarTypeWebiPhone       = 1 << 0,
-    kToolbarTypeWebiPad         = 1 << 1,
-    kToolbarTypeNoTabsiPad      = 1 << 2,
-    kToolbarTypeSwitcheriPhone  = 1 << 3,
-    kToolbarTypeWebAll          = kToolbarTypeWebiPhone | kToolbarTypeWebiPad,
-    kToolbarTypeAll             = kToolbarTypeWebAll |
-                                  kToolbarTypeSwitcheriPhone |
-                                  kToolbarTypeNoTabsiPad,
-  // clang-format on
-};
-
-// Declare all the possible items.
-static MenuItemInfo itemInfoList[] = {
-    // clang-format off
-  { IDS_IOS_TOOLS_MENU_NEW_TAB,           kToolsMenuNewTabId,
-    IDC_NEW_TAB,                          kToolbarTypeAll,
-    0,                                    nil },
-  { IDS_IOS_TOOLS_MENU_NEW_INCOGNITO_TAB, kToolsMenuNewIncognitoTabId,
-    IDC_NEW_INCOGNITO_TAB,                kToolbarTypeAll,
-    0,                                    nil },
-  { IDS_IOS_TOOLS_MENU_CLOSE_ALL_TABS,    kToolsMenuCloseAllTabsId,
-    IDC_CLOSE_ALL_TABS,                   kToolbarTypeSwitcheriPhone,
-    kVisibleNotIncognitoOnly,             nil },
-  { IDS_IOS_TOOLS_MENU_CLOSE_ALL_INCOGNITO_TABS,
-    kToolsMenuCloseAllIncognitoTabsId,
-    IDC_CLOSE_ALL_INCOGNITO_TABS,         kToolbarTypeSwitcheriPhone,
-    kVisibleIncognitoOnly,                nil },
-  { IDS_IOS_TOOLS_MENU_BOOKMARKS,         kToolsMenuBookmarksId,
-    IDC_SHOW_BOOKMARK_MANAGER,            kToolbarTypeWebAll,
-    0,                                    nil },
-  { IDS_IOS_TOOLS_MENU_READING_LIST,      kToolsMenuReadingListId,
-    IDC_SHOW_READING_LIST,                kToolbarTypeWebAll,
-    0,                                    [ReadingListMenuViewItem class] },
-  { IDS_IOS_TOOLS_MENU_RECENT_TABS,       kToolsMenuOtherDevicesId,
-    IDC_SHOW_OTHER_DEVICES,               kToolbarTypeWebAll,
-    kVisibleNotIncognitoOnly,             nil },
-  { IDS_HISTORY_SHOW_HISTORY,             kToolsMenuHistoryId,
-    IDC_SHOW_HISTORY,                     kToolbarTypeWebAll,
-    0,                                    nil },
-  { IDS_IOS_OPTIONS_REPORT_AN_ISSUE,      kToolsMenuReportAnIssueId,
-    IDC_REPORT_AN_ISSUE,                  kToolbarTypeAll,
-    0,                                    nil },
-  { IDS_IOS_TOOLS_MENU_FIND_IN_PAGE,      kToolsMenuFindInPageId,
-    IDC_FIND,                             kToolbarTypeWebAll,
-    0,                                    nil },
-  { IDS_IOS_TOOLS_MENU_REQUEST_DESKTOP_SITE, kToolsMenuRequestDesktopId,
-    IDC_REQUEST_DESKTOP_SITE,             kToolbarTypeWebAll,
-    0,                                    nil },
-  { IDS_IOS_TOOLS_MENU_READER_MODE,       kToolsMenuReaderMode,
-    IDC_READER_MODE,                      kToolbarTypeWebAll,
-    0,                                    nil },
-  { IDS_IOS_TOOLS_MENU_SETTINGS,          kToolsMenuSettingsId,
-    IDC_OPTIONS,                          kToolbarTypeAll,
-    0,                                    nil },
-  { IDS_IOS_TOOLS_MENU_HELP_MOBILE,           kToolsMenuHelpId,
-    IDC_HELP_PAGE_VIA_MENU,               kToolbarTypeWebAll,
-    0,                                    nil },
-    // clang-format on
-};
-
-NS_INLINE BOOL ItemShouldBeVisible(const MenuItemInfo& item,
-                                   BOOL incognito,
-                                   kToolbarType toolbarType) {
-  if (!(item.toolbar_types & toolbarType))
-    return NO;
-
-  if (incognito && (item.visibility & kVisibleNotIncognitoOnly))
-    return NO;
-
-  if (!incognito && (item.visibility & kVisibleIncognitoOnly))
-    return NO;
-
-  if (item.title_id == IDS_IOS_TOOLBAR_SHOW_TABS) {
-    if (!IsIPadIdiom() || !experimental_flags::IsTabSwitcherEnabled()) {
-      return NO;
-    }
-  }
-
-  if (item.title_id == IDS_IOS_TOOLS_MENU_READER_MODE) {
-    if (!experimental_flags::IsReaderModeEnabled()) {
-      return NO;
-    }
-  }
-
-  if (item.title_id == IDS_IOS_TOOLS_MENU_READING_LIST) {
-    if (!reading_list::switches::IsReadingListEnabled()) {
-      return NO;
-    }
-  }
-
-  if (item.title_id == IDS_IOS_OPTIONS_REPORT_AN_ISSUE) {
-    if (!ios::GetChromeBrowserProvider()
-             ->GetUserFeedbackProvider()
-             ->IsUserFeedbackEnabled()) {
-      return NO;
-    }
-  }
-
-  return YES;
-}
 
 NS_INLINE void AnimateInViews(NSArray* views,
                               CGFloat initialX,
@@ -218,13 +79,6 @@ NS_INLINE void AnimateInViews(NSArray* views,
 }
 }  // anonymous namespace
 
-@interface ToolsMenuButton : UIButton
-@end
-
-@implementation ToolsMenuButton
-
-@end
-
 @interface ToolsMenuCollectionView : UICollectionView
 @property(nonatomic, assign) CGPoint touchBeginPoint;
 @property(nonatomic, assign) CGPoint touchEndPoint;
@@ -247,201 +101,6 @@ NS_INLINE void AnimateInViews(NSArray* views,
 
 @end
 
-@interface ToolsMenuViewToolsCell : UICollectionViewCell
-@property(nonatomic, retain) ToolsMenuButton* reloadButton;
-@property(nonatomic, retain) ToolsMenuButton* shareButton;
-@property(nonatomic, retain) ToolsMenuButton* starButton;
-@property(nonatomic, retain) ToolsMenuButton* starredButton;
-@property(nonatomic, retain) ToolsMenuButton* stopButton;
-@property(nonatomic, retain) ToolsMenuButton* toolsButton;
-@end
-
-@implementation ToolsMenuViewToolsCell {
-  base::mac::ObjCPropertyReleaser _propertyReleaser_ToolsMenuViewToolsCell;
-}
-
-@synthesize reloadButton = _reloadButton;
-@synthesize shareButton = _shareButton;
-@synthesize starButton = _starButton;
-@synthesize starredButton = _starredButton;
-@synthesize stopButton = _stopButton;
-@synthesize toolsButton = _toolsButton;
-
-- (instancetype)initWithCoder:(NSCoder*)aDecoder {
-  self = [super initWithCoder:aDecoder];
-  if (self)
-    [self commonInitialization];
-
-  return self;
-}
-
-- (instancetype)initWithFrame:(CGRect)frame {
-  self = [super initWithFrame:frame];
-  if (self)
-    [self commonInitialization];
-
-  return self;
-}
-
-- (void)commonInitialization {
-  _propertyReleaser_ToolsMenuViewToolsCell.Init(self,
-                                                [ToolsMenuViewToolsCell class]);
-
-  [self setBackgroundColor:[UIColor whiteColor]];
-  [self setOpaque:YES];
-
-  int star[2][3] = TOOLBAR_IDR_TWO_STATE(STAR);
-  _starButton = [self newButtonForImageIds:star
-                                 commandID:IDC_BOOKMARK_PAGE
-                      accessibilityLabelID:IDS_BOOKMARK_ADD_EDITOR_TITLE
-                            automationName:@"Add Bookmark"];
-
-  int star_pressed[2][3] = TOOLBAR_IDR_ONE_STATE(STAR_PRESSED);
-  _starredButton = [self newButtonForImageIds:star_pressed
-                                    commandID:IDC_TEMP_EDIT_BOOKMARK
-                         accessibilityLabelID:IDS_IOS_TOOLS_MENU_EDIT_BOOKMARK
-                               automationName:@"Edit Bookmark"];
-
-  int reload[2][3] = TOOLBAR_IDR_TWO_STATE(RELOAD);
-  _reloadButton = [self newButtonForImageIds:reload
-                                   commandID:IDC_RELOAD
-                        accessibilityLabelID:IDS_IOS_ACCNAME_RELOAD
-                              automationName:@"Reload"
-                               reverseForRTL:YES];
-
-  int stop[2][3] = TOOLBAR_IDR_TWO_STATE(STOP);
-  _stopButton = [self newButtonForImageIds:stop
-                                 commandID:IDC_STOP
-                      accessibilityLabelID:IDS_IOS_ACCNAME_STOP
-                            automationName:@"Stop"];
-
-  int share[2][3] = TOOLBAR_IDR_THREE_STATE(SHARE);
-  _shareButton = [self newButtonForImageIds:share
-                                  commandID:IDC_SHARE_PAGE
-                       accessibilityLabelID:IDS_IOS_TOOLS_MENU_SHARE
-                             automationName:@"Stop"];
-  int tools[2][3] = TOOLBAR_IDR_ONE_STATE(TOOLS_PRESSED);
-  _toolsButton =
-      [self newButtonForImageIds:tools
-                       commandID:IDC_SHOW_TOOLS_MENU
-            accessibilityLabelID:IDS_IOS_TOOLBAR_CLOSE_MENU
-                  automationName:@"kToolbarToolsMenuButtonIdentifier"];
-
-  UIView* contentView = [self contentView];
-  [contentView setBackgroundColor:[self backgroundColor]];
-  [contentView setOpaque:YES];
-
-  [contentView addSubview:_starredButton];
-  [contentView addSubview:_starButton];
-  [contentView addSubview:_stopButton];
-  [contentView addSubview:_reloadButton];
-  [contentView addSubview:_shareButton];
-
-  [self addConstraints];
-}
-
-- (ToolsMenuButton*)newButtonForImageIds:(int[2][3])imageIds
-                               commandID:(int)commandID
-                    accessibilityLabelID:(int)labelID
-                          automationName:(NSString*)name {
-  return [self newButtonForImageIds:imageIds
-                          commandID:commandID
-               accessibilityLabelID:labelID
-                     automationName:name
-                      reverseForRTL:NO];
-}
-
-- (ToolsMenuButton*)newButtonForImageIds:(int[2][3])imageIds
-                               commandID:(int)commandID
-                    accessibilityLabelID:(int)labelID
-                          automationName:(NSString*)name
-                           reverseForRTL:(BOOL)reverseForRTL {
-  ToolsMenuButton* button = [[ToolsMenuButton alloc] initWithFrame:CGRectZero];
-  [button setTranslatesAutoresizingMaskIntoConstraints:NO];
-
-  if (imageIds[0][0]) {
-    [button setImage:NativeReversableImage(imageIds[0][0], reverseForRTL)
-            forState:UIControlStateNormal];
-  }
-  [[button imageView] setContentMode:UIViewContentModeCenter];
-  [button setBackgroundColor:[self backgroundColor]];
-  [button setTag:commandID];
-  [button setOpaque:YES];
-
-  SetA11yLabelAndUiAutomationName(button, labelID, name);
-
-  if (imageIds[0][1]) {
-    UIImage* pressedImage =
-        NativeReversableImage(imageIds[0][1], reverseForRTL);
-    if (pressedImage) {
-      [button setImage:pressedImage forState:UIControlStateHighlighted];
-    }
-  }
-
-  if (imageIds[0][2]) {
-    UIImage* disabledImage =
-        NativeReversableImage(imageIds[0][2], reverseForRTL);
-    if (disabledImage) {
-      [button setImage:disabledImage forState:UIControlStateDisabled];
-    }
-  }
-
-  return button;
-}
-
-- (void)addConstraints {
-  UIView* contentView = [self contentView];
-
-  for (UIButton* button in [self allButtons]) {
-    NSDictionary* view = @{ @"button" : button };
-    NSArray* constraints = @[ @"V:|-(0)-[button]-(0)-|", @"H:[button(==48)]" ];
-    ApplyVisualConstraints(constraints, view, self);
-  }
-
-  NSDictionary* views = @{
-    @"share" : _shareButton,
-    @"star" : _starButton,
-    @"reload" : _reloadButton,
-    @"starred" : _starredButton,
-    @"stop" : _stopButton
-  };
-  // Leading offset is 16, minus the button image inset of 12.
-  NSDictionary* metrics = @{ @"offset" : @4, @"space" : @24 };
-  // clang-format off
-  NSArray* constraints = @[
-    @"H:|-(offset)-[share]-(space)-[star]-(space)-[reload]",
-    @"H:[share]-(space)-[starred]",
-    @"H:[star]-(space)-[stop]"
-  ];
-  // clang-format on
-  ApplyVisualConstraintsWithMetricsAndOptions(
-      constraints, views, metrics, LayoutOptionForRTLSupport(), contentView);
-}
-
-// These should be added in display order, so they are animated in display
-// order.
-- (NSArray*)allButtons {
-  NSMutableArray* allButtons = [NSMutableArray array];
-  if (_shareButton)
-    [allButtons addObject:_shareButton];
-
-  if (_starButton)
-    [allButtons addObject:_starButton];
-
-  if (_starredButton)
-    [allButtons addObject:_starredButton];
-
-  if (_reloadButton)
-    [allButtons addObject:_reloadButton];
-
-  if (_stopButton)
-    [allButtons addObject:_stopButton];
-
-  return allButtons;
-}
-
-@end
-
 // Class Extension for private methods.
 @interface ToolsMenuViewController ()<UICollectionViewDelegateFlowLayout,
                                       UICollectionViewDataSource,
@@ -454,10 +113,9 @@ NS_INLINE void AnimateInViews(NSArray* views,
 }
 @property(nonatomic, retain) ToolsMenuCollectionView* menuView;
 @property(nonatomic, retain) MDCInkView* touchFeedbackView;
-@property(nonatomic, retain) NSMutableArray* menuItems;
-@property(nonatomic, assign) kToolbarType toolbarType;
+@property(nonatomic, assign) ToolbarType toolbarType;
 
-// Get the reading list cell.
+// Returns the reading list cell.
 - (ReadingListMenuViewCell*)readingListCell;
 @end
 
@@ -475,7 +133,7 @@ NS_INLINE void AnimateInViews(NSArray* views,
 
 - (CGFloat)optimalHeight:(CGFloat)suggestedHeight {
   NSInteger numberOfItems = [self.menuItems count];
-  if (_toolbarType == kToolbarTypeWebiPhone) {
+  if (_toolbarType == ToolbarTypeWebiPhone) {
     // Account for the height of the first row, not included in |menuItems|.
     numberOfItems++;
   }
@@ -521,10 +179,6 @@ NS_INLINE void AnimateInViews(NSArray* views,
   [self setItemEnabled:enabled withTag:IDC_READER_MODE];
 }
 
-- (void)setCanUseDesktopUserAgent:(BOOL)enabled {
-  [self setItemEnabled:enabled withTag:IDC_REQUEST_DESKTOP_SITE];
-}
-
 - (void)setCanShowFindBar:(BOOL)enabled {
   [self setItemEnabled:enabled withTag:IDC_FIND];
 }
@@ -554,23 +208,23 @@ NS_INLINE void AnimateInViews(NSArray* views,
   [[toolsCell reloadButton] setHidden:isTabLoading];
 }
 
-- (void)initializeMenu:(ToolsMenuContext*)context {
-  if (context.readingListMenuNotifier) {
-    _readingListMenuNotifier.reset(context.readingListMenuNotifier);
-    [context.readingListMenuNotifier setDelegate:self];
+- (void)initializeMenuWithConfiguration:(ToolsMenuConfiguration*)configuration {
+  if (configuration.readingListMenuNotifier) {
+    _readingListMenuNotifier.reset(configuration.readingListMenuNotifier);
+    [configuration.readingListMenuNotifier setDelegate:self];
   }
 
   if (IsIPadIdiom()) {
-    _toolbarType = context.hasNoOpenedTabs
-                       ? kToolbarTypeNoTabsiPad
-                       : (!IsCompactTablet() ? kToolbarTypeWebiPad
-                                             : kToolbarTypeWebiPhone);
+    _toolbarType =
+        configuration.hasNoOpenedTabs
+            ? ToolbarTypeNoTabsiPad
+            : (!IsCompactTablet() ? ToolbarTypeWebiPad : ToolbarTypeWebiPhone);
   } else {
     // kOptionInTabSwitcher option must be enabled on iPhone with
     // no opened tabs.
-    DCHECK(!context.hasNoOpenedTabs || context.isInTabSwitcher);
-    _toolbarType = context.isInTabSwitcher ? kToolbarTypeSwitcheriPhone
-                                           : kToolbarTypeWebiPhone;
+    DCHECK(!configuration.hasNoOpenedTabs || configuration.isInTabSwitcher);
+    _toolbarType = configuration.isInTabSwitcher ? ToolbarTypeSwitcheriPhone
+                                                 : ToolbarTypeWebiPhone;
   }
 
   // Build the menu, adding all relevant items.
@@ -578,7 +232,7 @@ NS_INLINE void AnimateInViews(NSArray* views,
 
   for (size_t i = 0; i < arraysize(itemInfoList); ++i) {
     const MenuItemInfo& item = itemInfoList[i];
-    if (!ItemShouldBeVisible(item, context.isInIncognito, _toolbarType))
+    if (!ToolsMenuItemShouldBeVisible(item, _toolbarType, configuration))
       continue;
 
     NSString* title = l10n_util::GetNSStringWithFixup(item.title_id);
@@ -595,7 +249,7 @@ NS_INLINE void AnimateInViews(NSArray* views,
 
 #if !defined(NDEBUG)
   NSUserDefaults* standardDefaults = [NSUserDefaults standardUserDefaults];
-  if ((_toolbarType & kToolbarTypeWebAll) &&
+  if ((_toolbarType & ToolbarTypeWebAll) &&
       [standardDefaults boolForKey:@"DevViewSource"]) {
     // Debug menu, not localized, only visible if turned on by a default.
     [menu addObject:[self createViewSourceItem]];
@@ -604,9 +258,25 @@ NS_INLINE void AnimateInViews(NSArray* views,
 
   [self setMenuItems:menu];
 
+  // Decide the enabled state of the currently visible item between
+  // "Request Desktop Site" and "Request Mobile Site".
+  switch (configuration.userAgentType) {
+    case web::UserAgentType::NONE:
+      [self setItemEnabled:NO withTag:IDC_REQUEST_DESKTOP_SITE];
+      break;
+    case web::UserAgentType::MOBILE:
+      [self setItemEnabled:YES withTag:IDC_REQUEST_DESKTOP_SITE];
+      break;
+    case web::UserAgentType::DESKTOP:
+      [self setItemEnabled:YES withTag:IDC_REQUEST_MOBILE_SITE];
+      [self setItemEnabled:NO withTag:IDC_REQUEST_DESKTOP_SITE];
+      break;
+  }
+
   // Disable IDC_CLOSE_ALL_TABS menu item if on phone with no tabs.
   if (!IsIPadIdiom()) {
-    [self setItemEnabled:!context.hasNoOpenedTabs withTag:IDC_CLOSE_ALL_TABS];
+    [self setItemEnabled:!configuration.hasNoOpenedTabs
+                 withTag:IDC_CLOSE_ALL_TABS];
   }
 }
 
@@ -641,7 +311,7 @@ NS_INLINE void AnimateInViews(NSArray* views,
 - (NSInteger)dataIndexForIndexPath:(NSIndexPath*)path {
   NSInteger item = [path item];
 
-  if (_toolbarType == kToolbarTypeWebiPhone)
+  if (_toolbarType == ToolbarTypeWebiPhone)
     --item;
 
   return item;
@@ -751,7 +421,7 @@ NS_INLINE void AnimateInViews(NSArray* views,
       }];
 
   ToolsMenuViewToolsCell* toolsCell = nil;
-  if (_toolbarType == kToolbarTypeWebiPhone) {
+  if (_toolbarType == ToolbarTypeWebiPhone) {
     toolsCell = [visibleCells firstObject];
     if ([toolsCell isKindOfClass:[ToolsMenuViewToolsCell class]]) {
       visibleCells = [visibleCells
@@ -891,7 +561,7 @@ NS_INLINE void AnimateInViews(NSArray* views,
 - (NSInteger)collectionView:(UICollectionView*)view
      numberOfItemsInSection:(NSInteger)section {
   NSInteger numberOfItems = [_menuItems count];
-  if (_toolbarType == kToolbarTypeWebiPhone)
+  if (_toolbarType == ToolbarTypeWebiPhone)
     ++numberOfItems;
 
   return numberOfItems;

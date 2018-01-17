@@ -18,7 +18,6 @@
 #include "content/browser/storage_partition_impl.h"
 #include "content/public/browser/local_storage_usage_info.h"
 #include "content/public/browser/storage_partition.h"
-#include "content/public/test/mock_special_storage_policy.h"
 #include "content/public/test/test_browser_context.h"
 #include "content/public/test/test_browser_thread.h"
 #include "content/public/test/test_browser_thread_bundle.h"
@@ -29,11 +28,12 @@
 #include "net/url_request/url_request_context_getter.h"
 #include "ppapi/features/features.h"
 #include "storage/browser/quota/quota_manager.h"
+#include "storage/browser/test/mock_special_storage_policy.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 #if BUILDFLAG(ENABLE_PLUGINS)
 #include "base/memory/ptr_util.h"
-#include "ppapi/shared_impl/ppapi_constants.h"
+#include "ppapi/shared_impl/ppapi_constants.h"  // nogncheck
 #include "storage/browser/fileapi/async_file_util.h"
 #include "storage/browser/fileapi/file_system_context.h"
 #include "storage/browser/fileapi/file_system_operation_context.h"

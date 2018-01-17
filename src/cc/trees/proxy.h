@@ -13,7 +13,7 @@
 #include "base/threading/platform_thread.h"
 #include "base/time/time.h"
 #include "base/values.h"
-#include "cc/base/cc_export.h"
+#include "cc/cc_export.h"
 #include "cc/input/browser_controls_state.h"
 #include "cc/scheduler/begin_frame_source.h"
 #include "cc/trees/task_runner_provider.h"
@@ -59,7 +59,6 @@ class CC_EXPORT Proxy {
   virtual void MainThreadHasStoppedFlinging() = 0;
 
   virtual bool CommitRequested() const = 0;
-  virtual bool BeginMainFrameRequested() const = 0;
 
   // Must be called before using the proxy.
   virtual void Start() = 0;

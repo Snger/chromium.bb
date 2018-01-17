@@ -17,6 +17,7 @@
 #include "base/sys_byteorder.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
+#include "components/data_use_measurement/core/data_use_user_data.h"
 #include "components/sync/engine/attachments/attachment_util.h"
 #include "components/sync/engine_impl/attachments/attachment_uploader_impl.h"
 #include "components/sync/protocol/sync.pb.h"
@@ -24,6 +25,7 @@
 #include "net/http/http_response_headers.h"
 #include "net/http/http_status_code.h"
 #include "net/http/http_util.h"
+#include "net/traffic_annotation/network_traffic_annotation.h"
 #include "net/url_request/url_fetcher.h"
 #include "net/url_request/url_request_status.h"
 
@@ -213,11 +215,40 @@ void AttachmentDownloaderImpl::OnURLFetchComplete(
 std::unique_ptr<net::URLFetcher> AttachmentDownloaderImpl::CreateFetcher(
     const AttachmentUrl& url,
     const std::string& access_token) {
-  std::unique_ptr<net::URLFetcher> url_fetcher =
-      net::URLFetcher::Create(GURL(url), net::URLFetcher::GET, this);
+  net::NetworkTrafficAnnotationTag traffic_annotation =
+      net::DefineNetworkTrafficAnnotation("sync_attachment_downloader", R"(
+        semantics {
+          sender: "Chrome Sync"
+          description:
+            "Chrome Sync synchronizes profile data between Chromium clients "
+            "and Google for a given user account."
+          trigger:
+            "User makes a change to syncable profile data after enabling sync "
+            "on the device."
+          data:
+            "The device and user identifiers, along with any profile data that "
+            "is changing."
+          destination: GOOGLE_OWNED_SERVICE
+        }
+        policy {
+          cookies_allowed: false
+          setting:
+            "Users can disable Chrome Sync by going into the profile settings "
+            "and choosing to Sign Out."
+          chrome_policy {
+            SyncDisabled {
+              policy_options {mode: MANDATORY}
+              SyncDisabled: true
+            }
+          }
+        })");
+  std::unique_ptr<net::URLFetcher> url_fetcher = net::URLFetcher::Create(
+      GURL(url), net::URLFetcher::GET, this, traffic_annotation);
   AttachmentUploaderImpl::ConfigureURLFetcherCommon(
       url_fetcher.get(), access_token, raw_store_birthday_, model_type_,
       url_request_context_getter_.get());
+  data_use_measurement::DataUseUserData::AttachToFetcher(
+      url_fetcher.get(), data_use_measurement::DataUseUserData::SYNC);
   return url_fetcher;
 }
 

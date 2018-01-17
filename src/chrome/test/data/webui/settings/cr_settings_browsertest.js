@@ -27,7 +27,9 @@ CrSettingsBrowserTest.prototype = {
   },
 
   /** @override */
-  extraLibraries: PolymerTest.getLibraries(ROOT_PATH),
+  extraLibraries: PolymerTest.getLibraries(ROOT_PATH).concat([
+    'ensure_lazy_loaded.js',
+  ]),
 
   /** @override */
   setUp: function() {
@@ -39,6 +41,8 @@ CrSettingsBrowserTest.prototype = {
     // https://github.com/PolymerElements/paper-slider/issues/131.
     this.accessibilityAuditConfig.ignoreSelectors(
         'badAriaAttributeValue', 'paper-slider');
+
+    settings.ensureLazyLoaded();
   },
 };
 
@@ -64,6 +68,33 @@ TEST_F('CrSettingsCheckboxTest', 'All', function() {
   mocha.run();
 });
 
+/**
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsSliderTest() {}
+
+CrSettingsSliderTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload: 'chrome://md-settings/controls/settings_slider.html',
+
+  /** @override */
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    'settings_slider_tests.js',
+  ]),
+};
+
+TEST_F('CrSettingsSliderTest', 'All', function() {
+  settings_slider.registerTests();
+  mocha.run();
+});
+
+/**
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
 function CrSettingsToggleButtonTest() {}
 
 CrSettingsToggleButtonTest.prototype = {
@@ -271,6 +302,62 @@ TEST_F('CrSettingsPeoplePageSetupPinDialogTest', 'Test', function() {
 
 /**
  * Test fixture for
+ * chrome/browser/resources/settings/people_page/
+ * fingerprint_dialog_progress_arc.html.
+ *
+ * This is ChromeOS only.
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsFingerprintProgressArcTest() {}
+
+CrSettingsFingerprintProgressArcTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload:
+      'chrome://md-settings/people_page/fingerprint_progress_arc.html',
+
+  /** @override */
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    'fingerprint_progress_arc_browsertest_chromeos.js',
+  ]),
+};
+
+TEST_F('CrSettingsFingerprintProgressArcTest', 'FingerprintProgressArcTest',
+    function() {
+  mocha.run();
+});
+
+/**
+ * Test fixture for
+ * chrome/browser/resources/settings/people_page/fingerprint_list.html.
+ *
+ * This is ChromeOS only.
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsFingerprintListTest() {}
+
+CrSettingsFingerprintListTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload: 'chrome://md-settings/people_page/fingerprint_list.html',
+
+  /** @override */
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    'test_browser_proxy.js',
+    'fingerprint_browsertest_chromeos.js',
+  ]),
+};
+
+TEST_F('CrSettingsFingerprintListTest', 'FingerprintListTest', function() {
+  mocha.run();
+});
+
+/**
+ * Test fixture for
  * chrome/browser/resources/settings/people_page/change_picture.html.
  * This is ChromeOS only.
  * @constructor
@@ -417,12 +504,38 @@ CrSettingsResetPageTest.prototype = {
   extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
     'test_browser_proxy.js',
     'test_lifetime_browser_proxy.js',
+    'test_reset_browser_proxy.js',
     'reset_page_test.js',
   ]),
 };
 
 TEST_F('CrSettingsResetPageTest', 'ResetPage', function() {
-  settings_reset_page.registerTests();
+  mocha.run();
+});
+
+/**
+ * Test fixture for
+ * chrome/browser/resources/settings/reset_page/reset_profile_banner.html
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsResetProfileBannerTest() {}
+
+CrSettingsResetProfileBannerTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload: 'chrome://md-settings/reset_page/reset_profile_banner.html',
+
+  /** @override */
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    'test_browser_proxy.js',
+    'test_reset_browser_proxy.js',
+    'reset_profile_banner_test.js',
+  ]),
+};
+
+TEST_F('CrSettingsResetProfileBannerTest', 'ResetProfileBanner', function() {
   mocha.run();
 });
 
@@ -472,6 +585,30 @@ CrSettingsAppearanceFontsPageTest.prototype = {
 };
 
 TEST_F('CrSettingsAppearanceFontsPageTest', 'All', function() {
+  mocha.run();
+});
+
+/**
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsDownloadsPageTest() {}
+
+CrSettingsDownloadsPageTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload: 'chrome://md-settings/downloads_page/downloads_page.html',
+
+  /** @override */
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    ROOT_PATH + 'ui/webui/resources/js/promise_resolver.js',
+    'test_browser_proxy.js',
+    'downloads_page_test.js',
+  ]),
+};
+
+TEST_F('CrSettingsDownloadsPageTest', 'All', function() {
   mocha.run();
 });
 
@@ -650,10 +787,16 @@ CrSettingsSiteSettingsTest.prototype = {
   __proto__: CrSettingsBrowserTest.prototype,
 
   /** @override */
-  browsePreload: 'chrome://md-settings/prefs/prefs.html',
+  browsePreload: 'chrome://md-settings/privacy_page/privacy_page.html',
+
+  /** @override */
+  commandLineSwitches: [{
+    switchName: 'enable-site-settings',
+  }],
 
   /** @override */
   extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    // TODO(dbeam): split these up.
     'category_default_setting_tests.js',
     'category_setting_exceptions_tests.js',
     'site_details_tests.js',
@@ -663,7 +806,8 @@ CrSettingsSiteSettingsTest.prototype = {
     'test_site_settings_prefs_browser_proxy.js',
     'zoom_levels_tests.js',
     'usb_devices_tests.js',
-    'protocol_handlers_tests.js'
+    'protocol_handlers_tests.js',
+    'site_data_details_subpage_tests.js',
   ]),
 };
 
@@ -677,6 +821,28 @@ TEST_F('CrSettingsSiteSettingsTest', 'SiteSettings', function() {
   usb_devices.registerTests();
   protocol_handlers.registerTests();
 
+  mocha.run();
+});
+
+/**
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsSiteDataTest() {}
+
+CrSettingsSiteDataTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  browsePreload: 'chrome://md-settings/site_settings/site_data.html',
+
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    'test_browser_proxy.js',
+    'test_site_settings_prefs_browser_proxy.js',
+    'site_data_test.js',
+  ]),
+};
+
+TEST_F('CrSettingsSiteDataTest', 'All', function() {
   mocha.run();
 });
 
@@ -723,6 +889,64 @@ TEST_F('CrSettingsDevicePageTest', 'PointersTest', function() {
 TEST_F('CrSettingsDevicePageTest', 'PowerTest', function() {
   mocha.grep(assert(device_page_tests.TestNames.Power)).run();
 });
+
+TEST_F('CrSettingsDevicePageTest', 'StylusTest', function() {
+  mocha.grep(assert(device_page_tests.TestNames.Stylus)).run();
+});
+
+/**
+ * Test fixture for device-page.
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsBluetoothPageTest() {}
+
+CrSettingsBluetoothPageTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload: 'chrome://md-settings/bluetooth_page/bluetooth_page.html',
+
+  /** @override */
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    ROOT_PATH + 'ui/webui/resources/js/assert.js',
+    '../fake_chrome_event.js',
+    'fake_bluetooth.js',
+    'fake_bluetooth_private.js',
+    'bluetooth_page_tests.js',
+  ]),
+};
+
+TEST_F('CrSettingsBluetoothPageTest', 'BluetoothPageTest', function() {
+  mocha.run();
+});
+
+/**
+ * Test fixture for internet-page.
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsInternetPageTest() {}
+
+CrSettingsInternetPageTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload: 'chrome://md-settings/internet_page/internet_page.html',
+
+  /** @override */
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    ROOT_PATH + 'ui/webui/resources/js/assert.js',
+    '../fake_chrome_event.js',
+    'fake_networking_private.js',
+    'internet_page_tests.js',
+  ]),
+};
+
+TEST_F('CrSettingsInternetPageTest', 'InternetPageTest', function() {
+  mocha.run();
+});
+
 GEN('#endif');
 
 /**
@@ -769,7 +993,6 @@ CrSettingsSubpageTest.prototype = {
 };
 
 TEST_F('CrSettingsSubpageTest', 'SettingsSubpage', function() {
-  settings_subpage.registerTests();
   mocha.run();
 });
 
@@ -794,7 +1017,7 @@ CrSettingsSystemPageTest.prototype = {
   ]),
 };
 
-TEST_F('CrSettingsSystemPageTest', 'Restart', function() {
+TEST_F('CrSettingsSystemPageTest', 'All', function() {
   mocha.run();
 });
 GEN('#endif');
@@ -820,6 +1043,35 @@ TEST_F('CrSettingsStartupUrlsPageTest', 'StartupUrlsPage', function() {
   mocha.run();
 });
 
+GEN('#if !defined(OS_MACOSX)');
+/**
+ * @constructor
+ * @extends {CrSettingsBrowserTest}
+ */
+function CrSettingsEditDictionaryPageTest() {}
+
+CrSettingsEditDictionaryPageTest.prototype = {
+  __proto__: CrSettingsBrowserTest.prototype,
+
+  /** @override */
+  browsePreload:
+      'chrome://md-settings/languages_page/edit_dictionary_page.html',
+
+  /** @override */
+  extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
+    '../fake_chrome_event.js',
+    'fake_settings_private.js',
+    'test_browser_proxy.js',
+    'fake_language_settings_private.js',
+    'edit_dictionary_page_test.js',
+  ]),
+};
+
+TEST_F('CrSettingsEditDictionaryPageTest', 'EditDictionaryPage', function() {
+  mocha.run();
+});
+GEN('#endif');
+
 /**
  * @constructor
  * @extends {CrSettingsBrowserTest}
@@ -835,13 +1087,15 @@ CrSettingsLanguagesTest.prototype = {
   /** @override */
   extraLibraries: CrSettingsBrowserTest.prototype.extraLibraries.concat([
     '../fake_chrome_event.js',
+    'test_browser_proxy.js',
     'fake_language_settings_private.js',
     'fake_settings_private.js',
     'languages_tests.js',
   ]),
 };
 
-TEST_F('CrSettingsLanguagesTest', 'Languages', function() {
+// Flaky on Win and Linux, see http://crbug/692356.
+TEST_F('CrSettingsLanguagesTest', 'DISABLED_Languages', function() {
   mocha.run();
 });
 
@@ -882,7 +1136,13 @@ CrSettingsNonExistentRouteTest.prototype = {
   runAccessibilityChecks: false,
 };
 
-TEST_F('CrSettingsNonExistentRouteTest', 'All', function() {
+// Failing on ChromiumOS dbg. https://crbug.com/709442
+GEN('#if defined(OS_CHROMEOS) && !defined(NDEBUG)');
+GEN('#define MAYBE_All DISABLED_All');
+GEN('#else');
+GEN('#define MAYBE_All All');
+GEN('#endif');
+TEST_F('CrSettingsNonExistentRouteTest', 'MAYBE_All', function() {
   suite('NonExistentRoutes', function() {
     test('redirect to basic', function() {
       assertEquals(settings.Route.BASIC, settings.getCurrentRoute());
@@ -891,13 +1151,6 @@ TEST_F('CrSettingsNonExistentRouteTest', 'All', function() {
   });
   mocha.run();
 });
-
-// Hangs on ASAN builder for unknown reasons. TODO(michaelpg): Find reason.
-GEN('#if defined(ADDRESS_SANITIZER)');
-GEN('#define MAYBE_All DISABLED_All');
-GEN('#else');
-GEN('#define MAYBE_All All');
-GEN('#endif');
 
 /**
  * @constructor
@@ -909,31 +1162,31 @@ CrSettingsRouteDynamicParametersTest.prototype = {
   __proto__: CrSettingsBrowserTest.prototype,
 
   /** @override */
-  browsePreload: 'chrome://md-settings/people?guid=a%2Fb&foo=42',
+  browsePreload: 'chrome://md-settings/search?guid=a%2Fb&foo=42',
 
   /** @override */
   runAccessibilityChecks: false,
 };
 
-TEST_F('CrSettingsRouteDynamicParametersTest', 'MAYBE_All', function() {
+TEST_F('CrSettingsRouteDynamicParametersTest', 'All', function() {
   suite('DynamicParameters', function() {
     test('get parameters from URL and navigation', function(done) {
-      assertEquals(settings.Route.PEOPLE, settings.getCurrentRoute());
+      assertEquals(settings.Route.SEARCH, settings.getCurrentRoute());
       assertEquals('a/b', settings.getQueryParameters().get('guid'));
       assertEquals('42', settings.getQueryParameters().get('foo'));
 
       var params = new URLSearchParams();
       params.set('bar', 'b=z');
       params.set('biz', '3');
-      settings.navigateTo(settings.Route.SYNC, params);
-      assertEquals(settings.Route.SYNC, settings.getCurrentRoute());
+      settings.navigateTo(settings.Route.SEARCH_ENGINES, params);
+      assertEquals(settings.Route.SEARCH_ENGINES, settings.getCurrentRoute());
       assertEquals('b=z', settings.getQueryParameters().get('bar'));
       assertEquals('3', settings.getQueryParameters().get('biz'));
       assertEquals('?bar=b%3Dz&biz=3', window.location.search);
 
       window.addEventListener('popstate', function(event) {
-        assertEquals('/people', settings.getCurrentRoute().path);
-        assertEquals(settings.Route.PEOPLE, settings.getCurrentRoute());
+        assertEquals('/search', settings.getCurrentRoute().path);
+        assertEquals(settings.Route.SEARCH, settings.getCurrentRoute());
         assertEquals('a/b', settings.getQueryParameters().get('guid'));
         assertEquals('42', settings.getQueryParameters().get('foo'));
         done();
@@ -1104,7 +1357,7 @@ GEN('#endif');
 GEN('#if defined(OS_CHROMEOS)');
 
 /**
- * Test fixture for the Google Play Store (Arc++) page.
+ * Test fixture for the Google Play Store (ARC) page.
  * @constructor
  * @extends {CrSettingsBrowserTest}
  */

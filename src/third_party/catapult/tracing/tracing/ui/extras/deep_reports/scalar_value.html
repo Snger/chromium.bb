@@ -12,7 +12,7 @@ found in the LICENSE file.
 
 tr.exportTo('tr.ui.e.deep_reports', function() {
   function ScalarValue(page, name, units, value,
-                       opt_important, opt_description) {
+      opt_important, opt_description) {
     this.type = 'scalar';
     this.page = page;
     this.name = name;
@@ -22,8 +22,9 @@ tr.exportTo('tr.ui.e.deep_reports', function() {
     this.description = opt_description || '';
   }
   ScalarValue.fromDict = function(page, dict) {
-    if (dict.type !== 'scalar')
+    if (dict.type !== 'scalar') {
       throw new Error('wat');
+    }
     var v = new ScalarValue(page, dict.name, dict.units, dict.value);
     v.important = dict.important;
     v.description = dict.description;

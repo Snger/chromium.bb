@@ -32,8 +32,10 @@ static const char* precision_to_string(GrSLPrecision p) {
         return "medium";
     case kHigh_GrSLPrecision:
         return "high";
+    default:
+        SkFAIL("Unexpected precision type.");
+        return "";
     }
-    return "";
 }
 
 GrShaderCaps::GrShaderCaps(const GrContextOptions& options) {
@@ -47,7 +49,6 @@ GrShaderCaps::GrShaderCaps(const GrContextOptions& options) {
     fTexelBufferSupport = false;
     fImageLoadStoreSupport = false;
     fShaderPrecisionVaries = false;
-    fPLSPathRenderingSupport = false;
     fDropsTileOnZeroDivide = false;
     fFBFetchSupport = false;
     fFBFetchNeedsCustomOutput = false;
@@ -56,7 +57,9 @@ GrShaderCaps::GrShaderCaps(const GrContextOptions& options) {
     fCanUseAnyFunctionInShader = true;
     fCanUseMinAndAbsTogether = true;
     fMustForceNegatedAtanParamToFloat = false;
+    fAtan2ImplementedAsAtanYOverX = false;
     fRequiresLocalOutputColorForFBFetch = false;
+    fMustImplementGSInvocationsWithLoop = false;
     fFlatInterpolationSupport = false;
     fNoPerspectiveInterpolationSupport = false;
     fMultisampleInterpolationSupport = false;
@@ -64,8 +67,6 @@ GrShaderCaps::GrShaderCaps(const GrContextOptions& options) {
     fSampleMaskOverrideCoverageSupport = false;
     fExternalTextureSupport = false;
     fTexelFetchSupport = false;
-
-    fPixelLocalStorageSize = 0;
 
     fVersionDeclString = nullptr;
     fShaderDerivativeExtensionString = nullptr;
@@ -143,6 +144,8 @@ SkString GrShaderCaps::dump() const {
                                                                "YES" : "NO"));
     r.appendf("Must use local out color for FBFetch: %s\n", (fRequiresLocalOutputColorForFBFetch ?
                                                              "YES" : "NO"));
+    r.appendf("Must implement geo shader invocations with loop : %s\n",
+              (fMustImplementGSInvocationsWithLoop ? "YES" : "NO"));
     r.appendf("Flat interpolation support: %s\n", (fFlatInterpolationSupport ?  "YES" : "NO"));
     r.appendf("No perspective interpolation support: %s\n", (fNoPerspectiveInterpolationSupport ?
                                                              "YES" : "NO"));
@@ -200,7 +203,7 @@ void GrShaderCaps::initSamplerPrecisionTable() {
         }
 
         uint8_t* table = fSamplerPrecisions[visibility];
-        table[kUnknown_GrPixelConfig]        = kDefault_GrSLPrecision;
+        table[kUnknown_GrPixelConfig]        = lowp;
         table[kAlpha_8_GrPixelConfig]        = lowp;
         table[kGray_8_GrPixelConfig]         = lowp;
         table[kRGB_565_GrPixelConfig]        = lowp;
@@ -211,14 +214,12 @@ void GrShaderCaps::initSamplerPrecisionTable() {
         table[kSBGRA_8888_GrPixelConfig]     = lowp;
         table[kRGBA_8888_sint_GrPixelConfig] = lowp;
         table[kETC1_GrPixelConfig]           = lowp;
-        table[kLATC_GrPixelConfig]           = lowp;
-        table[kR11_EAC_GrPixelConfig]        = lowp;
-        table[kASTC_12x12_GrPixelConfig]     = lowp;
         table[kRGBA_float_GrPixelConfig]     = kHigh_GrSLPrecision;
+        table[kRG_float_GrPixelConfig]       = kHigh_GrSLPrecision;
         table[kAlpha_half_GrPixelConfig]     = mediump;
         table[kRGBA_half_GrPixelConfig]      = mediump;
 
-        GR_STATIC_ASSERT(17 == kGrPixelConfigCnt);
+        GR_STATIC_ASSERT(15 == kGrPixelConfigCnt);
     }
 }
 

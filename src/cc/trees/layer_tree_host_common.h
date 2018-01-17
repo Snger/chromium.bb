@@ -13,7 +13,7 @@
 #include "base/bind.h"
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
-#include "cc/base/cc_export.h"
+#include "cc/cc_export.h"
 #include "cc/layers/layer.h"
 #include "cc/layers/layer_collections.h"
 #include "cc/layers/layer_impl.h"
@@ -74,8 +74,7 @@ class CC_EXPORT LayerTreeHostCommon {
         int max_texture_size,
         bool can_render_to_separate_surface,
         bool can_adjust_raster_scales,
-        bool verify_clip_tree_calculations,
-        bool verify_visible_rect_calculations,
+        bool use_layer_lists,
         LayerImplList* render_surface_layer_list,
         PropertyTrees* property_trees);
 
@@ -92,8 +91,7 @@ class CC_EXPORT LayerTreeHostCommon {
     int max_texture_size;
     bool can_render_to_separate_surface;
     bool can_adjust_raster_scales;
-    bool verify_clip_tree_calculations;
-    bool verify_visible_rect_calculations;
+    bool use_layer_lists;
     LayerImplList* render_surface_layer_list;
     PropertyTrees* property_trees;
   };
@@ -127,7 +125,7 @@ class CC_EXPORT LayerTreeHostCommon {
       CalcDrawPropsImplInputsForTesting* inputs);
 
   template <typename Function>
-  static void CallFunctionForEveryLayer(LayerTree* layer,
+  static void CallFunctionForEveryLayer(LayerTreeHost* host,
                                         const Function& function);
 
   template <typename Function>
@@ -161,21 +159,6 @@ class CC_EXPORT LayerTreeHostCommon {
   };
 };
 
-// A container for the state that was reported to the main thread during
-// BeginMainFrame, but could not be applied/resolved on the main thread.
-struct CC_EXPORT ReflectedMainFrameState {
-  struct ScrollUpdate {
-    int layer_id = Layer::LayerIdLabels::INVALID_ID;
-    gfx::Vector2dF scroll_delta;
-  };
-
-  ReflectedMainFrameState();
-  ~ReflectedMainFrameState();
-
-  std::vector<ScrollUpdate> scrolls;
-  float page_scale_delta;
-};
-
 struct CC_EXPORT ScrollAndScaleSet {
   ScrollAndScaleSet();
   ~ScrollAndScaleSet();
@@ -192,13 +175,15 @@ struct CC_EXPORT ScrollAndScaleSet {
   float top_controls_delta;
   std::vector<LayerTreeHostCommon::ScrollbarsUpdateInfo> scrollbars;
   std::vector<std::unique_ptr<SwapPromise>> swap_promises;
+  bool has_scrolled_by_wheel;
+  bool has_scrolled_by_touch;
 
  private:
   DISALLOW_COPY_AND_ASSIGN(ScrollAndScaleSet);
 };
 
 template <typename Function>
-void LayerTreeHostCommon::CallFunctionForEveryLayer(LayerTree* host,
+void LayerTreeHostCommon::CallFunctionForEveryLayer(LayerTreeHost* host,
                                                     const Function& function) {
   for (auto* layer : *host) {
     function(layer);

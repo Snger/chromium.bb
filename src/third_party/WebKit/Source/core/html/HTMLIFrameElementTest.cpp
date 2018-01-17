@@ -9,24 +9,24 @@
 
 namespace blink {
 
-// Test setting via the Element attribute (HTML codepath).
-TEST(HTMLIFrameElementTest, SetPermissionsAttribute) {
-  Document* document = Document::create();
-  HTMLIFrameElement* iframe = HTMLIFrameElement::create(*document);
+// Test setting feature policy via the Element attribute (HTML codepath).
+TEST(HTMLIFrameElementTest, SetAllowAttribute) {
+  Document* document = Document::Create();
+  HTMLIFrameElement* iframe = HTMLIFrameElement::Create(*document);
 
-  iframe->setAttribute(HTMLNames::permissionsAttr, "geolocation");
-  EXPECT_EQ("geolocation", iframe->permissions()->value());
-  iframe->setAttribute(HTMLNames::permissionsAttr, "geolocation notifications");
-  EXPECT_EQ("geolocation notifications", iframe->permissions()->value());
+  iframe->setAttribute(HTMLNames::allowAttr, "fullscreen");
+  EXPECT_EQ("fullscreen", iframe->allow()->value());
+  iframe->setAttribute(HTMLNames::allowAttr, "fullscreen vibrate");
+  EXPECT_EQ("fullscreen vibrate", iframe->allow()->value());
 }
 
-// Test setting via the DOMTokenList (JS codepath).
-TEST(HTMLIFrameElementTest, SetPermissionsAttributeJS) {
-  Document* document = Document::create();
-  HTMLIFrameElement* iframe = HTMLIFrameElement::create(*document);
+// Test setting feature policy via the DOMTokenList (JS codepath).
+TEST(HTMLIFrameElementTest, SetAllowAttributeJS) {
+  Document* document = Document::Create();
+  HTMLIFrameElement* iframe = HTMLIFrameElement::Create(*document);
 
-  iframe->permissions()->setValue("midi");
-  EXPECT_EQ("midi", iframe->getAttribute(HTMLNames::permissionsAttr));
+  iframe->allow()->setValue("fullscreen");
+  EXPECT_EQ("fullscreen", iframe->getAttribute(HTMLNames::allowAttr));
 }
 
 }  // namespace blink

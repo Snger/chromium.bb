@@ -36,9 +36,10 @@ MediaAutomationHandler = function() {
   chrome.automation.getDesktop(function(node) {
     BaseAutomationHandler.call(this, node);
 
-    var e = EventType;
-    this.addListener_(e.mediaStartedPlaying, this.onMediaStartedPlaying);
-    this.addListener_(e.mediaStoppedPlaying, this.onMediaStoppedPlaying);
+    this.addListener_(EventType.MEDIA_STARTED_PLAYING,
+                      this.onMediaStartedPlaying);
+    this.addListener_(EventType.MEDIA_STOPPED_PLAYING,
+                      this.onMediaStoppedPlaying);
   }.bind(this));
 };
 
@@ -76,7 +77,8 @@ MediaAutomationHandler.prototype = {
    */
   onMediaStartedPlaying: function(evt) {
     this.mediaRoots_.add(evt.target);
-    if (cvox.ChromeVox.tts.isSpeaking())
+    var audioStrategy = localStorage['audioStrategy'];
+    if (cvox.ChromeVox.tts.isSpeaking() && audioStrategy == 'audioDuck')
       this.update_({start: true});
   },
 

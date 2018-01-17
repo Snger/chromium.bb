@@ -31,6 +31,17 @@ ClientSocketHandle::~ClientSocketHandle() {
   Reset();
 }
 
+void ClientSocketHandle::SetPriority(RequestPriority priority) {
+  if (socket_) {
+    // The priority of the handle is no longer relevant to the socket pool;
+    // just return.
+    return;
+  }
+
+  if (pool_)
+    pool_->SetPriority(group_name_, this, priority);
+}
+
 void ClientSocketHandle::Reset() {
   ResetInternal(true);
   ResetErrorState();
@@ -115,6 +126,11 @@ void ClientSocketHandle::RemoveHigherLayeredPool(
   }
 }
 
+void ClientSocketHandle::CloseIdleSocketsInGroup() {
+  if (pool_)
+    pool_->CloseIdleSocketsInGroup(group_name_);
+}
+
 bool ClientSocketHandle::GetLoadTimingInfo(
     bool is_reused,
     LoadTimingInfo* load_timing_info) const {
@@ -135,6 +151,8 @@ bool ClientSocketHandle::GetLoadTimingInfo(
 
 void ClientSocketHandle::DumpMemoryStats(
     StreamSocket::SocketMemoryStats* stats) const {
+  if (!socket_)
+    return;
   socket_->DumpMemoryStats(stats);
 }
 

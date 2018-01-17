@@ -14,6 +14,7 @@
 #include "base/memory/scoped_vector.h"
 #include "base/strings/sys_string_conversions.h"
 #include "base/synchronization/lock.h"
+#include "components/cronet/ios/accept_languages_table.h"
 #include "components/cronet/ios/cronet_environment.h"
 #include "components/cronet/url_request_context_config.h"
 #include "ios/net/crn_http_protocol_handler.h"
@@ -40,9 +41,11 @@ NSString* gUserAgent = nil;
 BOOL gUserAgentPartial = NO;
 NSString* gSslKeyLogFileName = nil;
 RequestFilterBlock gRequestFilterBlock = nil;
-std::unique_ptr<CronetHttpProtocolHandlerDelegate> gHttpProtocolHandlerDelegate;
+base::LazyInstance<std::unique_ptr<CronetHttpProtocolHandlerDelegate>>::Leaky
+    gHttpProtocolHandlerDelegate = LAZY_INSTANCE_INITIALIZER;
 NSURLCache* gPreservedSharedURLCache = nil;
 BOOL gEnableTestCertVerifierForTesting = FALSE;
+NSString* gAcceptLanguages = nil;
 
 // CertVerifier, which allows any certificates for testing.
 class TestCertVerifier : public net::CertVerifier {
@@ -76,6 +79,8 @@ class CronetHttpProtocolHandlerDelegate
   // net::HTTPProtocolHandlerDelegate implementation:
   bool CanHandleRequest(NSURLRequest* request) override {
     base::AutoLock auto_lock(lock_);
+    if (!IsRequestSupported(request))
+      return false;
     if (filter_) {
       RequestFilterBlock block = filter_.get();
       return block(request);
@@ -87,8 +92,7 @@ class CronetHttpProtocolHandlerDelegate
     NSString* scheme = [[request URL] scheme];
     if (!scheme)
       return false;
-    return [scheme caseInsensitiveCompare:@"data"] == NSOrderedSame ||
-           [scheme caseInsensitiveCompare:@"http"] == NSOrderedSame ||
+    return [scheme caseInsensitiveCompare:@"http"] == NSOrderedSame ||
            [scheme caseInsensitiveCompare:@"https"] == NSOrderedSame;
   }
 
@@ -114,20 +118,34 @@ class CronetHttpProtocolHandlerDelegate
   }
 }
 
++ (NSString*)getAcceptLanguagesFromPreferredLanguages:
+    (NSArray<NSString*>*)languages {
+  NSMutableArray* acceptLanguages = [NSMutableArray new];
+  for (NSString* lang_region in languages) {
+    NSString* lang = [lang_region componentsSeparatedByString:@"-"][0];
+    NSString* localeAcceptLangs = acceptLangs[lang_region] ?: acceptLangs[lang];
+    if (localeAcceptLangs)
+      [acceptLanguages
+          addObjectsFromArray:[localeAcceptLangs
+                                  componentsSeparatedByString:@","]];
+  }
+
+  NSString* acceptLanguageString =
+      [[[NSOrderedSet orderedSetWithArray:acceptLanguages] array]
+          componentsJoinedByString:@","];
+
+  return [acceptLanguageString length] != 0 ? acceptLanguageString
+                                            : @"en-US,en";
+}
+
 + (NSString*)getAcceptLanguages {
-  // Use the framework bundle to search for resources.
-  NSBundle* frameworkBundle = [NSBundle bundleForClass:self];
-  NSString* bundlePath =
-      [frameworkBundle pathForResource:@"cronet_resources" ofType:@"bundle"];
-  NSBundle* bundle = [NSBundle bundleWithPath:bundlePath];
-  NSString* acceptLanguages = NSLocalizedStringWithDefaultValue(
-      @"IDS_ACCEPT_LANGUAGES", @"Localizable", bundle, @"en-US,en",
-      @"These values are copied from Chrome's .xtb files, so the same "
-       "values are used in the |Accept-Language| header. Key name matches "
-       "Chrome's.");
-  if (acceptLanguages == Nil)
-    acceptLanguages = @"";
-  return acceptLanguages;
+  return [self
+      getAcceptLanguagesFromPreferredLanguages:[NSLocale preferredLanguages]];
+}
+
++ (void)setAcceptLanguages:(NSString*)acceptLanguages {
+  [self checkNotStarted];
+  gAcceptLanguages = acceptLanguages;
 }
 
 + (void)checkNotStarted {
@@ -161,16 +179,16 @@ class CronetHttpProtocolHandlerDelegate
   gSslKeyLogFileName = sslKeyLogFileName;
 }
 
-+ (void)setHttpCacheType:(HttpCacheType)httpCacheType {
++ (void)setHttpCacheType:(CRNHttpCacheType)httpCacheType {
   [self checkNotStarted];
   switch (httpCacheType) {
-    case DISABLED:
+    case CRNHttpCacheTypeDisabled:
       gHttpCache = cronet::URLRequestContextConfig::HttpCacheType::DISABLED;
       break;
-    case DISK:
+    case CRNHttpCacheTypeDisk:
       gHttpCache = cronet::URLRequestContextConfig::HttpCacheType::DISK;
       break;
-    case MEMORY:
+    case CRNHttpCacheTypeMemory:
       gHttpCache = cronet::URLRequestContextConfig::HttpCacheType::MEMORY;
       break;
     default:
@@ -179,8 +197,8 @@ class CronetHttpProtocolHandlerDelegate
 }
 
 + (void)setRequestFilterBlock:(RequestFilterBlock)block {
-  if (gHttpProtocolHandlerDelegate.get())
-    gHttpProtocolHandlerDelegate.get()->SetRequestFilterBlock(block);
+  if (gHttpProtocolHandlerDelegate.Get().get())
+    gHttpProtocolHandlerDelegate.Get().get()->SetRequestFilterBlock(block);
   else
     gRequestFilterBlock = block;
 }
@@ -191,7 +209,7 @@ class CronetHttpProtocolHandlerDelegate
   gChromeNet.Get().reset(
       new cronet::CronetEnvironment(user_agent, gUserAgentPartial));
   gChromeNet.Get()->set_accept_language(
-      base::SysNSStringToUTF8([self getAcceptLanguages]));
+      base::SysNSStringToUTF8(gAcceptLanguages ?: [self getAcceptLanguages]));
 
   gChromeNet.Get()->set_http2_enabled(gHttp2Enabled);
   gChromeNet.Get()->set_quic_enabled(gQuicEnabled);
@@ -205,10 +223,11 @@ class CronetHttpProtocolHandlerDelegate
 
   [self configureCronetEnvironmentForTesting:gChromeNet.Get().get()];
   gChromeNet.Get()->Start();
-  gHttpProtocolHandlerDelegate.reset(new CronetHttpProtocolHandlerDelegate(
-      gChromeNet.Get()->GetURLRequestContextGetter(), gRequestFilterBlock));
+  gHttpProtocolHandlerDelegate.Get().reset(
+      new CronetHttpProtocolHandlerDelegate(
+          gChromeNet.Get()->GetURLRequestContextGetter(), gRequestFilterBlock));
   net::HTTPProtocolHandlerDelegate::SetInstance(
-      gHttpProtocolHandlerDelegate.get());
+      gHttpProtocolHandlerDelegate.Get().get());
   gRequestFilterBlock = nil;
 }
 

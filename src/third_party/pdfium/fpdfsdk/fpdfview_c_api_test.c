@@ -79,12 +79,29 @@ int CheckPDFiumCApi() {
     CHK(FPDFPage_HasTransparency);
     CHK(FPDFPage_GenerateContent);
     CHK(FPDFPageObj_HasTransparency);
+    CHK(FPDFPageObj_GetType);
     CHK(FPDFPageObj_Transform);
     CHK(FPDFPage_TransformAnnots);
+    CHK(FPDFPageObj_NewImageObj);
     CHK(FPDFPageObj_NewImgeObj);
     CHK(FPDFImageObj_LoadJpegFile);
+    CHK(FPDFImageObj_LoadJpegFileInline);
     CHK(FPDFImageObj_SetMatrix);
     CHK(FPDFImageObj_SetBitmap);
+    CHK(FPDFPageObj_CreateNewPath);
+    CHK(FPDFPageObj_CreateNewRect);
+    CHK(FPDFPath_SetStrokeColor);
+    CHK(FPDFPath_SetStrokeWidth);
+    CHK(FPDFPath_SetFillColor);
+    CHK(FPDFPath_GetFillColor);
+    CHK(FPDFPath_MoveTo);
+    CHK(FPDFPath_LineTo);
+    CHK(FPDFPath_BezierTo);
+    CHK(FPDFPath_Close);
+    CHK(FPDFPath_SetDrawMode);
+    CHK(FPDFPageObj_NewTextObj);
+    CHK(FPDFText_SetText);
+    CHK(FPDFText_LoadFont);
 
     // fpdf_ext.h
     CHK(FSDK_SetUnSpObjProcessHandler);
@@ -154,6 +171,7 @@ int CheckPDFiumCApi() {
 
     // fpdf_searchex.h
     CHK(FPDFText_GetCharIndexFromTextIndex);
+    CHK(FPDFText_GetTextIndexFromCharIndex);
 
     // fpdf_structtree.h
     CHK(FPDF_StructTree_GetForPage);
@@ -161,6 +179,7 @@ int CheckPDFiumCApi() {
     CHK(FPDF_StructTree_CountChildren);
     CHK(FPDF_StructTree_GetChildAtIndex);
     CHK(FPDF_StructElement_GetAltText);
+    CHK(FPDF_StructElement_GetType);
     CHK(FPDF_StructElement_CountChildren);
     CHK(FPDF_StructElement_GetChildAtIndex);
 

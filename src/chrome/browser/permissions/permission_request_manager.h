@@ -11,7 +11,7 @@
 #include "base/gtest_prod_util.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
-#include "chrome/browser/ui/website_settings/permission_prompt.h"
+#include "chrome/browser/ui/permission_bubble/permission_prompt.h"
 #include "content/public/browser/web_contents_observer.h"
 #include "content/public/browser/web_contents_user_data.h"
 
@@ -19,6 +19,10 @@ class PermissionRequest;
 
 namespace safe_browsing {
 class PermissionReporterBrowserTest;
+}
+
+namespace test {
+class PermissionRequestManagerTestApi;
 }
 
 // Provides access to permissions bubbles. Allows clients to add a request
@@ -107,7 +111,10 @@ class PermissionRequestManager
   }
 
  private:
-  // TODO(felt): Update testing so that it doesn't involve a lot of friends.
+  friend class test::PermissionRequestManagerTestApi;
+
+  // TODO(felt): Update testing to use the TestApi so that it doesn't involve a
+  // lot of friends.
   friend class GeolocationBrowserTest;
   friend class GeolocationPermissionContextTests;
   friend class MockPermissionPrompt;
@@ -121,9 +128,8 @@ class PermissionRequestManager
   explicit PermissionRequestManager(content::WebContents* web_contents);
 
   // WebContentsObserver:
-  void DidNavigateMainFrame(
-      const content::LoadCommittedDetails& details,
-      const content::FrameNavigateParams& params) override;
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override;
   void DocumentOnLoadCompletedInMainFrame() override;
   void DocumentLoadedInFrame(
       content::RenderFrameHost* render_frame_host) override;

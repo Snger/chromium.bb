@@ -43,10 +43,11 @@ Polymer({
   set selection(selection) {
     this.$.content.selection = selection;
     this.$.relatedEvents.setRelatedEvents(selection);
-    if (this.$.relatedEvents.hasRelatedEvents())
+    if (this.$.relatedEvents.hasRelatedEvents()) {
       this.$.relatedEvents.style.display = '';
-    else
+    } else {
       this.$.relatedEvents.style.display = 'none';
+    }
   }
 });
 
@@ -54,7 +55,7 @@ tr.ui.analysis.AnalysisSubView.register(
     'tr-ui-a-single-thread-slice-sub-view',
     tr.model.ThreadSlice,
     {
-        multi: false,
-        title: 'Slice',
+      multi: false,
+      title: 'Slice',
     });
 </script>

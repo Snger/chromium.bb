@@ -41,6 +41,11 @@ class CC_EXPORT OneCopyRasterBufferProvider : public RasterBufferProvider {
   ResourceFormat GetResourceFormat(bool must_support_alpha) const override;
   bool IsResourceSwizzleRequired(bool must_support_alpha) const override;
   bool CanPartialRasterIntoProvidedResource() const override;
+  bool IsResourceReadyToDraw(ResourceId id) const override;
+  uint64_t SetReadyToDrawCallback(
+      const ResourceProvider::ResourceIdArray& resource_ids,
+      const base::Closure& callback,
+      uint64_t pending_callback_id) const override;
   void Shutdown() override;
 
   // Playback raster source and copy result into |resource|.
@@ -51,7 +56,7 @@ class CC_EXPORT OneCopyRasterBufferProvider : public RasterBufferProvider {
       const RasterSource* raster_source,
       const gfx::Rect& raster_full_rect,
       const gfx::Rect& raster_dirty_rect,
-      float scale,
+      const gfx::AxisTransform2d& transform,
       const RasterSource::PlaybackSettings& playback_settings,
       uint64_t previous_content_id,
       uint64_t new_content_id);
@@ -72,7 +77,7 @@ class CC_EXPORT OneCopyRasterBufferProvider : public RasterBufferProvider {
         const gfx::Rect& raster_full_rect,
         const gfx::Rect& raster_dirty_rect,
         uint64_t new_content_id,
-        float scale,
+        const gfx::AxisTransform2d& transform,
         const RasterSource::PlaybackSettings& playback_settings) override;
 
     void set_sync_token(const gpu::SyncToken& sync_token) {
@@ -96,8 +101,8 @@ class CC_EXPORT OneCopyRasterBufferProvider : public RasterBufferProvider {
       const RasterSource* raster_source,
       const gfx::Rect& raster_full_rect,
       const gfx::Rect& raster_dirty_rect,
-      float scale,
-      sk_sp<SkColorSpace> dst_color_space,
+      const gfx::AxisTransform2d& transform,
+      const gfx::ColorSpace& dst_color_space,
       const RasterSource::PlaybackSettings& playback_settings,
       uint64_t previous_content_id,
       uint64_t new_content_id);

@@ -34,7 +34,7 @@ class MockMediaRouteProvider : public mojom::MediaRouteProvider {
                void(const std::string& source_urn,
                     const std::string& sink_id,
                     const std::string& presentation_id,
-                    const std::string& origin,
+                    const url::Origin& origin,
                     int tab_id,
                     base::TimeDelta timeout,
                     bool incognito,
@@ -42,7 +42,7 @@ class MockMediaRouteProvider : public mojom::MediaRouteProvider {
   MOCK_METHOD7(JoinRoute,
                void(const std::string& source_urn,
                     const std::string& presentation_id,
-                    const std::string& origin,
+                    const url::Origin& origin,
                     int tab_id,
                     base::TimeDelta timeout,
                     bool incognito,
@@ -51,7 +51,7 @@ class MockMediaRouteProvider : public mojom::MediaRouteProvider {
                void(const std::string& source_urn,
                     const std::string& route_id,
                     const std::string& presentation_id,
-                    const std::string& origin,
+                    const url::Origin& origin,
                     int tab_id,
                     base::TimeDelta timeout,
                     bool incognito,
@@ -97,6 +97,8 @@ class MockMediaRouteProvider : public mojom::MediaRouteProvider {
                     const std::string& media_source,
                     mojom::SinkSearchCriteriaPtr& search_criteria,
                     const SearchSinksCallback& callback));
+  MOCK_METHOD2(ProvideSinks,
+               void(const std::string&, const std::vector<MediaSinkInternal>&));
 
  private:
   DISALLOW_COPY_AND_ASSIGN(MockMediaRouteProvider);

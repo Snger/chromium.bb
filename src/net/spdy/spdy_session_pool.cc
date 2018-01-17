@@ -11,7 +11,6 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/profiler/scoped_tracker.h"
 #include "base/stl_util.h"
-#include "base/strings/stringprintf.h"
 #include "base/trace_event/memory_allocator_dump.h"
 #include "base/trace_event/process_memory_dump.h"
 #include "base/trace_event/trace_event.h"
@@ -23,6 +22,11 @@
 #include "net/log/net_log_event_type.h"
 #include "net/log/net_log_source.h"
 #include "net/log/net_log_with_source.h"
+#include "net/spdy/hpack/hpack_constants.h"
+#include "net/spdy/hpack/hpack_huffman_table.h"
+#include "net/spdy/hpack/hpack_static_table.h"
+#include "net/spdy/platform/api/spdy_estimate_memory_usage.h"
+#include "net/spdy/platform/api/spdy_string_utils.h"
 #include "net/spdy/spdy_session.h"
 
 namespace net {
@@ -126,6 +130,7 @@ base::WeakPtr<SpdySession> SpdySessionPool::CreateAvailableSessionFromSocket(
 base::WeakPtr<SpdySession> SpdySessionPool::FindAvailableSession(
     const SpdySessionKey& key,
     const GURL& url,
+    bool enable_ip_based_pooling,
     const NetLogWithSource& net_log) {
   UnclaimedPushedStreamMap::iterator url_it =
       unclaimed_pushed_streams_.find(url);
@@ -158,15 +163,38 @@ base::WeakPtr<SpdySession> SpdySessionPool::FindAvailableSession(
 
   AvailableSessionMap::iterator it = LookupAvailableSessionByKey(key);
   if (it != available_sessions_.end()) {
-    UMA_HISTOGRAM_ENUMERATION(
-        "Net.SpdySessionGet", FOUND_EXISTING, SPDY_SESSION_GET_MAX);
-    net_log.AddEvent(
-        NetLogEventType::HTTP2_SESSION_POOL_FOUND_EXISTING_SESSION,
-        it->second->net_log().source().ToEventParametersCallback());
+    if (key.Equals(it->second->spdy_session_key())) {
+      UMA_HISTOGRAM_ENUMERATION("Net.SpdySessionGet", FOUND_EXISTING,
+                                SPDY_SESSION_GET_MAX);
+      net_log.AddEvent(
+          NetLogEventType::HTTP2_SESSION_POOL_FOUND_EXISTING_SESSION,
+          it->second->net_log().source().ToEventParametersCallback());
+    } else {
+      if (!enable_ip_based_pooling) {
+        // Remove session from available sessions and from aliases, and remove
+        // key from the session's pooled alias set, so that a new session can be
+        // created with this |key|.
+        it->second->RemovePooledAlias(key);
+        UnmapKey(key);
+        RemoveAliases(key);
+        return base::WeakPtr<SpdySession>();
+      }
+
+      UMA_HISTOGRAM_ENUMERATION("Net.SpdySessionGet",
+                                FOUND_EXISTING_FROM_IP_POOL,
+                                SPDY_SESSION_GET_MAX);
+      net_log.AddEvent(
+          NetLogEventType::
+              HTTP2_SESSION_POOL_FOUND_EXISTING_SESSION_FROM_IP_POOL,
+          it->second->net_log().source().ToEventParametersCallback());
+    }
     return it->second;
   }
 
-  // Look up the key's from the resolver's cache.
+  if (!enable_ip_based_pooling)
+    return base::WeakPtr<SpdySession>();
+
+  // Look up IP addresses from resolver cache.
   HostResolver::RequestInfo resolve_info(key.host_port_pair());
   AddressList addresses;
   int rv = resolver_->ResolveFromCache(resolve_info, &addresses, net_log);
@@ -278,7 +306,7 @@ void SpdySessionPool::RegisterUnclaimedPushedStream(
     GURL url,
     base::WeakPtr<SpdySession> spdy_session) {
   DCHECK(!url.is_empty());
-  // This SpdySessionPool  must own |spdy_session|.
+  // This SpdySessionPool must own |spdy_session|.
   DCHECK(base::ContainsKey(sessions_, spdy_session.get()));
   UnclaimedPushedStreamMap::iterator url_it =
       unclaimed_pushed_streams_.lower_bound(url);
@@ -364,33 +392,35 @@ void SpdySessionPool::OnSSLConfigChanged() {
   CloseCurrentSessions(ERR_NETWORK_CHANGED);
 }
 
-void SpdySessionPool::OnCertDBChanged(const X509Certificate* cert) {
+void SpdySessionPool::OnCertDBChanged() {
   CloseCurrentSessions(ERR_CERT_DATABASE_CHANGED);
 }
 
 void SpdySessionPool::DumpMemoryStats(
     base::trace_event::ProcessMemoryDump* pmd,
-    const std::string& parent_dump_absolute_name) const {
-  std::string dump_name = base::StringPrintf("%s/spdy_session_pool",
-                                             parent_dump_absolute_name.c_str());
-  base::trace_event::MemoryAllocatorDump* dump =
-      pmd->CreateAllocatorDump(dump_name);
+    const SpdyString& parent_dump_absolute_name) const {
+  if (sessions_.empty())
+    return;
   size_t total_size = 0;
   size_t buffer_size = 0;
   size_t cert_count = 0;
-  size_t serialized_cert_size = 0;
+  size_t cert_size = 0;
   size_t num_active_sessions = 0;
-  for (const auto& session : sessions_) {
+  for (auto* session : sessions_) {
     StreamSocket::SocketMemoryStats stats;
     bool is_session_active = false;
-    session->DumpMemoryStats(&stats, &is_session_active);
-    total_size += stats.total_size;
+    total_size += session->DumpMemoryStats(&stats, &is_session_active);
     buffer_size += stats.buffer_size;
     cert_count += stats.cert_count;
-    serialized_cert_size += stats.serialized_cert_size;
+    cert_size += stats.cert_size;
     if (is_session_active)
       num_active_sessions++;
   }
+  total_size += SpdyEstimateMemoryUsage(ObtainHpackHuffmanTable()) +
+                SpdyEstimateMemoryUsage(ObtainHpackStaticTable());
+  base::trace_event::MemoryAllocatorDump* dump =
+      pmd->CreateAllocatorDump(SpdyStringPrintf(
+          "%s/spdy_session_pool", parent_dump_absolute_name.c_str()));
   dump->AddScalar(base::trace_event::MemoryAllocatorDump::kNameSize,
                   base::trace_event::MemoryAllocatorDump::kUnitsBytes,
                   total_size);
@@ -406,9 +436,9 @@ void SpdySessionPool::DumpMemoryStats(
   dump->AddScalar("cert_count",
                   base::trace_event::MemoryAllocatorDump::kUnitsObjects,
                   cert_count);
-  dump->AddScalar("serialized_cert_size",
+  dump->AddScalar("cert_size",
                   base::trace_event::MemoryAllocatorDump::kUnitsBytes,
-                  serialized_cert_size);
+                  cert_size);
 }
 
 bool SpdySessionPool::IsSessionAvailable(
@@ -465,10 +495,9 @@ SpdySessionPool::WeakSessionList SpdySessionPool::GetCurrentSessions() const {
   return current_sessions;
 }
 
-void SpdySessionPool::CloseCurrentSessionsHelper(
-    Error error,
-    const std::string& description,
-    bool idle_only) {
+void SpdySessionPool::CloseCurrentSessionsHelper(Error error,
+                                                 const SpdyString& description,
+                                                 bool idle_only) {
   WeakSessionList current_sessions = GetCurrentSessions();
   for (WeakSessionList::const_iterator it = current_sessions.begin();
        it != current_sessions.end(); ++it) {

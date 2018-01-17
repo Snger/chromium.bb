@@ -17,11 +17,15 @@
 #include "base/single_thread_task_runner.h"
 #include "base/time/time.h"
 #include "components/keyed_service/core/refcounted_keyed_service.h"
-#include "components/password_manager/core/browser/password_reuse_detector.h"
-#include "components/password_manager/core/browser/password_reuse_detector_consumer.h"
 #include "components/password_manager/core/browser/password_store_change.h"
 #include "components/password_manager/core/browser/password_store_sync.h"
 #include "components/sync/model/syncable_service.h"
+
+// TODO(crbug.com/706392): Fix password reuse detection for Android.
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
+#include "components/password_manager/core/browser/password_reuse_detector.h"
+#include "components/password_manager/core/browser/password_reuse_detector_consumer.h"
+#endif
 
 class PasswordStoreProxyMac;
 
@@ -208,6 +212,10 @@ class PasswordStore : protected PasswordStoreSync,
   // Removes the statistics for |origin_domain|.
   void RemoveSiteStats(const GURL& origin_domain);
 
+  // Retrieves the statistics for all sites and notifies |consumer| on
+  // completion. The request will be cancelled if the consumer is destroyed.
+  void GetAllSiteStats(PasswordStoreConsumer* consumer);
+
   // Retrieves the statistics for |origin_domain| and notifies |consumer| on
   // completion. The request will be cancelled if the consumer is destroyed.
   void GetSiteStats(const GURL& origin_domain, PasswordStoreConsumer* consumer);
@@ -223,6 +231,8 @@ class PasswordStore : protected PasswordStoreSync,
 
   base::WeakPtr<syncer::SyncableService> GetPasswordSyncableService();
 
+// TODO(crbug.com/706392): Fix password reuse detection for Android.
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
   // Checks that some suffix of |input| equals to a password saved on another
   // registry controlled domain than |domain|.
   // If such suffix is found, |consumer|->OnReuseFound() is called on the same
@@ -231,6 +241,7 @@ class PasswordStore : protected PasswordStoreSync,
   virtual void CheckReuse(const base::string16& input,
                           const std::string& domain,
                           PasswordReuseDetectorConsumer* consumer);
+#endif
 
  protected:
   friend class base::RefCountedThreadSafe<PasswordStore>;
@@ -267,6 +278,8 @@ class PasswordStore : protected PasswordStoreSync,
     DISALLOW_COPY_AND_ASSIGN(GetLoginsRequest);
   };
 
+// TODO(crbug.com/706392): Fix password reuse detection for Android.
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
   // Represents a single CheckReuse() request. Implements functionality to
   // listen to reuse events and propagate them to |consumer| on the thread on
   // which CheckReuseRequest is created.
@@ -288,6 +301,7 @@ class PasswordStore : protected PasswordStoreSync,
 
     DISALLOW_COPY_AND_ASSIGN(CheckReuseRequest);
   };
+#endif
 
   ~PasswordStore() override;
 
@@ -358,6 +372,7 @@ class PasswordStore : protected PasswordStoreSync,
   // Synchronous implementation for manipulating with statistics.
   virtual void AddSiteStatsImpl(const InteractionsStats& stats) = 0;
   virtual void RemoveSiteStatsImpl(const GURL& origin_domain) = 0;
+  virtual std::vector<InteractionsStats> GetAllSiteStatsImpl() = 0;
   virtual std::vector<InteractionsStats> GetSiteStatsImpl(
       const GURL& origin_domain) = 0;
 
@@ -381,10 +396,13 @@ class PasswordStore : protected PasswordStoreSync,
   // may have been changed.
   void NotifyLoginsChanged(const PasswordStoreChangeList& changes) override;
 
+// TODO(crbug.com/706392): Fix password reuse detection for Android.
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
   // Synchronous implementation of CheckReuse().
   void CheckReuseImpl(std::unique_ptr<CheckReuseRequest> request,
                       const base::string16& input,
                       const std::string& domain);
+#endif
 
   // TaskRunner for tasks that run on the main thread (usually the UI thread).
   scoped_refptr<base::SingleThreadTaskRunner> main_thread_runner_;
@@ -453,6 +471,9 @@ class PasswordStore : protected PasswordStoreSync,
   // credentials.
   void GetBlacklistLoginsWithAffiliatedRealmsImpl(
       std::unique_ptr<GetLoginsRequest> request);
+
+  // Notifies |request| about the stats for all sites.
+  void NotifyAllSiteStats(std::unique_ptr<GetLoginsRequest> request);
 
   // Notifies |request| about the stats for |origin_domain|.
   void NotifySiteStats(const GURL& origin_domain,
@@ -533,7 +554,10 @@ class PasswordStore : protected PasswordStoreSync,
 
   std::unique_ptr<PasswordSyncableService> syncable_service_;
   std::unique_ptr<AffiliatedMatchHelper> affiliated_match_helper_;
+// TODO(crbug.com/706392): Fix password reuse detection for Android.
+#if !defined(OS_ANDROID) && !defined(OS_IOS)
   std::unique_ptr<PasswordReuseDetector> reuse_detector_;
+#endif
   bool is_propagating_password_changes_to_web_credentials_enabled_;
 
   bool shutdown_called_;

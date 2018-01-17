@@ -14,7 +14,6 @@
 #include "url/origin.h"
 
 namespace service_manager {
-class Connection;
 class Connector;
 }
 
@@ -45,9 +44,18 @@ class CONTENT_EXPORT LocalStorageContextMojo {
   void DeleteStorageForPhysicalOrigin(const url::Origin& origin);
   void Flush();
 
+  // Clears any caches, to free up as much memory as possible. Next access to
+  // storage for a particular origin will reload the data from the database.
+  void PurgeMemory();
+
   leveldb::mojom::LevelDBDatabaseAssociatedRequest DatabaseRequestForTesting();
 
+  // Converts a string from the old storage format to the new storage format.
+  static std::vector<uint8_t> MigrateString(const base::string16& input);
+
  private:
+  friend class MojoDOMStorageBrowserTest;
+
   class LevelDBWrapperHolder;
 
   // Runs |callback| immediately if already connected to a database, otherwise
@@ -55,13 +63,10 @@ class CONTENT_EXPORT LocalStorageContextMojo {
   // Initiates connecting to the database if no connection is in progres yet.
   void RunWhenConnected(base::OnceClosure callback);
 
-  void OnUserServiceConnectionComplete();
-  void OnUserServiceConnectionError();
-
   // Part of our asynchronous directory opening called from RunWhenConnected().
   void InitiateConnection(bool in_memory_only = false);
   void OnDirectoryOpened(filesystem::mojom::FileError err);
-  void OnDatabaseOpened(leveldb::mojom::DatabaseError status);
+  void OnDatabaseOpened(bool in_memory, leveldb::mojom::DatabaseError status);
   void OnGotDatabaseVersion(leveldb::mojom::DatabaseError status,
                             const std::vector<uint8_t>& value);
   void OnConnectionFinished();
@@ -95,8 +100,6 @@ class CONTENT_EXPORT LocalStorageContextMojo {
     CONNECTION_FINISHED
   } connection_state_ = NO_CONNECTION;
   bool database_initialized_ = false;
-
-  std::unique_ptr<service_manager::Connection> file_service_connection_;
 
   file::mojom::FileSystemPtr file_system_;
   filesystem::mojom::DirectoryPtr directory_;

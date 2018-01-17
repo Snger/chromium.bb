@@ -4,10 +4,11 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
- 
+
 #ifndef SKSL_INTLITERAL
 #define SKSL_INTLITERAL
 
+#include "SkSLContext.h"
 #include "SkSLExpression.h"
 
 namespace SkSL {
@@ -22,7 +23,7 @@ struct IntLiteral : public Expression {
     : INHERITED(position, kIntLiteral_Kind, type ? *type : *context.fInt_Type)
     , fValue(value) {}
 
-    virtual SkString description() const override {
+    virtual String description() const override {
         return to_string(fValue);
     }
 

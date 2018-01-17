@@ -505,6 +505,8 @@ egl::ConfigSet Renderer9::generateConfigs()
                     config.transparentRedValue = 0;
                     config.transparentGreenValue = 0;
                     config.transparentBlueValue = 0;
+                    config.colorComponentType    = gl_egl::GLComponentTypeToEGLColorComponentType(
+                        colorBufferFormatInfo.componentType);
 
                     configs.add(config);
                 }
@@ -538,6 +540,9 @@ void Renderer9::generateDisplayExtensions(egl::DisplayExtensions *outExtensions)
     outExtensions->glRenderbufferImage = true;
 
     outExtensions->flexibleSurfaceCompatibility = true;
+
+    // Contexts are virtualized so textures can be shared globally
+    outExtensions->displayTextureShareGroup = true;
 }
 
 void Renderer9::startScene()
@@ -995,7 +1000,7 @@ gl::Error Renderer9::updateState(Context9 *context, GLenum drawMode)
     // Applies the render target surface, depth stencil surface, viewport rectangle and
     // scissor rectangle to the renderer
     gl::Framebuffer *framebuffer = glState.getDrawFramebuffer();
-    ASSERT(framebuffer && !framebuffer->hasAnyDirtyBit() && framebuffer->complete(data));
+    ASSERT(framebuffer && !framebuffer->hasAnyDirtyBit() && framebuffer->cachedComplete());
 
     ANGLE_TRY(applyRenderTarget(context, framebuffer));
 
@@ -2258,13 +2263,13 @@ bool Renderer9::resetDevice()
 
     if (FAILED(result))
     {
-        ERR("Reset/ResetEx failed multiple times: 0x%08X", result);
+        ERR() << "Reset/ResetEx failed multiple times, " << gl::FmtHR(result);
         return false;
     }
 
     if (removedDevice && lost)
     {
-        ERR("Device lost reset failed multiple times");
+        ERR() << "Device lost reset failed multiple times";
         return false;
     }
 
@@ -2458,11 +2463,14 @@ gl::Error Renderer9::copyTexture(const gl::Texture *source,
                                  GLenum destFormat,
                                  const gl::Offset &destOffset,
                                  TextureStorage *storage,
+                                 GLenum destTarget,
                                  GLint destLevel,
                                  bool unpackFlipY,
                                  bool unpackPremultiplyAlpha,
                                  bool unpackUnmultiplyAlpha)
 {
+    ASSERT(destTarget == GL_TEXTURE_2D);
+
     RECT rect;
     rect.left   = sourceRect.x;
     rect.top    = sourceRect.y;
@@ -2868,27 +2876,28 @@ GLenum Renderer9::getVertexComponentType(gl::VertexFormatType vertexFormatType) 
 }
 
 gl::ErrorOrResult<unsigned int> Renderer9::getVertexSpaceRequired(const gl::VertexAttribute &attrib,
+                                                                  const gl::VertexBinding &binding,
                                                                   GLsizei count,
                                                                   GLsizei instances) const
 {
-    gl::VertexFormatType vertexFormatType = gl::GetVertexFormatType(attrib, GL_FLOAT);
-    const d3d9::VertexFormat &d3d9VertexInfo =
-        d3d9::GetVertexFormatInfo(getCapsDeclTypes(), vertexFormatType);
-
     if (!attrib.enabled)
     {
         return 16u;
     }
 
+    gl::VertexFormatType vertexFormatType = gl::GetVertexFormatType(attrib, GL_FLOAT);
+    const d3d9::VertexFormat &d3d9VertexInfo =
+        d3d9::GetVertexFormatInfo(getCapsDeclTypes(), vertexFormatType);
+
     unsigned int elementCount = 0;
-    if (instances == 0 || attrib.divisor == 0)
+    if (instances == 0 || binding.divisor == 0)
     {
         elementCount = static_cast<unsigned int>(count);
     }
     else
     {
         // Round up to divisor, if possible
-        elementCount = UnsignedCeilDivide(static_cast<unsigned int>(instances), attrib.divisor);
+        elementCount = UnsignedCeilDivide(static_cast<unsigned int>(instances), binding.divisor);
     }
 
     if (d3d9VertexInfo.outputElementSize > std::numeric_limits<unsigned int>::max() / elementCount)

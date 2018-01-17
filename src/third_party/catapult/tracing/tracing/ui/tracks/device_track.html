@@ -13,7 +13,6 @@ found in the LICENSE file.
 'use strict';
 
 tr.exportTo('tr.ui.tracks', function() {
-
   var ContainerTrack = tr.ui.tracks.ContainerTrack;
 
   // TODO(charliea): Make this track collapsible.
@@ -57,7 +56,7 @@ tr.exportTo('tr.ui.tracks', function() {
 
     addContainersToTrackMap: function(containerToTrackMap) {
       tr.ui.tracks.ContainerTrack.prototype.addContainersToTrackMap.call(
-        this, containerToTrackMap);
+          this, containerToTrackMap);
       containerToTrackMap.addContainer(this.device, this);
     },
 

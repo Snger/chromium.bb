@@ -42,72 +42,42 @@ GLubyte ColorDenorm(float colorValue)
     return static_cast<GLubyte>(colorValue * 255.0f);
 }
 
-// Use a custom ANGLE platform class to capture and report internal errors.
-class TestPlatform : public angle::Platform
+void TestPlatform_logError(angle::PlatformMethods *platform, const char *errorMessage)
 {
-  public:
-    void logError(const char *errorMessage) override;
-    void logWarning(const char *warningMessage) override;
-    void logInfo(const char *infoMessage) override;
-    void overrideWorkaroundsD3D(WorkaroundsD3D *workaroundsD3D) override;
-
-    void ignoreMessages();
-    void enableMessages();
-    void setCurrentTest(ANGLETest *currentTest);
-
-  private:
-    bool mIgnoreMessages    = false;
-    ANGLETest *mCurrentTest = nullptr;
-};
-
-void TestPlatform::logError(const char *errorMessage)
-{
-    if (mIgnoreMessages)
+    auto *testPlatformContext = static_cast<TestPlatformContext *>(platform->context);
+    if (testPlatformContext->ignoreMessages)
         return;
 
     FAIL() << errorMessage;
 }
 
-void TestPlatform::logWarning(const char *warningMessage)
+void TestPlatform_logWarning(angle::PlatformMethods *platform, const char *warningMessage)
 {
-    if (mIgnoreMessages)
+    auto *testPlatformContext = static_cast<TestPlatformContext *>(platform->context);
+    if (testPlatformContext->ignoreMessages)
         return;
 
     std::cerr << "Warning: " << warningMessage << std::endl;
 }
 
-void TestPlatform::logInfo(const char *infoMessage)
+void TestPlatform_logInfo(angle::PlatformMethods *platform, const char *infoMessage)
 {
-    if (mIgnoreMessages)
+    auto *testPlatformContext = static_cast<TestPlatformContext *>(platform->context);
+    if (testPlatformContext->ignoreMessages)
         return;
 
     angle::WriteDebugMessage("%s\n", infoMessage);
 }
 
-void TestPlatform::overrideWorkaroundsD3D(WorkaroundsD3D *workaroundsD3D)
+void TestPlatform_overrideWorkaroundsD3D(angle::PlatformMethods *platform,
+                                         WorkaroundsD3D *workaroundsD3D)
 {
-    if (mCurrentTest)
+    auto *testPlatformContext = static_cast<TestPlatformContext *>(platform->context);
+    if (testPlatformContext->currentTest)
     {
-        mCurrentTest->overrideWorkaroundsD3D(workaroundsD3D);
+        testPlatformContext->currentTest->overrideWorkaroundsD3D(workaroundsD3D);
     }
 }
-
-void TestPlatform::ignoreMessages()
-{
-    mIgnoreMessages = true;
-}
-
-void TestPlatform::enableMessages()
-{
-    mIgnoreMessages = false;
-}
-
-void TestPlatform::setCurrentTest(ANGLETest *currentTest)
-{
-    mCurrentTest = currentTest;
-}
-
-TestPlatform g_testPlatformInstance;
 
 std::array<angle::Vector3, 4> GetIndexedQuadVertices()
 {
@@ -160,6 +130,14 @@ angle::Vector4 GLColor::toNormalizedVector() const
     return angle::Vector4(ColorNorm(R), ColorNorm(G), ColorNorm(B), ColorNorm(A));
 }
 
+GLColor32F::GLColor32F() : GLColor32F(0.0f, 0.0f, 0.0f, 0.0f)
+{
+}
+
+GLColor32F::GLColor32F(GLfloat r, GLfloat g, GLfloat b, GLfloat a) : R(r), G(g), B(b), A(a)
+{
+}
+
 GLColor ReadColor(GLint x, GLint y)
 {
     GLColor actual;
@@ -179,6 +157,25 @@ std::ostream &operator<<(std::ostream &ostream, const GLColor &color)
             << static_cast<unsigned int>(color.G) << ", " << static_cast<unsigned int>(color.B)
             << ", " << static_cast<unsigned int>(color.A) << ")";
     return ostream;
+}
+
+bool operator==(const GLColor32F &a, const GLColor32F &b)
+{
+    return a.R == b.R && a.G == b.G && a.B == b.B && a.A == b.A;
+}
+
+std::ostream &operator<<(std::ostream &ostream, const GLColor32F &color)
+{
+    ostream << "(" << color.R << ", " << color.G << ", " << color.B << ", " << color.A << ")";
+    return ostream;
+}
+
+GLColor32F ReadColor32F(GLint x, GLint y)
+{
+    GLColor32F actual;
+    glReadPixels((x), (y), 1, 1, GL_RGBA, GL_FLOAT, &actual.R);
+    EXPECT_GL_NO_ERROR();
+    return actual;
 }
 
 }  // namespace angle
@@ -201,16 +198,33 @@ ANGLETest::ANGLETest()
       mWidth(16),
       mHeight(16),
       mIgnoreD3D11SDKLayersWarnings(false),
-      mQuadVertexBuffer(0)
+      mQuadVertexBuffer(0),
+      mDeferContextInit(false)
 {
     mEGLWindow =
         new EGLWindow(GetParam().majorVersion, GetParam().minorVersion, GetParam().eglParameters);
 
     // Default vulkan layers to enabled.
-    if (GetParam().getRenderer() == EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE)
+    EGLint renderer = GetParam().getRenderer();
+    if (renderer == EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE)
     {
         mEGLWindow->setVulkanLayersEnabled(true);
     }
+
+    // Workaround for NVIDIA not being able to share OpenGL and Vulkan contexts.
+    bool needsWindowSwap = mLastRendererType.valid() &&
+                           ((renderer != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE) !=
+                            (mLastRendererType.value() != EGL_PLATFORM_ANGLE_TYPE_VULKAN_ANGLE));
+
+    if (needsWindowSwap)
+    {
+        DestroyTestWindow();
+        if (!InitTestWindow())
+        {
+            std::cerr << "Failed to create ANGLE test window.";
+        }
+    }
+    mLastRendererType = renderer;
 }
 
 ANGLETest::~ANGLETest()
@@ -224,8 +238,8 @@ ANGLETest::~ANGLETest()
 
 void ANGLETest::SetUp()
 {
-    angle::g_testPlatformInstance.enableMessages();
-    angle::g_testPlatformInstance.setCurrentTest(this);
+    mPlatformContext.ignoreMessages = false;
+    mPlatformContext.currentTest    = this;
 
     // Resize the window before creating the context so that the first make current
     // sets the viewport and scissor box to the right size.
@@ -239,9 +253,30 @@ void ANGLETest::SetUp()
         needSwap = true;
     }
 
-    if (!createEGLContext())
+    if (!mEGLWindow->initializeDisplayAndSurface(mOSWindow))
     {
-        FAIL() << "egl context creation failed.";
+        FAIL() << "egl display or surface init failed.";
+    }
+
+    if (!mDeferContextInit && !mEGLWindow->initializeContext())
+    {
+        FAIL() << "GL Context init failed.";
+    }
+
+    if (mGLESLibrary)
+    {
+        auto initFunc = reinterpret_cast<angle::GetDisplayPlatformFunc>(
+            mGLESLibrary->getSymbol("ANGLEGetDisplayPlatform"));
+        if (initFunc)
+        {
+            angle::PlatformMethods *platformMethods = nullptr;
+            initFunc(mEGLWindow->getDisplay(), angle::g_PlatformMethodNames,
+                     angle::g_NumPlatformMethods, &mPlatformContext, &platformMethods);
+            platformMethods->overrideWorkaroundsD3D = angle::TestPlatform_overrideWorkaroundsD3D;
+            platformMethods->logError               = angle::TestPlatform_logError;
+            platformMethods->logWarning             = angle::TestPlatform_logWarning;
+            platformMethods->logInfo                = angle::TestPlatform_logInfo;
+        }
     }
 
     if (needSwap)
@@ -263,7 +298,7 @@ void ANGLETest::SetUp()
 
 void ANGLETest::TearDown()
 {
-    angle::g_testPlatformInstance.setCurrentTest(nullptr);
+    mPlatformContext.currentTest = nullptr;
     checkD3D11SDKLayersMessages();
 
     const auto &info = testing::UnitTest::GetInstance()->current_test_info();
@@ -637,6 +672,11 @@ void ANGLETest::setConfigStencilBits(int bits)
     mEGLWindow->setConfigStencilBits(bits);
 }
 
+void ANGLETest::setConfigComponentType(EGLenum componentType)
+{
+    mEGLWindow->setConfigComponentType(componentType);
+}
+
 void ANGLETest::setMultisampleEnabled(bool enabled)
 {
     mEGLWindow->setMultisample(enabled);
@@ -665,6 +705,21 @@ void ANGLETest::setBindGeneratesResource(bool bindGeneratesResource)
 void ANGLETest::setVulkanLayersEnabled(bool enabled)
 {
     mEGLWindow->setVulkanLayersEnabled(enabled);
+}
+
+void ANGLETest::setClientArraysEnabled(bool enabled)
+{
+    mEGLWindow->setClientArraysEnabled(enabled);
+}
+
+void ANGLETest::setRobustResourceInit(bool enabled)
+{
+    mEGLWindow->setRobustResourceInit(enabled);
+}
+
+void ANGLETest::setDeferContextInit(bool enabled)
+{
+    mDeferContextInit = enabled;
 }
 
 int ANGLETest::getClientMajorVersion() const
@@ -697,17 +752,13 @@ bool ANGLETest::isMultisampleEnabled() const
     return mEGLWindow->isMultisample();
 }
 
-bool ANGLETest::createEGLContext()
-{
-    return mEGLWindow->initializeGL(mOSWindow);
-}
-
 bool ANGLETest::destroyEGLContext()
 {
     mEGLWindow->destroyGL();
     return true;
 }
 
+// static
 bool ANGLETest::InitTestWindow()
 {
     mOSWindow = CreateOSWindow();
@@ -718,9 +769,12 @@ bool ANGLETest::InitTestWindow()
 
     mOSWindow->setVisible(true);
 
+    mGLESLibrary.reset(angle::loadLibrary("libGLESv2"));
+
     return true;
 }
 
+// static
 bool ANGLETest::DestroyTestWindow()
 {
     if (mOSWindow)
@@ -729,6 +783,8 @@ bool ANGLETest::DestroyTestWindow()
         delete mOSWindow;
         mOSWindow = NULL;
     }
+
+    mGLESLibrary.reset(nullptr);
 
     return true;
 }
@@ -824,6 +880,15 @@ bool IsVulkan()
     return (rendererString.find("Vulkan") != std::string::npos);
 }
 
+bool IsOzone()
+{
+#if defined(USE_OZONE)
+    return true;
+#else
+    return false;
+#endif
+}
+
 bool IsLinux()
 {
 #if defined(ANGLE_PLATFORM_LINUX)
@@ -877,21 +942,12 @@ void ANGLETest::ignoreD3D11SDKLayersWarnings()
     mIgnoreD3D11SDKLayersWarnings = true;
 }
 
-OSWindow *ANGLETest::mOSWindow = NULL;
+OSWindow *ANGLETest::mOSWindow = nullptr;
+Optional<EGLint> ANGLETest::mLastRendererType;
+std::unique_ptr<angle::Library> ANGLETest::mGLESLibrary;
 
 void ANGLETestEnvironment::SetUp()
 {
-    mGLESLibrary.reset(angle::loadLibrary("libGLESv2"));
-    if (mGLESLibrary)
-    {
-        auto initFunc = reinterpret_cast<ANGLEPlatformInitializeFunc>(
-            mGLESLibrary->getSymbol("ANGLEPlatformInitialize"));
-        if (initFunc)
-        {
-            initFunc(&angle::g_testPlatformInstance);
-        }
-    }
-
     if (!ANGLETest::InitTestWindow())
     {
         FAIL() << "Failed to create ANGLE test window.";
@@ -901,20 +957,4 @@ void ANGLETestEnvironment::SetUp()
 void ANGLETestEnvironment::TearDown()
 {
     ANGLETest::DestroyTestWindow();
-
-    if (mGLESLibrary)
-    {
-        auto shutdownFunc = reinterpret_cast<ANGLEPlatformShutdownFunc>(
-            mGLESLibrary->getSymbol("ANGLEPlatformShutdown"));
-        if (shutdownFunc)
-        {
-            shutdownFunc();
-        }
-    }
-}
-
-void IgnoreANGLEPlatformMessages()
-{
-    // Negative tests may trigger expected errors/warnings in the ANGLE Platform.
-    angle::g_testPlatformInstance.ignoreMessages();
 }

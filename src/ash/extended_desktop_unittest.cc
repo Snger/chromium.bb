@@ -2,15 +2,15 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "ash/common/system/tray/system_tray.h"
-#include "ash/common/wm/root_window_finder.h"
-#include "ash/common/wm_window.h"
 #include "ash/public/cpp/shell_window_ids.h"
 #include "ash/root_window_controller.h"
 #include "ash/shell.h"
+#include "ash/system/tray/system_tray.h"
 #include "ash/test/ash_test_base.h"
+#include "ash/wm/root_window_finder.h"
 #include "ash/wm/window_properties.h"
 #include "ash/wm/window_util.h"
+#include "ash/wm_window.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
 #include "ui/aura/client/capture_client.h"
@@ -36,9 +36,9 @@ namespace {
 
 void SetSecondaryDisplayLayout(display::DisplayPlacement::Position position) {
   std::unique_ptr<display::DisplayLayout> layout =
-      Shell::GetInstance()->display_manager()->GetCurrentDisplayLayout().Copy();
+      Shell::Get()->display_manager()->GetCurrentDisplayLayout().Copy();
   layout->placement_list[0].position = position;
-  Shell::GetInstance()->display_manager()->SetLayoutForCurrentDisplays(
+  Shell::Get()->display_manager()->SetLayoutForCurrentDisplays(
       std::move(layout));
 }
 
@@ -168,9 +168,6 @@ class ExtendedDesktopTest : public test::AshTestBase {
 // Test conditions that root windows in extended desktop mode
 // must satisfy.
 TEST_F(ExtendedDesktopTest, Basic) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600,600x400");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
 
@@ -190,9 +187,6 @@ TEST_F(ExtendedDesktopTest, Basic) {
 }
 
 TEST_F(ExtendedDesktopTest, Activation) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600,600x400");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
 
@@ -224,16 +218,13 @@ TEST_F(ExtendedDesktopTest, Activation) {
 }
 
 TEST_F(ExtendedDesktopTest, SystemModal) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600,600x400");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
 
   views::Widget* widget_on_1st = CreateTestWidget(gfx::Rect(10, 10, 100, 100));
   EXPECT_TRUE(wm::IsActiveWindow(widget_on_1st->GetNativeView()));
   EXPECT_EQ(root_windows[0], widget_on_1st->GetNativeView()->GetRootWindow());
-  EXPECT_EQ(root_windows[0], Shell::GetTargetRootWindow());
+  EXPECT_EQ(root_windows[0], Shell::GetRootWindowForNewWindows());
 
   // Open system modal. Make sure it's on 2nd root window and active.
   views::Widget* modal_widget = views::Widget::CreateWindowWithContextAndBounds(
@@ -242,7 +233,7 @@ TEST_F(ExtendedDesktopTest, SystemModal) {
   modal_widget->Show();
   EXPECT_TRUE(wm::IsActiveWindow(modal_widget->GetNativeView()));
   EXPECT_EQ(root_windows[1], modal_widget->GetNativeView()->GetRootWindow());
-  EXPECT_EQ(root_windows[1], Shell::GetTargetRootWindow());
+  EXPECT_EQ(root_windows[1], Shell::GetRootWindowForNewWindows());
 
   ui::test::EventGenerator& event_generator(GetEventGenerator());
 
@@ -250,35 +241,29 @@ TEST_F(ExtendedDesktopTest, SystemModal) {
   event_generator.MoveMouseToCenterOf(widget_on_1st->GetNativeView());
   event_generator.ClickLeftButton();
   EXPECT_TRUE(wm::IsActiveWindow(modal_widget->GetNativeView()));
-  EXPECT_EQ(root_windows[1], Shell::GetTargetRootWindow());
+  EXPECT_EQ(root_windows[1], Shell::GetRootWindowForNewWindows());
 
   // Close system modal and so clicking a widget should work now.
   modal_widget->Close();
   event_generator.MoveMouseToCenterOf(widget_on_1st->GetNativeView());
   event_generator.ClickLeftButton();
   EXPECT_TRUE(wm::IsActiveWindow(widget_on_1st->GetNativeView()));
-  EXPECT_EQ(root_windows[0], Shell::GetTargetRootWindow());
+  EXPECT_EQ(root_windows[0], Shell::GetRootWindowForNewWindows());
 }
 
 TEST_F(ExtendedDesktopTest, TestCursor) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600,600x400");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
   aura::WindowTreeHost* host0 = root_windows[0]->GetHost();
   aura::WindowTreeHost* host1 = root_windows[1]->GetHost();
   EXPECT_EQ(ui::kCursorPointer, host0->last_cursor().native_type());
   EXPECT_EQ(ui::kCursorNull, host1->last_cursor().native_type());
-  Shell::GetInstance()->cursor_manager()->SetCursor(ui::kCursorCopy);
+  Shell::Get()->cursor_manager()->SetCursor(ui::kCursorCopy);
   EXPECT_EQ(ui::kCursorCopy, host0->last_cursor().native_type());
   EXPECT_EQ(ui::kCursorCopy, host1->last_cursor().native_type());
 }
 
 TEST_F(ExtendedDesktopTest, TestCursorLocation) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600,600x400");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
   aura::test::WindowTestApi root_window0_test_api(root_windows[0]);
@@ -302,9 +287,6 @@ TEST_F(ExtendedDesktopTest, TestCursorLocation) {
 }
 
 TEST_F(ExtendedDesktopTest, GetRootWindowAt) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("700x500,500x500");
   SetSecondaryDisplayLayout(display::DisplayPlacement::LEFT);
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
@@ -330,9 +312,6 @@ TEST_F(ExtendedDesktopTest, GetRootWindowAt) {
 }
 
 TEST_F(ExtendedDesktopTest, GetRootWindowMatching) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("700x500,500x500");
   SetSecondaryDisplayLayout(display::DisplayPlacement::LEFT);
 
@@ -370,9 +349,6 @@ TEST_F(ExtendedDesktopTest, GetRootWindowMatching) {
 }
 
 TEST_F(ExtendedDesktopTest, Capture) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600,600x400");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
 
@@ -440,9 +416,6 @@ TEST_F(ExtendedDesktopTest, Capture) {
 }
 
 TEST_F(ExtendedDesktopTest, CaptureEventLocation) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600,600x400");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
 
@@ -475,9 +448,6 @@ TEST_F(ExtendedDesktopTest, CaptureEventLocation) {
 }
 
 TEST_F(ExtendedDesktopTest, CaptureEventLocationHighDPI) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600*2,600x400");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
 
@@ -510,9 +480,6 @@ TEST_F(ExtendedDesktopTest, CaptureEventLocationHighDPI) {
 }
 
 TEST_F(ExtendedDesktopTest, CaptureEventLocationHighDPI_2) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600,600x400*2");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
 
@@ -549,9 +516,6 @@ TEST_F(ExtendedDesktopTest, CaptureEventLocationHighDPI_2) {
 }
 
 TEST_F(ExtendedDesktopTest, MoveWindow) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600,600x400");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
   views::Widget* d1 = CreateTestWidget(gfx::Rect(10, 10, 100, 100));
@@ -583,9 +547,6 @@ TEST_F(ExtendedDesktopTest, MoveWindow) {
 // Verifies if the mouse event arrives to the window even when the window
 // moves to another root in a pre-target handler.  See: crbug.com/157583
 TEST_F(ExtendedDesktopTest, MoveWindowByMouseClick) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600,600x400");
 
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
@@ -606,9 +567,6 @@ TEST_F(ExtendedDesktopTest, MoveWindowByMouseClick) {
 }
 
 TEST_F(ExtendedDesktopTest, MoveWindowToDisplay) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x1000,1000x1000");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
 
@@ -636,9 +594,6 @@ TEST_F(ExtendedDesktopTest, MoveWindowToDisplay) {
 }
 
 TEST_F(ExtendedDesktopTest, MoveWindowWithTransient) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("1000x600,600x400");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
   views::Widget* w1 = CreateTestWidget(gfx::Rect(10, 10, 100, 100));
@@ -685,10 +640,7 @@ TEST_F(ExtendedDesktopTest, MoveWindowWithTransient) {
 }
 
 // Test if the Window::ConvertPointToTarget works across root windows.
-// TODO(oshima): Move multiple display suport and this test to aura.
 TEST_F(ExtendedDesktopTest, ConvertPoint) {
-  if (!SupportsMultipleDisplays())
-    return;
   display::Screen* screen = display::Screen::GetScreen();
   UpdateDisplay("1000x600,600x400");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
@@ -744,11 +696,8 @@ TEST_F(ExtendedDesktopTest, ConvertPoint) {
 }
 
 TEST_F(ExtendedDesktopTest, OpenSystemTray) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("500x600,600x400");
-  SystemTray* tray = ash::Shell::GetInstance()->GetPrimarySystemTray();
+  SystemTray* tray = ash::Shell::Get()->GetPrimarySystemTray();
   ASSERT_FALSE(tray->HasSystemBubble());
 
   ui::test::EventGenerator& event_generator(GetEventGenerator());
@@ -778,9 +727,6 @@ TEST_F(ExtendedDesktopTest, OpenSystemTray) {
 }
 
 TEST_F(ExtendedDesktopTest, StayInSameRootWindow) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("100x100,200x200");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
   views::Widget* w1 = CreateTestWidget(gfx::Rect(10, 10, 50, 50));
@@ -805,23 +751,18 @@ TEST_F(ExtendedDesktopTest, StayInSameRootWindow) {
           kShellWindowId_SettingBubbleContainer);
   aura::Window* window =
       aura::test::CreateTestWindowWithId(100, settings_bubble_container);
-  window->SetBoundsInScreen(gfx::Rect(150, 10, 50, 50),
-                            display_manager()->GetSecondaryDisplay());
+  window->SetBoundsInScreen(gfx::Rect(150, 10, 50, 50), GetSecondaryDisplay());
   EXPECT_EQ(root_windows[0], window->GetRootWindow());
 
   aura::Window* status_container =
       Shell::GetPrimaryRootWindowController()->GetContainer(
           kShellWindowId_StatusContainer);
   window = aura::test::CreateTestWindowWithId(100, status_container);
-  window->SetBoundsInScreen(gfx::Rect(150, 10, 50, 50),
-                            display_manager()->GetSecondaryDisplay());
+  window->SetBoundsInScreen(gfx::Rect(150, 10, 50, 50), GetSecondaryDisplay());
   EXPECT_EQ(root_windows[0], window->GetRootWindow());
 }
 
 TEST_F(ExtendedDesktopTest, KeyEventsOnLockScreen) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("100x100,200x200");
   aura::Window::Windows root_windows = Shell::GetAllRootWindows();
 
@@ -830,8 +771,7 @@ TEST_F(ExtendedDesktopTest, KeyEventsOnLockScreen) {
       display::Screen::GetScreen()->GetPrimaryDisplay().bounds());
   widget1->Show();
   EXPECT_EQ(root_windows[0], widget1->GetNativeView()->GetRootWindow());
-  views::Widget* widget2 =
-      CreateTestWidget(display_manager()->GetSecondaryDisplay().bounds());
+  views::Widget* widget2 = CreateTestWidget(GetSecondaryDisplay().bounds());
   widget2->Show();
   EXPECT_EQ(root_windows[1], widget2->GetNativeView()->GetRootWindow());
 
@@ -892,11 +832,8 @@ TEST_F(ExtendedDesktopTest, KeyEventsOnLockScreen) {
 }
 
 TEST_F(ExtendedDesktopTest, PassiveGrab) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   EventLocationRecordingEventHandler event_handler;
-  ash::Shell::GetInstance()->AddPreTargetHandler(&event_handler);
+  ash::Shell::Get()->AddPreTargetHandler(&event_handler);
 
   UpdateDisplay("300x300,200x200");
 
@@ -919,7 +856,7 @@ TEST_F(ExtendedDesktopTest, PassiveGrab) {
   generator.MoveMouseTo(400, 150);
   EXPECT_EQ("100,150 100,150", event_handler.GetLocationsAndReset());
 
-  ash::Shell::GetInstance()->RemovePreTargetHandler(&event_handler);
+  ash::Shell::Get()->RemovePreTargetHandler(&event_handler);
 }
 
 }  // namespace ash

@@ -13,6 +13,7 @@
 #include "base/debug/leak_annotations.h"
 #include "base/location.h"
 #include "base/memory/discardable_memory.h"
+#include "base/metrics/field_trial.h"
 #include "base/run_loop.h"
 #include "base/single_thread_task_runner.h"
 #include "base/strings/string_number_conversions.h"
@@ -44,6 +45,7 @@
 #include "ipc/ipc.mojom.h"
 #include "ipc/ipc_channel_mojo.h"
 #include "mojo/edk/embedder/embedder.h"
+#include "mojo/edk/embedder/pending_process_connection.h"
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/WebKit/public/platform/scheduler/renderer/renderer_scheduler.h"
 #include "ui/gfx/buffer_format_util.h"
@@ -82,7 +84,7 @@ class TestTaskCounter : public base::SingleThreadTaskRunner {
 
   // SingleThreadTaskRunner implementation.
   bool PostDelayedTask(const tracked_objects::Location&,
-                       const base::Closure&,
+                       base::OnceClosure,
                        base::TimeDelta) override {
     base::AutoLock auto_lock(lock_);
     count_++;
@@ -90,7 +92,7 @@ class TestTaskCounter : public base::SingleThreadTaskRunner {
   }
 
   bool PostNonNestableDelayedTask(const tracked_objects::Location&,
-                                  const base::Closure&,
+                                  base::OnceClosure,
                                   base::TimeDelta) override {
     base::AutoLock auto_lock(lock_);
     count_++;
@@ -162,6 +164,8 @@ class QuitOnTestMsgFilter : public IPC::MessageFilter {
 
 class RenderThreadImplBrowserTest : public testing::Test {
  public:
+  RenderThreadImplBrowserTest() : field_trial_list_(nullptr) {}
+
   void SetUp() override {
     // SequencedWorkerPool is enabled by default in tests. Disable it for this
     // test to avoid a DCHECK failure when RenderThreadImpl::Init enables it.
@@ -179,19 +183,20 @@ class RenderThreadImplBrowserTest : public testing::Test {
 
     InitializeMojo();
     shell_context_.reset(new TestServiceManagerContext);
+    mojo::edk::PendingProcessConnection process_connection;
     child_connection_.reset(new ChildConnection(
-        mojom::kRendererServiceName, "test", mojo::edk::GenerateRandomToken(),
+        mojom::kRendererServiceName, "test", &process_connection,
         ServiceManagerConnection::GetForProcess()->GetConnector(),
         io_task_runner));
 
     mojo::MessagePipe pipe;
-    IPC::mojom::ChannelBootstrapPtr channel_bootstrap;
-    child_connection_->GetRemoteInterfaces()->GetInterface(&channel_bootstrap);
+    child_connection_->BindInterface(IPC::mojom::ChannelBootstrap::Name_,
+                                     std::move(pipe.handle1));
 
-    channel_ = IPC::ChannelProxy::Create(
-        IPC::ChannelMojo::CreateServerFactory(
-            channel_bootstrap.PassInterface().PassHandle(), io_task_runner),
-        nullptr, io_task_runner);
+    channel_ =
+        IPC::ChannelProxy::Create(IPC::ChannelMojo::CreateServerFactory(
+                                      std::move(pipe.handle0), io_task_runner),
+                                  nullptr, io_task_runner);
 
     mock_process_.reset(new MockRenderProcess);
     test_task_counter_ = make_scoped_refptr(new TestTaskCounter());
@@ -210,6 +215,9 @@ class RenderThreadImplBrowserTest : public testing::Test {
         blink::scheduler::RendererScheduler::Create();
     scoped_refptr<base::SingleThreadTaskRunner> test_task_counter(
         test_task_counter_.get());
+
+    base::FieldTrialList::CreateTrialsFromCommandLine(
+        *cmd, switches::kFieldTrialHandle, -1);
     thread_ = new RenderThreadImplForTest(
         InProcessChildThreadParams(io_task_runner,
                                    child_connection_->service_token()),
@@ -246,6 +254,8 @@ class RenderThreadImplBrowserTest : public testing::Test {
   std::unique_ptr<MockRenderProcess> mock_process_;
   scoped_refptr<QuitOnTestMsgFilter> test_msg_filter_;
   RenderThreadImplForTest* thread_;  // Owned by mock_process_.
+
+  base::FieldTrialList field_trial_list_;
 };
 
 void CheckRenderThreadInputHandlerManager(RenderThreadImpl* thread) {

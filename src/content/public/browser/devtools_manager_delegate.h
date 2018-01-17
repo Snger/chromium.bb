@@ -5,7 +5,9 @@
 #ifndef CONTENT_PUBLIC_BROWSER_DEVTOOLS_MANAGER_DELEGATE_H_
 #define CONTENT_PUBLIC_BROWSER_DEVTOOLS_MANAGER_DELEGATE_H_
 
+#include <memory>
 #include <string>
+
 #include "base/memory/ref_counted.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/devtools_agent_host.h"
@@ -46,6 +48,13 @@ class CONTENT_EXPORT DevToolsManagerDelegate {
   virtual base::DictionaryValue* HandleCommand(
       DevToolsAgentHost* agent_host,
       base::DictionaryValue* command);
+
+  using CommandCallback =
+      base::Callback<void(std::unique_ptr<base::DictionaryValue> response)>;
+  // Handle async command, feed response to CommandCallback when it is ready.
+  virtual bool HandleAsyncCommand(DevToolsAgentHost* agent_host,
+                                  base::DictionaryValue* command,
+                                  const CommandCallback& callback);
 
   // Should return discovery page HTML that should list available tabs
   // and provide attach links.

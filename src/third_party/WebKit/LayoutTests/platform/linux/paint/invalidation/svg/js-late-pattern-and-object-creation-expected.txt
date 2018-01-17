@@ -8,57 +8,12 @@
       "paintInvalidations": [
         {
           "object": "LayoutSVGContainer g id='content'",
-          "rect": [0, 15, 680, 364],
+          "rect": [0, 15, 681, 364],
           "reason": "became visible"
         },
         {
-          "object": "LayoutSVGInlineText #text",
-          "rect": [0, 247, 680, 132],
-          "reason": "layoutObject insertion"
-        },
-        {
           "object": "LayoutSVGText text",
-          "rect": [0, 247, 680, 132],
-          "reason": "layoutObject insertion"
-        },
-        {
-          "object": "LayoutSVGInlineText #text",
-          "rect": [0, 130, 519, 132],
-          "reason": "layoutObject insertion"
-        },
-        {
-          "object": "LayoutSVGText text",
-          "rect": [0, 130, 519, 132],
-          "reason": "layoutObject insertion"
-        },
-        {
-          "object": "LayoutSVGInlineText #text",
-          "rect": [0, 15, 370, 129],
-          "reason": "layoutObject insertion"
-        },
-        {
-          "object": "LayoutSVGText text",
-          "rect": [0, 15, 370, 129],
-          "reason": "layoutObject insertion"
-        },
-        {
-          "object": "LayoutSVGRect rect",
-          "rect": [16, 16, 18, 18],
-          "reason": "layoutObject insertion"
-        },
-        {
-          "object": "LayoutSVGRect rect",
-          "rect": [16, 16, 18, 18],
-          "reason": "layoutObject insertion"
-        },
-        {
-          "object": "LayoutSVGRect rect",
-          "rect": [8, 8, 17, 17],
-          "reason": "layoutObject insertion"
-        },
-        {
-          "object": "LayoutSVGRect rect",
-          "rect": [8, 8, 17, 17],
+          "rect": [0, 247, 681, 132],
           "reason": "layoutObject insertion"
         }
       ]

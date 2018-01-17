@@ -26,6 +26,9 @@ namespace chromeos {
 
 namespace {
 
+void IgnoreDisconnectError(const std::string& error_name,
+                           std::unique_ptr<base::DictionaryValue> error_data) {}
+
 // Returns true for carriers that can be activated through Shill instead of
 // through a WebUI dialog.
 bool IsDirectActivatedCarrier(const std::string& carrier) {
@@ -48,6 +51,7 @@ class NetworkConnectImpl : public NetworkConnect {
 
   // NetworkConnect
   void ConnectToNetworkId(const std::string& network_id) override;
+  void DisconnectFromNetworkId(const std::string& network_id) override;
   bool MaybeShowConfigureUI(const std::string& network_id,
                             const std::string& connect_error) override;
   void SetTechnologyEnabled(const NetworkTypePattern& technology,
@@ -61,6 +65,7 @@ class NetworkConnectImpl : public NetworkConnect {
                                      bool shared) override;
   void CreateConfiguration(base::DictionaryValue* shill_properties,
                            bool shared) override;
+  void SetTetherDelegate(TetherDelegate* tether_delegate) override;
 
  private:
   void ActivateCellular(const std::string& network_id);
@@ -100,13 +105,14 @@ class NetworkConnectImpl : public NetworkConnect {
       std::unique_ptr<base::DictionaryValue> properties_to_set);
 
   Delegate* delegate_;
+  TetherDelegate* tether_delegate_;
   base::WeakPtrFactory<NetworkConnectImpl> weak_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(NetworkConnectImpl);
 };
 
 NetworkConnectImpl::NetworkConnectImpl(Delegate* delegate)
-    : delegate_(delegate), weak_factory_(this) {}
+    : delegate_(delegate), tether_delegate_(nullptr), weak_factory_(this) {}
 
 NetworkConnectImpl::~NetworkConnectImpl() {}
 
@@ -238,6 +244,18 @@ void NetworkConnectImpl::CallConnectToNetwork(const std::string& network_id,
                     nullptr);
     return;
   }
+
+  if (NetworkTypePattern::Tether().MatchesType(network->type())) {
+    if (tether_delegate_) {
+      tether_delegate_->ConnectToNetwork(network_id);
+    } else {
+      NET_LOG_ERROR(
+          "Connection to Tether requested but no TetherDelegate exists.",
+          network_id);
+    }
+    return;
+  }
+
   NetworkHandler::Get()->network_connection_handler()->ConnectToNetwork(
       network->path(), base::Bind(&NetworkConnectImpl::OnConnectSucceeded,
                                   weak_factory_.GetWeakPtr(), network_id),
@@ -388,6 +406,17 @@ void NetworkConnectImpl::ConnectToNetworkId(const std::string& network_id) {
   CallConnectToNetwork(network_id, check_error_state);
 }
 
+void NetworkConnectImpl::DisconnectFromNetworkId(
+    const std::string& network_id) {
+  NET_LOG_USER("DisconnectFromNetwork", network_id);
+  const NetworkState* network = GetNetworkStateFromId(network_id);
+  if (!network)
+    return;
+  NetworkHandler::Get()->network_connection_handler()->DisconnectNetwork(
+      network->path(), base::Bind(&base::DoNothing),
+      base::Bind(&IgnoreDisconnectError));
+}
+
 bool NetworkConnectImpl::MaybeShowConfigureUI(
     const std::string& network_id,
     const std::string& connect_error) {
@@ -536,6 +565,10 @@ void NetworkConnectImpl::CreateConfiguration(base::DictionaryValue* properties,
                                              bool shared) {
   NET_LOG_USER("CreateConfiguration", "");
   CallCreateConfiguration(properties, shared, false /* connect_on_configure */);
+}
+
+void NetworkConnectImpl::SetTetherDelegate(TetherDelegate* tether_delegate) {
+  tether_delegate_ = tether_delegate;
 }
 
 }  // namespace

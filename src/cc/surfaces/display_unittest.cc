@@ -14,13 +14,12 @@
 #include "cc/quads/render_pass.h"
 #include "cc/resources/shared_bitmap_manager.h"
 #include "cc/scheduler/begin_frame_source.h"
+#include "cc/surfaces/compositor_frame_sink_support.h"
 #include "cc/surfaces/display_client.h"
 #include "cc/surfaces/display_scheduler.h"
 #include "cc/surfaces/frame_sink_id.h"
+#include "cc/surfaces/local_surface_id_allocator.h"
 #include "cc/surfaces/surface.h"
-#include "cc/surfaces/surface_factory.h"
-#include "cc/surfaces/surface_factory_client.h"
-#include "cc/surfaces/surface_id_allocator.h"
 #include "cc/surfaces/surface_manager.h"
 #include "cc/test/fake_output_surface.h"
 #include "cc/test/scheduler_test_common.h"
@@ -35,22 +34,6 @@ namespace cc {
 namespace {
 
 static constexpr FrameSinkId kArbitraryFrameSinkId(3, 3);
-
-class FakeSurfaceFactoryClient : public SurfaceFactoryClient {
- public:
-  FakeSurfaceFactoryClient() : begin_frame_source_(nullptr) {}
-
-  void ReturnResources(const ReturnedResourceArray& resources) override {}
-
-  void SetBeginFrameSource(BeginFrameSource* begin_frame_source) override {
-    begin_frame_source_ = begin_frame_source;
-  }
-
-  BeginFrameSource* begin_frame_source() { return begin_frame_source_; }
-
- private:
-  BeginFrameSource* begin_frame_source_;
-};
 
 class TestSoftwareOutputDevice : public SoftwareOutputDevice {
  public:
@@ -99,15 +82,16 @@ class TestDisplayScheduler : public DisplayScheduler {
 class DisplayTest : public testing::Test {
  public:
   DisplayTest()
-      : factory_(kArbitraryFrameSinkId, &manager_, &surface_factory_client_),
-        task_runner_(new base::NullTaskRunner) {
-    manager_.RegisterFrameSinkId(kArbitraryFrameSinkId);
-  }
+      : support_(CompositorFrameSinkSupport::Create(
+            nullptr,
+            &manager_,
+            kArbitraryFrameSinkId,
+            true /* is_root */,
+            true /* handles_frame_sink_id_invalidation */,
+            true /* needs_sync_points */)),
+        task_runner_(new base::NullTaskRunner) {}
 
-  ~DisplayTest() override {
-    manager_.InvalidateFrameSinkId(kArbitraryFrameSinkId);
-    factory_.EvictSurface();
-  }
+  ~DisplayTest() override { support_->EvictFrame(); }
 
   void SetUpDisplay(const RendererSettings& settings,
                     std::unique_ptr<TestWebGraphicsContext3D> context) {
@@ -140,18 +124,16 @@ class DisplayTest : public testing::Test {
 
  protected:
   void SubmitCompositorFrame(RenderPassList* pass_list,
-                             const LocalFrameId& local_frame_id) {
+                             const LocalSurfaceId& local_surface_id) {
     CompositorFrame frame;
     pass_list->swap(frame.render_pass_list);
 
-    factory_.SubmitCompositorFrame(local_frame_id, std::move(frame),
-                                   SurfaceFactory::DrawCallback());
+    support_->SubmitCompositorFrame(local_surface_id, std::move(frame));
   }
 
   SurfaceManager manager_;
-  FakeSurfaceFactoryClient surface_factory_client_;
-  SurfaceFactory factory_;
-  SurfaceIdAllocator id_allocator_;
+  std::unique_ptr<CompositorFrameSinkSupport> support_;
+  LocalSurfaceIdAllocator id_allocator_;
   scoped_refptr<base::NullTaskRunner> task_runner_;
   TestSharedBitmapManager shared_bitmap_manager_;
   std::unique_ptr<BeginFrameSource> begin_frame_source_;
@@ -179,14 +161,17 @@ TEST_F(DisplayTest, DisplayDamaged) {
   settings.partial_swap_enabled = true;
   settings.finish_rendering_on_resize = true;
   SetUpDisplay(settings, nullptr);
+  gfx::ColorSpace color_space_1 = gfx::ColorSpace::CreateXYZD50();
+  gfx::ColorSpace color_space_2 = gfx::ColorSpace::CreateSCRGBLinear();
 
   StubDisplayClient client;
   display_->Initialize(&client, &manager_);
+  display_->SetColorSpace(color_space_1, color_space_1);
 
-  LocalFrameId local_frame_id(id_allocator_.GenerateId());
+  LocalSurfaceId local_surface_id(id_allocator_.GenerateId());
   EXPECT_FALSE(scheduler_->damaged);
   EXPECT_FALSE(scheduler_->has_new_root_surface);
-  display_->SetLocalFrameId(local_frame_id, 1.f);
+  display_->SetLocalSurfaceId(local_surface_id, 1.f);
   EXPECT_FALSE(scheduler_->damaged);
   EXPECT_FALSE(scheduler_->display_resized_);
   EXPECT_TRUE(scheduler_->has_new_root_surface);
@@ -206,14 +191,16 @@ TEST_F(DisplayTest, DisplayDamaged) {
   pass_list.push_back(std::move(pass));
 
   scheduler_->ResetDamageForTest();
-  SubmitCompositorFrame(&pass_list, local_frame_id);
+  SubmitCompositorFrame(&pass_list, local_surface_id);
   EXPECT_TRUE(scheduler_->damaged);
   EXPECT_FALSE(scheduler_->display_resized_);
   EXPECT_FALSE(scheduler_->has_new_root_surface);
 
   EXPECT_FALSE(scheduler_->swapped);
   EXPECT_EQ(0u, output_surface_->num_sent_frames());
+  EXPECT_EQ(gfx::ColorSpace(), output_surface_->last_reshape_color_space());
   display_->DrawAndSwap();
+  EXPECT_EQ(color_space_1, output_surface_->last_reshape_color_space());
   EXPECT_TRUE(scheduler_->swapped);
   EXPECT_EQ(1u, output_surface_->num_sent_frames());
   EXPECT_EQ(gfx::Size(100, 100),
@@ -229,13 +216,16 @@ TEST_F(DisplayTest, DisplayDamaged) {
 
     pass_list.push_back(std::move(pass));
     scheduler_->ResetDamageForTest();
-    SubmitCompositorFrame(&pass_list, local_frame_id);
+    SubmitCompositorFrame(&pass_list, local_surface_id);
     EXPECT_TRUE(scheduler_->damaged);
     EXPECT_FALSE(scheduler_->display_resized_);
     EXPECT_FALSE(scheduler_->has_new_root_surface);
 
     scheduler_->swapped = false;
+    EXPECT_EQ(color_space_1, output_surface_->last_reshape_color_space());
+    display_->SetColorSpace(color_space_2, color_space_2);
     display_->DrawAndSwap();
+    EXPECT_EQ(color_space_2, output_surface_->last_reshape_color_space());
     EXPECT_TRUE(scheduler_->swapped);
     EXPECT_EQ(2u, output_surface_->num_sent_frames());
     EXPECT_EQ(gfx::Size(100, 100),
@@ -252,7 +242,7 @@ TEST_F(DisplayTest, DisplayDamaged) {
 
     pass_list.push_back(std::move(pass));
     scheduler_->ResetDamageForTest();
-    SubmitCompositorFrame(&pass_list, local_frame_id);
+    SubmitCompositorFrame(&pass_list, local_surface_id);
     EXPECT_TRUE(scheduler_->damaged);
     EXPECT_FALSE(scheduler_->display_resized_);
     EXPECT_FALSE(scheduler_->has_new_root_surface);
@@ -272,7 +262,7 @@ TEST_F(DisplayTest, DisplayDamaged) {
 
     pass_list.push_back(std::move(pass));
     scheduler_->ResetDamageForTest();
-    SubmitCompositorFrame(&pass_list, local_frame_id);
+    SubmitCompositorFrame(&pass_list, local_surface_id);
     EXPECT_TRUE(scheduler_->damaged);
     EXPECT_FALSE(scheduler_->display_resized_);
     EXPECT_FALSE(scheduler_->has_new_root_surface);
@@ -292,7 +282,7 @@ TEST_F(DisplayTest, DisplayDamaged) {
 
     pass_list.push_back(std::move(pass));
     scheduler_->ResetDamageForTest();
-    SubmitCompositorFrame(&pass_list, local_frame_id);
+    SubmitCompositorFrame(&pass_list, local_surface_id);
     EXPECT_TRUE(scheduler_->damaged);
     EXPECT_FALSE(scheduler_->display_resized_);
     EXPECT_FALSE(scheduler_->has_new_root_surface);
@@ -317,7 +307,7 @@ TEST_F(DisplayTest, DisplayDamaged) {
 
     pass_list.push_back(std::move(pass));
     scheduler_->ResetDamageForTest();
-    SubmitCompositorFrame(&pass_list, local_frame_id);
+    SubmitCompositorFrame(&pass_list, local_surface_id);
     EXPECT_TRUE(scheduler_->damaged);
     EXPECT_FALSE(scheduler_->display_resized_);
     EXPECT_FALSE(scheduler_->has_new_root_surface);
@@ -344,8 +334,7 @@ TEST_F(DisplayTest, DisplayDamaged) {
     pass_list.swap(frame.render_pass_list);
     frame.metadata.latency_info.push_back(ui::LatencyInfo());
 
-    factory_.SubmitCompositorFrame(local_frame_id, std::move(frame),
-                                   SurfaceFactory::DrawCallback());
+    support_->SubmitCompositorFrame(local_surface_id, std::move(frame));
     EXPECT_TRUE(scheduler_->damaged);
     EXPECT_FALSE(scheduler_->display_resized_);
     EXPECT_FALSE(scheduler_->has_new_root_surface);
@@ -374,8 +363,7 @@ TEST_F(DisplayTest, DisplayDamaged) {
     CompositorFrame frame;
     pass_list.swap(frame.render_pass_list);
 
-    factory_.SubmitCompositorFrame(local_frame_id, std::move(frame),
-                                   SurfaceFactory::DrawCallback());
+    support_->SubmitCompositorFrame(local_surface_id, std::move(frame));
     EXPECT_TRUE(scheduler_->damaged);
     EXPECT_FALSE(scheduler_->display_resized_);
     EXPECT_FALSE(scheduler_->has_new_root_surface);
@@ -398,7 +386,7 @@ TEST_F(DisplayTest, DisplayDamaged) {
 
     pass_list.push_back(std::move(pass));
     scheduler_->ResetDamageForTest();
-    SubmitCompositorFrame(&pass_list, local_frame_id);
+    SubmitCompositorFrame(&pass_list, local_surface_id);
     EXPECT_TRUE(scheduler_->damaged);
     EXPECT_FALSE(scheduler_->display_resized_);
     EXPECT_FALSE(scheduler_->has_new_root_surface);
@@ -421,7 +409,7 @@ class MockedContext : public TestWebGraphicsContext3D {
 };
 
 TEST_F(DisplayTest, Finish) {
-  LocalFrameId local_frame_id(id_allocator_.GenerateId());
+  LocalSurfaceId local_surface_id(id_allocator_.GenerateId());
 
   RendererSettings settings;
   settings.partial_swap_enabled = true;
@@ -436,7 +424,7 @@ TEST_F(DisplayTest, Finish) {
   StubDisplayClient client;
   display_->Initialize(&client, &manager_);
 
-  display_->SetLocalFrameId(local_frame_id, 1.f);
+  display_->SetLocalSurfaceId(local_surface_id, 1.f);
 
   display_->Resize(gfx::Size(100, 100));
 
@@ -448,7 +436,7 @@ TEST_F(DisplayTest, Finish) {
     pass->id = 1;
     pass_list.push_back(std::move(pass));
 
-    SubmitCompositorFrame(&pass_list, local_frame_id);
+    SubmitCompositorFrame(&pass_list, local_surface_id);
   }
 
   display_->DrawAndSwap();
@@ -474,7 +462,7 @@ TEST_F(DisplayTest, Finish) {
     pass->id = 1;
     pass_list.push_back(std::move(pass));
 
-    SubmitCompositorFrame(&pass_list, local_frame_id);
+    SubmitCompositorFrame(&pass_list, local_surface_id);
   }
 
   display_->DrawAndSwap();

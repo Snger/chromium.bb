@@ -4,7 +4,7 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
- 
+
 #ifndef SKSL_COMPILER
 #define SKSL_COMPILER
 
@@ -17,8 +17,12 @@
 #include "SkSLErrorReporter.h"
 #include "SkSLIRGenerator.h"
 
-#define SK_FRAGCOLOR_BUILTIN 10001
-#define SK_FRAGCOORD_BUILTIN 15
+#define SK_FRAGCOLOR_BUILTIN    10001
+#define SK_IN_BUILTIN           10002
+#define SK_FRAGCOORD_BUILTIN       15
+#define SK_VERTEXID_BUILTIN         5
+#define SK_CLIPDISTANCE_BUILTIN     3
+#define SK_INVOCATIONID_BUILTIN     8
 
 namespace SkSL {
 
@@ -36,22 +40,22 @@ class Compiler : public ErrorReporter {
 public:
     Compiler();
 
-    ~Compiler();
+    ~Compiler() override;
 
-    std::unique_ptr<Program> convertProgram(Program::Kind kind, SkString text,
+    std::unique_ptr<Program> convertProgram(Program::Kind kind, String text,
                                             const Program::Settings& settings);
 
-    bool toSPIRV(const Program& program, SkWStream& out);
+    bool toSPIRV(const Program& program, OutputStream& out);
 
-    bool toSPIRV(const Program& program, SkString* out);
+    bool toSPIRV(const Program& program, String* out);
 
-    bool toGLSL(const Program& program, SkWStream& out);
+    bool toGLSL(const Program& program, OutputStream& out);
 
-    bool toGLSL(const Program& program, SkString* out);
+    bool toGLSL(const Program& program, String* out);
 
-    void error(Position position, SkString msg) override;
+    void error(Position position, String msg) override;
 
-    SkString errorText();
+    String errorText();
 
     void writeErrorCount();
 
@@ -60,27 +64,26 @@ public:
     }
 
 private:
-    void addDefinition(const Expression* lvalue, const Expression* expr,
-                       std::unordered_map<const Variable*, const Expression*>* definitions);
+    void addDefinition(const Expression* lvalue, std::unique_ptr<Expression>* expr,
+                       DefinitionMap* definitions);
 
-    void addDefinitions(const BasicBlock::Node& node,
-                        std::unordered_map<const Variable*, const Expression*>* definitions);
+    void addDefinitions(const BasicBlock::Node& node, DefinitionMap* definitions);
 
     void scanCFG(CFG* cfg, BlockId block, std::set<BlockId>* workList);
 
     void scanCFG(const FunctionDefinition& f);
 
-    void internalConvertProgram(SkString text,
+    void internalConvertProgram(String text,
                                 Modifiers::Flag* defaultPrecision,
                                 std::vector<std::unique_ptr<ProgramElement>>* result);
 
     std::shared_ptr<SymbolTable> fTypes;
     IRGenerator* fIRGenerator;
-    SkString fSkiaVertText; // FIXME store parsed version instead
+    String fSkiaVertText; // FIXME store parsed version instead
 
     Context fContext;
     int fErrorCount;
-    SkString fErrorText;
+    String fErrorText;
 };
 
 } // namespace

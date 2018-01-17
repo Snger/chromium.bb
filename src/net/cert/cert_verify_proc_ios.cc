@@ -116,12 +116,16 @@ void GetCertChainInfo(CFArrayRef cert_chain, CertVerifyResult* verify_result) {
     }
 
     std::string der_bytes;
-    if (!X509Certificate::GetDEREncoded(chain_cert, &der_bytes))
+    if (!X509Certificate::GetDEREncoded(chain_cert, &der_bytes)) {
+      verify_result->cert_status |= CERT_STATUS_INVALID;
       return;
+    }
 
     base::StringPiece spki_bytes;
-    if (!asn1::ExtractSPKIFromDERCert(der_bytes, &spki_bytes))
-      continue;
+    if (!asn1::ExtractSPKIFromDERCert(der_bytes, &spki_bytes)) {
+      verify_result->cert_status |= CERT_STATUS_INVALID;
+      return;
+    }
 
     HashValue sha1(HASH_VALUE_SHA1);
     CC_SHA1(spki_bytes.data(), spki_bytes.size(), sha1.data());
@@ -139,11 +143,16 @@ void GetCertChainInfo(CFArrayRef cert_chain, CertVerifyResult* verify_result) {
   }
   if (!verified_cert) {
     NOTREACHED();
+    verify_result->cert_status |= CERT_STATUS_INVALID;
     return;
   }
 
-  verify_result->verified_cert =
+  scoped_refptr<X509Certificate> verified_cert_with_chain =
       X509Certificate::CreateFromHandle(verified_cert, verified_chain);
+  if (verified_cert_with_chain)
+    verify_result->verified_cert = std::move(verified_cert_with_chain);
+  else
+    verify_result->cert_status |= CERT_STATUS_INVALID;
 }
 
 }  // namespace
@@ -266,12 +275,9 @@ int CertVerifyProcIOS::VerifyInternal(
 
   GetCertChainInfo(final_chain, verify_result);
 
-  // Perform hostname verification independent of SecTrustEvaluate.
-  if (!verify_result->verified_cert->VerifyNameMatch(
-          hostname, &verify_result->common_name_fallback_used)) {
-    verify_result->cert_status |= CERT_STATUS_COMMON_NAME_INVALID;
-  }
-
+  // iOS lacks the ability to distinguish built-in versus non-built-in roots,
+  // so opt to 'fail open' of any restrictive policies that apply to built-in
+  // roots.
   verify_result->is_issued_by_known_root = false;
 
   if (IsCertStatusError(verify_result->cert_status))

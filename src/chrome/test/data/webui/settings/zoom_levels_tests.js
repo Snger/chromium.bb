@@ -41,12 +41,6 @@ cr.define('zoom_levels', function() {
           },
       ];
 
-      // Import necessary html before running suite.
-      suiteSetup(function() {
-        return PolymerTest.importHtml(
-           'chrome://md-settings/site_settings/zoom_levels.html');
-      });
-
       setup(function() {
         browserProxy = new TestSiteSettingsPrefsBrowserProxy();
         settings.SiteSettingsPrefsBrowserProxyImpl.instance_ = browserProxy;
@@ -81,6 +75,9 @@ cr.define('zoom_levels', function() {
         var list = testElement.$.list;
         assertTrue(!!list);
         assertEquals(0, list.items.length);
+        assertEquals(
+            0, testElement.shadowRoot.querySelectorAll('.list-item').length);
+        assertTrue(!!testElement.$$('#empty'));
       });
 
       test('non-empty zoom state', function() {
@@ -90,6 +87,9 @@ cr.define('zoom_levels', function() {
           var list = testElement.$.list;
           assertTrue(!!list);
           assertEquals(2, list.items.length);
+          assertFalse(!!testElement.$$('#empty'));
+          assertEquals(
+              2, testElement.shadowRoot.querySelectorAll('.list-item').length);
 
           var removeButton =
               getRemoveButton(testElement.$.listContainer, 0);

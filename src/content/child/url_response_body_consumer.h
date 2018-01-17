@@ -18,7 +18,7 @@
 #include "content/common/content_export.h"
 #include "content/common/url_loader.mojom.h"
 #include "mojo/public/cpp/system/data_pipe.h"
-#include "mojo/public/cpp/system/watcher.h"
+#include "mojo/public/cpp/system/simple_watcher.h"
 
 namespace content {
 
@@ -51,6 +51,13 @@ class CONTENT_EXPORT URLResponseBodyConsumer final
   void SetDefersLoading();
   void UnsetDefersLoading();
 
+  // The maximal number of bytes consumed in a task. When there are more bytes
+  // in the data pipe, they will be consumed in following tasks. Setting a too
+  // small number will generate ton of tasks but setting a too large number will
+  // lead to thread janks. Also, some clients cannot handle too large chunks
+  // (512k for example).
+  static constexpr uint32_t kMaxNumConsumedBytesInTask = 64 * 1024;
+
  private:
   friend class base::RefCounted<URLResponseBodyConsumer>;
   ~URLResponseBodyConsumer();
@@ -64,7 +71,7 @@ class CONTENT_EXPORT URLResponseBodyConsumer final
   const int request_id_;
   ResourceDispatcher* resource_dispatcher_;
   mojo::ScopedDataPipeConsumerHandle handle_;
-  mojo::Watcher handle_watcher_;
+  mojo::SimpleWatcher handle_watcher_;
   ResourceRequestCompletionStatus completion_status_;
   scoped_refptr<base::SingleThreadTaskRunner> task_runner_;
 

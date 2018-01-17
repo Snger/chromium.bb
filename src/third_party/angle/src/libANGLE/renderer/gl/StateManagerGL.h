@@ -123,8 +123,10 @@ class StateManagerGL final : angle::NonCopyable
                            GLint skipPixels,
                            GLuint packBuffer);
 
-    void setFramebufferSRGBEnabled(bool enabled);
-    void setFramebufferSRGBEnabledForFramebuffer(bool enabled, const FramebufferGL *framebuffer);
+    void setFramebufferSRGBEnabled(const gl::ContextState &data, bool enabled);
+    void setFramebufferSRGBEnabledForFramebuffer(const gl::ContextState &data,
+                                                 bool enabled,
+                                                 const FramebufferGL *framebuffer);
 
     void setDitherEnabled(bool enabled);
 
@@ -151,6 +153,8 @@ class StateManagerGL final : angle::NonCopyable
                                    const GLvoid **outIndices);
     gl::Error setDrawIndirectState(const gl::ContextState &data, GLenum type);
 
+    gl::Error setDispatchComputeState(const gl::ContextState &data);
+
     void pauseTransformFeedback();
     void pauseAllQueries();
     void pauseQuery(GLenum type);
@@ -158,11 +162,13 @@ class StateManagerGL final : angle::NonCopyable
     void resumeQuery(GLenum type);
     gl::Error onMakeCurrent(const gl::ContextState &data);
 
-    void syncState(const gl::State &state, const gl::State::DirtyBits &glDirtyBits);
-
-    GLuint getBoundBuffer(GLenum type);
+    void syncState(const gl::ContextState &data, const gl::State::DirtyBits &glDirtyBits);
 
   private:
+    // Set state that's common among draw commands and compute invocations.
+    void setGenericShaderState(const gl::ContextState &data);
+
+    // Set state that's common among draw commands.
     gl::Error setGenericDrawState(const gl::ContextState &data);
 
     void setTextureCubemapSeamlessEnabled(bool enabled);
@@ -196,7 +202,7 @@ class StateManagerGL final : angle::NonCopyable
 
     TransformFeedbackGL *mPrevDrawTransformFeedback;
     std::set<QueryGL *> mCurrentQueries;
-    uintptr_t mPrevDrawContext;
+    gl::ContextID mPrevDrawContext;
 
     GLint mUnpackAlignment;
     GLint mUnpackRowLength;

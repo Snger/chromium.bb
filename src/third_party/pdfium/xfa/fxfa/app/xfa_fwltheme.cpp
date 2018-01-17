@@ -6,7 +6,7 @@
 
 #include "xfa/fxfa/app/xfa_fwltheme.h"
 
-#include "xfa/fde/tto/fde_textout.h"
+#include "xfa/fde/cfde_textout.h"
 #include "xfa/fgas/crt/fgas_codepage.h"
 #include "xfa/fgas/font/cfgas_gefont.h"
 #include "xfa/fwl/cfwl_barcode.h"
@@ -22,13 +22,13 @@
 #include "xfa/fwl/cfwl_scrollbar.h"
 #include "xfa/fwl/cfwl_themebackground.h"
 #include "xfa/fwl/cfwl_themetext.h"
-#include "xfa/fxfa/xfa_ffapp.h"
-#include "xfa/fxfa/xfa_ffwidget.h"
+#include "xfa/fxfa/cxfa_ffapp.h"
+#include "xfa/fxfa/cxfa_ffwidget.h"
 #include "xfa/fxgraphics/cfx_color.h"
 
 namespace {
 
-const FX_WCHAR* const g_FWLTheme_CalFonts[] = {
+const wchar_t* const g_FWLTheme_CalFonts[] = {
     L"Arial", L"Courier New", L"DejaVu Sans",
 };
 
@@ -44,18 +44,18 @@ CXFA_FFWidget* XFA_ThemeGetOuterWidget(CFWL_Widget* pWidget) {
 }
 
 CXFA_FWLTheme::CXFA_FWLTheme(CXFA_FFApp* pApp)
-    : m_pCheckBoxTP(new CFWL_CheckBoxTP),
-      m_pListBoxTP(new CFWL_ListBoxTP),
-      m_pPictureBoxTP(new CFWL_PictureBoxTP),
-      m_pSrollBarTP(new CFWL_ScrollBarTP),
-      m_pEditTP(new CFWL_EditTP),
-      m_pComboBoxTP(new CFWL_ComboBoxTP),
-      m_pMonthCalendarTP(new CFWL_MonthCalendarTP),
-      m_pDateTimePickerTP(new CFWL_DateTimePickerTP),
-      m_pPushButtonTP(new CFWL_PushButtonTP),
-      m_pCaretTP(new CFWL_CaretTP),
-      m_pBarcodeTP(new CFWL_BarcodeTP),
-      m_pTextOut(new CFDE_TextOut),
+    : m_pCheckBoxTP(pdfium::MakeUnique<CFWL_CheckBoxTP>()),
+      m_pListBoxTP(pdfium::MakeUnique<CFWL_ListBoxTP>()),
+      m_pPictureBoxTP(pdfium::MakeUnique<CFWL_PictureBoxTP>()),
+      m_pSrollBarTP(pdfium::MakeUnique<CFWL_ScrollBarTP>()),
+      m_pEditTP(pdfium::MakeUnique<CFWL_EditTP>()),
+      m_pComboBoxTP(pdfium::MakeUnique<CFWL_ComboBoxTP>()),
+      m_pMonthCalendarTP(pdfium::MakeUnique<CFWL_MonthCalendarTP>()),
+      m_pDateTimePickerTP(pdfium::MakeUnique<CFWL_DateTimePickerTP>()),
+      m_pPushButtonTP(pdfium::MakeUnique<CFWL_PushButtonTP>()),
+      m_pCaretTP(pdfium::MakeUnique<CFWL_CaretTP>()),
+      m_pBarcodeTP(pdfium::MakeUnique<CFWL_BarcodeTP>()),
+      m_pTextOut(pdfium::MakeUnique<CFDE_TextOut>()),
       m_pCalendarFont(nullptr),
       m_pApp(pApp) {
   m_Rect.Reset();
@@ -149,8 +149,6 @@ void CXFA_FWLTheme::DrawText(CFWL_ThemeText* pParams) {
 
 CFX_RectF CXFA_FWLTheme::GetUIMargin(CFWL_ThemePart* pThemePart) const {
   CFX_RectF rect;
-  rect.Reset();
-
   CXFA_FFWidget* pWidget = XFA_ThemeGetOuterWidget(pThemePart->m_pWidget);
   if (!pWidget)
     return rect;
@@ -217,8 +215,8 @@ CFX_SizeF CXFA_FWLTheme::GetSpaceAboveBelow(CFWL_ThemePart* pThemePart) const {
   if (CXFA_FFWidget* pWidget = XFA_ThemeGetOuterWidget(pThemePart->m_pWidget)) {
     CXFA_WidgetAcc* pWidgetAcc = pWidget->GetDataAcc();
     if (CXFA_Para para = pWidgetAcc->GetPara()) {
-      sizeAboveBelow.x = para.GetSpaceAbove();
-      sizeAboveBelow.y = para.GetSpaceBelow();
+      sizeAboveBelow.width = para.GetSpaceAbove();
+      sizeAboveBelow.height = para.GetSpaceBelow();
     }
   }
   return sizeAboveBelow;

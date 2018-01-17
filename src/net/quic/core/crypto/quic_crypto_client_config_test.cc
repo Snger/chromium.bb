@@ -168,7 +168,7 @@ TEST(QuicCryptoClientConfigTest, CachedState_InitializeFrom) {
 
 TEST(QuicCryptoClientConfigTest, InchoateChlo) {
   QuicCryptoClientConfig::CachedState state;
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   QuicReferenceCountedPointer<QuicCryptoNegotiatedParameters> params(
       new QuicCryptoNegotiatedParameters);
   CryptoHandshakeMessage msg;
@@ -180,13 +180,13 @@ TEST(QuicCryptoClientConfigTest, InchoateChlo) {
   QuicTag cver;
   EXPECT_EQ(QUIC_NO_ERROR, msg.GetUint32(kVER, &cver));
   EXPECT_EQ(QuicVersionToQuicTag(QuicVersionMax()), cver);
-  StringPiece proof_nonce;
+  QuicStringPiece proof_nonce;
   EXPECT_TRUE(msg.GetStringPiece(kNONP, &proof_nonce));
   EXPECT_EQ(string(32, 'r'), proof_nonce);
 }
 
 TEST(QuicCryptoClientConfigTest, PreferAesGcm) {
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   if (config.aead.size() > 1)
     EXPECT_NE(kAESG, config.aead[0]);
   config.PreferAesGcm();
@@ -195,7 +195,7 @@ TEST(QuicCryptoClientConfigTest, PreferAesGcm) {
 
 TEST(QuicCryptoClientConfigTest, InchoateChloSecure) {
   QuicCryptoClientConfig::CachedState state;
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   QuicReferenceCountedPointer<QuicCryptoNegotiatedParameters> params(
       new QuicCryptoNegotiatedParameters);
   CryptoHandshakeMessage msg;
@@ -207,7 +207,7 @@ TEST(QuicCryptoClientConfigTest, InchoateChloSecure) {
   QuicTag pdmd;
   EXPECT_EQ(QUIC_NO_ERROR, msg.GetUint32(kPDMD, &pdmd));
   EXPECT_EQ(kX509, pdmd);
-  StringPiece scid;
+  QuicStringPiece scid;
   EXPECT_FALSE(msg.GetStringPiece(kSCID, &scid));
 }
 
@@ -221,10 +221,11 @@ TEST(QuicCryptoClientConfigTest, InchoateChloSecureWithSCIDNoEXPY) {
   string details;
   QuicWallTime now = QuicWallTime::FromUNIXSeconds(1);
   QuicWallTime expiry = QuicWallTime::FromUNIXSeconds(2);
-  state.SetServerConfig(scfg.GetSerialized().AsStringPiece(), now, expiry,
-                        &details);
+  state.SetServerConfig(
+      scfg.GetSerialized(Perspective::IS_CLIENT).AsStringPiece(), now, expiry,
+      &details);
 
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   QuicReferenceCountedPointer<QuicCryptoNegotiatedParameters> params(
       new QuicCryptoNegotiatedParameters);
   CryptoHandshakeMessage msg;
@@ -233,7 +234,7 @@ TEST(QuicCryptoClientConfigTest, InchoateChloSecureWithSCIDNoEXPY) {
   config.FillInchoateClientHello(server_id, QuicVersionMax(), &state, &rand,
                                  /* demand_x509_proof= */ true, params, &msg);
 
-  StringPiece scid;
+  QuicStringPiece scid;
   EXPECT_TRUE(msg.GetStringPiece(kSCID, &scid));
   EXPECT_EQ("12345678", scid);
 }
@@ -246,11 +247,12 @@ TEST(QuicCryptoClientConfigTest, InchoateChloSecureWithSCID) {
   scfg.SetValue(kEXPY, future);
   scfg.SetStringPiece(kSCID, "12345678");
   string details;
-  state.SetServerConfig(scfg.GetSerialized().AsStringPiece(),
-                        QuicWallTime::FromUNIXSeconds(1),
-                        QuicWallTime::FromUNIXSeconds(0), &details);
+  state.SetServerConfig(
+      scfg.GetSerialized(Perspective::IS_CLIENT).AsStringPiece(),
+      QuicWallTime::FromUNIXSeconds(1), QuicWallTime::FromUNIXSeconds(0),
+      &details);
 
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   QuicReferenceCountedPointer<QuicCryptoNegotiatedParameters> params(
       new QuicCryptoNegotiatedParameters);
   CryptoHandshakeMessage msg;
@@ -259,14 +261,14 @@ TEST(QuicCryptoClientConfigTest, InchoateChloSecureWithSCID) {
   config.FillInchoateClientHello(server_id, QuicVersionMax(), &state, &rand,
                                  /* demand_x509_proof= */ true, params, &msg);
 
-  StringPiece scid;
+  QuicStringPiece scid;
   EXPECT_TRUE(msg.GetStringPiece(kSCID, &scid));
   EXPECT_EQ("12345678", scid);
 }
 
 TEST(QuicCryptoClientConfigTest, FillClientHello) {
   QuicCryptoClientConfig::CachedState state;
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   QuicReferenceCountedPointer<QuicCryptoNegotiatedParameters> params(
       new QuicCryptoNegotiatedParameters);
   QuicConnectionId kConnectionId = 1234;
@@ -304,7 +306,7 @@ TEST(QuicCryptoClientConfigTest, ProcessServerDowngradeAttack) {
   QuicReferenceCountedPointer<QuicCryptoNegotiatedParameters> out_params(
       new QuicCryptoNegotiatedParameters);
   string error;
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   EXPECT_EQ(QUIC_VERSION_NEGOTIATION_MISMATCH,
             config.ProcessServerHello(msg, 0, supported_versions.front(),
                                       supported_versions, &cached, out_params,
@@ -313,7 +315,7 @@ TEST(QuicCryptoClientConfigTest, ProcessServerDowngradeAttack) {
 }
 
 TEST(QuicCryptoClientConfigTest, InitializeFrom) {
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   QuicServerId canonical_server_id("www.google.com", 443,
                                    PRIVACY_MODE_DISABLED);
   QuicCryptoClientConfig::CachedState* state =
@@ -334,7 +336,7 @@ TEST(QuicCryptoClientConfigTest, InitializeFrom) {
 }
 
 TEST(QuicCryptoClientConfigTest, Canonical) {
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   config.AddCanonicalSuffix(".google.com");
   QuicServerId canonical_id1("www.google.com", 443, PRIVACY_MODE_DISABLED);
   QuicServerId canonical_id2("mail.google.com", 443, PRIVACY_MODE_DISABLED);
@@ -358,7 +360,7 @@ TEST(QuicCryptoClientConfigTest, Canonical) {
 }
 
 TEST(QuicCryptoClientConfigTest, CanonicalNotUsedIfNotValid) {
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   config.AddCanonicalSuffix(".google.com");
   QuicServerId canonical_id1("www.google.com", 443, PRIVACY_MODE_DISABLED);
   QuicServerId canonical_id2("mail.google.com", 443, PRIVACY_MODE_DISABLED);
@@ -373,7 +375,7 @@ TEST(QuicCryptoClientConfigTest, CanonicalNotUsedIfNotValid) {
 }
 
 TEST(QuicCryptoClientConfigTest, ClearCachedStates) {
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
 
   // Create two states on different origins.
   struct TestCase {
@@ -387,9 +389,10 @@ TEST(QuicCryptoClientConfigTest, ClearCachedStates) {
       scfg.SetValue(kEXPY, future);
       scfg.SetStringPiece(kSCID, "12345678");
       string details;
-      state->SetServerConfig(scfg.GetSerialized().AsStringPiece(),
-                             QuicWallTime::FromUNIXSeconds(0),
-                             QuicWallTime::FromUNIXSeconds(future), &details);
+      state->SetServerConfig(
+          scfg.GetSerialized(Perspective::IS_CLIENT).AsStringPiece(),
+          QuicWallTime::FromUNIXSeconds(0),
+          QuicWallTime::FromUNIXSeconds(future), &details);
 
       std::vector<string> certs(1);
       certs[0] = "Hello Cert for " + host;
@@ -461,14 +464,14 @@ TEST(QuicCryptoClientConfigTest, ClearCachedStates) {
 
 TEST(QuicCryptoClientConfigTest, ProcessReject) {
   CryptoHandshakeMessage rej;
-  CryptoTestUtils::FillInDummyReject(&rej, /* stateless */ false);
+  crypto_test_utils::FillInDummyReject(&rej, /* stateless */ false);
 
   // Now process the rejection.
   QuicCryptoClientConfig::CachedState cached;
   QuicReferenceCountedPointer<QuicCryptoNegotiatedParameters> out_params(
       new QuicCryptoNegotiatedParameters);
   string error;
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   EXPECT_EQ(QUIC_NO_ERROR,
             config.ProcessRejection(rej, QuicWallTime::FromUNIXSeconds(0),
                                     AllSupportedVersions().front(), "", &cached,
@@ -479,7 +482,7 @@ TEST(QuicCryptoClientConfigTest, ProcessReject) {
 
 TEST(QuicCryptoClientConfigTest, ProcessRejectWithLongTTL) {
   CryptoHandshakeMessage rej;
-  CryptoTestUtils::FillInDummyReject(&rej, /* stateless */ false);
+  crypto_test_utils::FillInDummyReject(&rej, /* stateless */ false);
   QuicTime::Delta one_week = QuicTime::Delta::FromSeconds(kNumSecondsPerWeek);
   int64_t long_ttl = 3 * one_week.ToSeconds();
   rej.SetValue(kSTTL, long_ttl);
@@ -489,7 +492,7 @@ TEST(QuicCryptoClientConfigTest, ProcessRejectWithLongTTL) {
   QuicReferenceCountedPointer<QuicCryptoNegotiatedParameters> out_params(
       new QuicCryptoNegotiatedParameters);
   string error;
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   EXPECT_EQ(QUIC_NO_ERROR,
             config.ProcessRejection(rej, QuicWallTime::FromUNIXSeconds(0),
                                     AllSupportedVersions().front(), "", &cached,
@@ -505,7 +508,7 @@ TEST(QuicCryptoClientConfigTest, ProcessRejectWithLongTTL) {
 TEST(QuicCryptoClientConfigTest, ProcessStatelessReject) {
   // Create a dummy reject message and mark it as stateless.
   CryptoHandshakeMessage rej;
-  CryptoTestUtils::FillInDummyReject(&rej, /* stateless */ true);
+  crypto_test_utils::FillInDummyReject(&rej, /* stateless */ true);
   const QuicConnectionId kConnectionId = 0xdeadbeef;
   const string server_nonce = "SERVER_NONCE";
   rej.SetValue(kRCID, kConnectionId);
@@ -516,7 +519,7 @@ TEST(QuicCryptoClientConfigTest, ProcessStatelessReject) {
   QuicReferenceCountedPointer<QuicCryptoNegotiatedParameters> out_params(
       new QuicCryptoNegotiatedParameters);
   string error;
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   EXPECT_EQ(QUIC_NO_ERROR,
             config.ProcessRejection(rej, QuicWallTime::FromUNIXSeconds(0),
                                     AllSupportedVersions().front(), "", &cached,
@@ -530,14 +533,14 @@ TEST(QuicCryptoClientConfigTest, BadlyFormattedStatelessReject) {
   // Create a dummy reject message and mark it as stateless.  Do not
   // add an server-designated connection-id.
   CryptoHandshakeMessage rej;
-  CryptoTestUtils::FillInDummyReject(&rej, /* stateless */ true);
+  crypto_test_utils::FillInDummyReject(&rej, /* stateless */ true);
 
   // Now process the rejection.
   QuicCryptoClientConfig::CachedState cached;
   QuicReferenceCountedPointer<QuicCryptoNegotiatedParameters> out_params(
       new QuicCryptoNegotiatedParameters);
   string error;
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   EXPECT_EQ(QUIC_CRYPTO_MESSAGE_PARAMETER_NOT_FOUND,
             config.ProcessRejection(rej, QuicWallTime::FromUNIXSeconds(0),
                                     AllSupportedVersions().front(), "", &cached,
@@ -558,7 +561,7 @@ TEST(QuicCryptoClientConfigTest, ServerNonceinSHLO) {
   versions.push_back(QuicVersionToQuicTag(version));
   msg.SetVector(kVER, versions);
 
-  QuicCryptoClientConfig config(CryptoTestUtils::ProofVerifierForTesting());
+  QuicCryptoClientConfig config(crypto_test_utils::ProofVerifierForTesting());
   QuicCryptoClientConfig::CachedState cached;
   QuicReferenceCountedPointer<QuicCryptoNegotiatedParameters> out_params(
       new QuicCryptoNegotiatedParameters);

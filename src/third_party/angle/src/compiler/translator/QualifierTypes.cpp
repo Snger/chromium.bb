@@ -560,6 +560,14 @@ TLayoutQualifier JoinLayoutQualifiers(TLayoutQualifier leftQualifier,
         joinedQualifier.location = rightQualifier.location;
         ++joinedQualifier.locationsSpecified;
     }
+    if (rightQualifier.yuv != false)
+    {
+        joinedQualifier.yuv = rightQualifier.yuv;
+    }
+    if (rightQualifier.binding != -1)
+    {
+        joinedQualifier.binding = rightQualifier.binding;
+    }
     if (rightQualifier.matrixPacking != EmpUnspecified)
     {
         joinedQualifier.matrixPacking = rightQualifier.matrixPacking;

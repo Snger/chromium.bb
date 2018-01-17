@@ -5,6 +5,7 @@
  * found in the LICENSE file.
  */
 #include "gm.h"
+#include "sk_tool_utils.h"
 
 namespace skiagm {
 
@@ -29,17 +30,16 @@ constexpr SkColorType gColorTypes[] = {
 static void draw_checks(SkCanvas* canvas, int width, int height) {
     SkPaint paint;
     paint.setColor(SK_ColorRED);
-    canvas->drawRectCoords(SkIntToScalar(0), SkIntToScalar(0),
-        SkIntToScalar(width / 2), SkIntToScalar(height / 2), paint);
+    canvas->drawRect(SkRect::MakeIWH(width/2, height/2), paint);
     paint.setColor(SK_ColorGREEN);
-    canvas->drawRectCoords(SkIntToScalar(width / 2), SkIntToScalar(0),
-        SkIntToScalar(width), SkIntToScalar(height / 2), paint);
+    canvas->drawRect({ SkIntToScalar(width/2), 0, SkIntToScalar(width), SkIntToScalar(height/2) },
+                     paint);
     paint.setColor(SK_ColorBLUE);
-    canvas->drawRectCoords(SkIntToScalar(0), SkIntToScalar(height / 2),
-        SkIntToScalar(width / 2), SkIntToScalar(height), paint);
+    canvas->drawRect({ 0, SkIntToScalar(height/2), SkIntToScalar(width/2), SkIntToScalar(height) },
+                     paint);
     paint.setColor(SK_ColorYELLOW);
-    canvas->drawRectCoords(SkIntToScalar(width / 2), SkIntToScalar(height / 2),
-        SkIntToScalar(width), SkIntToScalar(height), paint);
+    canvas->drawRect({ SkIntToScalar(width/2), SkIntToScalar(height/2), SkIntToScalar(width),
+                     SkIntToScalar(height) }, paint);
 }
 
 class BitmapCopyGM : public GM {

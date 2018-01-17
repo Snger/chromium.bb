@@ -45,7 +45,7 @@ using content::WebContents;
 
 namespace {
 // Guards download_controller_
-base::LazyInstance<base::Lock> g_download_controller_lock_;
+base::LazyInstance<base::Lock>::DestructorAtExit g_download_controller_lock_;
 
 WebContents* GetWebContents(int render_process_id, int render_view_id) {
   content::RenderViewHost* render_view_host =
@@ -63,14 +63,23 @@ void CreateContextMenuDownload(int render_process_id,
                                bool is_link,
                                const std::string& extra_headers,
                                bool granted) {
-  if (!granted)
+  if (!granted) {
+    DownloadController::RecordStoragePermission(
+        DownloadController::StoragePermissionType::STORAGE_PERMISSION_DENIED);
     return;
+  }
 
   content::WebContents* web_contents =
       GetWebContents(render_process_id, render_view_id);
-  if (!web_contents)
+  if (!web_contents) {
+    DownloadController::RecordStoragePermission(
+        DownloadController::StoragePermissionType::
+            STORAGE_PERMISSION_NO_WEB_CONTENTS);
     return;
+  }
 
+  DownloadController::RecordStoragePermission(
+      DownloadController::StoragePermissionType::STORAGE_PERMISSION_GRANTED);
   const GURL& url = is_link ? params.link_url : params.src_url;
   const GURL& referring_url =
       params.frame_url.is_empty() ? params.page_url : params.frame_url;
@@ -169,6 +178,12 @@ void DownloadController::RecordDownloadCancelReason(
 }
 
 // static
+void DownloadController::RecordStoragePermission(StoragePermissionType type) {
+  UMA_HISTOGRAM_ENUMERATION("MobileDownload.StoragePermission", type,
+                            STORAGE_PERMISSION_MAX);
+}
+
+// static
 DownloadController* DownloadController::GetInstance() {
   return base::Singleton<DownloadController>::get();
 }
@@ -198,8 +213,12 @@ void DownloadController::AcquireFileAccessPermission(
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   DCHECK(web_contents);
 
-  ui::ViewAndroid* view_android =
-      ViewAndroidHelper::FromWebContents(web_contents)->GetViewAndroid();
+  ViewAndroidHelper* view_helper =
+      ViewAndroidHelper::FromWebContents(web_contents);
+  if (!view_helper)
+    return;
+
+  ui::ViewAndroid* view_android = view_helper->GetViewAndroid();
   if (!view_android) {
     // ViewAndroid may have been gone away.
     BrowserThread::PostTask(
@@ -263,11 +282,15 @@ void DownloadController::StartAndroidDownloadInternal(
     return;
   }
 
-  ChromeDownloadDelegate::FromWebContents(web_contents)->
-      EnqueueDownloadManagerRequest(
-          info.url.spec(), info.user_agent,
-          info.content_disposition, info.original_mime_type,
-          info.cookie, info.referer);
+  base::string16 filename =
+      net::GetSuggestedFilename(info.url, info.content_disposition,
+                                std::string(),  // referrer_charset
+                                std::string(),  // suggested_name
+                                info.original_mime_type, default_file_name_);
+  ChromeDownloadDelegate::FromWebContents(web_contents)
+      ->EnqueueDownloadManagerRequest(info.url.spec(), info.user_agent,
+                                      filename, info.original_mime_type,
+                                      info.cookie, info.referer);
 }
 
 bool DownloadController::HasFileAccessPermission(
@@ -382,6 +405,9 @@ void DownloadController::StartContextMenuDownload(
     const std::string& extra_headers) {
   int process_id = web_contents->GetRenderProcessHost()->GetID();
   int routing_id = web_contents->GetRenderViewHost()->GetRoutingID();
+
+  RecordStoragePermission(StoragePermissionType::STORAGE_PERMISSION_REQUESTED);
+
   AcquireFileAccessPermission(
       web_contents, base::Bind(&CreateContextMenuDownload, process_id,
                                routing_id, params, is_link, extra_headers));

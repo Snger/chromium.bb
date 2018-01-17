@@ -15,7 +15,8 @@ tr.b.unittest.testSuite(function() {
   var CompoundEventSelectionState = tr.model.CompoundEventSelectionState;
 
   function checkSquareColor(colorLegend, expectedColor) {
-    assert.equal(getComputedStyle(colorLegend.$.square).color, expectedColor);
+    assert.strictEqual(
+        getComputedStyle(colorLegend.$.square).color, expectedColor);
   }
 
   test('noLabelSet', function() {
@@ -63,7 +64,7 @@ tr.b.unittest.testSuite(function() {
     var colorLegend = document.createElement('tr-ui-b-color-legend');
     colorLegend.setLabelAndColorId(
         tr.ui.b.createSpan({textContent: 'hello',
-                            className: 'hello-span'}),
+          className: 'hello-span'}),
         7 /* colorId */);
     this.addHTMLOutput(colorLegend);
     checkSquareColor(colorLegend, 'rgb(111, 145, 88)');
@@ -117,6 +118,5 @@ tr.b.unittest.testSuite(function() {
     this.addHTMLOutput(colorLegend);
     checkSquareColor(colorLegend, 'rgb(87, 109, 147)');
   });
-
 });
 </script>

@@ -10,7 +10,6 @@
 #include "cc/test/fake_layer_tree_host_impl.h"
 #include "cc/test/geometry_test_utils.h"
 #include "cc/test/layer_test_common.h"
-#include "cc/test/layer_tree_settings_for_testing.h"
 #include "cc/trees/clip_node.h"
 #include "cc/trees/draw_property_utils.h"
 #include "cc/trees/layer_tree_host_common.h"
@@ -22,7 +21,7 @@
 namespace cc {
 namespace {
 
-class LayerTreeImplTestSettings : public LayerTreeSettingsForTesting {
+class LayerTreeImplTestSettings : public LayerTreeSettings {
  public:
   LayerTreeImplTestSettings() {
     layer_transforms_should_scale_layer_contents = true;
@@ -41,9 +40,7 @@ class LayerTreeImplTest : public testing::Test {
     return host_impl().active_tree()->RenderSurfaceLayerList();
   }
 
-  void ExecuteCalculateDrawProperties(
-      LayerImpl* root_layer,
-      bool skip_verify_visible_rect_calculations = false) {
+  void ExecuteCalculateDrawProperties(LayerImpl* root_layer) {
     // We are probably not testing what is intended if the root_layer bounds are
     // empty.
     DCHECK(!root_layer->bounds().IsEmpty());
@@ -52,8 +49,6 @@ class LayerTreeImplTest : public testing::Test {
     LayerTreeHostCommon::CalcDrawPropsImplInputsForTesting inputs(
         root_layer, root_layer->bounds(), &render_surface_layer_list_impl_);
     inputs.can_adjust_raster_scales = true;
-    if (skip_verify_visible_rect_calculations)
-      inputs.verify_visible_rect_calculations = false;
     LayerTreeHostCommon::CalculateDrawPropertiesForTesting(&inputs);
   }
 
@@ -136,7 +131,7 @@ TEST_F(LayerTreeImplTest, HitTestingForSingleLayer) {
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root_layer()->render_surface()->layer_list().size());
+  ASSERT_EQ(1u, root_layer()->GetRenderSurface()->layer_list().size());
 
   // Hit testing for a point outside the layer should return a null pointer.
   gfx::PointF test_point(101.f, 101.f);
@@ -205,7 +200,7 @@ TEST_F(LayerTreeImplTest, HitTestingForSingleLayerAndHud) {
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(2u, root_layer()->render_surface()->layer_list().size());
+  ASSERT_EQ(2u, root_layer()->GetRenderSurface()->layer_list().size());
 
   // Hit testing for a point inside HUD, but outside root should return null
   gfx::PointF test_point(101.f, 101.f);
@@ -247,17 +242,10 @@ TEST_F(LayerTreeImplTest, HitTestingForUninvertibleTransform) {
   root->SetDrawsContent(true);
 
   host_impl().SetViewportSize(root->bounds());
-  // While computing visible rects by combining clips in screen space, we set
-  // the entire layer as visible if the screen space transform is singular. This
-  // is not always true when we combine clips in target space because if the
-  // intersection of combined_clip in taret space with layer_rect projected to
-  // target space is empty, we set it to an empty rect.
-  bool skip_verify_visible_rect_calculations = true;
-  host_impl().UpdateNumChildrenAndDrawPropertiesForActiveTree(
-      skip_verify_visible_rect_calculations);
+  host_impl().UpdateNumChildrenAndDrawPropertiesForActiveTree();
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root_layer()->render_surface()->layer_list().size());
+  ASSERT_EQ(1u, root_layer()->GetRenderSurface()->layer_list().size());
   ASSERT_FALSE(root_layer()->ScreenSpaceTransform().IsInvertible());
 
   // Hit testing any point should not hit the layer. If the invertible matrix is
@@ -312,7 +300,7 @@ TEST_F(LayerTreeImplTest, HitTestingForSinglePositionedLayer) {
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root_layer()->render_surface()->layer_list().size());
+  ASSERT_EQ(1u, root_layer()->GetRenderSurface()->layer_list().size());
 
   // Hit testing for a point outside the layer should return a null pointer.
   gfx::PointF test_point(49.f, 49.f);
@@ -357,7 +345,7 @@ TEST_F(LayerTreeImplTest, HitTestingForSingleRotatedLayer) {
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root_layer()->render_surface()->layer_list().size());
+  ASSERT_EQ(1u, root_layer()->GetRenderSurface()->layer_list().size());
 
   // Hit testing for points outside the layer.
   // These corners would have been inside the un-transformed layer, but they
@@ -441,10 +429,6 @@ TEST_F(LayerTreeImplTest, HitTestingClipNodeDifferentTransformAndTargetIds) {
       host_impl().active_tree()->FindLayerThatIsHitByPoint(test_point);
   ASSERT_TRUE(result_layer);
   EXPECT_EQ(5, result_layer->id());
-
-  ClipTree& clip_tree = host_impl().active_tree()->property_trees()->clip_tree;
-  ClipNode* clip_node = clip_tree.Node(result_layer->clip_tree_index());
-  EXPECT_NE(clip_node->transform_id, clip_node->target_transform_id);
 }
 
 TEST_F(LayerTreeImplTest, HitTestingSiblings) {
@@ -529,7 +513,7 @@ TEST_F(LayerTreeImplTest, HitTestingForSinglePerspectiveLayer) {
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root_layer()->render_surface()->layer_list().size());
+  ASSERT_EQ(1u, root_layer()->GetRenderSurface()->layer_list().size());
 
   // Hit testing for points outside the layer.
   // These corners would have been inside the un-transformed layer, but they
@@ -587,8 +571,8 @@ TEST_F(LayerTreeImplTest, HitTestingForSimpleClippedLayer) {
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root_layer()->render_surface()->layer_list().size());
-  ASSERT_EQ(456, root_layer()->render_surface()->layer_list().at(0)->id());
+  ASSERT_EQ(1u, root_layer()->GetRenderSurface()->layer_list().size());
+  ASSERT_EQ(456, root_layer()->GetRenderSurface()->layer_list().at(0)->id());
 
   // Hit testing for a point outside the layer should return a null pointer.
   // Despite the child layer being very large, it should be clipped to the root
@@ -637,7 +621,6 @@ TEST_F(LayerTreeImplTest, HitTestingForMultiClippedRotatedLayer) {
   // Visible rects computed by combinig clips in target space and root space
   // don't match because of rotation transforms. So, we skip
   // verify_visible_rect_calculations.
-  bool skip_verify_visible_rect_calculations = true;
   {
     std::unique_ptr<LayerImpl> child =
         LayerImpl::Create(host_impl().active_tree(), 456);
@@ -677,12 +660,11 @@ TEST_F(LayerTreeImplTest, HitTestingForMultiClippedRotatedLayer) {
     child->test_properties()->AddChild(std::move(grand_child));
     root->test_properties()->AddChild(std::move(child));
 
-    ExecuteCalculateDrawProperties(root, skip_verify_visible_rect_calculations);
+    ExecuteCalculateDrawProperties(root);
   }
 
   host_impl().SetViewportSize(root->bounds());
-  host_impl().UpdateNumChildrenAndDrawPropertiesForActiveTree(
-      skip_verify_visible_rect_calculations);
+  host_impl().UpdateNumChildrenAndDrawPropertiesForActiveTree();
   // (11, 89) is close to the the bottom left corner within the clip, but it is
   // not inside the layer.
   gfx::PointF test_point(11.f, 89.f);
@@ -766,8 +748,8 @@ TEST_F(LayerTreeImplTest, HitTestingForNonClippingIntermediateLayer) {
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root_layer()->render_surface()->layer_list().size());
-  ASSERT_EQ(456, root_layer()->render_surface()->layer_list().at(0)->id());
+  ASSERT_EQ(1u, root_layer()->GetRenderSurface()->layer_list().size());
+  ASSERT_EQ(456, root_layer()->GetRenderSurface()->layer_list().at(0)->id());
 
   // Hit testing for a point outside the layer should return a null pointer.
   gfx::PointF test_point(69.f, 69.f);
@@ -847,7 +829,7 @@ TEST_F(LayerTreeImplTest, HitTestingForMultipleLayers) {
   ASSERT_TRUE(grand_child1);
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
 
-  RenderSurfaceImpl* root_render_surface = root->render_surface();
+  RenderSurfaceImpl* root_render_surface = root->GetRenderSurface();
   ASSERT_EQ(4u, root_render_surface->layer_list().size());
   ASSERT_EQ(1, root_render_surface->layer_list().at(0)->id());  // root layer
   ASSERT_EQ(2, root_render_surface->layer_list().at(1)->id());  // child1
@@ -1066,14 +1048,14 @@ TEST_F(LayerTreeImplTest, HitTestingRespectsClipParents) {
     grand_child->SetPosition(gfx::PointF(0.f, 40.f));
     grand_child->SetBounds(gfx::Size(100, 50));
     grand_child->SetDrawsContent(true);
-    grand_child->SetHasRenderSurface(true);
+    grand_child->test_properties()->force_render_surface = true;
 
     // This should let |grand_child| "escape" |child|'s clip.
     grand_child->test_properties()->clip_parent = root;
     std::unique_ptr<std::set<LayerImpl*>> clip_children(
         new std::set<LayerImpl*>);
     clip_children->insert(grand_child.get());
-    root->test_properties()->clip_children.reset(clip_children.release());
+    root->test_properties()->clip_children = std::move(clip_children);
 
     child->test_properties()->AddChild(std::move(grand_child));
     root->test_properties()->AddChild(std::move(child));
@@ -1118,7 +1100,7 @@ TEST_F(LayerTreeImplTest, HitTestingRespectsScrollParents) {
 
     grand_child->SetBounds(gfx::Size(200, 200));
     grand_child->SetDrawsContent(true);
-    grand_child->SetHasRenderSurface(true);
+    grand_child->test_properties()->force_render_surface = true;
 
     scroll_child->test_properties()->AddChild(std::move(grand_child));
     root->test_properties()->AddChild(std::move(scroll_child));
@@ -1194,17 +1176,17 @@ TEST_F(LayerTreeImplTest, HitTestingForMultipleLayerLists) {
   ASSERT_TRUE(child1);
   ASSERT_TRUE(child2);
   ASSERT_TRUE(grand_child1);
-  ASSERT_TRUE(child1->render_surface());
-  ASSERT_TRUE(child2->render_surface());
-  ASSERT_TRUE(grand_child1->render_surface());
+  ASSERT_TRUE(child1->GetRenderSurface());
+  ASSERT_TRUE(child2->GetRenderSurface());
+  ASSERT_TRUE(grand_child1->GetRenderSurface());
   ASSERT_EQ(4u, RenderSurfaceLayerList().size());
   // The root surface has the root layer, and child1's and child2's render
   // surfaces.
-  ASSERT_EQ(3u, root->render_surface()->layer_list().size());
+  ASSERT_EQ(3u, root->GetRenderSurface()->layer_list().size());
   // The child1 surface has the child1 layer and grand_child1's render surface.
-  ASSERT_EQ(2u, child1->render_surface()->layer_list().size());
-  ASSERT_EQ(1u, child2->render_surface()->layer_list().size());
-  ASSERT_EQ(1u, grand_child1->render_surface()->layer_list().size());
+  ASSERT_EQ(2u, child1->GetRenderSurface()->layer_list().size());
+  ASSERT_EQ(1u, child2->GetRenderSurface()->layer_list().size());
+  ASSERT_EQ(1u, grand_child1->GetRenderSurface()->layer_list().size());
   ASSERT_EQ(1, RenderSurfaceLayerList().at(0)->id());  // root layer
   ASSERT_EQ(2, RenderSurfaceLayerList()[1]->id());     // child1
   ASSERT_EQ(4, RenderSurfaceLayerList().at(2)->id());  // grand_child1
@@ -1270,7 +1252,7 @@ TEST_F(LayerTreeImplTest, HitCheckingTouchHandlerRegionsForSingleLayer) {
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root->render_surface()->layer_list().size());
+  ASSERT_EQ(1u, root->GetRenderSurface()->layer_list().size());
 
   // Hit checking for any point should return a null pointer for a layer without
   // any touch event handler regions.
@@ -1343,18 +1325,11 @@ TEST_F(LayerTreeImplTest,
   root->SetTouchEventHandlerRegion(touch_handler_region);
 
   host_impl().SetViewportSize(root->bounds());
-  // While computing visible rects by combining clips in screen space, we set
-  // the entire layer as visible if the screen space transform is singular. This
-  // is not always true when we combine clips in target space because if the
-  // intersection of combined_clip in taret space with layer_rect projected to
-  // target space is empty, we set it to an empty rect.
-  bool skip_verify_visible_rect_calculations = true;
-  host_impl().UpdateNumChildrenAndDrawPropertiesForActiveTree(
-      skip_verify_visible_rect_calculations);
+  host_impl().UpdateNumChildrenAndDrawPropertiesForActiveTree();
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root->render_surface()->layer_list().size());
+  ASSERT_EQ(1u, root->GetRenderSurface()->layer_list().size());
   ASSERT_FALSE(root->ScreenSpaceTransform().IsInvertible());
 
   // Hit checking any point should not hit the touch handler region on the
@@ -1421,7 +1396,7 @@ TEST_F(LayerTreeImplTest,
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root->render_surface()->layer_list().size());
+  ASSERT_EQ(1u, root->GetRenderSurface()->layer_list().size());
 
   // Hit checking for a point outside the layer should return a null pointer.
   gfx::PointF test_point(49.f, 49.f);
@@ -1506,7 +1481,7 @@ TEST_F(LayerTreeImplTest,
   // its layout size is 50x50, positioned at 25x25.
   LayerImpl* test_layer = root->test_properties()->children[0];
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root->render_surface()->layer_list().size());
+  ASSERT_EQ(1u, root->GetRenderSurface()->layer_list().size());
 
   // Check whether the child layer fits into the root after scaled.
   EXPECT_EQ(gfx::Rect(test_layer->bounds()), test_layer->visible_layer_rect());
@@ -1633,8 +1608,8 @@ TEST_F(LayerTreeImplTest, HitCheckingTouchHandlerRegionsForSimpleClippedLayer) {
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root->render_surface()->layer_list().size());
-  ASSERT_EQ(456, root->render_surface()->layer_list().at(0)->id());
+  ASSERT_EQ(1u, root->GetRenderSurface()->layer_list().size());
+  ASSERT_EQ(456, root->GetRenderSurface()->layer_list().at(0)->id());
 
   // Hit checking for a point outside the layer should return a null pointer.
   // Despite the child layer being very large, it should be clipped to the root
@@ -1786,9 +1761,9 @@ TEST_F(LayerTreeImplTest, HitCheckingTouchHandlerOverlappingRegions) {
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(2u, root->render_surface()->layer_list().size());
-  ASSERT_EQ(123, root->render_surface()->layer_list().at(0)->id());
-  ASSERT_EQ(1234, root->render_surface()->layer_list().at(1)->id());
+  ASSERT_EQ(2u, root->GetRenderSurface()->layer_list().size());
+  ASSERT_EQ(123, root->GetRenderSurface()->layer_list().at(0)->id());
+  ASSERT_EQ(1234, root->GetRenderSurface()->layer_list().at(1)->id());
 
   gfx::PointF test_point(35.f, 35.f);
   LayerImpl* result_layer =
@@ -1844,7 +1819,7 @@ TEST_F(LayerTreeImplTest, HitTestingTouchHandlerRegionsForLayerThatIsNotDrawn) {
   // As test_layer doesn't draw content, the layer list of root's render surface
   // should contain only the root layer.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root->render_surface()->layer_list().size());
+  ASSERT_EQ(1u, root->GetRenderSurface()->layer_list().size());
 
   // Hit testing for a point outside the test layer should return null pointer.
   // We also implicitly check that the updated screen space transform of a layer
@@ -1902,7 +1877,7 @@ TEST_F(LayerTreeImplTest, SelectionBoundsForSingleLayer) {
 
   // Sanity check the scenario we just created.
   ASSERT_EQ(1u, RenderSurfaceLayerList().size());
-  ASSERT_EQ(1u, root->render_surface()->layer_list().size());
+  ASSERT_EQ(1u, root->GetRenderSurface()->layer_list().size());
 
   LayerSelection input;
 
@@ -1934,9 +1909,6 @@ TEST_F(LayerTreeImplTest, SelectionBoundsForSingleLayer) {
   EXPECT_EQ(gfx::PointF(input.end.edge_bottom), output.end.edge_bottom());
   EXPECT_EQ(gfx::PointF(input.end.edge_top), output.end.edge_top());
   EXPECT_TRUE(output.end.visible());
-  EXPECT_EQ(input.is_editable, output.is_editable);
-  EXPECT_EQ(input.is_empty_text_form_control,
-            output.is_empty_text_form_control);
 
   // Insertion bounds should produce identical left and right bounds.
   LayerSelection insertion_input;
@@ -1944,8 +1916,6 @@ TEST_F(LayerTreeImplTest, SelectionBoundsForSingleLayer) {
   insertion_input.start.edge_top = gfx::Point(15, 10);
   insertion_input.start.edge_bottom = gfx::Point(15, 30);
   insertion_input.start.layer_id = root->id();
-  insertion_input.is_editable = true;
-  insertion_input.is_empty_text_form_control = true;
   insertion_input.end = insertion_input.start;
   host_impl().active_tree()->RegisterSelection(insertion_input);
   host_impl().active_tree()->GetViewportSelection(&output);
@@ -1954,9 +1924,6 @@ TEST_F(LayerTreeImplTest, SelectionBoundsForSingleLayer) {
             output.start.edge_bottom());
   EXPECT_EQ(gfx::PointF(insertion_input.start.edge_top),
             output.start.edge_top());
-  EXPECT_EQ(insertion_input.is_editable, output.is_editable);
-  EXPECT_EQ(insertion_input.is_empty_text_form_control,
-            output.is_empty_text_form_control);
   EXPECT_TRUE(output.start.visible());
   EXPECT_EQ(output.start, output.end);
 }
@@ -2250,13 +2217,13 @@ TEST_F(LayerTreeImplTest, DeviceScaleFactorNeedsDrawPropertiesUpdate) {
   EXPECT_TRUE(host_impl().active_tree()->needs_update_draw_properties());
 }
 
-TEST_F(LayerTreeImplTest, DeviceColorSpaceDoesNotNeedDrawPropertiesUpdate) {
+TEST_F(LayerTreeImplTest, RasterColorSpaceDoesNotNeedDrawPropertiesUpdate) {
   host_impl().active_tree()->BuildPropertyTreesForTesting();
-  host_impl().active_tree()->SetDeviceColorSpace(
+  host_impl().active_tree()->SetRasterColorSpace(
       gfx::ColorSpace::CreateXYZD50());
   host_impl().active_tree()->UpdateDrawProperties(false);
   EXPECT_FALSE(host_impl().active_tree()->needs_update_draw_properties());
-  host_impl().active_tree()->SetDeviceColorSpace(gfx::ColorSpace::CreateSRGB());
+  host_impl().active_tree()->SetRasterColorSpace(gfx::ColorSpace::CreateSRGB());
   EXPECT_FALSE(host_impl().active_tree()->needs_update_draw_properties());
 }
 

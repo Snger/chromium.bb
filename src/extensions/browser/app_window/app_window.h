@@ -360,6 +360,10 @@ class AppWindow : public content::WebContentsDelegate,
   // unblock resource requests.
   void NotifyRenderViewReady();
 
+  // Returns true if window has custom icon in case either |window_icon_url_| or
+  // |app_icon_url_| is set. Custom icon may be not loaded yet.
+  bool HasCustomIcon() const;
+
   // Whether the app window wants to be alpha enabled.
   bool requested_alpha_enabled() const { return requested_alpha_enabled_; }
 
@@ -422,9 +426,9 @@ class AppWindow : public content::WebContentsDelegate,
                       const gfx::Rect& initial_rect,
                       bool user_gesture,
                       bool* was_blocked) override;
-  bool PreHandleKeyboardEvent(content::WebContents* source,
-                              const content::NativeWebKeyboardEvent& event,
-                              bool* is_keyboard_shortcut) override;
+  content::KeyboardEventProcessingResult PreHandleKeyboardEvent(
+      content::WebContents* source,
+      const content::NativeWebKeyboardEvent& event) override;
   void HandleKeyboardEvent(
       content::WebContents* source,
       const content::NativeWebKeyboardEvent& event) override;

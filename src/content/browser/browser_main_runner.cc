@@ -11,7 +11,6 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/metrics/histogram_macros.h"
-#include "base/metrics/histogram_macros.h"
 #include "base/metrics/statistics_recorder.h"
 #include "base/profiler/scoped_profile.h"
 #include "base/profiler/scoped_tracker.h"
@@ -20,7 +19,7 @@
 #include "base/trace_event/trace_event.h"
 #include "base/tracked_objects.h"
 #include "build/build_config.h"
-#include "components/tracing/browser/trace_config_file.h"
+#include "components/tracing/common/trace_config_file.h"
 #include "components/tracing/common/tracing_switches.h"
 #include "content/browser/browser_main_loop.h"
 #include "content/browser/browser_shutdown_profile_dumper.h"
@@ -45,7 +44,7 @@ namespace content {
 
 namespace {
 
-bool g_exited_main_message_loop = false;
+base::LazyInstance<base::AtomicFlag>::Leaky g_exited_main_message_loop;
 const char kMainThreadName[] = "CrBrowserMain";
 
 }  // namespace
@@ -196,7 +195,7 @@ class BrowserMainRunnerImpl : public BrowserMainRunner {
     {
       // The trace event has to stay between profiler creation and destruction.
       TRACE_EVENT0("shutdown", "BrowserMainRunner");
-      g_exited_main_message_loop = true;
+      g_exited_main_message_loop.Get().Set();
 
       main_loop_->ShutdownThreadsAndCleanUp();
 
@@ -243,7 +242,8 @@ BrowserMainRunner* BrowserMainRunner::Create() {
 
 // static
 bool BrowserMainRunner::ExitedMainMessageLoop() {
-  return g_exited_main_message_loop;
+  return !(g_exited_main_message_loop == nullptr) &&
+         g_exited_main_message_loop.Get().IsSet();
 }
 
 }  // namespace content

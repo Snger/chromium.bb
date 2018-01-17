@@ -14,18 +14,33 @@ WebStateDelegateBridge::WebStateDelegateBridge(id<CRWWebStateDelegate> delegate)
 
 WebStateDelegateBridge::~WebStateDelegateBridge() {}
 
+WebState* WebStateDelegateBridge::CreateNewWebState(WebState* source,
+                                                    const GURL& url,
+                                                    const GURL& opener_url,
+                                                    bool initiated_by_user) {
+  SEL selector =
+      @selector(webState:createNewWebStateForURL:openerURL:initiatedByUser:);
+  if ([delegate_ respondsToSelector:selector]) {
+    return [delegate_ webState:source
+        createNewWebStateForURL:url
+                      openerURL:opener_url
+                initiatedByUser:initiated_by_user];
+  }
+  return nullptr;
+}
+
+void WebStateDelegateBridge::CloseWebState(WebState* source) {
+  if ([delegate_ respondsToSelector:@selector(closeWebState:)]) {
+    [delegate_ closeWebState:source];
+  }
+}
+
 WebState* WebStateDelegateBridge::OpenURLFromWebState(
     WebState* source,
     const WebState::OpenURLParams& params) {
   if ([delegate_ respondsToSelector:@selector(webState:openURLWithParams:)])
     return [delegate_ webState:source openURLWithParams:params];
   return nullptr;
-}
-
-void WebStateDelegateBridge::LoadProgressChanged(WebState* source,
-                                                 double progress) {
-  if ([delegate_ respondsToSelector:@selector(webState:didChangeProgress:)])
-    [delegate_ webState:source didChangeProgress:progress];
 }
 
 bool WebStateDelegateBridge::HandleContextMenu(
@@ -35,6 +50,21 @@ bool WebStateDelegateBridge::HandleContextMenu(
     return [delegate_ webState:source handleContextMenu:params];
   }
   return NO;
+}
+
+void WebStateDelegateBridge::ShowRepostFormWarningDialog(
+    WebState* source,
+    const base::Callback<void(bool)>& callback) {
+  base::Callback<void(bool)> local_callback(callback);
+  SEL selector = @selector(webState:runRepostFormDialogWithCompletionHandler:);
+  if ([delegate_ respondsToSelector:selector]) {
+    [delegate_ webState:source
+        runRepostFormDialogWithCompletionHandler:^(BOOL should_continue) {
+          local_callback.Run(should_continue);
+        }];
+  } else {
+    local_callback.Run(true);
+  }
 }
 
 JavaScriptDialogPresenter* WebStateDelegateBridge::GetJavaScriptDialogPresenter(

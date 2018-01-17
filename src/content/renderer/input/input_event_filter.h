@@ -63,19 +63,26 @@ class CONTENT_EXPORT InputEventFilter : public InputHandlerManagerClient,
   void SetInputHandlerManager(InputHandlerManager*) override;
   void RegisterRoutingID(int routing_id) override;
   void UnregisterRoutingID(int routing_id) override;
+  void RegisterAssociatedRenderFrameRoutingID(
+      int render_frame_routing_id,
+      int render_view_routing_id) override;
+  void QueueClosureForMainThreadEventQueue(
+      int routing_id,
+      const base::Closure& closure) override;
   void DidOverscroll(int routing_id,
                      const ui::DidOverscrollParams& params) override;
   void DidStopFlinging(int routing_id) override;
   void DispatchNonBlockingEventToMainThread(
       int routing_id,
-      blink::WebScopedInputEvent event,
+      ui::WebScopedInputEvent event,
       const ui::LatencyInfo& latency_info) override;
 
   void NotifyInputEventHandled(int routing_id,
                                blink::WebInputEvent::Type type,
                                blink::WebInputEventResult result,
                                InputEventAckState ack_result) override;
-  void ProcessRafAlignedInput(int routing_id) override;
+  void ProcessRafAlignedInput(int routing_id,
+                              base::TimeTicks frame_time) override;
 
   // IPC::MessageFilter methods:
   void OnFilterAdded(IPC::Channel* channel) override;
@@ -85,7 +92,7 @@ class CONTENT_EXPORT InputEventFilter : public InputHandlerManagerClient,
 
   // MainThreadEventQueueClient methods:
   void HandleEventOnMainThread(int routing_id,
-                               const blink::WebInputEvent* event,
+                               const blink::WebCoalescedInputEvent* event,
                                const ui::LatencyInfo& latency,
                                InputEventDispatchType dispatch_type) override;
   // Send an InputEventAck IPC message. |touch_event_id| represents
@@ -101,13 +108,14 @@ class CONTENT_EXPORT InputEventFilter : public InputHandlerManagerClient,
  private:
   ~InputEventFilter() override;
 
-  void ForwardToHandler(const IPC::Message& message,
+  void ForwardToHandler(int routing_id,
+                        const IPC::Message& message,
                         base::TimeTicks received_time);
   void DidForwardToHandlerAndOverscroll(
       int routing_id,
       InputEventDispatchType dispatch_type,
       InputEventAckState ack_state,
-      blink::WebScopedInputEvent event,
+      ui::WebScopedInputEvent event,
       const ui::LatencyInfo& latency_info,
       std::unique_ptr<ui::DidOverscrollParams> overscroll_params);
   void SendMessage(std::unique_ptr<IPC::Message> message);
@@ -128,12 +136,19 @@ class CONTENT_EXPORT InputEventFilter : public InputHandlerManagerClient,
   // Protects access to routes_.
   base::Lock routes_lock_;
 
-  // Indicates the routing_ids for which input events should be filtered.
+  // Indicates the routing ids for RenderViews for which input events
+  // should be filtered.
   std::set<int> routes_;
 
   using RouteQueueMap =
       std::unordered_map<int, scoped_refptr<MainThreadEventQueue>>;
+  // Maps RenderView routing ids to a MainThreadEventQueue.
   RouteQueueMap route_queues_;
+
+  using AssociatedRoutes = std::unordered_map<int, int>;
+  // Maps RenderFrame routing ids to RenderView routing ids so that
+  // events sent down the two routing pipes can be handled synchronously.
+  AssociatedRoutes associated_routes_;
 
   blink::scheduler::RendererScheduler* renderer_scheduler_;
 };

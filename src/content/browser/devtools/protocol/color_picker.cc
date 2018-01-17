@@ -63,8 +63,8 @@ void ColorPicker::SetEnabled(bool enabled) {
     ResetFrame();
 
     WebCursor pointer_cursor;
-    WebCursor::CursorInfo cursor_info;
-    cursor_info.type = blink::WebCursorInfo::TypePointer;
+    CursorInfo cursor_info;
+    cursor_info.type = blink::WebCursorInfo::kTypePointer;
     pointer_cursor.InitFromCursorInfo(cursor_info);
     host_->SetCursor(pointer_cursor);
   }
@@ -83,11 +83,14 @@ void ColorPicker::UpdateFrame() {
   if (!view)
     return;
 
-  gfx::Size size = view->GetViewBounds().size();
-  view->CopyFromCompositingSurface(
-      gfx::Rect(size), size,
-      base::Bind(&ColorPicker::FrameUpdated,
-                 weak_factory_.GetWeakPtr()),
+  // TODO(miu): This is the wrong size. It's the size of the view on-screen, and
+  // not the rendering size of the view. The latter is what is wanted here, so
+  // that the resulting bitmap's pixel coordinates line-up with the
+  // blink::WebMouseEvent coordinates. http://crbug.com/73362
+  gfx::Size should_be_rendering_size = view->GetViewBounds().size();
+  view->CopyFromSurface(
+      gfx::Rect(), should_be_rendering_size,
+      base::Bind(&ColorPicker::FrameUpdated, weak_factory_.GetWeakPtr()),
       kN32_SkColorType);
 }
 
@@ -109,13 +112,14 @@ void ColorPicker::FrameUpdated(const SkBitmap& bitmap,
 }
 
 bool ColorPicker::HandleMouseEvent(const blink::WebMouseEvent& event) {
-  last_cursor_x_ = event.x;
-  last_cursor_y_ = event.y;
+  last_cursor_x_ = event.PositionInWidget().x;
+  last_cursor_y_ = event.PositionInWidget().y;
   if (frame_.drawsNothing())
     return true;
 
-  if (event.button == blink::WebMouseEvent::Button::Left &&
-      event.type() == blink::WebInputEvent::MouseDown) {
+  if (event.button == blink::WebMouseEvent::Button::kLeft &&
+      (event.GetType() == blink::WebInputEvent::kMouseDown ||
+       event.GetType() == blink::WebInputEvent::kMouseMove)) {
     if (last_cursor_x_ < 0 || last_cursor_x_ >= frame_.width() ||
         last_cursor_y_ < 0 || last_cursor_y_ >= frame_.height()) {
       return true;
@@ -245,8 +249,8 @@ void ColorPicker::UpdateCursor() {
   canvas.drawCircle(kCursorSize / 2, kCursorSize / 2, kDiameter / 2, paint);
 
   WebCursor cursor;
-  WebCursor::CursorInfo cursor_info;
-  cursor_info.type = blink::WebCursorInfo::TypeCustom;
+  CursorInfo cursor_info;
+  cursor_info.type = blink::WebCursorInfo::kTypeCustom;
   cursor_info.image_scale_factor = device_scale_factor;
   cursor_info.custom_image = result;
   cursor_info.hotspot =

@@ -145,9 +145,14 @@ class CC_EXPORT LayerTreeImpl {
   LayerImplList::reverse_iterator rbegin();
   LayerImplList::reverse_iterator rend();
 
+  // TODO(crbug.com/702832): This won't be needed if overlay scrollbars have
+  // element ids.
   void AddToOpacityAnimationsMap(int id, float opacity);
-  void AddToTransformAnimationsMap(int id, gfx::Transform transform);
-  void AddToFilterAnimationsMap(int id, const FilterOperations& filters);
+
+  void SetTransformMutated(ElementId element_id,
+                           const gfx::Transform& transform);
+  void SetOpacityMutated(ElementId element_id, float opacity);
+  void SetFilterMutated(ElementId element_id, const FilterOperations& filters);
 
   int source_frame_number() const { return source_frame_number_; }
   void set_source_frame_number(int frame_number) {
@@ -176,10 +181,11 @@ class CC_EXPORT LayerTreeImpl {
 
   LayerImpl* InnerViewportContainerLayer() const;
   LayerImpl* OuterViewportContainerLayer() const;
-  LayerImpl* CurrentlyScrollingLayer() const;
-  int LastScrolledLayerId() const;
-  void SetCurrentlyScrollingLayer(LayerImpl* layer);
-  void ClearCurrentlyScrollingLayer();
+  ScrollNode* CurrentlyScrollingNode();
+  const ScrollNode* CurrentlyScrollingNode() const;
+  int LastScrolledScrollNodeIndex() const;
+  void SetCurrentlyScrollingNode(ScrollNode* node);
+  void ClearCurrentlyScrollingNode();
 
   void SetViewportLayersFromIds(int overscroll_elasticity_layer,
                                 int page_scale_layer_id,
@@ -228,9 +234,17 @@ class CC_EXPORT LayerTreeImpl {
     return painted_device_scale_factor_;
   }
 
-  void SetDeviceColorSpace(const gfx::ColorSpace& device_color_space);
-  const gfx::ColorSpace& device_color_space() const {
-    return device_color_space_;
+  void set_content_source_id(uint32_t id) { content_source_id_ = id; }
+  uint32_t content_source_id() { return content_source_id_; }
+
+  void set_local_surface_id(const LocalSurfaceId& id) {
+    local_surface_id_ = id;
+  }
+  const LocalSurfaceId& local_surface_id() const { return local_surface_id_; }
+
+  void SetRasterColorSpace(const gfx::ColorSpace& raster_color_space);
+  const gfx::ColorSpace& raster_color_space() const {
+    return raster_color_space_;
   }
 
   SyncedElasticOverscroll* elastic_overscroll() {
@@ -252,9 +266,7 @@ class CC_EXPORT LayerTreeImpl {
   // Updates draw properties and render surface layer list, as well as tile
   // priorities. Returns false if it was unable to update.  Updating lcd
   // text may cause invalidations, so should only be done after a commit.
-  bool UpdateDrawProperties(
-      bool update_lcd_text,
-      bool force_skip_verify_visible_rect_calculations = false);
+  bool UpdateDrawProperties(bool update_lcd_text);
   void BuildPropertyTreesForTesting();
   void BuildLayerListAndPropertyTreesForTesting();
 
@@ -392,7 +404,7 @@ class CC_EXPORT LayerTreeImpl {
   void RemoveSurfaceLayer(LayerImpl* layer);
   const LayerImplList& SurfaceLayers() const { return surface_layers_; }
 
-  LayerImpl* FindFirstScrollingLayerOrScrollbarLayerThatIsHitByPoint(
+  LayerImpl* FindFirstScrollingLayerOrDrawnScrollbarThatIsHitByPoint(
       const gfx::PointF& screen_space_point);
 
   LayerImpl* FindLayerThatIsHitByPoint(const gfx::PointF& screen_space_point);
@@ -401,6 +413,8 @@ class CC_EXPORT LayerTreeImpl {
       const gfx::PointF& screen_space_point);
 
   void RegisterSelection(const LayerSelection& selection);
+
+  bool GetAndResetHandleVisibilityChanged();
 
   // Compute the current selection handle location and visbility with respect to
   // the viewport.
@@ -427,8 +441,6 @@ class CC_EXPORT LayerTreeImpl {
   void DidUpdateScrollOffset(int layer_id);
   void DidUpdateScrollState(int layer_id);
 
-  void ScrollAnimationAbort(bool needs_completion);
-
   bool have_scroll_event_handlers() const {
     return have_scroll_event_handlers_;
   }
@@ -454,6 +466,8 @@ class CC_EXPORT LayerTreeImpl {
 
   void BuildLayerListForTesting();
 
+  void InvalidateRegionForImages(const ImageIdFlatSet& images_to_invalidate);
+
  protected:
   float ClampPageScaleFactorToLimits(float page_scale_factor) const;
   void PushPageScaleFactorAndLimits(const float* page_scale_factor,
@@ -463,6 +477,7 @@ class CC_EXPORT LayerTreeImpl {
                                 float max_page_scale_factor);
   bool IsViewportLayerId(int id) const;
   void UpdateScrollbars(int scroll_layer_id, int clip_layer_id);
+  void ShowScrollbars();
   void DidUpdatePageScale();
   void PushBrowserControls(const float* top_controls_shown_ratio);
   bool ClampBrowserControlsShownRatio();
@@ -476,7 +491,7 @@ class CC_EXPORT LayerTreeImpl {
   SkColor background_color_;
   bool has_transparent_background_;
 
-  int last_scrolled_layer_id_;
+  int last_scrolled_scroll_node_index_;
   int overscroll_elasticity_layer_id_;
   int page_scale_layer_id_;
   int inner_viewport_scroll_layer_id_;
@@ -490,7 +505,10 @@ class CC_EXPORT LayerTreeImpl {
 
   float device_scale_factor_;
   float painted_device_scale_factor_;
-  gfx::ColorSpace device_color_space_;
+  gfx::ColorSpace raster_color_space_;
+
+  uint32_t content_source_id_;
+  LocalSurfaceId local_surface_id_;
 
   scoped_refptr<SyncedElasticOverscroll> elastic_overscroll_;
 
@@ -502,9 +520,12 @@ class CC_EXPORT LayerTreeImpl {
 
   std::unordered_map<ElementId, int, ElementIdHash> element_layers_map_;
 
-  std::unordered_map<int, float> opacity_animations_map_;
-  std::unordered_map<int, gfx::Transform> transform_animations_map_;
-  std::unordered_map<int, FilterOperations> filter_animations_map_;
+  std::unordered_map<ElementId, float, ElementIdHash>
+      element_id_to_opacity_animations_;
+  std::unordered_map<ElementId, gfx::Transform, ElementIdHash>
+      element_id_to_transform_animations_;
+  std::unordered_map<ElementId, FilterOperations, ElementIdHash>
+      element_id_to_filter_animations_;
 
   // Maps from clip layer ids to scroll layer ids.  Note that this only includes
   // the subset of clip layers that act as scrolling containers.  (This is
@@ -536,6 +557,8 @@ class CC_EXPORT LayerTreeImpl {
   bool next_activation_forces_redraw_;
 
   bool has_ever_been_drawn_;
+
+  bool handle_visibility_changed_;
 
   std::vector<std::unique_ptr<SwapPromise>> swap_promise_list_;
   std::vector<std::unique_ptr<SwapPromise>> pinned_swap_promise_list_;

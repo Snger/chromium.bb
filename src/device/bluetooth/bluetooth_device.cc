@@ -19,7 +19,7 @@
 #include "device/bluetooth/bluetooth_remote_gatt_descriptor.h"
 #include "device/bluetooth/bluetooth_remote_gatt_service.h"
 #include "device/bluetooth/string_util_icu.h"
-#include "grit/bluetooth_strings.h"
+#include "device/bluetooth/strings/grit/bluetooth_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 
 namespace device {
@@ -464,43 +464,6 @@ BluetoothDevice::GetPrimaryServicesByUUID(const BluetoothUUID& service_uuid) {
   return services;
 }
 
-std::vector<BluetoothRemoteGattCharacteristic*>
-BluetoothDevice::GetCharacteristicsByUUID(
-    const std::string& service_instance_id,
-    const BluetoothUUID& characteristic_uuid) {
-  std::vector<BluetoothRemoteGattCharacteristic*> characteristics;
-  VLOG(2) << "Looking for characteristic: "
-          << characteristic_uuid.canonical_value();
-  BluetoothRemoteGattService* service = GetGattService(service_instance_id);
-  if (service) {
-    for (BluetoothRemoteGattCharacteristic* characteristic :
-         service->GetCharacteristics()) {
-      VLOG(2) << "Characteristic in cache: "
-              << characteristic->GetUUID().canonical_value();
-      if (characteristic->GetUUID() == characteristic_uuid) {
-        characteristics.push_back(characteristic);
-      }
-    }
-  }
-  return characteristics;
-}
-
-std::vector<device::BluetoothRemoteGattDescriptor*>
-BluetoothDevice::GetDescriptorsByUUID(
-    device::BluetoothRemoteGattCharacteristic* characteristic,
-    const BluetoothUUID& descriptor_uuid) {
-  std::vector<device::BluetoothRemoteGattDescriptor*> descriptors;
-  DVLOG(1) << "Looking for descriptor: " << descriptor_uuid.canonical_value();
-  for (auto* descriptor : characteristic->GetDescriptors()) {
-    DVLOG(1) << "Descriptor in cache: "
-             << descriptor->GetUUID().canonical_value();
-    if (descriptor->GetUUID() == descriptor_uuid) {
-      descriptors.push_back(descriptor);
-    }
-  }
-  return descriptors;
-}
-
 void BluetoothDevice::DidConnectGatt() {
   for (const auto& callback : create_gatt_connection_success_callbacks_) {
     callback.Run(
@@ -522,11 +485,7 @@ void BluetoothDevice::DidFailToConnectGatt(ConnectErrorCode error) {
   create_gatt_connection_error_callbacks_.clear();
 }
 
-void BluetoothDevice::DidDisconnectGatt(bool notifyDeviceChanged) {
-  gatt_services_.clear();
-  device_uuids_.ClearServiceUUIDs();
-  SetGattServicesDiscoveryComplete(false);
-
+void BluetoothDevice::DidDisconnectGatt() {
   // Pending calls to connect GATT are not expected, if they were then
   // DidFailToConnectGatt should have been called.
   DCHECK(create_gatt_connection_error_callbacks_.empty());
@@ -536,8 +495,7 @@ void BluetoothDevice::DidDisconnectGatt(bool notifyDeviceChanged) {
     connection->InvalidateConnectionReference();
   }
   gatt_connections_.clear();
-  if (notifyDeviceChanged)
-    GetAdapter()->NotifyDeviceChanged(this);
+  GetAdapter()->NotifyDeviceChanged(this);
 }
 
 void BluetoothDevice::AddGattConnection(BluetoothGattConnection* connection) {

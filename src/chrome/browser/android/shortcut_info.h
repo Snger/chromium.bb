@@ -32,7 +32,8 @@ struct ShortcutInfo {
     SOURCE_ADD_TO_HOMESCREEN_PWA = 6,
     SOURCE_ADD_TO_HOMESCREEN_STANDALONE = 7,
     SOURCE_ADD_TO_HOMESCREEN_SHORTCUT = 8,
-    SOURCE_COUNT = 9
+    SOURCE_EXTERNAL_INTENT = 9,
+    SOURCE_COUNT = 10
   };
 
   explicit ShortcutInfo(const GURL& shortcut_url);
@@ -56,7 +57,11 @@ struct ShortcutInfo {
   Source source;
   int64_t theme_color;
   int64_t background_color;
-  GURL best_icon_url;
+  int ideal_splash_image_size_in_px;
+  int minimum_splash_image_size_in_px;
+  GURL splash_image_url;
+  GURL best_primary_icon_url;
+  GURL best_badge_icon_url;
   std::vector<std::string> icon_urls;
 };
 

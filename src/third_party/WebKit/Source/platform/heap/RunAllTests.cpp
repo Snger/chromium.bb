@@ -28,7 +28,7 @@
  * OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
  */
 
-#include "platform/heap/Heap.h"
+#include "platform/heap/Handle.h"
 #include <base/bind.h>
 #include <base/test/launcher/unit_test_launcher.h>
 #include <base/test/test_suite.h>
@@ -44,11 +44,11 @@ class BlinkTestEnvironmentScope {
 
 int runHelper(base::TestSuite* testSuite) {
   BlinkTestEnvironmentScope blinkTestEnvironment;
-  blink::ThreadState* currentThreadState = blink::ThreadState::current();
-  currentThreadState->registerTraceDOMWrappers(nullptr, nullptr, nullptr,
+  blink::ThreadState* currentThreadState = blink::ThreadState::Current();
+  currentThreadState->RegisterTraceDOMWrappers(nullptr, nullptr, nullptr,
                                                nullptr);
   int result = testSuite->Run();
-  currentThreadState->collectAllGarbage();
+  currentThreadState->CollectAllGarbage();
   return result;
 }
 

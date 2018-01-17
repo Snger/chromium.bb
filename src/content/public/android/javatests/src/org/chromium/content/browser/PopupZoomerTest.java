@@ -13,6 +13,7 @@ import android.support.test.filters.SmallTest;
 import android.view.MotionEvent;
 import android.view.View;
 
+import org.chromium.base.ThreadUtils;
 import org.chromium.base.test.util.Feature;
 import org.chromium.content.browser.input.ImeAdapter;
 import org.chromium.content.browser.input.TestImeAdapterDelegate;
@@ -78,15 +79,24 @@ public class PopupZoomerTest extends ContentShellTestBase {
     @Override
     public void setUp() throws Exception {
         super.setUp();
-        mPopupZoomer = createPopupZoomerForTest(getInstrumentation().getTargetContext());
-        mContentViewCore = new ContentViewCore(getActivity(), "");
-        ImeAdapter imeAdapter = new ImeAdapter(new TestInputMethodManagerWrapper(mContentViewCore),
-                new TestImeAdapterDelegate(getContentViewCore().getContainerView()));
-        mContentViewCore.setSelectionPopupControllerForTesting(
-                new SelectionPopupController(getActivity(), null, null, null,
-                        mContentViewCore.getRenderCoordinates(), imeAdapter));
-        mContentViewCore.setPopupZoomerForTest(mPopupZoomer);
-        mContentViewCore.setImeAdapterForTest(imeAdapter);
+
+        final Context context = getActivity();
+
+        ThreadUtils.runOnUiThreadBlocking(new Runnable() {
+            @Override
+            public void run() {
+                mPopupZoomer = createPopupZoomerForTest(getInstrumentation().getTargetContext());
+                mContentViewCore = new ContentViewCore(context, "");
+                ImeAdapter imeAdapter = new ImeAdapter(
+                        new TestInputMethodManagerWrapper(mContentViewCore),
+                        new TestImeAdapterDelegate(getContentViewCore().getContainerView()));
+                mContentViewCore.setSelectionPopupControllerForTesting(
+                        new SelectionPopupController(context, null, null, null,
+                                mContentViewCore.getRenderCoordinates(), imeAdapter));
+                mContentViewCore.setPopupZoomerForTest(mPopupZoomer);
+                mContentViewCore.setImeAdapterForTest(imeAdapter);
+            }
+        });
     }
 
     @SmallTest
@@ -201,7 +211,7 @@ public class PopupZoomerTest extends ContentShellTestBase {
         assertTrue(mPopupZoomer.isShowing());
 
         // Simulate losing the focus.
-        mContentViewCore.onFocusChanged(false);
+        mContentViewCore.onFocusChanged(false, true);
 
         // Wait for the hide animation to finish.
         mPopupZoomer.finishPendingDraws();

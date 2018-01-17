@@ -37,8 +37,10 @@ protected:
     sk_sp<SkSpecialImage> onFilterImage(SkSpecialImage* source, const Context&,
                                         SkIPoint* offset) const override;
 
+    sk_sp<SkImageFilter> onMakeColorSpace(SkColorSpaceXformer*) const override;
+
 #if SK_SUPPORT_GPU
-    sk_sp<GrTextureProxy> createMaskTexture(GrContext*, 
+    sk_sp<GrTextureProxy> createMaskTexture(GrContext*,
                                             const SkMatrix&,
                                             const SkIRect& bounds) const;
 #endif
@@ -118,7 +120,7 @@ sk_sp<GrTextureProxy> SkAlphaThresholdFilterImpl::createMaskTexture(GrContext* c
         iter.next();
     }
 
-    return sk_ref_sp(rtContext->asDeferredTexture());
+    return rtContext->asTextureProxyRef();
 }
 #endif
 
@@ -150,8 +152,8 @@ sk_sp<SkSpecialImage> SkAlphaThresholdFilterImpl::onFilterImage(SkSpecialImage* 
     if (source->isTextureBacked()) {
         GrContext* context = source->getContext();
 
-        sk_sp<GrTexture> inputTexture(input->asTextureRef(context));
-        SkASSERT(inputTexture);
+        sk_sp<GrTextureProxy> inputProxy(input->asTextureProxyRef(context));
+        SkASSERT(inputProxy);
 
         offset->fX = bounds.left();
         offset->fY = bounds.top();
@@ -170,14 +172,11 @@ sk_sp<SkSpecialImage> SkAlphaThresholdFilterImpl::onFilterImage(SkSpecialImage* 
         sk_sp<GrColorSpaceXform> colorSpaceXform = GrColorSpaceXform::Make(input->getColorSpace(),
                                                                            outProps.colorSpace());
 
-        GrTexture* maskTex = maskProxy->instantiate(context->textureProvider());
-        if (!maskTex) {
-            return nullptr;
-        }
         sk_sp<GrFragmentProcessor> fp(GrAlphaThresholdFragmentProcessor::Make(
-                                            inputTexture.get(),
+                                            context->resourceProvider(),
+                                            std::move(inputProxy),
                                             std::move(colorSpaceXform),
-                                            maskTex,
+                                            std::move(maskProxy),
                                             fInnerThreshold,
                                             fOuterThreshold,
                                             bounds));
@@ -263,6 +262,18 @@ sk_sp<SkSpecialImage> SkAlphaThresholdFilterImpl::onFilterImage(SkSpecialImage* 
     offset->fY = bounds.top();
     return SkSpecialImage::MakeFromRaster(SkIRect::MakeWH(bounds.width(), bounds.height()),
                                           dst);
+}
+
+sk_sp<SkImageFilter> SkAlphaThresholdFilterImpl::onMakeColorSpace(SkColorSpaceXformer* xformer)
+const {
+    SkASSERT(1 == this->countInputs());
+    if (!this->getInput(0)) {
+        return sk_ref_sp(const_cast<SkAlphaThresholdFilterImpl*>(this));
+    }
+
+    sk_sp<SkImageFilter> input = this->getInput(0)->makeColorSpace(xformer);
+    return SkAlphaThresholdFilter::Make(fRegion, fInnerThreshold, fOuterThreshold,
+                                        std::move(input), this->getCropRectIfSet());
 }
 
 #ifndef SK_IGNORE_TO_STRING

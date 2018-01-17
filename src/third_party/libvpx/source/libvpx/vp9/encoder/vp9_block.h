@@ -11,6 +11,8 @@
 #ifndef VP9_ENCODER_VP9_BLOCK_H_
 #define VP9_ENCODER_VP9_BLOCK_H_
 
+#include "vpx_util/vpx_thread.h"
+
 #include "vp9/common/vp9_entropymv.h"
 #include "vp9/common/vp9_entropy.h"
 
@@ -61,6 +63,11 @@ typedef struct {
 
 typedef struct macroblock MACROBLOCK;
 struct macroblock {
+// cf. https://bugs.chromium.org/p/webm/issues/detail?id=1054
+#if defined(_MSC_VER) && _MSC_VER < 1900
+  int64_t bsse[MAX_MB_PLANE << 2];
+#endif
+
   struct macroblock_plane plane[MAX_MB_PLANE];
 
   MACROBLOCKD e_mbd;
@@ -88,6 +95,9 @@ struct macroblock {
   int mb_energy;
   int *m_search_count_ptr;
   int *ex_search_count_ptr;
+#if CONFIG_MULTITHREAD
+  pthread_mutex_t *search_count_mutex;
+#endif
 
   // These are set to their default values at the beginning, and then adjusted
   // further in the encoding process.
@@ -118,6 +128,9 @@ struct macroblock {
   // Set during mode selection. Read during block encoding.
   uint8_t zcoeff_blk[TX_SIZES][256];
 
+  // Accumulate the tx block eobs in a partition block.
+  int32_t sum_y_eobs[TX_SIZES];
+
   int skip;
 
   int encode_breakout;
@@ -131,6 +144,10 @@ struct macroblock {
   int use_lp32x32fdct;
   int skip_encode;
 
+  // In first pass, intra prediction is done based on source pixels
+  // at tile boundaries
+  int fp_src_pred;
+
   // use fast quantization process
   int quant_fp;
 
@@ -140,7 +157,10 @@ struct macroblock {
 #define SKIP_TXFM_AC_DC 1
 #define SKIP_TXFM_AC_ONLY 2
 
+// cf. https://bugs.chromium.org/p/webm/issues/detail?id=1054
+#if !defined(_MSC_VER) || _MSC_VER >= 1900
   int64_t bsse[MAX_MB_PLANE << 2];
+#endif
 
   // Used to store sub partition's choices.
   MV pred_mv[MAX_REF_FRAMES];
@@ -150,6 +170,14 @@ struct macroblock {
   uint8_t color_sensitivity[2];
 
   uint8_t sb_is_skin;
+
+  uint8_t skip_low_source_sad;
+
+  uint8_t last_sb_high_content;
+
+  // For each superblock: saves the content value (e.g., low/high sad/sumdiff)
+  // based on source sad, prior to encoding the frame.
+  uint8_t content_state_sb;
 
   // Used to save the status of whether a block has a low variance in
   // choose_partitioning. 0 for 64x64, 1~2 for 64x32, 3~4 for 32x64, 5~8 for

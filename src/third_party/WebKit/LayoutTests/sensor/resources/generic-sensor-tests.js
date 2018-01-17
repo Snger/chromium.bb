@@ -5,19 +5,14 @@
 // is called so that the value read in JavaScript are the values expected (the ones
 // sent by |updateReading|).
 function runGenericSensorTests(sensorType, updateReading, verifyReading) {
-  test(() => assert_throws(
-    new RangeError(),
-    () => new sensorType({frequency: -60})),
-    'Test that negative frequency causes exception from constructor.');
-
   sensor_test(sensor => {
     sensor.mockSensorProvider.setGetSensorShouldFail(true);
     let sensorObject = new sensorType;
     sensorObject.start();
     return new Promise((resolve, reject) => {
       let wrapper = new CallbackWrapper(event => {
-        assert_equals(sensorObject.state, 'errored');
-        assert_equals(event.error.name, 'NotFoundError');
+        assert_false(sensorObject.activated);
+        assert_equals(event.error.name, 'NotReadableError');
         sensorObject.onerror = null;
         resolve();
       }, reject);
@@ -37,8 +32,8 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
         .then(mockSensor => {
           return new Promise((resolve, reject) => {
             let wrapper = new CallbackWrapper(event => {
-              assert_equals(sensorObject.state, 'errored');
-              assert_equals(event.error.name, 'OperationError');
+              assert_false(sensorObject.activated);
+              assert_equals(event.error.name, 'NotReadableError');
               sensorObject.onerror = null;
               resolve();
             }, reject);
@@ -61,7 +56,7 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
                 let configuration = mockSensor.active_sensor_configurations_[0];
                 assert_equals(configuration.frequency, 60);
                 sensorObject.stop();
-                assert_equals(sensorObject.state, 'idle');
+                assert_false(sensorObject.activated);
                 resolve(mockSensor);
               }, reject);
               sensorObject.onactivate = wrapper.callback;
@@ -85,7 +80,7 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
               let configuration = mockSensor.active_sensor_configurations_[0];
               assert_equals(configuration.frequency, maxSupportedFrequency);
               sensorObject.stop();
-              assert_equals(sensorObject.state, 'idle');
+              assert_false(sensorObject.activated);
               resolve(mockSensor);
            }, reject);
            sensorObject.onactivate = wrapper.callback;
@@ -97,15 +92,41 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
   }, 'Test that frequency is capped to the maximum supported from frequency.');
 
   sensor_test(sensor => {
-  let sensorObject = new sensorType({frequency: 60});
-  sensorObject.start();
-  let testPromise = sensor.mockSensorProvider.getCreatedSensor()
+    let minSupportedFrequency = 2;
+    sensor.mockSensorProvider.setMinimumSupportedFrequency(minSupportedFrequency);
+    let sensorObject = new sensorType({frequency: -1});
+    sensorObject.start();
+    let testPromise = sensor.mockSensorProvider.getCreatedSensor()
+        .then(mockSensor => { return mockSensor.addConfigurationCalled(); })
+        .then(mockSensor => {
+          return new Promise((resolve, reject) => {
+            let wrapper = new CallbackWrapper(() => {
+              let configuration = mockSensor.active_sensor_configurations_[0];
+              assert_equals(configuration.frequency, minSupportedFrequency);
+              sensorObject.stop();
+              assert_false(sensorObject.activated);
+              resolve(mockSensor);
+           }, reject);
+           sensorObject.onactivate = wrapper.callback;
+           sensorObject.onerror = reject;
+          });
+        })
+        .then(mockSensor => { return mockSensor.removeConfigurationCalled(); });
+    return testPromise;
+  }, 'Test that frequency is limited to the minimum supported from frequency.');
+
+  sensor_test(sensor => {
+    let sensorObject = new sensorType({frequency: 60});
+    assert_false(sensorObject.activated);
+    sensorObject.start();
+    assert_false(sensorObject.activated);
+    let testPromise = sensor.mockSensorProvider.getCreatedSensor()
       .then((mockSensor) => {
         return new Promise((resolve, reject) => {
           let wrapper = new CallbackWrapper(() => {
-            assert_equals(sensorObject.state, 'activated');
+            assert_true(sensorObject.activated);
             sensorObject.stop();
-            assert_equals(sensorObject.state, 'idle');
+            assert_false(sensorObject.activated);
             resolve(mockSensor);
           }, reject);
           sensorObject.onactivate = wrapper.callback;
@@ -113,8 +134,8 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
         });
       })
       .then(mockSensor => { return mockSensor.removeConfigurationCalled(); });
-  return testPromise;
-  }, 'Test that sensor can be successfully created if sensor is supported.');
+    return testPromise;
+  }, 'Test that sensor can be successfully created and its states are correct.');
 
   sensor_test(sensor => {
     let sensorObject = new sensorType();
@@ -123,9 +144,9 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
         .then((mockSensor) => {
           return new Promise((resolve, reject) => {
             let wrapper = new CallbackWrapper(() => {
-              assert_equals(sensorObject.state, 'activated');
+              assert_true(sensorObject.activated);
               sensorObject.stop();
-              assert_equals(sensorObject.state, 'idle');
+              assert_false(sensorObject.activated);
               resolve(mockSensor);
             }, reject);
 
@@ -146,9 +167,9 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
         .then(mockSensor => {
           return new Promise((resolve, reject) => {
             let wrapper = new CallbackWrapper(() => {
-              assert_equals(sensorObject.state, 'activated');
+              assert_true(sensorObject.activated);
               sensorObject.stop();
-              assert_equals(sensorObject.state, 'idle');
+              assert_false(sensorObject.activated);
               resolve(mockSensor);
            }, reject);
            sensorObject.onactivate = wrapper.callback;
@@ -170,9 +191,9 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
         .then((mockSensor) => {
           return new Promise((resolve, reject) => {
             let wrapper = new CallbackWrapper(() => {
-              assert_true(verifyReading(sensorObject.reading));
+              assert_true(verifyReading(sensorObject));
               sensorObject.stop();
-              assert_equals(sensorObject.reading, null);
+              assert_true(verifyReading(sensorObject, true /*should be null*/));
               resolve(mockSensor);
             }, reject);
 
@@ -204,7 +225,7 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
         .then(mockSensor => {
           return new Promise((resolve, reject) => {
             let wrapper = new CallbackWrapper(() => {
-              assert_true(verifyReading(sensorObject.reading));
+              assert_true(verifyReading(sensorObject));
               resolve(mockSensor);
             }, reject);
 
@@ -246,24 +267,19 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
         .then((mockSensor) => {
           return new Promise((resolve, reject) => {
             let wrapper = new CallbackWrapper(() => {
-              // Reading value is correct.
-              assert_true(verifyReading(sensor1.reading));
+              // Reading values are correct for both sensors.
+              assert_true(verifyReading(sensor1));
+              assert_true(verifyReading(sensor2));
 
-              // Both sensors share the same reading instance.
-              let reading = sensor1.reading;
-              assert_equals(reading, sensor2.reading);
-
-              // After first sensor stops its reading is null, reading for second
-              // sensor sensor remains.
+              // After first sensor stops its reading values are null,
+              // reading values for the second sensor sensor remain.
               sensor1.stop();
-              assert_equals(sensor1.reading, null);
-              assert_true(verifyReading(sensor2.reading));
+              assert_true(verifyReading(sensor1, true /*should be null*/));
+              assert_true(verifyReading(sensor2));
 
               sensor2.stop();
-              assert_equals(sensor2.reading, null);
+              assert_true(verifyReading(sensor2, true /*should be null*/));
 
-              // Cached reading remains.
-              assert_true(verifyReading(reading));
               resolve(mockSensor);
             }, reject);
 
@@ -284,7 +300,6 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
 
     let testPromise = sensor.mockSensorProvider.getCreatedSensor()
         .then(mockSensor => {
-          mockSensor.setExpectsModifiedReading(true);
           return mockSensor.setUpdateSensorReadingFunction(updateReading);
         })
         .then(mockSensor => {
@@ -310,7 +325,7 @@ function runGenericSensorTests(sensorType, updateReading, verifyReading) {
                 // (not to a timer) so fluctuations are possible, so we
                 // reference to the actual elapsed updates count.
                 let elapsedUpdates = mockSensor.reading_updates_count() - readingUpdatesCounter;
-                assert_equals(fastSensorNotifiedCounter, elapsedUpdates);
+                assert_approx_equals(fastSensorNotifiedCounter, elapsedUpdates, 1);
                 fastSensor.stop();
                 slowSensor.stop();
                 resolve(mockSensor);

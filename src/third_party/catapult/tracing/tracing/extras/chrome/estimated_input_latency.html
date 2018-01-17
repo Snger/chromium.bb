@@ -11,7 +11,6 @@ found in the LICENSE file.
 <script>
 'use strict';
 tr.exportTo('tr.e.chrome', function() {
-
   // TODO(dproy): Because title and category are properties of TimedEvent
   // subclasses and not TimedEvent itself, we have to write our own "has title
   // and category" function rather than having it provided by TimedEvent.
@@ -19,7 +18,7 @@ tr.exportTo('tr.e.chrome', function() {
   // https://github.com/catapult-project/catapult/issues/2784
   function hasTitleAndCategory(event, title, category) {
     return event.title === title && event.category &&
-      tr.b.getCategoryParts(event.category).indexOf(category) !== -1;
+      tr.b.getCategoryParts(event.category).includes(category);
   }
 
   function getNavStartTimestamps(rendererHelper) {
@@ -40,7 +39,7 @@ tr.exportTo('tr.e.chrome', function() {
     var interactiveTimestampsMap = new Map();
     var chromeHelper = model.getOrCreateHelper(
         tr.model.helpers.ChromeModelHelper);
-    tr.b.iterItems(chromeHelper.rendererHelpers, (pid, rendererHelper) => {
+    for (var rendererHelper of Object.values(chromeHelper.rendererHelpers)) {
       var timestamps = [];
       interactiveTimestampsMap.set(rendererHelper.pid, timestamps);
       var samples = tr.metrics.sh.collectLoadingMetricsForRenderer(
@@ -49,7 +48,7 @@ tr.exportTo('tr.e.chrome', function() {
         timestamps.push(
             sample.diagnostics['Navigation infos'].value.interactive);
       }
-    });
+    }
     return interactiveTimestampsMap;
   }
 
@@ -71,7 +70,7 @@ tr.exportTo('tr.e.chrome', function() {
    * @param {!Array.<number>} interactiveTimestamps
    * @param {!Array.<number>} navStartTimestamps
    * @param {!number} traceEndTimestamp
-   * @returns {!Array.<tr.b.Range>}
+   * @returns {!Array.<tr.b.math.Range>}
    */
   function getPostInteractiveTaskWindows(
       interactiveTimestamps, navStartTimestamps, traceEndTimestamp) {
@@ -100,7 +99,7 @@ tr.exportTo('tr.e.chrome', function() {
             'PostInteractiveTaskWindow is not well defined in this case.');
       }
 
-      taskWindows.push(tr.b.Range.fromExplicitRange(
+      taskWindows.push(tr.b.math.Range.fromExplicitRange(
           currTTI, taskWindowEndTs));
       lastTaskWindowEndTs = taskWindowEndTs;
     }
@@ -121,7 +120,7 @@ tr.exportTo('tr.e.chrome', function() {
    * We assume that input arrival time is uniformly distributed in the given
    * time window.
    *
-   * @param {!tr.b.Range} A time window.
+   * @param {!tr.b.math.Range} A time window.
    * @param {!Array.<!{start: number, end: number, weight: number}>} A list of
    *        weighted tasks. The weight of a task must be between 0.0 and 1.0.
    * @returns {number}
@@ -154,7 +153,7 @@ tr.exportTo('tr.e.chrome', function() {
    * We assume that input arrival time is uniformly distributed in the given
    * time window.
    *
-   * @param {!tr.b.Range} A time window.
+   * @param {!tr.b.math.Range} A time window.
    * @param {!Array.<!{start: number, end: number, weight: number}>} A list of
    *        weighted tasks. The weight of a task must be between 0.0 and 1.0.
    * @returns {number}
@@ -171,7 +170,7 @@ tr.exportTo('tr.e.chrome', function() {
    * Returns expected queueing time for the given time window and
    * the given set of tasks. The tasks must not overlap.
    *
-   * @param {!tr.b.Range} A time window.
+   * @param {!tr.b.math.Range} A time window.
    * @param {!Array.<!{start: number, end: number}>} A list of tasks.
    * @returns {number}
    */
@@ -203,9 +202,9 @@ tr.exportTo('tr.e.chrome', function() {
        */
       this.sortedTasks_ = sortedTasks;
       /**
-       * @private {!tr.b.Range} The endpoints of the sliding window.
+       * @private {!tr.b.math.Range} The endpoints of the sliding window.
        */
-      this.range_ = tr.b.Range.fromExplicitRange(
+      this.range_ = tr.b.math.Range.fromExplicitRange(
           startTime, startTime + windowSize);
       /**
        * @private {number} The index of the first task in the sortedTasks that
@@ -214,8 +213,9 @@ tr.exportTo('tr.e.chrome', function() {
        */
       this.firstTaskIndex_ =
           sortedTasks.findIndex(task => startTime < task.end);
-      if (this.firstTaskIndex_ === -1)
+      if (this.firstTaskIndex_ === -1) {
         this.firstTaskIndex_ = sortedTasks.length;
+      }
       /**
        * @private {number} The index of the last task in the sortedTasks that
        *     starts before this window ends:
@@ -259,7 +259,7 @@ tr.exportTo('tr.e.chrome', function() {
      * @param {number} The time.
      */
     slide(t) {
-      this.range_ = tr.b.Range.fromExplicitRange(t, t + this.windowSize_);
+      this.range_ = tr.b.math.Range.fromExplicitRange(t, t + this.windowSize_);
       if (this.firstTaskIndex_ < this.sortedTasks_.length &&
           this.sortedTasks_[this.firstTaskIndex_].end <= t) {
         // The first task moved out of the window.
@@ -300,7 +300,7 @@ tr.exportTo('tr.e.chrome', function() {
    * @returns {number}
    */
   function maxExpectedQueueingTimeInSlidingWindow(startTime, endTime,
-                                                  windowSize, tasks) {
+      windowSize, tasks) {
     if (windowSize <= 0) {
       throw Error('The window size must be positive number');
     }
@@ -311,7 +311,14 @@ tr.exportTo('tr.e.chrome', function() {
     var sortedTasks = tasks.slice().sort((a, b) => a.start - b.start);
 
     for (var i = 1; i < sortedTasks.length; i++) {
-      if (sortedTasks[i - 1].end > sortedTasks[i].start) {
+      // Due to floating-point precision errors it might happen that the end
+      // of the previous task is larger than the start of the current task.
+      // Here is an example from a real trace of system-health benchmark:
+      // Task 1: start=1932.0179090499878 end=1932.070909049988.
+      // Task 2: start=1932.0709090232850 end=1932.118909023285.
+      // To account for precision errors we consider tasks as overlapping
+      // if the overlap is sufficiently large.
+      if (sortedTasks[i - 1].end > sortedTasks[i].start + 1e-3) {
         throw Error('Tasks must not overlap');
       }
     }

@@ -292,7 +292,7 @@ class ExtensionService
   // Disable non-default and non-managed extensions with ids not in
   // |except_ids|. Default extensions are those from the Web Store with
   // |was_installed_by_default| flag.
-  void DisableUserExtensions(const std::vector<std::string>& except_ids);
+  void DisableUserExtensionsExcept(const std::vector<std::string>& except_ids);
 
   // Puts all extensions in a blocked state: Unloading every extension, and
   // preventing them from ever loading until UnblockAllExtensions is called.
@@ -383,17 +383,11 @@ class ExtensionService
   content::BrowserContext* GetBrowserContext() const;
 
   bool extensions_enabled() const { return extensions_enabled_; }
-  void set_extensions_enabled(bool enabled) { extensions_enabled_ = enabled; }
 
   const base::FilePath& install_directory() const { return install_directory_; }
 
   const extensions::ExtensionSet* delayed_installs() const {
     return &delayed_installs_;
-  }
-
-  bool show_extensions_prompts() const { return show_extensions_prompts_; }
-  void set_show_extensions_prompts(bool show_extensions_prompts) {
-    show_extensions_prompts_ = show_extensions_prompts;
   }
 
   Profile* profile() { return profile_; }
@@ -453,6 +447,10 @@ class ExtensionService
   void set_external_updates_finished_callback_for_test(
       const base::Closure& callback) {
     external_updates_finished_callback_ = callback;
+  }
+
+  void set_external_updates_disabled_for_test(bool value) {
+    external_updates_disabled_for_test_ = value;
   }
 
  private:
@@ -638,9 +636,6 @@ class ExtensionService
   // Whether or not extensions are enabled.
   bool extensions_enabled_ = true;
 
-  // Whether to notify users when they attempt to install an extension.
-  bool show_extensions_prompts_ = true;
-
   // Signaled when all extensions are loaded.
   extensions::OneShotEvent* const ready_;
 
@@ -685,6 +680,9 @@ class ExtensionService
   // updating additional extensions and allows in-progress installations to
   // decide to abort.
   bool browser_terminating_ = false;
+
+  // If set, call to CheckForExternalUpdates() will bail out.
+  bool external_updates_disabled_for_test_ = false;
 
   // Set to true if this is the first time this ExtensionService has run.
   // Used for specially handling external extensions that are installed the

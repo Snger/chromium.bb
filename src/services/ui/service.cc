@@ -18,7 +18,6 @@
 #include "services/catalog/public/cpp/resource_loader.h"
 #include "services/catalog/public/interfaces/constants.mojom.h"
 #include "services/service_manager/public/c/main.h"
-#include "services/service_manager/public/cpp/connection.h"
 #include "services/service_manager/public/cpp/connector.h"
 #include "services/service_manager/public/cpp/interface_registry.h"
 #include "services/service_manager/public/cpp/service_context.h"
@@ -29,7 +28,6 @@
 #include "services/ui/ime/ime_registrar_impl.h"
 #include "services/ui/ime/ime_server_impl.h"
 #include "services/ui/ws/accessibility_manager.h"
-#include "services/ui/ws/display.h"
 #include "services/ui/ws/display_binding.h"
 #include "services/ui/ws/display_manager.h"
 #include "services/ui/ws/gpu_host.h"
@@ -41,6 +39,7 @@
 #include "services/ui/ws/window_tree_binding.h"
 #include "services/ui/ws/window_tree_factory.h"
 #include "services/ui/ws/window_tree_host_factory.h"
+#include "ui/base/platform_window_defaults.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/base/ui_base_paths.h"
 #include "ui/events/event_switches.h"
@@ -58,7 +57,6 @@
 #include "ui/ozone/public/ozone_platform.h"
 #endif
 
-using service_manager::Connection;
 using mojo::InterfaceRequest;
 using ui::mojom::WindowServerTest;
 using ui::mojom::WindowTreeHostFactory;
@@ -96,6 +94,10 @@ Service::~Service() {
   // WindowServer (or more correctly its Displays) may have state that needs to
   // be destroyed before GpuState as well.
   window_server_.reset();
+
+#if defined(USE_OZONE)
+  OzonePlatform::Shutdown();
+#endif
 }
 
 void Service::InitializeResources(service_manager::Connector* connector) {
@@ -149,10 +151,11 @@ void Service::OnStart() {
       switches::kUseTestConfig);
 #if defined(USE_X11)
   XInitThreads();
-  if (test_config_)
-    ui::test::SetUseOverrideRedirectWindowByDefault(true);
   ui::SetDefaultX11ErrorHandlers();
 #endif
+
+  if (test_config_)
+    ui::test::EnableTestConfigForPlatformWindows();
 
   InitializeResources(context()->connector());
 
@@ -169,11 +172,11 @@ void Service::OnStart() {
   // TODO(kylechar): We might not always want a US keyboard layout.
   ui::KeyboardLayoutEngineManager::GetKeyboardLayoutEngine()
       ->SetCurrentLayoutByName("us");
-  client_native_pixmap_factory_ = ui::ClientNativePixmapFactory::Create();
-  ui::ClientNativePixmapFactory::SetInstance(
+  client_native_pixmap_factory_ = ui::CreateClientNativePixmapFactoryOzone();
+  gfx::ClientNativePixmapFactory::SetInstance(
       client_native_pixmap_factory_.get());
 
-  DCHECK(ui::ClientNativePixmapFactory::GetInstance());
+  DCHECK(gfx::ClientNativePixmapFactory::GetInstance());
 #endif
 
 // TODO(rjkroege): Enter sandbox here before we start threads in GpuState
@@ -188,46 +191,47 @@ void Service::OnStart() {
   // so keep this line below both of those.
   input_device_server_.RegisterAsObserver();
 
-  // Gpu must be running before the ScreenManager can be initialized.
   window_server_.reset(new ws::WindowServer(this));
 
   ime_server_.Init(context()->connector(), test_config_);
 
   discardable_shared_memory_manager_ =
       base::MakeUnique<discardable_memory::DiscardableSharedMemoryManager>();
-}
 
-bool Service::OnConnect(const service_manager::ServiceInfo& remote_info,
-                        service_manager::InterfaceRegistry* registry) {
-  registry->AddInterface<mojom::AccessibilityManager>(this);
-  registry->AddInterface<mojom::Clipboard>(this);
-  registry->AddInterface<mojom::DisplayManager>(this);
-  registry->AddInterface<mojom::Gpu>(this);
-  registry->AddInterface<mojom::IMERegistrar>(this);
-  registry->AddInterface<mojom::IMEServer>(this);
-  registry->AddInterface<mojom::UserAccessManager>(this);
-  registry->AddInterface<mojom::UserActivityMonitor>(this);
-  registry->AddInterface<WindowTreeHostFactory>(this);
-  registry->AddInterface<mojom::WindowManagerWindowTreeFactory>(this);
-  registry->AddInterface<mojom::WindowTreeFactory>(this);
-  registry
-      ->AddInterface<discardable_memory::mojom::DiscardableSharedMemoryManager>(
+  registry_.AddInterface<mojom::AccessibilityManager>(this);
+  registry_.AddInterface<mojom::Clipboard>(this);
+  registry_.AddInterface<mojom::DisplayManager>(this);
+  registry_.AddInterface<mojom::Gpu>(this);
+  registry_.AddInterface<mojom::IMERegistrar>(this);
+  registry_.AddInterface<mojom::IMEServer>(this);
+  registry_.AddInterface<mojom::UserAccessManager>(this);
+  registry_.AddInterface<mojom::UserActivityMonitor>(this);
+  registry_.AddInterface<WindowTreeHostFactory>(this);
+  registry_.AddInterface<mojom::WindowManagerWindowTreeFactory>(this);
+  registry_.AddInterface<mojom::WindowTreeFactory>(this);
+  registry_
+      .AddInterface<discardable_memory::mojom::DiscardableSharedMemoryManager>(
           this);
   if (test_config_)
-    registry->AddInterface<WindowServerTest>(this);
+    registry_.AddInterface<WindowServerTest>(this);
 
   // On non-Linux platforms there will be no DeviceDataManager instance and no
   // purpose in adding the Mojo interface to connect to.
   if (input_device_server_.IsRegisteredAsObserver())
-    input_device_server_.AddInterface(registry);
+    input_device_server_.AddInterface(&registry_);
 
-  screen_manager_->AddInterfaces(registry);
+  screen_manager_->AddInterfaces(&registry_);
 
 #if defined(USE_OZONE)
-  ui::OzonePlatform::GetInstance()->AddInterfaces(registry);
+  ui::OzonePlatform::GetInstance()->AddInterfaces(&registry_);
 #endif
+}
 
-  return true;
+void Service::OnBindInterface(const service_manager::ServiceInfo& source_info,
+                              const std::string& interface_name,
+                              mojo::ScopedMessagePipeHandle interface_pipe) {
+  registry_.BindInterface(source_info.identity, interface_name,
+                          std::move(interface_pipe));
 }
 
 void Service::StartDisplayInit() {

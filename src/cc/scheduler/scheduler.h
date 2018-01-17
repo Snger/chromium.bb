@@ -12,7 +12,7 @@
 #include "base/cancelable_callback.h"
 #include "base/macros.h"
 #include "base/time/time.h"
-#include "cc/base/cc_export.h"
+#include "cc/cc_export.h"
 #include "cc/output/begin_frame_args.h"
 #include "cc/scheduler/begin_frame_source.h"
 #include "cc/scheduler/begin_frame_tracker.h"
@@ -45,6 +45,7 @@ class SchedulerClient {
   virtual void ScheduledActionBeginCompositorFrameSinkCreation() = 0;
   virtual void ScheduledActionPrepareTiles() = 0;
   virtual void ScheduledActionInvalidateCompositorFrameSink() = 0;
+  virtual void ScheduledActionPerformImplSideInvalidation() = 0;
   virtual void DidFinishImplFrame() = 0;
   virtual void SendBeginMainFrameNotExpectedSoon() = 0;
 
@@ -88,6 +89,15 @@ class CC_EXPORT Scheduler : public BeginFrameObserverBase {
   void SetNeedsRedraw();
 
   void SetNeedsPrepareTiles();
+
+  // Requests a pending tree should be created to invalidate content on the impl
+  // thread, after the current tree is activated, if any. If the request
+  // necessitates creating a pending tree only for impl-side invalidations, the
+  // |client_| is informed to perform this action using
+  // ScheduledActionRunImplSideInvalidation.
+  // If ScheduledActionCommit is performed, the impl-side invalidations should
+  // be merged with the main frame and the request is assumed to be completed.
+  void SetNeedsImplSideInvalidation();
 
   // Drawing should result in submitting a CompositorFrame to the
   // CompositorFrameSink and then calling this.
@@ -142,6 +152,8 @@ class CC_EXPORT Scheduler : public BeginFrameObserverBase {
     return begin_frame_source_;
   }
 
+  BeginFrameAck CurrentBeginFrameAckForActiveTree() const;
+
  protected:
   // Virtual for testing.
   virtual base::TimeTicks Now() const;
@@ -194,8 +206,10 @@ class CC_EXPORT Scheduler : public BeginFrameObserverBase {
   bool IsBeginMainFrameSentOrStarted() const;
   void BeginImplFrameWithDeadline(const BeginFrameArgs& args);
   void BeginImplFrameSynchronous(const BeginFrameArgs& args);
-  void BeginImplFrame(const BeginFrameArgs& args);
+  void BeginImplFrame(const BeginFrameArgs& args, base::TimeTicks now);
   void FinishImplFrame();
+  enum BeginFrameResult { kBeginFrameSkipped, kBeginFrameFinished };
+  void SendBeginFrameAck(const BeginFrameArgs& args, BeginFrameResult result);
   void OnBeginImplFrameDeadline();
   void PollToAdvanceCommitState();
 

@@ -14,6 +14,13 @@
 
 namespace base {
 class MessageLoop;
+class Thread;
+}
+
+namespace mojo {
+namespace edk {
+class ScopedIPCSupport;
+}
 }
 
 namespace service_manager {
@@ -36,8 +43,9 @@ class ServiceTestClient : public Service {
 
  protected:
   void OnStart() override;
-  bool OnConnect(const ServiceInfo& remote_info,
-                 InterfaceRegistry* registry) override;
+  void OnBindInterface(const ServiceInfo& source_info,
+                       const std::string& interface_name,
+                       mojo::ScopedMessagePipeHandle interface_pipe) override;
 
  private:
   ServiceTest* test_;
@@ -52,7 +60,7 @@ class ServiceTest : public testing::Test {
   // Once set via this constructor, it cannot be changed later by calling
   // InitTestName(). The test executable must provide a manifest in the
   // appropriate location that specifies this name also.
-  explicit ServiceTest(const std::string& test_name, bool init_edk = true);
+  explicit ServiceTest(const std::string& test_name, bool init_edk = false);
   ~ServiceTest() override;
 
  protected:
@@ -93,6 +101,8 @@ class ServiceTest : public testing::Test {
   // See constructor.
   std::string test_name_;
   bool init_edk_ = true;
+  std::unique_ptr<base::Thread> ipc_thread_;
+  std::unique_ptr<mojo::edk::ScopedIPCSupport> ipc_support_;
 
   Connector* connector_ = nullptr;
   std::string initialize_name_;

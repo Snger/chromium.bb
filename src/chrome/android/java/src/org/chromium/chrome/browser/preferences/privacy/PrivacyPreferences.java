@@ -15,6 +15,7 @@ import android.view.MenuInflater;
 import android.view.MenuItem;
 
 import org.chromium.chrome.R;
+import org.chromium.chrome.browser.ChromeFeatureList;
 import org.chromium.chrome.browser.contextualsearch.ContextualSearchFieldTrial;
 import org.chromium.chrome.browser.help.HelpAndFeedback;
 import org.chromium.chrome.browser.physicalweb.PhysicalWeb;
@@ -41,6 +42,7 @@ public class PrivacyPreferences extends PreferenceFragment
     private static final String PREF_DO_NOT_TRACK = "do_not_track";
     private static final String PREF_USAGE_AND_CRASH_REPORTING = "usage_and_crash_reports";
     private static final String PREF_PHYSICAL_WEB = "physical_web";
+    private static final String PREF_CLEAR_BROWSING_DATA = "clear_browsing_data";
 
     private ManagedPreferenceDelegate mManagedPreferenceDelegate;
 
@@ -71,6 +73,10 @@ public class PrivacyPreferences extends PreferenceFragment
                 (ChromeBaseCheckBoxPreference) findPreference(PREF_SEARCH_SUGGESTIONS);
         searchSuggestionsPref.setOnPreferenceChangeListener(this);
         searchSuggestionsPref.setManagedPreferenceDelegate(mManagedPreferenceDelegate);
+        if (ChromeFeatureList.isEnabled(ChromeFeatureList.CONTENT_SUGGESTIONS_SETTINGS)) {
+            searchSuggestionsPref.setTitle(R.string.search_site_suggestions_title);
+            searchSuggestionsPref.setSummary(R.string.search_site_suggestions_summary);
+        }
 
         PreferenceScreen preferenceScreen = getPreferenceScreen();
         if (!ContextualSearchFieldTrial.isEnabled()) {
@@ -100,6 +106,11 @@ public class PrivacyPreferences extends PreferenceFragment
 
         if (!PhysicalWeb.featureIsEnabled()) {
             preferenceScreen.removePreference(findPreference(PREF_PHYSICAL_WEB));
+        }
+
+        if (ClearBrowsingDataTabsFragment.isFeatureEnabled()) {
+            findPreference(PREF_CLEAR_BROWSING_DATA)
+                    .setFragment(ClearBrowsingDataTabsFragment.class.getName());
         }
 
         updateSummaries();

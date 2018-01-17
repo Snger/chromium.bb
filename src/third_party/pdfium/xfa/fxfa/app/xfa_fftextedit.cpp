@@ -21,16 +21,16 @@
 #include "xfa/fxfa/app/xfa_fffield.h"
 #include "xfa/fxfa/app/xfa_fwladapter.h"
 #include "xfa/fxfa/cxfa_eventparam.h"
-#include "xfa/fxfa/parser/xfa_localevalue.h"
-#include "xfa/fxfa/xfa_ffapp.h"
-#include "xfa/fxfa/xfa_ffdoc.h"
-#include "xfa/fxfa/xfa_ffdocview.h"
-#include "xfa/fxfa/xfa_ffpageview.h"
-#include "xfa/fxfa/xfa_ffwidget.h"
+#include "xfa/fxfa/cxfa_ffapp.h"
+#include "xfa/fxfa/cxfa_ffdoc.h"
+#include "xfa/fxfa/cxfa_ffdocview.h"
+#include "xfa/fxfa/cxfa_ffpageview.h"
+#include "xfa/fxfa/cxfa_ffwidget.h"
+#include "xfa/fxfa/parser/cxfa_localevalue.h"
+#include "xfa/fxfa/parser/cxfa_node.h"
 
-CXFA_FFTextEdit::CXFA_FFTextEdit(CXFA_FFPageView* pPageView,
-                                 CXFA_WidgetAcc* pDataAcc)
-    : CXFA_FFField(pPageView, pDataAcc), m_pOldDelegate(nullptr) {}
+CXFA_FFTextEdit::CXFA_FFTextEdit(CXFA_WidgetAcc* pDataAcc)
+    : CXFA_FFField(pDataAcc), m_pOldDelegate(nullptr) {}
 
 CXFA_FFTextEdit::~CXFA_FFTextEdit() {
   if (m_pNormalWidget) {
@@ -104,58 +104,53 @@ void CXFA_FFTextEdit::UpdateWidgetProperty() {
   m_pNormalWidget->ModifyStyles(dwStyle, 0xFFFFFFFF);
   m_pNormalWidget->ModifyStylesEx(dwExtendedStyle, 0xFFFFFFFF);
 }
-bool CXFA_FFTextEdit::OnLButtonDown(uint32_t dwFlags,
-                                    FX_FLOAT fx,
-                                    FX_FLOAT fy) {
-  if (!PtInActiveRect(fx, fy)) {
+
+bool CXFA_FFTextEdit::OnLButtonDown(uint32_t dwFlags, const CFX_PointF& point) {
+  if (!PtInActiveRect(point))
     return false;
-  }
   if (!IsFocused()) {
     m_dwStatus |= XFA_WidgetStatus_Focused;
     UpdateFWLData();
     AddInvalidateRect();
   }
+
   SetButtonDown(true);
   CFWL_MessageMouse ms(nullptr, m_pNormalWidget);
   ms.m_dwCmd = FWL_MouseCommand::LeftButtonDown;
   ms.m_dwFlags = dwFlags;
-  ms.m_fx = fx;
-  ms.m_fy = fy;
-  FWLToClient(ms.m_fx, ms.m_fy);
+  ms.m_pos = FWLToClient(point);
   TranslateFWLMessage(&ms);
   return true;
 }
-bool CXFA_FFTextEdit::OnRButtonDown(uint32_t dwFlags,
-                                    FX_FLOAT fx,
-                                    FX_FLOAT fy) {
-  if (m_pDataAcc->GetAccess() != XFA_ATTRIBUTEENUM_Open) {
+
+bool CXFA_FFTextEdit::OnRButtonDown(uint32_t dwFlags, const CFX_PointF& point) {
+  if (m_pDataAcc->GetAccess() != XFA_ATTRIBUTEENUM_Open)
     return false;
-  }
-  if (!PtInActiveRect(fx, fy)) {
+  if (!PtInActiveRect(point))
     return false;
-  }
   if (!IsFocused()) {
     m_dwStatus |= XFA_WidgetStatus_Focused;
     UpdateFWLData();
     AddInvalidateRect();
   }
+
   SetButtonDown(true);
   CFWL_MessageMouse ms(nullptr, nullptr);
   ms.m_dwCmd = FWL_MouseCommand::RightButtonDown;
   ms.m_dwFlags = dwFlags;
-  ms.m_fx = fx;
-  ms.m_fy = fy;
-  FWLToClient(ms.m_fx, ms.m_fy);
+  ms.m_pos = FWLToClient(point);
   TranslateFWLMessage(&ms);
   return true;
 }
-bool CXFA_FFTextEdit::OnRButtonUp(uint32_t dwFlags, FX_FLOAT fx, FX_FLOAT fy) {
-  if (!CXFA_FFField::OnRButtonUp(dwFlags, fx, fy))
+
+bool CXFA_FFTextEdit::OnRButtonUp(uint32_t dwFlags, const CFX_PointF& point) {
+  if (!CXFA_FFField::OnRButtonUp(dwFlags, point))
     return false;
 
-  GetDoc()->GetDocEnvironment()->PopupMenu(this, CFX_PointF(fx, fy));
+  GetDoc()->GetDocEnvironment()->PopupMenu(this, point);
   return true;
 }
+
 bool CXFA_FFTextEdit::OnSetFocus(CXFA_FFWidget* pOldWidget) {
   m_dwStatus &= ~XFA_WidgetStatus_TextEditValueChanged;
   if (!IsFocused()) {
@@ -360,10 +355,11 @@ void CXFA_FFTextEdit::OnDrawWidget(CFX_Graphics* pGraphics,
   m_pOldDelegate->OnDrawWidget(pGraphics, pMatrix);
 }
 
-CXFA_FFNumericEdit::CXFA_FFNumericEdit(CXFA_FFPageView* pPageView,
-                                       CXFA_WidgetAcc* pDataAcc)
-    : CXFA_FFTextEdit(pPageView, pDataAcc) {}
+CXFA_FFNumericEdit::CXFA_FFNumericEdit(CXFA_WidgetAcc* pDataAcc)
+    : CXFA_FFTextEdit(pDataAcc) {}
+
 CXFA_FFNumericEdit::~CXFA_FFNumericEdit() {}
+
 bool CXFA_FFNumericEdit::LoadWidget() {
   CFWL_Edit* pWidget = new CFWL_Edit(
       GetFWLApp(), pdfium::MakeUnique<CFWL_WidgetProperties>(), nullptr);
@@ -437,9 +433,9 @@ bool CXFA_FFNumericEdit::OnValidate(CFWL_Widget* pWidget,
   return widgetValue.ValidateNumericTemp(wsText, wsFormat,
                                          m_pDataAcc->GetLocal());
 }
-CXFA_FFPasswordEdit::CXFA_FFPasswordEdit(CXFA_FFPageView* pPageView,
-                                         CXFA_WidgetAcc* pDataAcc)
-    : CXFA_FFTextEdit(pPageView, pDataAcc) {}
+
+CXFA_FFPasswordEdit::CXFA_FFPasswordEdit(CXFA_WidgetAcc* pDataAcc)
+    : CXFA_FFTextEdit(pDataAcc) {}
 
 CXFA_FFPasswordEdit::~CXFA_FFPasswordEdit() {}
 
@@ -488,25 +484,22 @@ void CXFA_FFPasswordEdit::UpdateWidgetProperty() {
   dwExtendedStyle |= GetAlignment();
   m_pNormalWidget->ModifyStylesEx(dwExtendedStyle, 0xFFFFFFFF);
 }
-CXFA_FFDateTimeEdit::CXFA_FFDateTimeEdit(CXFA_FFPageView* pPageView,
-                                         CXFA_WidgetAcc* pDataAcc)
-    : CXFA_FFTextEdit(pPageView, pDataAcc) {}
+CXFA_FFDateTimeEdit::CXFA_FFDateTimeEdit(CXFA_WidgetAcc* pDataAcc)
+    : CXFA_FFTextEdit(pDataAcc) {}
 
 CXFA_FFDateTimeEdit::~CXFA_FFDateTimeEdit() {}
 
-bool CXFA_FFDateTimeEdit::GetBBox(CFX_RectF& rtBox,
-                                  uint32_t dwStatus,
-                                  bool bDrawFocus) {
+CFX_RectF CXFA_FFDateTimeEdit::GetBBox(uint32_t dwStatus, bool bDrawFocus) {
   if (bDrawFocus)
-    return false;
-  return CXFA_FFWidget::GetBBox(rtBox, dwStatus);
+    return CFX_RectF();
+  return CXFA_FFWidget::GetBBox(dwStatus);
 }
 
-bool CXFA_FFDateTimeEdit::PtInActiveRect(FX_FLOAT fx, FX_FLOAT fy) {
+bool CXFA_FFDateTimeEdit::PtInActiveRect(const CFX_PointF& point) {
   return m_pNormalWidget &&
          static_cast<CFWL_DateTimePicker*>(m_pNormalWidget)
              ->GetBBox()
-             .Contains(fx, fy);
+             .Contains(point);
 }
 
 bool CXFA_FFDateTimeEdit::LoadWidget() {
@@ -529,10 +522,9 @@ bool CXFA_FFDateTimeEdit::LoadWidget() {
       case XFA_Element::Date: {
         if (!wsText.IsEmpty()) {
           CXFA_LocaleValue lcValue = XFA_GetLocaleValue(m_pDataAcc);
-          CFX_Unitime date = lcValue.GetDate();
-          if ((FX_UNITIME)date != 0) {
+          CFX_DateTime date = lcValue.GetDate();
+          if (date.IsSet())
             pWidget->SetCurSel(date.GetYear(), date.GetMonth(), date.GetDay());
-          }
         }
       } break;
       default:
@@ -626,10 +618,10 @@ bool CXFA_FFDateTimeEdit::UpdateFWLData() {
   ((CFWL_DateTimePicker*)m_pNormalWidget)->SetEditText(wsText);
   if (IsFocused() && !wsText.IsEmpty()) {
     CXFA_LocaleValue lcValue = XFA_GetLocaleValue(m_pDataAcc);
-    CFX_Unitime date = lcValue.GetDate();
+    CFX_DateTime date = lcValue.GetDate();
     if (lcValue.IsValid()) {
-      if ((FX_UNITIME)date != 0) {
-        ((CFWL_DateTimePicker*)m_pNormalWidget)
+      if (date.IsSet()) {
+        static_cast<CFWL_DateTimePicker*>(m_pNormalWidget)
             ->SetCurSel(date.GetYear(), date.GetMonth(), date.GetDay());
       }
     }
@@ -655,9 +647,8 @@ void CXFA_FFDateTimeEdit::OnSelectChanged(CFWL_Widget* pWidget,
   CFX_WideString wsPicture;
   m_pDataAcc->GetPictureContent(wsPicture, XFA_VALUEPICTURE_Edit);
   CXFA_LocaleValue date(XFA_VT_DATE, GetDoc()->GetXFADoc()->GetLocalMgr());
-  CFX_Unitime dt;
-  dt.Set(iYear, iMonth, iDay);
-  date.SetDate(dt);
+  date.SetDate(CFX_DateTime(iYear, iMonth, iDay, 0, 0, 0, 0));
+
   CFX_WideString wsDate;
   date.FormatPatterns(wsDate, wsPicture, m_pDataAcc->GetLocal(),
                       XFA_VALUEPICTURE_Edit);

@@ -8,8 +8,8 @@
 #include <stdint.h>
 
 #include "ash/ash_export.h"
-#include "ash/common/shelf/wm_shelf_observer.h"
-#include "ash/common/shell_observer.h"
+#include "ash/shelf/wm_shelf_observer.h"
+#include "ash/shell_observer.h"
 #include "base/macros.h"
 #include "ui/app_list/presenter/app_list_presenter_delegate.h"
 #include "ui/events/event_handler.h"
@@ -27,7 +27,7 @@ class LocatedEvent;
 
 namespace ash {
 
-// Non-Mus+ash implementation of AppListPresetnerDelegate.
+// Non-Mus+ash implementation of AppListPresenterDelegate.
 // Responsible for laying out the app list UI as well as updating the Shelf
 // launch icon as the state of the app list changes. Listens to shell events
 // and touches/mouse clicks outside the app list to auto dismiss the UI or
@@ -68,8 +68,6 @@ class ASH_EXPORT AppListPresenterDelegate
 
   // ShellObserver overrides:
   void OnOverviewModeStarting() override;
-  void OnMaximizeModeStarted() override;
-  void OnMaximizeModeEnded() override;
 
   // WmShelfObserver overrides:
   void OnShelfIconPositionsChanged() override;

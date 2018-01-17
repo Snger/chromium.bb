@@ -16,6 +16,7 @@
 namespace blink {
 
 class ExceptionState;
+class ExecutionContext;
 class PaymentUpdater;
 class ScriptState;
 
@@ -25,27 +26,29 @@ class MODULES_EXPORT PaymentRequestUpdateEvent final : public Event {
  public:
   ~PaymentRequestUpdateEvent() override;
 
-  static PaymentRequestUpdateEvent* create(
+  static PaymentRequestUpdateEvent* Create(
+      ExecutionContext*,
       const AtomicString& type,
       const PaymentRequestUpdateEventInit& = PaymentRequestUpdateEventInit());
 
-  void setPaymentDetailsUpdater(PaymentUpdater*);
+  void SetPaymentDetailsUpdater(PaymentUpdater*);
 
   void updateWith(ScriptState*, ScriptPromise, ExceptionState&);
 
   DECLARE_VIRTUAL_TRACE();
 
-  void onUpdateEventTimeoutForTesting();
+  void OnUpdateEventTimeoutForTesting();
 
  private:
-  PaymentRequestUpdateEvent(const AtomicString& type,
+  PaymentRequestUpdateEvent(ExecutionContext*,
+                            const AtomicString& type,
                             const PaymentRequestUpdateEventInit&);
 
-  void onUpdateEventTimeout(TimerBase*);
+  void OnUpdateEventTimeout(TimerBase*);
 
-  Member<PaymentUpdater> m_updater;
-  bool m_waitForUpdate;
-  Timer<PaymentRequestUpdateEvent> m_abortTimer;
+  Member<PaymentUpdater> updater_;
+  bool wait_for_update_;
+  TaskRunnerTimer<PaymentRequestUpdateEvent> abort_timer_;
 };
 
 }  // namespace blink

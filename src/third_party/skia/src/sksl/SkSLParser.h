@@ -10,6 +10,7 @@
 
 #include <vector>
 #include <memory>
+#include <unordered_map>
 #include <unordered_set>
 #include "SkSLErrorReporter.h"
 #include "SkSLToken.h"
@@ -36,6 +37,8 @@ struct ASTPrecision;
 struct ASTReturnStatement;
 struct ASTStatement;
 struct ASTSuffix;
+struct ASTSwitchCase;
+struct ASTSwitchStatement;
 struct ASTType;
 struct ASTWhileStatement;
 struct ASTVarDeclarations;
@@ -48,7 +51,7 @@ class SymbolTable;
  */
 class Parser {
 public:
-    Parser(SkString text, SymbolTable& types, ErrorReporter& errors);
+    Parser(String text, SymbolTable& types, ErrorReporter& errors);
 
     ~Parser();
 
@@ -87,16 +90,16 @@ private:
      * Returns true if the read token was as expected, false otherwise.
      */
     bool expect(Token::Kind kind, const char* expected, Token* result = nullptr);
-    bool expect(Token::Kind kind, SkString expected, Token* result = nullptr);
+    bool expect(Token::Kind kind, String expected, Token* result = nullptr);
 
     void error(Position p, const char* msg);
-    void error(Position p, SkString msg);
-   
+    void error(Position p, String msg);
+
     /**
      * Returns true if the 'name' identifier refers to a type name. For instance, isType("int") will
      * always return true.
      */
-    bool isType(SkString name);
+    bool isType(String name);
 
     // these functions parse individual grammar rules from the current parse position; you probably
     // don't need to call any of these outside of the parser. The function declarations in the .cpp
@@ -116,12 +119,12 @@ private:
 
     std::unique_ptr<ASTVarDeclarations> varDeclarationEnd(Modifiers modifiers,
                                                           std::unique_ptr<ASTType> type,
-                                                          SkString name);
+                                                          String name);
 
     std::unique_ptr<ASTParameter> parameter();
 
     int layoutInt();
-   
+
     Layout layout();
 
     Modifiers modifiers();
@@ -142,6 +145,10 @@ private:
 
     std::unique_ptr<ASTForStatement> forStatement();
 
+    std::unique_ptr<ASTSwitchCase> switchCase();
+
+    std::unique_ptr<ASTStatement> switchStatement();
+
     std::unique_ptr<ASTReturnStatement> returnStatement();
 
     std::unique_ptr<ASTBreakStatement> breakStatement();
@@ -157,7 +164,7 @@ private:
     std::unique_ptr<ASTExpression> expression();
 
     std::unique_ptr<ASTExpression> assignmentExpression();
-   
+
     std::unique_ptr<ASTExpression> ternaryExpression();
 
     std::unique_ptr<ASTExpression> logicalOrExpression();
@@ -196,9 +203,10 @@ private:
 
     bool boolLiteral(bool* dest);
 
-    bool identifier(SkString* dest);
+    bool identifier(String* dest);
 
     void* fScanner;
+    void* fLayoutScanner;
     YY_BUFFER_STATE fBuffer;
     // current parse depth, used to enforce a recursion limit to try to keep us from overflowing the
     // stack on pathological inputs

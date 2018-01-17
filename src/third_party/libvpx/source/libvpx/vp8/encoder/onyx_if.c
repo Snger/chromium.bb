@@ -43,6 +43,7 @@
 #endif
 #include "encodeframe.h"
 
+#include <assert.h>
 #include <math.h>
 #include <stdio.h>
 #include <limits.h>
@@ -1633,8 +1634,7 @@ void vp8_change_config(VP8_COMP *cpi, VP8_CONFIG *oxcf) {
   cm->sharpness_level = cpi->oxcf.Sharpness;
 
   if (cm->horiz_scale != NORMAL || cm->vert_scale != NORMAL) {
-    int UNINITIALIZED_IS_SAFE(hr), UNINITIALIZED_IS_SAFE(hs);
-    int UNINITIALIZED_IS_SAFE(vr), UNINITIALIZED_IS_SAFE(vs);
+    int hr, hs, vr, vs;
 
     Scale2Ratio(cm->horiz_scale, &hr, &hs);
     Scale2Ratio(cm->vert_scale, &vr, &vs);
@@ -2090,11 +2090,7 @@ void vp8_remove_compressor(VP8_COMP **ptr) {
       double time_encoded =
           (cpi->last_end_time_stamp_seen - cpi->first_time_stamp_ever) /
           10000000.000;
-      double total_encode_time =
-          (cpi->time_receive_data + cpi->time_compress_data) / 1000.000;
       double dr = (double)cpi->bytes * 8.0 / 1000.0 / time_encoded;
-      const double target_rate = (double)cpi->oxcf.target_bandwidth / 1000;
-      const double rate_err = ((100.0 * (dr - target_rate)) / target_rate);
 
       if (cpi->b_calculate_psnr) {
         if (cpi->oxcf.number_of_layers > 1) {
@@ -2504,8 +2500,7 @@ static void scale_and_extend_source(YV12_BUFFER_CONFIG *sd, VP8_COMP *cpi) {
   /* are we resizing the image */
   if (cm->horiz_scale != 0 || cm->vert_scale != 0) {
 #if CONFIG_SPATIAL_RESAMPLING
-    int UNINITIALIZED_IS_SAFE(hr), UNINITIALIZED_IS_SAFE(hs);
-    int UNINITIALIZED_IS_SAFE(vr), UNINITIALIZED_IS_SAFE(vs);
+    int hr, hs, vr, vs;
     int tmp_height;
 
     if (cm->vert_scale == 3) {
@@ -2538,8 +2533,7 @@ static int resize_key_frame(VP8_COMP *cpi) {
    */
   if (cpi->oxcf.allow_spatial_resampling &&
       (cpi->oxcf.end_usage == USAGE_STREAM_FROM_SERVER)) {
-    int UNINITIALIZED_IS_SAFE(hr), UNINITIALIZED_IS_SAFE(hs);
-    int UNINITIALIZED_IS_SAFE(vr), UNINITIALIZED_IS_SAFE(vs);
+    int hr, hs, vr, vs;
     int new_width, new_height;
 
     /* If we are below the resample DOWN watermark then scale down a
@@ -3055,6 +3049,7 @@ static int measure_square_diff_partial(YV12_BUFFER_CONFIG *source,
   }
   // Only return non-zero if we have at least ~1/16 samples for estimate.
   if (num_blocks > (tot_num_blocks >> 4)) {
+    assert(num_blocks != 0);
     return (Total / num_blocks);
   } else {
     return 0;
@@ -4062,9 +4057,9 @@ static void encode_frame_to_data_rate(VP8_COMP *cpi, size_t *size,
 #if !CONFIG_REALTIME_ONLY
       top_index = cpi->active_worst_quality;
 #endif  // !CONFIG_REALTIME_ONLY
-        /* If we have updated the active max Q do not call
-         * vp8_update_rate_correction_factors() this loop.
-         */
+      /* If we have updated the active max Q do not call
+       * vp8_update_rate_correction_factors() this loop.
+       */
       active_worst_qchanged = 1;
     } else {
       active_worst_qchanged = 0;

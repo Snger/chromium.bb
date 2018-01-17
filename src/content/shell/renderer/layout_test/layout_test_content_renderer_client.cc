@@ -8,11 +8,6 @@
 #include "base/command_line.h"
 #include "base/debug/debugger.h"
 #include "base/memory/ptr_util.h"
-#include "components/test_runner/mock_credential_manager_client.h"
-#include "components/test_runner/web_frame_test_proxy.h"
-#include "components/test_runner/web_test_interfaces.h"
-#include "components/test_runner/web_test_runner.h"
-#include "components/test_runner/web_view_test_proxy.h"
 #include "components/web_cache/renderer/web_cache_impl.h"
 #include "content/public/common/content_constants.h"
 #include "content/public/common/content_switches.h"
@@ -29,10 +24,14 @@
 #include "content/shell/renderer/layout_test/layout_test_render_thread_observer.h"
 #include "content/shell/renderer/layout_test/test_media_stream_renderer_factory.h"
 #include "content/shell/renderer/shell_render_view_observer.h"
+#include "content/shell/test_runner/mock_credential_manager_client.h"
+#include "content/shell/test_runner/web_frame_test_proxy.h"
+#include "content/shell/test_runner/web_test_interfaces.h"
+#include "content/shell/test_runner/web_test_runner.h"
+#include "content/shell/test_runner/web_view_test_proxy.h"
 #include "content/test/mock_webclipboard_impl.h"
 #include "gin/modules/module_registry.h"
 #include "media/media_features.h"
-#include "ppapi/shared_impl/ppapi_switches.h"
 #include "third_party/WebKit/public/platform/WebMediaStreamCenter.h"
 #include "third_party/WebKit/public/web/WebFrameWidget.h"
 #include "third_party/WebKit/public/web/WebKit.h"
@@ -91,11 +90,11 @@ void WebViewTestProxyCreated(RenderView* render_view,
 
 void WebWidgetTestProxyCreated(blink::WebWidget* web_widget,
                                test_runner::WebWidgetTestProxyBase* proxy) {
-  CHECK(web_widget->isWebFrameWidget());
+  CHECK(web_widget->IsWebFrameWidget());
   proxy->set_web_widget(web_widget);
   blink::WebFrameWidget* web_frame_widget =
       static_cast<blink::WebFrameWidget*>(web_widget);
-  blink::WebView* web_view = web_frame_widget->localRoot()->view();
+  blink::WebView* web_view = web_frame_widget->LocalRoot()->View();
   RenderView* render_view = RenderView::FromWebView(web_view);
   test_runner::WebViewTestProxyBase* view_proxy =
       GetWebViewTestProxyBase(render_view);
@@ -151,7 +150,7 @@ void LayoutTestContentRendererClient::RenderViewCreated(
   // TODO(lfg): We should fix the TestProxy to track the WebWidgets on every
   // local root in WebFrameTestProxy instead of having only the WebWidget for
   // the main frame in WebViewTestProxy.
-  proxy->set_web_widget(render_view->GetWebView()->widget());
+  proxy->set_web_widget(render_view->GetWebView()->GetWidget());
   proxy->Reset();
 
   BlinkTestRunner* test_runner = BlinkTestRunner::Get(render_view);
@@ -195,12 +194,10 @@ LayoutTestContentRendererClient::OverrideCreateMIDIAccessor(
   return interfaces->CreateMIDIAccessor(client);
 }
 
-WebAudioDevice*
-LayoutTestContentRendererClient::OverrideCreateAudioDevice(
-    double sample_rate) {
+WebAudioDevice* LayoutTestContentRendererClient::OverrideCreateAudioDevice() {
   test_runner::WebTestInterfaces* interfaces =
       LayoutTestRenderThreadObserver::GetInstance()->test_interfaces();
-  return interfaces->CreateAudioDevice(sample_rate);
+  return interfaces->CreateAudioDevice(44100, 128);
 }
 
 WebClipboard* LayoutTestContentRendererClient::OverrideWebClipboard() {
@@ -242,15 +239,15 @@ LayoutTestContentRendererClient::GetImageDecodeColorProfile() {
 
 void LayoutTestContentRendererClient::DidInitializeWorkerContextOnWorkerThread(
     v8::Local<v8::Context> context) {
-  blink::WebTestingSupport::injectInternalsObject(context);
+  blink::WebTestingSupport::InjectInternalsObject(context);
 }
 
 void LayoutTestContentRendererClient::RunScriptsAtDocumentEnd(
     RenderFrame* render_frame) {
-  v8::Isolate* isolate = blink::mainThreadIsolate();
+  v8::Isolate* isolate = blink::MainThreadIsolate();
   v8::HandleScope handle_scope(isolate);
   blink::WebLocalFrame* frame = render_frame->GetWebFrame();
-  v8::Local<v8::Context> context = frame->mainWorldScriptContext();
+  v8::Local<v8::Context> context = frame->MainWorldScriptContext();
   v8::Context::Scope context_scope(context);
 
   gin::ModuleRegistry* registry = gin::ModuleRegistry::From(context);
@@ -279,11 +276,11 @@ void LayoutTestContentRendererClient::
   v8::V8::SetFlagsFromString(flags.c_str(), static_cast<int>(flags.size()));
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kStableReleaseMode)) {
-    blink::WebRuntimeFeatures::enableTestOnlyFeatures(true);
+    blink::WebRuntimeFeatures::EnableTestOnlyFeatures(true);
   }
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kEnableFontAntialiasing)) {
-    blink::setFontAntialiasingEnabledForTest(true);
+    blink::SetFontAntialiasingEnabledForTest(true);
   }
 }
 

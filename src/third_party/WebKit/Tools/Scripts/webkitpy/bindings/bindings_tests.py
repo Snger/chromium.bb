@@ -38,7 +38,7 @@ from code_generator_v8 import CodeGeneratorDictionaryImpl
 from code_generator_v8 import CodeGeneratorV8
 from code_generator_v8 import CodeGeneratorUnionType
 from code_generator_v8 import CodeGeneratorCallbackFunction
-from code_generator_web_module import CodeGeneratorWebModule
+from code_generator_web_agent_api import CodeGeneratorWebAgentAPI
 from compute_interfaces_info_individual import InterfaceInfoCollector
 from compute_interfaces_info_overall import (compute_interfaces_info_overall,
                                              interfaces_info)
@@ -73,11 +73,6 @@ DEPENDENCY_IDL_FILES = frozenset([
     'TestInterfacePartialSecureContext.idl',
     'TestInterface2Partial.idl',
     'TestInterface2Partial2.idl',
-])
-
-# core/inspector/InspectorInstrumentation.idl is not a valid Blink IDL.
-NON_BLINK_IDL_FILES = frozenset([
-    'InspectorInstrumentation.idl',
 ])
 
 COMPONENT_DIRECTORY = frozenset(['core', 'modules'])
@@ -129,8 +124,6 @@ def generate_interface_dependencies():
     def collect_interfaces_info(idl_path_list):
         info_collector = InterfaceInfoCollector()
         for idl_path in idl_path_list:
-            if os.path.basename(idl_path) in NON_BLINK_IDL_FILES:
-                continue
             info_collector.collect_info(idl_path)
         info = info_collector.get_info_as_dict()
         # TestDictionary.{h,cpp} are placed under
@@ -195,6 +188,7 @@ class IdlCompilerOptions(object):
         self.cache_directory = cache_directory
         self.impl_output_directory = impl_output_directory
         self.target_component = target_component
+
 
 def bindings_tests(output_directory, verbose):
     executive = Executive()
@@ -262,10 +256,6 @@ def bindings_tests(output_directory, verbose):
     def no_excess_files(output_files):
         generated_files = set([os.path.relpath(path, output_directory)
                                for path in output_files])
-        # Add subversion working copy directories in core and modules.
-        for component in COMPONENT_DIRECTORY:
-            generated_files.add(os.path.join(component, '.svn'))
-
         excess_files = []
         for path in list_files(REFERENCE_DIRECTORY):
             relpath = os.path.relpath(path, REFERENCE_DIRECTORY)
@@ -337,7 +327,7 @@ def bindings_tests(output_directory, verbose):
                 options,
                 idl_filenames)
             generate_bindings(
-                CodeGeneratorWebModule,
+                CodeGeneratorWebAgentAPI,
                 info_provider,
                 options,
                 idl_filenames)

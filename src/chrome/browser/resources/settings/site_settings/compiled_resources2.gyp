@@ -110,6 +110,7 @@
     {
       'target_name': 'site_data',
       'dependencies': [
+        '<(DEPTH)/ui/webui/resources/js/compiled_resources2.gyp:i18n_behavior',
         '../settings_page/compiled_resources2.gyp:settings_subpage_search',
         'cookie_tree_behavior',
         'cookie_tree_node',
@@ -174,6 +175,8 @@
       'target_name': 'site_settings_behavior',
       'dependencies': [
         '../compiled_resources2.gyp:route',
+        '<(DEPTH)/ui/webui/resources/cr_elements/policy/compiled_resources2.gyp:cr_policy_indicator_behavior',
+        '<(DEPTH)/ui/webui/resources/cr_elements/policy/compiled_resources2.gyp:cr_policy_pref_behavior',
         '<(DEPTH)/ui/webui/resources/js/compiled_resources2.gyp:assert',
         '<(DEPTH)/ui/webui/resources/js/compiled_resources2.gyp:icon',
         '<(DEPTH)/ui/webui/resources/js/compiled_resources2.gyp:load_time_data',
@@ -188,6 +191,7 @@
       'dependencies': [
         '<(DEPTH)/ui/webui/resources/js/compiled_resources2.gyp:cr',
         '<(EXTERNS_GYP):chrome_send',
+        'constants',
         'cookie_tree_node',
       ],
       'includes': ['../../../../../third_party/closure_compiler/compile_js2.gypi'],

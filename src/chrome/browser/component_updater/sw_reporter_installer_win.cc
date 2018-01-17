@@ -29,7 +29,6 @@
 #include "base/strings/string_tokenizer.h"
 #include "base/strings/string_util.h"
 #include "base/strings/utf_string_conversions.h"
-#include "base/task_scheduler/post_task.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "base/time/time.h"
 #include "base/win/registry.h"
@@ -138,17 +137,7 @@ void RunSwReportersAfterStartup(
     const base::Version& version) {
   content::BrowserThread::PostAfterStartupTask(
       FROM_HERE, base::ThreadTaskRunnerHandle::Get(),
-      base::Bind(&safe_browsing::RunSwReporters, invocations, version,
-                 base::ThreadTaskRunnerHandle::Get(),
-                 // Runs LaunchAndWaitForExit() which creates (MayBlock()) and
-                 // joins (WithBaseSyncPrimitives()) a process.
-                 base::CreateTaskRunnerWithTraits(
-                     base::TaskTraits()
-                         .WithShutdownBehavior(
-                             base::TaskShutdownBehavior::CONTINUE_ON_SHUTDOWN)
-                         .WithPriority(base::TaskPriority::BACKGROUND)
-                         .MayBlock()
-                         .WithBaseSyncPrimitives())));
+      base::Bind(&safe_browsing::RunSwReporters, invocations, version));
 }
 
 // Ensures |str| contains only alphanumeric characters and characters from
@@ -220,7 +209,7 @@ void RunExperimentalSwReporter(const base::FilePath& exe_path,
   safe_browsing::SwReporterQueue invocations;
   for (const auto& iter : *parameter_list) {
     const base::DictionaryValue* invocation_params = nullptr;
-    if (!iter->GetAsDictionary(&invocation_params)) {
+    if (!iter.GetAsDictionary(&invocation_params)) {
       ReportExperimentError(SW_REPORTER_EXPERIMENT_ERROR_BAD_PARAMS);
       return;
     }
@@ -251,7 +240,7 @@ void RunExperimentalSwReporter(const base::FilePath& exe_path,
     std::vector<base::string16> argv = {exe_path.value()};
     for (const auto& value : *arguments) {
       base::string16 argument;
-      if (!value->GetAsString(&argument)) {
+      if (!value.GetAsString(&argument)) {
         ReportExperimentError(SW_REPORTER_EXPERIMENT_ERROR_BAD_PARAMS);
         return;
       }
@@ -344,7 +333,6 @@ void SwReporterInstallerTraits::ComponentReady(
     command_line.AppendSwitchASCII(kSessionIdSwitch, GenerateSessionId());
     auto invocation = SwReporterInvocation::FromCommandLine(command_line);
     invocation.supported_behaviours =
-        SwReporterInvocation::BEHAVIOUR_LOG_TO_RAPPOR |
         SwReporterInvocation::BEHAVIOUR_LOG_EXIT_CODE_TO_PREFS |
         SwReporterInvocation::BEHAVIOUR_TRIGGER_PROMPT |
         SwReporterInvocation::BEHAVIOUR_ALLOW_SEND_REPORTER_LOGS;

@@ -31,7 +31,6 @@
 #include "extensions/browser/extension_system.h"
 #include "extensions/browser/install/extension_install_ui.h"
 #include "gpu/config/gpu_feature_type.h"
-#include "gpu/config/gpu_info.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
 #include "ui/gl/gl_switches.h"
@@ -39,8 +38,6 @@
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
 #include "chrome/browser/supervised_user/supervised_user_constants.h"
 #endif  // BUILDFLAG(ENABLE_SUPERVISED_USERS)
-
-using gpu::GpuFeatureType;
 
 namespace utils = extension_function_test_utils;
 
@@ -110,18 +107,14 @@ class ExtensionWebstorePrivateApiTest : public ExtensionApiTest {
         "http://www.example.com/extensions/api_test");
   }
 
-  void SetUpInProcessBrowserTestFixture() override {
-    ExtensionApiTest::SetUpInProcessBrowserTestFixture();
+  void SetUpOnMainThread() override {
+    ExtensionApiTest::SetUpOnMainThread();
 
     // Start up the test server and get us ready for calling the install
     // API functions.
     host_resolver()->AddRule("www.example.com", "127.0.0.1");
     ASSERT_TRUE(StartEmbeddedTestServer());
     extensions::ExtensionInstallUI::set_disable_failure_ui_for_tests();
-  }
-
-  void SetUpOnMainThread() override {
-    ExtensionApiTest::SetUpOnMainThread();
 
     auto_confirm_install_.reset(
         new ScopedTestDialogAutoConfirm(ScopedTestDialogAutoConfirm::ACCEPT));
@@ -418,24 +411,9 @@ IN_PROC_BROWSER_TEST_F(ExtensionWebstoreGetWebGLStatusTest, Allowed) {
 
 // Tests getWebGLStatus function when WebGL is blacklisted.
 IN_PROC_BROWSER_TEST_F(ExtensionWebstoreGetWebGLStatusTest, Blocked) {
-  static const std::string json_blacklist =
-      "{\n"
-      "  \"name\": \"gpu blacklist\",\n"
-      "  \"version\": \"1.0\",\n"
-      "  \"entries\": [\n"
-      "    {\n"
-      "      \"id\": 1,\n"
-      "      \"features\": [\n"
-      "        \"webgl\"\n"
-      "      ]\n"
-      "    }\n"
-      "  ]\n"
-      "}";
-  gpu::GPUInfo gpu_info;
-  content::GpuDataManager::GetInstance()->InitializeForTesting(
-      json_blacklist, gpu_info);
+  content::GpuDataManager::GetInstance()->BlacklistWebGLForTesting();
   EXPECT_TRUE(content::GpuDataManager::GetInstance()->IsFeatureBlacklisted(
-      gpu::GPU_FEATURE_TYPE_WEBGL));
+      gpu::GPU_FEATURE_TYPE_ACCELERATED_WEBGL));
 
   bool webgl_allowed = false;
   RunTest(webgl_allowed);

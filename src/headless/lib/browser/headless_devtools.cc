@@ -10,7 +10,6 @@
 #include "base/files/file_path.h"
 #include "base/memory/ptr_util.h"
 #include "content/public/browser/devtools_agent_host.h"
-#include "content/public/browser/devtools_frontend_host.h"
 #include "content/public/browser/devtools_socket_factory.h"
 #include "content/public/browser/navigation_entry.h"
 #include "headless/grit/headless_lib_resources.h"
@@ -56,15 +55,14 @@ class TCPServerSocketFactory : public content::DevToolsSocketFactory {
 
 }  // namespace
 
-void StartLocalDevToolsHttpHandler(
-    HeadlessBrowser::Options* options) {
+void StartLocalDevToolsHttpHandler(HeadlessBrowser::Options* options) {
   const net::IPEndPoint& endpoint = options->devtools_endpoint;
   std::unique_ptr<content::DevToolsSocketFactory> socket_factory(
       new TCPServerSocketFactory(endpoint));
   content::DevToolsAgentHost::StartRemoteDebuggingServer(
       std::move(socket_factory), std::string(),
       options->user_data_dir,  // TODO(altimin): Figure a proper value for this.
-      base::FilePath(), std::string(), options->user_agent);
+      base::FilePath(), options->product_name_and_version, options->user_agent);
 }
 
 void StopLocalDevToolsHttpHandler() {

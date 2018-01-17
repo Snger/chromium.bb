@@ -6,10 +6,7 @@
 #include "platform/heap/Handle.h"
 #include "platform/mhtml/ArchiveResource.h"
 #include "platform/mhtml/MHTMLParser.h"
-#include "platform/testing/TestingPlatformSupport.h"
-#include "wtf/Assertions.h"
-#include "wtf/Compiler.h"
-#include <memory>
+#include "platform/testing/BlinkFuzzerTestSupport.h"
 #include <stddef.h>
 #include <stdint.h>
 
@@ -17,11 +14,11 @@ namespace blink {
 
 // Fuzzer for blink::MHTMLParser.
 int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
-  MHTMLParser mhtmlParser(SharedBuffer::create(data, size));
-  HeapVector<Member<ArchiveResource>> mhtmlArchives =
-      mhtmlParser.parseArchive();
-  mhtmlArchives.clear();
-  ThreadState::current()->collectAllGarbage();
+  MHTMLParser mhtml_parser(SharedBuffer::Create(data, size));
+  HeapVector<Member<ArchiveResource>> mhtml_archives =
+      mhtml_parser.ParseArchive();
+  mhtml_archives.Clear();
+  ThreadState::Current()->CollectAllGarbage();
 
   return 0;
 }
@@ -33,11 +30,6 @@ extern "C" int LLVMFuzzerTestOneInput(const uint8_t* data, size_t size) {
 }
 
 extern "C" int LLVMFuzzerInitialize(int* argc, char*** argv) {
-  // Intentional leak - no need to do cleanup as explained in
-  // "Initialization/Cleanup" section of testing/libfuzzer/efficient_fuzzer.md
-  DEFINE_STATIC_LOCAL(blink::ScopedUnittestsEnvironmentSetup, testSetup,
-                      (*argc, *argv));
-  ALLOW_UNUSED_LOCAL(testSetup);
-
+  blink::InitializeBlinkFuzzTest(argc, argv);
   return 0;
 }

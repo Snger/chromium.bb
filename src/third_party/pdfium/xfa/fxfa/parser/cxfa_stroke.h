@@ -21,6 +21,7 @@ class CXFA_Node;
 
 class CXFA_Stroke : public CXFA_Data {
  public:
+  CXFA_Stroke() : CXFA_Stroke(nullptr) {}
   explicit CXFA_Stroke(CXFA_Node* pNode) : CXFA_Data(pNode) {}
 
   bool IsCorner() const { return GetElementType() == XFA_Element::Corner; }
@@ -29,17 +30,15 @@ class CXFA_Stroke : public CXFA_Data {
   int32_t GetPresence() const;
   int32_t GetCapType() const;
   int32_t GetStrokeType() const;
-  FX_FLOAT GetThickness() const;
+  float GetThickness() const;
   CXFA_Measurement GetMSThickness() const;
   void SetMSThickness(CXFA_Measurement msThinkness);
   FX_ARGB GetColor() const;
   void SetColor(FX_ARGB argb);
   int32_t GetJoinType() const;
   bool IsInverted() const;
-  FX_FLOAT GetRadius() const;
+  float GetRadius() const;
   bool SameStyles(CXFA_Stroke stroke, uint32_t dwFlags = 0) const;
 };
-
-typedef CFX_ArrayTemplate<CXFA_Stroke> CXFA_StrokeArray;
 
 #endif  // XFA_FXFA_PARSER_CXFA_STROKE_H_

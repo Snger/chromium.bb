@@ -6,21 +6,22 @@
 
 #include <utility>
 
-#include "base/debug/stack_trace.h"
 #include "base/macros.h"
 #include "net/quic/core/crypto/quic_random.h"
 #include "net/quic/core/quic_flags.h"
 #include "net/quic/core/quic_utils.h"
 #include "net/quic/platform/api/quic_bug_tracker.h"
+#include "net/quic/platform/api/quic_flag_utils.h"
 #include "net/quic/platform/api/quic_logging.h"
 #include "net/quic/platform/api/quic_ptr_util.h"
+#include "net/quic/platform/api/quic_stack_trace.h"
+#include "net/quic/platform/api/quic_string_piece.h"
 #include "net/tools/quic/chlo_extractor.h"
 #include "net/tools/quic/quic_per_connection_packet_writer.h"
 #include "net/tools/quic/quic_simple_server_session.h"
 #include "net/tools/quic/quic_time_wait_list_manager.h"
 #include "net/tools/quic/stateless_rejector.h"
 
-using base::StringPiece;
 using std::string;
 
 namespace net {
@@ -113,7 +114,7 @@ class StatelessConnectionTerminator {
   // Generates a series of termination packets containing the crypto handshake
   // message |reject|.  Adds the connection to time wait list with the
   // generated packets.
-  void RejectConnection(StringPiece reject) {
+  void RejectConnection(QuicStringPiece reject) {
     struct iovec iovec;
     iovec.iov_base = const_cast<char*>(reject.data());
     iovec.iov_len = reject.length();
@@ -269,16 +270,14 @@ bool QuicDispatcher::OnUnauthenticatedPublicHeader(
     return false;
   }
 
-  if (FLAGS_quic_reloadable_flag_quic_buffer_packets_after_chlo &&
-      buffered_packets_.HasChloForConnection(connection_id)) {
+  if (buffered_packets_.HasChloForConnection(connection_id)) {
     BufferEarlyPacket(connection_id);
     return false;
   }
 
   // Check if we are buffering packets for this connection ID
-  if (FLAGS_quic_reloadable_flag_enable_async_get_proof &&
-      (temporarily_buffered_connections_.find(connection_id) !=
-       temporarily_buffered_connections_.end())) {
+  if (temporarily_buffered_connections_.find(connection_id) !=
+      temporarily_buffered_connections_.end()) {
     // This packet was received while the a CHLO for the same connection ID was
     // being processed.  Buffer it.
     BufferEarlyPacket(connection_id);
@@ -308,8 +307,7 @@ bool QuicDispatcher::OnUnauthenticatedPublicHeader(
   QuicVersion version = GetSupportedVersions().front();
   if (header.version_flag) {
     QuicVersion packet_version = header.versions.front();
-    if (FLAGS_quic_reloadable_flag_quic_fix_version_manager &&
-        framer_.supported_versions() != GetSupportedVersions()) {
+    if (framer_.supported_versions() != GetSupportedVersions()) {
       // Reset framer's version if version flags change in flight.
       framer_.SetSupportedVersions(GetSupportedVersions());
     }
@@ -386,14 +384,11 @@ void QuicDispatcher::ProcessUnauthenticatedHeaderFate(
           current_server_address_, current_client_address_, connection_id,
           packet_number, *current_packet_);
 
-      if (FLAGS_quic_reloadable_flag_enable_async_get_proof) {
-        // Any packets which were buffered while the stateless rejector logic
-        // was running should be discarded.  Do not inform the time wait list
-        // manager, which should already have a made a decision about sending a
-        // reject based on the CHLO alone.
-        buffered_packets_.DiscardPackets(connection_id);
-      }
-
+      // Any packets which were buffered while the stateless rejector logic was
+      // running should be discarded.  Do not inform the time wait list manager,
+      // which should already have a made a decision about sending a reject
+      // based on the CHLO alone.
+      buffered_packets_.DiscardPackets(connection_id);
       break;
     case kFateBuffer:
       // This packet is a non-CHLO packet which has arrived before the
@@ -497,11 +492,11 @@ void QuicDispatcher::OnConnectionClosed(QuicConnectionId connection_id,
     QUIC_BUG << "ConnectionId " << connection_id
              << " does not exist in the session map.  Error: "
              << QuicErrorCodeToString(error);
-    QUIC_BUG << base::debug::StackTrace().ToString();
+    QUIC_BUG << QuicStackTrace();
     return;
   }
 
-  DVLOG_IF(1, error != QUIC_NO_ERROR)
+  QUIC_DLOG_IF(INFO, error != QUIC_NO_ERROR)
       << "Closing connection (" << connection_id
       << ") due to error: " << QuicErrorCodeToString(error)
       << ", with details: " << error_details;
@@ -631,11 +626,6 @@ bool QuicDispatcher::OnBlockedFrame(const QuicBlockedFrame& frame) {
   return false;
 }
 
-bool QuicDispatcher::OnPathCloseFrame(const QuicPathCloseFrame& frame) {
-  DCHECK(false);
-  return false;
-}
-
 void QuicDispatcher::OnPacketComplete() {
   DCHECK(false);
 }
@@ -705,6 +695,8 @@ void QuicDispatcher::BufferEarlyPacket(QuicConnectionId connection_id) {
   if (FLAGS_quic_reloadable_flag_quic_create_session_after_insertion &&
       is_new_connection &&
       !ShouldCreateOrBufferPacketForConnection(connection_id)) {
+    QUIC_FLAG_COUNT_N(quic_reloadable_flag_quic_create_session_after_insertion,
+                      1, 5);
     return;
   }
   EnqueuePacketResult rs = buffered_packets_.EnqueuePacket(
@@ -722,29 +714,26 @@ void QuicDispatcher::ProcessChlo() {
   if (FLAGS_quic_reloadable_flag_quic_create_session_after_insertion &&
       !buffered_packets_.HasBufferedPackets(current_connection_id_) &&
       !ShouldCreateOrBufferPacketForConnection(current_connection_id_)) {
+    QUIC_FLAG_COUNT_N(quic_reloadable_flag_quic_create_session_after_insertion,
+                      2, 5);
     return;
   }
   if (FLAGS_quic_allow_chlo_buffering &&
       FLAGS_quic_reloadable_flag_quic_limit_num_new_sessions_per_epoll_loop &&
       new_sessions_allowed_per_event_loop_ <= 0) {
     // Can't create new session any more. Wait till next event loop.
-    if (!buffered_packets_.HasChloForConnection(current_connection_id_)) {
-      // Only buffer one CHLO per connection. Remove this condition check when
-      // --gfe2_reloadable_flag_quic_buffer_packets_after_chlo
-      // is deprecated because after that retransmitted CHLO should be buffered
-      // earlier in OnUnauthenticatedPublicHeader().
-      bool is_new_connection =
-          !buffered_packets_.HasBufferedPackets(current_connection_id_);
-      EnqueuePacketResult rs = buffered_packets_.EnqueuePacket(
-          current_connection_id_, *current_packet_, current_server_address_,
-          current_client_address_, /*is_chlo=*/true);
-      if (rs != EnqueuePacketResult::SUCCESS) {
-        OnBufferPacketFailure(rs, current_connection_id_);
-      } else if (
-          !FLAGS_quic_reloadable_flag_quic_create_session_after_insertion &&
-          is_new_connection) {
-        ShouldCreateOrBufferPacketForConnection(current_connection_id_);
-      }
+    QUIC_BUG_IF(buffered_packets_.HasChloForConnection(current_connection_id_));
+    bool is_new_connection =
+        !buffered_packets_.HasBufferedPackets(current_connection_id_);
+    EnqueuePacketResult rs = buffered_packets_.EnqueuePacket(
+        current_connection_id_, *current_packet_, current_server_address_,
+        current_client_address_, /*is_chlo=*/true);
+    if (rs != EnqueuePacketResult::SUCCESS) {
+      OnBufferPacketFailure(rs, current_connection_id_);
+    } else if (
+        !FLAGS_quic_reloadable_flag_quic_create_session_after_insertion &&
+        is_new_connection) {
+      ShouldCreateOrBufferPacketForConnection(current_connection_id_);
     }
     return;
   }
@@ -888,13 +877,11 @@ void QuicDispatcher::MaybeRejectStatelessly(QuicConnectionId connection_id,
   }
 
   // Insert into set of connection IDs to buffer
-  if (FLAGS_quic_reloadable_flag_enable_async_get_proof) {
-    const bool ok =
-        temporarily_buffered_connections_.insert(connection_id).second;
-    QUIC_BUG_IF(!ok)
-        << "Processing multiple stateless rejections for connection ID "
-        << connection_id;
-  }
+  const bool ok =
+      temporarily_buffered_connections_.insert(connection_id).second;
+  QUIC_BUG_IF(!ok)
+      << "Processing multiple stateless rejections for connection ID "
+      << connection_id;
 
   // Continue stateless rejector processing
   std::unique_ptr<StatelessRejectorProcessDoneCallback> cb(
@@ -910,23 +897,21 @@ void QuicDispatcher::OnStatelessRejectorProcessDone(
     std::unique_ptr<QuicReceivedPacket> current_packet,
     QuicPacketNumber packet_number,
     QuicVersion first_version) {
-  if (FLAGS_quic_reloadable_flag_enable_async_get_proof) {
-    // Stop buffering packets on this connection
-    const auto num_erased =
-        temporarily_buffered_connections_.erase(rejector->connection_id());
-    QUIC_BUG_IF(num_erased != 1) << "Completing stateless rejection logic for "
-                                    "non-buffered connection ID "
-                                 << rejector->connection_id();
+  // Stop buffering packets on this connection
+  const auto num_erased =
+      temporarily_buffered_connections_.erase(rejector->connection_id());
+  QUIC_BUG_IF(num_erased != 1) << "Completing stateless rejection logic for "
+                                  "non-buffered connection ID "
+                               << rejector->connection_id();
 
-    // If this connection has gone into time-wait during the async processing,
-    // don't proceed.
-    if (time_wait_list_manager_->IsConnectionIdInTimeWait(
-            rejector->connection_id())) {
-      time_wait_list_manager_->ProcessPacket(
-          current_server_address, current_client_address,
-          rejector->connection_id(), packet_number, *current_packet);
-      return;
-    }
+  // If this connection has gone into time-wait during the async processing,
+  // don't proceed.
+  if (time_wait_list_manager_->IsConnectionIdInTimeWait(
+          rejector->connection_id())) {
+    time_wait_list_manager_->ProcessPacket(
+        current_server_address, current_client_address,
+        rejector->connection_id(), packet_number, *current_packet);
+    return;
   }
 
   // Reset current_* to correspond to the packet which initiated the stateless
@@ -971,8 +956,9 @@ void QuicDispatcher::ProcessStatelessRejectorState(
       StatelessConnectionTerminator terminator(rejector->connection_id(),
                                                &framer_, helper(),
                                                time_wait_list_manager_.get());
-      terminator.RejectConnection(
-          rejector->reply().GetSerialized().AsStringPiece());
+      terminator.RejectConnection(rejector->reply()
+                                      .GetSerialized(Perspective::IS_SERVER)
+                                      .AsStringPiece());
       OnConnectionRejectedStatelessly();
       fate = kFateTimeWait;
       break;

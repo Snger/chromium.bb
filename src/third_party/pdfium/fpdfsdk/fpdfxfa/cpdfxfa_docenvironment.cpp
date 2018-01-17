@@ -18,9 +18,10 @@
 #include "fpdfsdk/fpdfxfa/cpdfxfa_context.h"
 #include "fpdfsdk/fpdfxfa/cpdfxfa_page.h"
 #include "fpdfsdk/javascript/ijs_runtime.h"
-#include "xfa/fxfa/xfa_ffdocview.h"
-#include "xfa/fxfa/xfa_ffwidget.h"
-#include "xfa/fxfa/xfa_ffwidgethandler.h"
+#include "xfa/fxfa/cxfa_ffdocview.h"
+#include "xfa/fxfa/cxfa_ffwidget.h"
+#include "xfa/fxfa/cxfa_ffwidgethandler.h"
+#include "xfa/fxfa/cxfa_widgetacciterator.h"
 
 #define IDS_XFA_Validate_Input                                          \
   "At least one required field was empty. Please fill in the required " \
@@ -38,13 +39,15 @@
 #define FXFA_XFA_ALL 0x01111111
 
 CPDFXFA_DocEnvironment::CPDFXFA_DocEnvironment(CPDFXFA_Context* pContext)
-    : m_pContext(pContext), m_pJSContext(nullptr) {
+    : m_pContext(pContext), m_pJSEventContext(nullptr) {
   ASSERT(m_pContext);
 }
 
 CPDFXFA_DocEnvironment::~CPDFXFA_DocEnvironment() {
-  if (m_pJSContext && m_pContext->GetFormFillEnv())
-    m_pContext->GetFormFillEnv()->GetJSRuntime()->ReleaseContext(m_pJSContext);
+  if (m_pJSEventContext && m_pContext->GetFormFillEnv()) {
+    m_pContext->GetFormFillEnv()->GetJSRuntime()->ReleaseEventContext(
+        m_pJSEventContext);
+  }
 }
 
 void CPDFXFA_DocEnvironment::SetChangeMark(CXFA_FFDoc* hDoc) {
@@ -53,12 +56,11 @@ void CPDFXFA_DocEnvironment::SetChangeMark(CXFA_FFDoc* hDoc) {
 }
 
 void CPDFXFA_DocEnvironment::InvalidateRect(CXFA_FFPageView* pPageView,
-                                            const CFX_RectF& rt,
-                                            uint32_t dwFlags /* = 0 */) {
+                                            const CFX_RectF& rt) {
   if (!m_pContext->GetXFADoc() || !m_pContext->GetFormFillEnv())
     return;
 
-  if (m_pContext->GetDocType() != DOCTYPE_DYNAMIC_XFA)
+  if (m_pContext->GetDocType() != XFA_DocType::Dynamic)
     return;
 
   CPDFXFA_Page* pPage = m_pContext->GetXFAPage(pPageView);
@@ -69,9 +71,8 @@ void CPDFXFA_DocEnvironment::InvalidateRect(CXFA_FFPageView* pPageView,
   if (!pFormFillEnv)
     return;
 
-  CFX_FloatRect rcPage = CFX_FloatRect::FromCFXRectF(rt);
-  pFormFillEnv->Invalidate((FPDF_PAGE)pPage, rcPage.left, rcPage.bottom,
-                           rcPage.right, rcPage.top);
+  pFormFillEnv->Invalidate(static_cast<FPDF_PAGE>(pPage),
+                           CFX_FloatRect::FromCFXRectF(rt).ToFxRect());
 }
 
 void CPDFXFA_DocEnvironment::DisplayCaret(CXFA_FFWidget* hWidget,
@@ -81,7 +82,7 @@ void CPDFXFA_DocEnvironment::DisplayCaret(CXFA_FFWidget* hWidget,
       !m_pContext->GetFormFillEnv() || !m_pContext->GetXFADocView())
     return;
 
-  if (m_pContext->GetDocType() != DOCTYPE_DYNAMIC_XFA)
+  if (m_pContext->GetDocType() != XFA_DocType::Dynamic)
     return;
 
   CXFA_FFWidgetHandler* pWidgetHandler =
@@ -107,8 +108,8 @@ void CPDFXFA_DocEnvironment::DisplayCaret(CXFA_FFWidget* hWidget,
 }
 
 bool CPDFXFA_DocEnvironment::GetPopupPos(CXFA_FFWidget* hWidget,
-                                         FX_FLOAT fMinPopup,
-                                         FX_FLOAT fMaxPopup,
+                                         float fMinPopup,
+                                         float fMaxPopup,
                                          const CFX_RectF& rtAnchor,
                                          CFX_RectF& rtPopup) {
   if (!hWidget)
@@ -184,13 +185,13 @@ bool CPDFXFA_DocEnvironment::GetPopupPos(CXFA_FFWidget* hWidget,
     dwPos = 1;
   }
 
-  FX_FLOAT fPopupHeight;
+  float fPopupHeight;
   if (t < fMinPopup)
     fPopupHeight = fMinPopup;
   else if (t > fMaxPopup)
     fPopupHeight = fMaxPopup;
   else
-    fPopupHeight = static_cast<FX_FLOAT>(t);
+    fPopupHeight = static_cast<float>(t);
 
   switch (nRotate) {
     case 0:
@@ -277,7 +278,7 @@ void CPDFXFA_DocEnvironment::PageViewEvent(CXFA_FFPageView* pPageView,
 
   for (int iPageIter = 0; iPageIter < m_pContext->GetOriginalPageCount();
        iPageIter++) {
-    CPDFXFA_Page* pPage = m_pContext->GetXFAPageList()->GetAt(iPageIter);
+    CPDFXFA_Page* pPage = (*m_pContext->GetXFAPageList())[iPageIter];
     if (!pPage)
       continue;
 
@@ -288,14 +289,14 @@ void CPDFXFA_DocEnvironment::PageViewEvent(CXFA_FFPageView* pPageView,
   int flag = (nNewCount < m_pContext->GetOriginalPageCount())
                  ? FXFA_PAGEVIEWEVENT_POSTREMOVED
                  : FXFA_PAGEVIEWEVENT_POSTADDED;
-  int count = FXSYS_abs(nNewCount - m_pContext->GetOriginalPageCount());
+  int count = abs(nNewCount - m_pContext->GetOriginalPageCount());
   m_pContext->SetOriginalPageCount(nNewCount);
   pFormFillEnv->PageEvent(count, flag);
 }
 
 void CPDFXFA_DocEnvironment::WidgetPostAdd(CXFA_FFWidget* hWidget,
                                            CXFA_WidgetAcc* pWidgetData) {
-  if (m_pContext->GetDocType() != DOCTYPE_DYNAMIC_XFA || !hWidget)
+  if (m_pContext->GetDocType() != XFA_DocType::Dynamic || !hWidget)
     return;
 
   CXFA_FFPageView* pPageView = hWidget->GetPageView();
@@ -311,7 +312,7 @@ void CPDFXFA_DocEnvironment::WidgetPostAdd(CXFA_FFWidget* hWidget,
 
 void CPDFXFA_DocEnvironment::WidgetPreRemove(CXFA_FFWidget* hWidget,
                                              CXFA_WidgetAcc* pWidgetData) {
-  if (m_pContext->GetDocType() != DOCTYPE_DYNAMIC_XFA || !hWidget)
+  if (m_pContext->GetDocType() != XFA_DocType::Dynamic || !hWidget)
     return;
 
   CXFA_FFPageView* pPageView = hWidget->GetPageView();
@@ -337,7 +338,7 @@ int32_t CPDFXFA_DocEnvironment::CountPages(CXFA_FFDoc* hDoc) {
 int32_t CPDFXFA_DocEnvironment::GetCurrentPage(CXFA_FFDoc* hDoc) {
   if (hDoc != m_pContext->GetXFADoc() || !m_pContext->GetFormFillEnv())
     return -1;
-  if (m_pContext->GetDocType() != DOCTYPE_DYNAMIC_XFA)
+  if (m_pContext->GetDocType() != XFA_DocType::Dynamic)
     return -1;
 
   CPDFSDK_FormFillEnvironment* pFormFillEnv = m_pContext->GetFormFillEnv();
@@ -350,7 +351,7 @@ int32_t CPDFXFA_DocEnvironment::GetCurrentPage(CXFA_FFDoc* hDoc) {
 void CPDFXFA_DocEnvironment::SetCurrentPage(CXFA_FFDoc* hDoc,
                                             int32_t iCurPage) {
   if (hDoc != m_pContext->GetXFADoc() || !m_pContext->GetFormFillEnv() ||
-      m_pContext->GetDocType() != DOCTYPE_DYNAMIC_XFA || iCurPage < 0 ||
+      m_pContext->GetDocType() != XFA_DocType::Dynamic || iCurPage < 0 ||
       iCurPage >= m_pContext->GetFormFillEnv()->GetPageCount()) {
     return;
   }
@@ -410,8 +411,8 @@ void CPDFXFA_DocEnvironment::ExportData(CXFA_FFDoc* hDoc,
   if (hDoc != m_pContext->GetXFADoc())
     return;
 
-  if (m_pContext->GetDocType() != DOCTYPE_DYNAMIC_XFA &&
-      m_pContext->GetDocType() != DOCTYPE_STATIC_XFA) {
+  if (m_pContext->GetDocType() != XFA_DocType::Dynamic &&
+      m_pContext->GetDocType() != XFA_DocType::Static) {
     return;
   }
 
@@ -496,8 +497,8 @@ void CPDFXFA_DocEnvironment::ExportData(CXFA_FFDoc* hDoc,
         fileWrite->WriteBlock(content.c_str(), fileWrite->GetSize(),
                               content.GetLength());
       }
-      std::unique_ptr<CPDF_StreamAcc> pAcc(new CPDF_StreamAcc);
-      pAcc->LoadAllData(pStream);
+      auto pAcc = pdfium::MakeRetain<CPDF_StreamAcc>(pStream);
+      pAcc->LoadAllData();
       fileWrite->WriteBlock(pAcc->GetData(), fileWrite->GetSize(),
                             pAcc->GetSize());
     }
@@ -510,7 +511,7 @@ void CPDFXFA_DocEnvironment::GotoURL(CXFA_FFDoc* hDoc,
   if (hDoc != m_pContext->GetXFADoc())
     return;
 
-  if (m_pContext->GetDocType() != DOCTYPE_DYNAMIC_XFA)
+  if (m_pContext->GetDocType() != XFA_DocType::Dynamic)
     return;
 
   CPDFSDK_FormFillEnvironment* pFormFillEnv = m_pContext->GetFormFillEnv();
@@ -610,8 +611,8 @@ bool CPDFXFA_DocEnvironment::NotifySubmit(bool bPrevOrPost) {
 }
 
 bool CPDFXFA_DocEnvironment::OnBeforeNotifySubmit() {
-  if (m_pContext->GetDocType() != DOCTYPE_DYNAMIC_XFA &&
-      m_pContext->GetDocType() != DOCTYPE_STATIC_XFA) {
+  if (m_pContext->GetDocType() != XFA_DocType::Dynamic &&
+      m_pContext->GetDocType() != XFA_DocType::Static) {
     return true;
   }
 
@@ -663,8 +664,8 @@ bool CPDFXFA_DocEnvironment::OnBeforeNotifySubmit() {
 }
 
 void CPDFXFA_DocEnvironment::OnAfterNotifySubmit() {
-  if (m_pContext->GetDocType() != DOCTYPE_DYNAMIC_XFA &&
-      m_pContext->GetDocType() != DOCTYPE_STATIC_XFA)
+  if (m_pContext->GetDocType() != XFA_DocType::Dynamic &&
+      m_pContext->GetDocType() != XFA_DocType::Static)
     return;
 
   if (!m_pContext->GetXFADocView())
@@ -1023,8 +1024,8 @@ bool CPDFXFA_DocEnvironment::GetGlobalProperty(
   }
 
   CPDFSDK_FormFillEnvironment* pFormFillEnv = m_pContext->GetFormFillEnv();
-  if (!m_pJSContext)
-    m_pJSContext = pFormFillEnv->GetJSRuntime()->NewContext();
+  if (!m_pJSEventContext)
+    m_pJSEventContext = pFormFillEnv->GetJSRuntime()->NewEventContext();
 
   return pFormFillEnv->GetJSRuntime()->GetValueByName(szPropName, pValue);
 }

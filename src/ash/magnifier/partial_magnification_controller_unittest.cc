@@ -42,17 +42,17 @@ class PartialMagnificationControllerTest : public test::AshTestBase {
 
   void SetUp() override {
     AshTestBase::SetUp();
-    Shell::GetInstance()->display_manager()->UpdateDisplays();
+    Shell::Get()->display_manager()->UpdateDisplays();
   }
 
  protected:
   PartialMagnificationController* GetController() const {
-    return Shell::GetInstance()->partial_magnification_controller();
+    return Shell::Get()->partial_magnification_controller();
   }
 
   PartialMagnificationControllerTestApi GetTestApi() const {
     return PartialMagnificationControllerTestApi(
-        Shell::GetInstance()->partial_magnification_controller());
+        Shell::Get()->partial_magnification_controller());
   }
 
  private:
@@ -89,8 +89,6 @@ TEST_F(PartialMagnificationControllerTest, ActiveOnPointerDown) {
 // Verifies that nothing bad happens if a second display is disconnected while
 // the magnifier is active.
 TEST_F(PartialMagnificationControllerTest, MultipleDisplays) {
-  if (!SupportsMultipleDisplays())
-    return;
   GetEventGenerator().EnterPenPointerMode();
 
   // Active magnifier with two displays, move it to the second display.

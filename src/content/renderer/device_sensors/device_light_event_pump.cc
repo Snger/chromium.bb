@@ -31,10 +31,10 @@ DeviceLightEventPump::~DeviceLightEventPump() {
 
 void DeviceLightEventPump::FireEvent() {
   DCHECK(listener());
-  DeviceLightData data;
+  device::DeviceLightData data;
   if (reader_->GetLatestData(&data) && ShouldFireEvent(data.value)) {
     last_seen_data_ = data.value;
-    listener()->didChangeDeviceLight(data.value);
+    listener()->DidChangeDeviceLight(data.value);
   }
 }
 
@@ -59,7 +59,7 @@ bool DeviceLightEventPump::InitializeReader(base::SharedMemoryHandle handle) {
 void DeviceLightEventPump::SendFakeDataForTesting(void* fake_data) {
   double data = *static_cast<double*>(fake_data);
 
-  listener()->didChangeDeviceLight(data);
+  listener()->DidChangeDeviceLight(data);
 }
 
 }  // namespace content

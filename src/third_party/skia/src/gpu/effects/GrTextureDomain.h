@@ -44,7 +44,8 @@ public:
     static const int kModeCount = kLastMode + 1;
 
     static const GrTextureDomain& IgnoredDomain() {
-        static const GrTextureDomain gDomain(nullptr, SkRect::MakeEmpty(), kIgnore_Mode);
+        static const GrTextureDomain gDomain((GrTextureProxy*)nullptr,
+                                             SkRect::MakeEmpty(), kIgnore_Mode);
         return gDomain;
     }
 
@@ -53,6 +54,8 @@ public:
      *                  It is used to keep inserted variables from causing name collisions.
      */
     GrTextureDomain(GrTexture*, const SkRect& domain, Mode, int index = -1);
+
+    GrTextureDomain(GrTextureProxy*, const SkRect& domain, Mode, int index = -1);
 
     const SkRect& domain() const { return fDomain; }
     Mode mode() const { return fMode; }
@@ -150,7 +153,8 @@ protected:
 class GrTextureDomainEffect : public GrSingleTextureEffect {
 
 public:
-    static sk_sp<GrFragmentProcessor> Make(GrTexture*,
+    static sk_sp<GrFragmentProcessor> Make(GrResourceProvider*,
+                                           sk_sp<GrTextureProxy>,
                                            sk_sp<GrColorSpaceXform>,
                                            const SkMatrix&,
                                            const SkRect& domain,
@@ -171,20 +175,21 @@ public:
 private:
     GrTextureDomain fTextureDomain;
 
-    GrTextureDomainEffect(GrTexture*,
+    GrTextureDomainEffect(GrResourceProvider*,
+                          sk_sp<GrTextureProxy>,
                           sk_sp<GrColorSpaceXform>,
                           const SkMatrix&,
                           const SkRect& domain,
                           GrTextureDomain::Mode,
                           GrSamplerParams::FilterMode);
 
+    static OptimizationFlags OptFlags(GrPixelConfig config, GrTextureDomain::Mode mode);
+
     GrGLSLFragmentProcessor* onCreateGLSLInstance() const override;
 
     void onGetGLSLProcessorKey(const GrShaderCaps&, GrProcessorKeyBuilder*) const override;
 
     bool onIsEqual(const GrFragmentProcessor&) const override;
-
-    void onComputeInvariantOutput(GrInvariantOutput* inout) const override;
 
     GR_DECLARE_FRAGMENT_PROCESSOR_TEST;
 
@@ -193,7 +198,8 @@ private:
 
 class GrDeviceSpaceTextureDecalFragmentProcessor : public GrFragmentProcessor {
 public:
-    static sk_sp<GrFragmentProcessor> Make(GrTexture*, const SkIRect& subset,
+    static sk_sp<GrFragmentProcessor> Make(GrResourceProvider*, sk_sp<GrTextureProxy>,
+                                           const SkIRect& subset,
                                            const SkIPoint& deviceSpaceOffset);
 
     const char* name() const override { return "GrDeviceSpaceTextureDecalFragmentProcessor"; }
@@ -213,7 +219,8 @@ private:
     GrTextureDomain fTextureDomain;
     SkIPoint fDeviceSpaceOffset;
 
-    GrDeviceSpaceTextureDecalFragmentProcessor(GrTexture*, const SkIRect&, const SkIPoint&);
+    GrDeviceSpaceTextureDecalFragmentProcessor(GrResourceProvider*, sk_sp<GrTextureProxy>,
+                                               const SkIRect&, const SkIPoint&);
 
     GrGLSLFragmentProcessor* onCreateGLSLInstance() const override;
 
@@ -221,7 +228,6 @@ private:
     void onGetGLSLProcessorKey(const GrShaderCaps&, GrProcessorKeyBuilder*) const override {}
 
     bool onIsEqual(const GrFragmentProcessor& fp) const override;
-    void onComputeInvariantOutput(GrInvariantOutput* inout) const override;
 
     GR_DECLARE_FRAGMENT_PROCESSOR_TEST;
 

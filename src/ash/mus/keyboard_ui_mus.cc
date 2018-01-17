@@ -4,20 +4,16 @@
 
 #include "ash/mus/keyboard_ui_mus.h"
 
-#include "ash/common/keyboard/keyboard_ui_observer.h"
+#include "ash/keyboard/keyboard_ui_observer.h"
 #include "base/memory/ptr_util.h"
-#include "content/public/common/service_names.mojom.h"
 #include "services/service_manager/public/cpp/connector.h"
 
 namespace ash {
 
 KeyboardUIMus::KeyboardUIMus(service_manager::Connector* connector)
     : is_enabled_(false), observer_binding_(this) {
-  if (connector) {
-    // TODO(sky): should be something like mojo:keyboard, but need mapping.
-    connector->BindInterface(content::mojom::kBrowserServiceName, &keyboard_);
-    keyboard_->AddObserver(observer_binding_.CreateInterfacePtrAndBind());
-  }
+  // TODO: chrome should register the keyboard interface with ash.
+  // http://crbug.com/683289.
 }
 
 KeyboardUIMus::~KeyboardUIMus() {}
@@ -31,11 +27,6 @@ std::unique_ptr<KeyboardUI> KeyboardUIMus::Create(
 void KeyboardUIMus::Hide() {
   if (keyboard_)
     keyboard_->Hide();
-}
-
-void KeyboardUIMus::Show() {
-  if (keyboard_)
-    keyboard_->Show();
 }
 
 void KeyboardUIMus::ShowInDisplay(const int64_t display_id) {

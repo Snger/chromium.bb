@@ -12,6 +12,7 @@
 #include "base/bind.h"
 #include "base/debug/leak_annotations.h"
 #include "base/macros.h"
+#include "base/memory/ptr_util.h"
 #include "base/message_loop/message_loop.h"
 #include "base/run_loop.h"
 #include "base/single_thread_task_runner.h"
@@ -154,8 +155,9 @@ TEST_F(ThreadTest, StartWithOptions_StackSize) {
 
   base::WaitableEvent event(base::WaitableEvent::ResetPolicy::AUTOMATIC,
                             base::WaitableEvent::InitialState::NOT_SIGNALED);
-  a.task_runner()->PostTask(FROM_HERE, base::Bind(&base::WaitableEvent::Signal,
-                                                  base::Unretained(&event)));
+  a.task_runner()->PostTask(
+      FROM_HERE,
+      base::BindOnce(&base::WaitableEvent::Signal, base::Unretained(&event)));
   event.Wait();
 }
 
@@ -187,9 +189,9 @@ TEST_F(ThreadTest, StartWithOptions_NonJoinable) {
   base::WaitableEvent block_event(
       base::WaitableEvent::ResetPolicy::AUTOMATIC,
       base::WaitableEvent::InitialState::NOT_SIGNALED);
-  a->task_runner()->PostTask(
-      FROM_HERE,
-      base::Bind(&base::WaitableEvent::Wait, base::Unretained(&block_event)));
+  a->task_runner()->PostTask(FROM_HERE,
+                             base::BindOnce(&base::WaitableEvent::Wait,
+                                            base::Unretained(&block_event)));
 
   a->StopSoon();
   EXPECT_TRUE(a->IsRunning());
@@ -214,11 +216,11 @@ TEST_F(ThreadTest, TwoTasksOnJoinableThread) {
     // destroyed.  We do this by dispatching a sleep event before the
     // event that will toggle our sentinel value.
     a.task_runner()->PostTask(
-        FROM_HERE, base::Bind(static_cast<void (*)(base::TimeDelta)>(
-                                  &base::PlatformThread::Sleep),
-                              base::TimeDelta::FromMilliseconds(20)));
+        FROM_HERE, base::BindOnce(static_cast<void (*)(base::TimeDelta)>(
+                                      &base::PlatformThread::Sleep),
+                                  base::TimeDelta::FromMilliseconds(20)));
     a.task_runner()->PostTask(FROM_HERE,
-                              base::Bind(&ToggleValue, &was_invoked));
+                              base::BindOnce(&ToggleValue, &was_invoked));
   }
   EXPECT_TRUE(was_invoked);
 }
@@ -231,19 +233,19 @@ TEST_F(ThreadTest, DestroyWhileRunningIsSafe) {
 
 // TODO(gab): Enable this test when destroying a non-joinable Thread instance
 // is supported (proposal @ https://crbug.com/629139#c14).
-// TEST_F(ThreadTest, DestroyWhileRunningNonJoinableIsSafe) {
-//   {
-//     Thread a("DestroyWhileRunningNonJoinableIsSafe");
-//     Thread::Options options;
-//     options.joinable = false;
-//     EXPECT_TRUE(a.StartWithOptions(options));
-//     EXPECT_TRUE(a.WaitUntilThreadStarted());
-//   }
-//
-//   // Attempt to catch use-after-frees from the non-joinable thread in the
-//   // scope of this test if any.
-//   base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(20));
-// }
+TEST_F(ThreadTest, DISABLED_DestroyWhileRunningNonJoinableIsSafe) {
+  {
+    Thread a("DestroyWhileRunningNonJoinableIsSafe");
+    Thread::Options options;
+    options.joinable = false;
+    EXPECT_TRUE(a.StartWithOptions(options));
+    EXPECT_TRUE(a.WaitUntilThreadStarted());
+  }
+
+  // Attempt to catch use-after-frees from the non-joinable thread in the
+  // scope of this test if any.
+  base::PlatformThread::Sleep(base::TimeDelta::FromMilliseconds(20));
+}
 
 TEST_F(ThreadTest, StopSoon) {
   Thread a("StopSoon");
@@ -272,6 +274,49 @@ TEST_F(ThreadTest, StopTwiceNop) {
   // Calling them when not running should also nop.
   a.StopSoon();
   a.Stop();
+}
+
+// TODO(gab): Enable this test in conjunction with re-enabling the sequence
+// check in Thread::Stop() as part of http://crbug.com/629139.
+TEST_F(ThreadTest, DISABLED_StopOnNonOwningThreadIsDeath) {
+  Thread a("StopOnNonOwningThreadDeath");
+  EXPECT_TRUE(a.StartAndWaitForTesting());
+
+  Thread b("NonOwningThread");
+  b.Start();
+  EXPECT_DCHECK_DEATH({
+    // Stopping |a| on |b| isn't allowed.
+    b.task_runner()->PostTask(
+        FROM_HERE, base::BindOnce(&Thread::Stop, base::Unretained(&a)));
+    // Block here so the DCHECK on |b| always happens in this scope.
+    base::PlatformThread::Sleep(base::TimeDelta::Max());
+  });
+}
+
+TEST_F(ThreadTest, TransferOwnershipAndStop) {
+  std::unique_ptr<Thread> a =
+      base::MakeUnique<Thread>("TransferOwnershipAndStop");
+  EXPECT_TRUE(a->StartAndWaitForTesting());
+  EXPECT_TRUE(a->IsRunning());
+
+  Thread b("TakingOwnershipThread");
+  b.Start();
+
+  base::WaitableEvent event(base::WaitableEvent::ResetPolicy::MANUAL,
+                            base::WaitableEvent::InitialState::NOT_SIGNALED);
+
+  // a->DetachFromSequence() should allow |b| to use |a|'s Thread API.
+  a->DetachFromSequence();
+  b.task_runner()->PostTask(
+      FROM_HERE, base::BindOnce(
+                     [](std::unique_ptr<Thread> thread_to_stop,
+                        base::WaitableEvent* event_to_signal) -> void {
+                       thread_to_stop->Stop();
+                       event_to_signal->Signal();
+                     },
+                     base::Passed(&a), base::Unretained(&event)));
+
+  event.Wait();
 }
 
 TEST_F(ThreadTest, StartTwice) {
@@ -317,9 +362,9 @@ TEST_F(ThreadTest, StartTwiceNonJoinableNotAllowed) {
   base::WaitableEvent last_task_event(
       base::WaitableEvent::ResetPolicy::AUTOMATIC,
       base::WaitableEvent::InitialState::NOT_SIGNALED);
-  a->task_runner()->PostTask(FROM_HERE,
-                            base::Bind(&base::WaitableEvent::Signal,
-                                       base::Unretained(&last_task_event)));
+  a->task_runner()->PostTask(
+      FROM_HERE, base::BindOnce(&base::WaitableEvent::Signal,
+                                base::Unretained(&last_task_event)));
 
   // StopSoon() is non-blocking, Yield() to |a|, wait for last task to be
   // processed and a little more for QuitWhenIdle() to unwind before considering
@@ -355,7 +400,8 @@ TEST_F(ThreadTest, ThreadId) {
                             base::WaitableEvent::InitialState::NOT_SIGNALED);
   base::PlatformThreadId id_from_new_thread;
   a.task_runner()->PostTask(
-      FROM_HERE, base::Bind(ReturnThreadId, &a, &id_from_new_thread, &event));
+      FROM_HERE,
+      base::BindOnce(ReturnThreadId, &a, &id_from_new_thread, &event));
 
   // Call GetThreadId() on the current thread before calling event.Wait() so
   // that this test can find a race issue with TSAN.
@@ -414,8 +460,9 @@ TEST_F(ThreadTest, CleanUp) {
     // Register an observer that writes into |captured_events| once the
     // thread's message loop is destroyed.
     t.task_runner()->PostTask(
-        FROM_HERE, base::Bind(&RegisterDestructionObserver,
-                              base::Unretained(&loop_destruction_observer)));
+        FROM_HERE,
+        base::BindOnce(&RegisterDestructionObserver,
+                       base::Unretained(&loop_destruction_observer)));
 
     // Upon leaving this scope, the thread is deleted.
   }
@@ -459,7 +506,8 @@ TEST_F(ThreadTest, FlushForTesting) {
 
   for (size_t i = 0; i < kNumSleepTasks; ++i) {
     a.task_runner()->PostTask(
-        FROM_HERE, base::Bind(&base::PlatformThread::Sleep, kSleepPerTestTask));
+        FROM_HERE,
+        base::BindOnce(&base::PlatformThread::Sleep, kSleepPerTestTask));
   }
 
   // All tasks should have executed, as reflected by the elapsed time.
@@ -513,7 +561,7 @@ TEST_F(ThreadTest, ExternalMessageLoop) {
 
   bool ran = false;
   a.task_runner()->PostTask(
-      FROM_HERE, base::Bind([](bool* toggled) { *toggled = true; }, &ran));
+      FROM_HERE, base::BindOnce([](bool* toggled) { *toggled = true; }, &ran));
   base::RunLoop().RunUntilIdle();
   EXPECT_TRUE(ran);
 

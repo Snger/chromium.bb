@@ -18,6 +18,7 @@
 #include "cc/resources/transferable_resource.h"
 #include "cc/surfaces/surface_id.h"
 #include "cc/surfaces/surfaces_export.h"
+#include "ui/gfx/color_space.h"
 
 namespace cc {
 
@@ -43,6 +44,11 @@ class CC_SURFACES_EXPORT SurfaceAggregator {
   }
   void SetFullDamageForSurface(const SurfaceId& surface_id);
   void set_output_is_secure(bool secure) { output_is_secure_ = secure; }
+
+  // Set the color spaces for the created RenderPasses, which is propagated
+  // to the output surface.
+  void SetOutputColorSpace(const gfx::ColorSpace& blending_color_space,
+                           const gfx::ColorSpace& output_color_space);
 
  private:
   struct ClipData {
@@ -70,6 +76,21 @@ class CC_SURFACES_EXPORT SurfaceAggregator {
     bool in_use = true;
   };
 
+  struct SurfaceDrawQuadUmaStats {
+    void Reset() {
+      valid_surface = 0;
+      missing_surface = 0;
+      no_active_frame = 0;
+    }
+
+    // The surface exists and has an active frame.
+    int valid_surface;
+    // The surface doesn't exist.
+    int missing_surface;
+    // The surface exists but doesn't have an active frame.
+    int no_active_frame;
+  };
+
   ClipData CalculateClipRect(const ClipData& surface_clip,
                              const ClipData& quad_clip,
                              const gfx::Transform& target_transform);
@@ -79,7 +100,11 @@ class CC_SURFACES_EXPORT SurfaceAggregator {
   void HandleSurfaceQuad(const SurfaceDrawQuad* surface_quad,
                          const gfx::Transform& target_transform,
                          const ClipData& clip_rect,
-                         RenderPass* dest_pass);
+                         RenderPass* dest_pass,
+                         bool ignore_undamaged,
+                         gfx::Rect* damage_rect_in_quad_space,
+                         bool* damage_rect_in_quad_space_valid);
+
   SharedQuadState* CopySharedQuadState(const SharedQuadState* source_sqs,
                                        const gfx::Transform& target_transform,
                                        const ClipData& clip_rect,
@@ -98,6 +123,7 @@ class CC_SURFACES_EXPORT SurfaceAggregator {
                         PrewalkResult* result);
   void CopyUndrawnSurfaces(PrewalkResult* prewalk);
   void CopyPasses(const CompositorFrame& frame, Surface* surface);
+  void AddColorConversionPass();
 
   // Remove Surfaces that were referenced before but aren't currently
   // referenced from the ResourceProvider.
@@ -125,6 +151,16 @@ class CC_SURFACES_EXPORT SurfaceAggregator {
   int next_render_pass_id_;
   const bool aggregate_only_damaged_;
   bool output_is_secure_;
+
+  // The color space for the root render pass. If this is different from
+  // |blending_color_space_|, then a final render pass to convert between
+  // the two will be added.
+  gfx::ColorSpace output_color_space_;
+  // The color space in which blending is done, used for all non-root render
+  // passes.
+  gfx::ColorSpace blending_color_space_;
+  // The id for the final color conversion render pass.
+  int color_conversion_render_pass_id_ = 0;
 
   using SurfaceToResourceChildIdMap =
       std::unordered_map<SurfaceId, int, SurfaceIdHash>;
@@ -171,6 +207,9 @@ class CC_SURFACES_EXPORT SurfaceAggregator {
 
   // Resource list for the aggregated frame.
   TransferableResourceArray* dest_resource_list_;
+
+  // Tracks UMA stats for SurfaceDrawQuads during a call to Aggregate().
+  SurfaceDrawQuadUmaStats uma_stats_;
 
   base::WeakPtrFactory<SurfaceAggregator> weak_factory_;
 

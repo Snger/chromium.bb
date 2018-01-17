@@ -11,10 +11,10 @@
 #if SK_SUPPORT_GPU
 #include "GrContext.h"
 #include "GrContextPriv.h"
+#include "GrResourceProvider.h"
 #include "GrSurfaceContext.h"
 #include "GrSurfaceProxy.h"
 #include "GrTexture.h"
-#include "GrTextureProvider.h"
 
 #include "SkUtils.h"
 
@@ -56,6 +56,8 @@ DEF_GPUTEST_FOR_RENDERING_CONTEXTS(CopySurface, reporter, ctxInfo) {
         {-1   , -1   },
     };
 
+    const SkImageInfo ii = SkImageInfo::Make(kW, kH, kRGBA_8888_SkColorType, kPremul_SkAlphaType);
+
     SkAutoTMalloc<uint32_t> read(kW * kH);
 
     for (auto sOrigin : {kBottomLeft_GrSurfaceOrigin, kTopLeft_GrSurfaceOrigin}) {
@@ -71,16 +73,14 @@ DEF_GPUTEST_FOR_RENDERING_CONTEXTS(CopySurface, reporter, ctxInfo) {
                             dstDesc.fOrigin = dOrigin;
                             dstDesc.fFlags = dFlags;
 
-                            sk_sp<GrSurfaceProxy> src(GrSurfaceProxy::MakeDeferred(
-                                                                    *context->caps(),
-                                                                    context->textureProvider(),
+                            sk_sp<GrTextureProxy> src(GrSurfaceProxy::MakeDeferred(
+                                                                    context->resourceProvider(),
                                                                     srcDesc, SkBudgeted::kNo,
                                                                     srcPixels.get(),
                                                                     kRowBytes));
 
-                            sk_sp<GrSurfaceProxy> dst(GrSurfaceProxy::MakeDeferred(
-                                                                    *context->caps(),
-                                                                    context->textureProvider(),
+                            sk_sp<GrTextureProxy> dst(GrSurfaceProxy::MakeDeferred(
+                                                                    context->resourceProvider(),
                                                                     dstDesc, SkBudgeted::kNo,
                                                                     dstPixels.get(),
                                                                     kRowBytes));
@@ -90,10 +90,11 @@ DEF_GPUTEST_FOR_RENDERING_CONTEXTS(CopySurface, reporter, ctxInfo) {
                                 continue;
                             }
 
-                            sk_sp<GrSurfaceContext> sContext =
-                                   context->contextPriv().makeWrappedSurfaceContext(dst, nullptr);
+                            sk_sp<GrSurfaceContext> dstContext =
+                                   context->contextPriv().makeWrappedSurfaceContext(std::move(dst),
+                                                                                    nullptr);
 
-                            bool result = sContext->copy(src.get(), srcRect, dstPoint);
+                            bool result = dstContext->copy(src.get(), srcRect, dstPoint);
 
                             bool expectedResult = true;
                             SkIPoint dstOffset = { dstPoint.fX - srcRect.fLeft,
@@ -130,11 +131,8 @@ DEF_GPUTEST_FOR_RENDERING_CONTEXTS(CopySurface, reporter, ctxInfo) {
                                 continue;
                             }
 
-                            GrSurface* dstSurf = dst->instantiate(context->textureProvider());
-
                             sk_memset32(read.get(), 0, kW * kH);
-                            if (!dstSurf->readPixels(0, 0, kW, kH, baseDesc.fConfig, read.get(),
-                                                     kRowBytes)) {
+                            if (!dstContext->readPixels(ii, read.get(), kRowBytes, 0, 0)) {
                                 ERRORF(reporter, "Error calling readPixels");
                                 continue;
                             }

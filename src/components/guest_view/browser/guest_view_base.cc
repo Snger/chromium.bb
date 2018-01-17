@@ -16,7 +16,7 @@
 #include "components/guest_view/common/guest_view_messages.h"
 #include "components/zoom/page_zoom.h"
 #include "components/zoom/zoom_controller.h"
-#include "content/public/browser/navigation_details.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
@@ -39,8 +39,8 @@ namespace guest_view {
 namespace {
 
 using WebContentsGuestViewMap = std::map<const WebContents*, GuestViewBase*>;
-static base::LazyInstance<WebContentsGuestViewMap> webcontents_guestview_map =
-    LAZY_INSTANCE_INITIALIZER;
+static base::LazyInstance<WebContentsGuestViewMap>::DestructorAtExit
+    webcontents_guestview_map = LAZY_INSTANCE_INITIALIZER;
 
 }  // namespace
 
@@ -70,12 +70,16 @@ class GuestViewBase::OwnerContentsObserver : public WebContentsObserver {
     Destroy();
   }
 
-  void DidNavigateMainFrame(
-      const content::LoadCommittedDetails& details,
-      const content::FrameNavigateParams& params) override {
+  void DidFinishNavigation(
+      content::NavigationHandle* navigation_handle) override {
     // If the embedder navigates to a different page then destroy the guest.
-    if (details.is_navigation_to_different_page())
-      Destroy();
+    if (!navigation_handle->IsInMainFrame() ||
+        !navigation_handle->HasCommitted() ||
+        navigation_handle->IsSameDocument()) {
+      return;
+    }
+
+    Destroy();
   }
 
   void RenderProcessGone(base::TerminationStatus status) override {
@@ -135,7 +139,7 @@ class GuestViewBase::OwnerContentsObserver : public WebContentsObserver {
     if (destroyed_)
       return;
     destroyed_ = true;
-    guest_->Destroy();
+    guest_->Destroy(true);
   }
 
   DISALLOW_COPY_AND_ASSIGN(OwnerContentsObserver);
@@ -157,7 +161,7 @@ class GuestViewBase::OpenerLifetimeObserver : public WebContentsObserver {
       return;
 
     // If the opener is destroyed then destroy the guest.
-    guest_->Destroy();
+    guest_->Destroy(true);
   }
 
  private:
@@ -221,9 +225,9 @@ void GuestViewBase::InitWithWebContents(
   // after the latter has handled WebContentsObserver events (observers are
   // notified of events in the same order they are added as observers). For
   // example, GuestViewBase may wish to put its guest into isolated zoom mode
-  // in DidNavigateMainFrame, but since ZoomController always resets to default
+  // in DidFinishNavigation, but since ZoomController always resets to default
   // zoom mode on this event, GuestViewBase would need to do so after
-  // ZoomController::DidNavigateMainFrame has completed.
+  // ZoomController::DidFinishNavigation has completed.
   zoom::ZoomController::CreateForWebContents(guest_web_contents);
 
   // At this point, we have just created the guest WebContents, we need to add
@@ -438,7 +442,7 @@ void GuestViewBase::DidDetach() {
       element_instance_id_));
   element_instance_id_ = kInstanceIDNone;
   if (!CanRunInDetachedState())
-    Destroy();
+    Destroy(true);
 }
 
 bool GuestViewBase::HandleFindForEmbedder(
@@ -473,7 +477,7 @@ const GURL& GuestViewBase::GetOwnerSiteURL() const {
   return owner_web_contents()->GetLastCommittedURL();
 }
 
-void GuestViewBase::Destroy() {
+void GuestViewBase::Destroy(bool also_delete) {
   if (is_being_destroyed_)
     return;
 
@@ -506,7 +510,8 @@ void GuestViewBase::Destroy() {
       RemoveGuest(guest_instance_id_);
   pending_events_.clear();
 
-  delete web_contents();
+  if (also_delete)
+    delete web_contents();
 }
 
 void GuestViewBase::SetAttachParams(const base::DictionaryValue& params) {
@@ -594,6 +599,8 @@ void GuestViewBase::RenderViewReady() {
 }
 
 void GuestViewBase::WebContentsDestroyed() {
+  Destroy(false);
+
   // Let the derived class know that its WebContents is in the process of
   // being destroyed. web_contents() is still valid at this point.
   // TODO(fsamuel): This allows for reentrant code into WebContents during
@@ -605,9 +612,11 @@ void GuestViewBase::WebContentsDestroyed() {
   delete this;
 }
 
-void GuestViewBase::DidNavigateMainFrame(
-    const content::LoadCommittedDetails& details,
-    const content::FrameNavigateParams& params) {
+void GuestViewBase::DidFinishNavigation(
+    content::NavigationHandle* navigation_handle) {
+  if (!navigation_handle->IsInMainFrame() || !navigation_handle->HasCommitted())
+    return;
+
   if (attached() && ZoomPropagatesFromEmbedderToGuest())
     SetGuestZoomLevelToMatchEmbedder();
 }
@@ -689,9 +698,9 @@ bool GuestViewBase::ShouldFocusPageAfterCrash() {
 
 bool GuestViewBase::PreHandleGestureEvent(WebContents* source,
                                           const blink::WebGestureEvent& event) {
-  return event.type() == blink::WebGestureEvent::GesturePinchBegin ||
-         event.type() == blink::WebGestureEvent::GesturePinchUpdate ||
-         event.type() == blink::WebGestureEvent::GesturePinchEnd;
+  return event.GetType() == blink::WebGestureEvent::kGesturePinchBegin ||
+         event.GetType() == blink::WebGestureEvent::kGesturePinchUpdate ||
+         event.GetType() == blink::WebGestureEvent::kGesturePinchEnd;
 }
 
 void GuestViewBase::UpdatePreferredSize(WebContents* target_web_contents,

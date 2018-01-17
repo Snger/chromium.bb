@@ -36,15 +36,21 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
    * @param {!SDK.Target} target
    */
   constructor(target) {
-    super(SDK.DebuggerModel, target);
+    super(target);
 
     target.registerDebuggerDispatcher(new SDK.DebuggerDispatcher(this));
     this._agent = target.debuggerAgent();
+    this._runtimeModel = /** @type {!SDK.RuntimeModel} */ (target.model(SDK.RuntimeModel));
+
+    /** @type {!SDK.SourceMapManager<!SDK.Script>} */
+    this._sourceMapManager = new SDK.SourceMapManager(target);
+    /** @type {!Map<string, !SDK.Script>} */
+    this._sourceMapIdToScript = new Map();
 
     /** @type {?SDK.DebuggerPausedDetails} */
     this._debuggerPausedDetails = null;
-    /** @type {!Object.<string, !SDK.Script>} */
-    this._scripts = {};
+    /** @type {!Map<string, !SDK.Script>} */
+    this._scripts = new Map();
     /** @type {!Map.<string, !Array.<!SDK.Script>>} */
     this._scriptsBySourceURL = new Map();
     /** @type {!Array.<!SDK.Script>} */
@@ -64,29 +70,35 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
 
     /** @type {!Map<string, string>} */
     this._stringMap = new Map();
+    this._sourceMapManager.setEnabled(Common.moduleSetting('jsSourceMapsEnabled').get());
+    Common.moduleSetting('jsSourceMapsEnabled')
+        .addChangeListener(event => this._sourceMapManager.setEnabled(/** @type {boolean} */ (event.data)));
   }
 
   /**
-   * @return {!Array<!SDK.DebuggerModel>}
+   * @param {string} executionContextId
+   * @param {string} sourceURL
+   * @param {?string} sourceMapURL
+   * @return {?string}
    */
-  static instances() {
-    var result = [];
-    for (var target of SDK.targetManager.targets()) {
-      var debuggerModel = SDK.DebuggerModel.fromTarget(target);
-      if (debuggerModel)
-        result.push(debuggerModel);
-    }
-    return result;
-  }
-
-  /**
-   * @param {?SDK.Target} target
-   * @return {?SDK.DebuggerModel}
-   */
-  static fromTarget(target) {
-    if (!target || !target.hasJSCapability())
+  static _sourceMapId(executionContextId, sourceURL, sourceMapURL) {
+    if (!sourceMapURL)
       return null;
-    return target.model(SDK.DebuggerModel);
+    return executionContextId + ':' + sourceURL + ':' + sourceMapURL;
+  }
+
+  /**
+   * @return {!SDK.SourceMapManager<!SDK.Script>}
+   */
+  sourceMapManager() {
+    return this._sourceMapManager;
+  }
+
+  /**
+   * @return {!SDK.RuntimeModel}
+   */
+  runtimeModel() {
+    return this._runtimeModel;
   }
 
   /**
@@ -165,7 +177,7 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
   }
 
   asyncStackTracesStateChanged() {
-    const maxAsyncStackChainDepth = 4;
+    const maxAsyncStackChainDepth = 8;
     var enabled = Common.moduleSetting('enableAsyncStackTraces').get() && this._debuggerEnabled;
     this._agent.setAsyncCallStackDepth(enabled ? maxAsyncStackChainDepth : 0);
   }
@@ -180,6 +192,10 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
 
   stepOut() {
     this._agent.stepOut();
+  }
+
+  scheduleStepIntoAsync() {
+    this._agent.scheduleStepIntoAsync();
   }
 
   resume() {
@@ -283,25 +299,28 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
   /**
    * @param {!SDK.DebuggerModel.Location} startLocation
    * @param {!SDK.DebuggerModel.Location} endLocation
-   * @return {!Promise<!Array<!SDK.DebuggerModel.Location>>}
+   * @param {boolean} restrictToFunction
+   * @return {!Promise<!Array<!SDK.DebuggerModel.BreakLocation>>}
    */
-  getPossibleBreakpoints(startLocation, endLocation) {
+  getPossibleBreakpoints(startLocation, endLocation, restrictToFunction) {
     var fulfill;
     var promise = new Promise(resolve => fulfill = resolve);
-    this._agent.getPossibleBreakpoints(startLocation.payload(), endLocation.payload(), checkErrorAndReturn.bind(this));
+    this._agent.invoke_getPossibleBreakpoints(
+        {start: startLocation.payload(), end: endLocation.payload(), restrictToFunction: restrictToFunction},
+        checkErrorAndReturn.bind(this));
     return promise;
 
     /**
      * @this {!SDK.DebuggerModel}
      * @param {?Protocol.Error} error
-     * @param {?Array<!Protocol.Debugger.Location>} locations
+     * @param {?Array<!Protocol.Debugger.BreakLocation>} locations
      */
     function checkErrorAndReturn(error, locations) {
       if (error || !locations) {
         fulfill([]);
         return;
       }
-      fulfill(locations.map(location => SDK.DebuggerModel.Location.fromPayload(this, location)));
+      fulfill(locations.map(location => SDK.DebuggerModel.BreakLocation.fromPayload(this, location)));
     }
   }
 
@@ -322,17 +341,21 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
   }
 
   _reset() {
-    this._scripts = {};
+    for (var scriptWithSourceMap of this._sourceMapIdToScript.values())
+      this._sourceMapManager.detachSourceMap(scriptWithSourceMap);
+    this._sourceMapIdToScript.clear();
+
+    this._scripts.clear();
     this._scriptsBySourceURL.clear();
     this._stringMap.clear();
     this._discardableScripts = [];
   }
 
   /**
-   * @return {!Object.<string, !SDK.Script>}
+   * @return {!Array<!SDK.Script>}
    */
-  get scripts() {
-    return this._scripts;
+  scripts() {
+    return Array.from(this._scripts.values());
   }
 
   /**
@@ -340,7 +363,7 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
    * @return {?SDK.Script}
    */
   scriptForId(scriptId) {
-    return this._scripts[scriptId] || null;
+    return this._scripts.get(scriptId) || null;
   }
 
   /**
@@ -353,12 +376,26 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
   }
 
   /**
+   * @param {!SDK.ExecutionContext} executionContext
+   * @return {!Array<!SDK.Script>}
+   */
+  scriptsForExecutionContext(executionContext) {
+    var result = [];
+    for (var script of this._scripts.values()) {
+      if (script.executionContextId === executionContext.id)
+        result.push(script);
+    }
+    return result;
+  }
+
+  /**
    * @param {!Protocol.Runtime.ScriptId} scriptId
    * @param {string} newSource
    * @param {function(?Protocol.Error, !Protocol.Runtime.ExceptionDetails=)} callback
    */
   setScriptSource(scriptId, newSource, callback) {
-    this._scripts[scriptId].editSource(newSource, this._didEditScriptSource.bind(this, scriptId, newSource, callback));
+    this._scripts.get(scriptId).editSource(
+        newSource, this._didEditScriptSource.bind(this, scriptId, newSource, callback));
   }
 
   /**
@@ -465,25 +502,15 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
    * @param {string} hash
    * @param {*|undefined} executionContextAuxData
    * @param {boolean} isLiveEdit
-   * @param {string=} sourceMapURL
-   * @param {boolean=} hasSourceURL
-   * @param {boolean=} hasSyntaxError
+   * @param {string|undefined} sourceMapURL
+   * @param {boolean} hasSourceURL
+   * @param {boolean} hasSyntaxError
+   * @param {number} length
    * @return {!SDK.Script}
    */
   _parsedScriptSource(
-      scriptId,
-      sourceURL,
-      startLine,
-      startColumn,
-      endLine,
-      endColumn,
-      executionContextId,
-      hash,
-      executionContextAuxData,
-      isLiveEdit,
-      sourceMapURL,
-      hasSourceURL,
-      hasSyntaxError) {
+      scriptId, sourceURL, startLine, startColumn, endLine, endColumn, executionContextId, hash,
+      executionContextAuxData, isLiveEdit, sourceMapURL, hasSourceURL, hasSyntaxError, length) {
     var isContentScript = false;
     if (executionContextAuxData && ('isDefault' in executionContextAuxData))
       isContentScript = !executionContextAuxData['isDefault'];
@@ -498,12 +525,24 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
     }
     var script = new SDK.Script(
         this, scriptId, sourceURL, startLine, startColumn, endLine, endColumn, executionContextId,
-        this._internString(hash), isContentScript, isLiveEdit, sourceMapURL, hasSourceURL);
+        this._internString(hash), isContentScript, isLiveEdit, sourceMapURL, hasSourceURL, length);
     this._registerScript(script);
     if (!hasSyntaxError)
       this.dispatchEventToListeners(SDK.DebuggerModel.Events.ParsedScriptSource, script);
     else
       this.dispatchEventToListeners(SDK.DebuggerModel.Events.FailedToParseScriptSource, script);
+
+    var sourceMapId = SDK.DebuggerModel._sourceMapId(script.executionContextId, script.sourceURL, script.sourceMapURL);
+    if (sourceMapId && !hasSyntaxError) {
+      // Consecutive script evaluations in the same execution context with the same sourceURL
+      // and sourceMappingURL should result in source map reloading.
+      var previousScript = this._sourceMapIdToScript.get(sourceMapId);
+      if (previousScript)
+        this._sourceMapManager.detachSourceMap(previousScript);
+      this._sourceMapIdToScript.set(sourceMapId, script);
+      this._sourceMapManager.attachSourceMap(script, script.sourceURL, script.sourceMapURL);
+    }
+
     var isDiscardable = hasSyntaxError && script.isAnonymousScript();
     if (isDiscardable) {
       this._discardableScripts.push(script);
@@ -514,9 +553,41 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
 
   /**
    * @param {!SDK.Script} script
+   * @param {string} newSourceMapURL
+   */
+  setSourceMapURL(script, newSourceMapURL) {
+    var sourceMapId = SDK.DebuggerModel._sourceMapId(script.executionContextId, script.sourceURL, script.sourceMapURL);
+    if (sourceMapId && this._sourceMapIdToScript.get(sourceMapId) === script)
+      this._sourceMapIdToScript.delete(sourceMapId);
+    this._sourceMapManager.detachSourceMap(script);
+
+    script.sourceMapURL = newSourceMapURL;
+    sourceMapId = SDK.DebuggerModel._sourceMapId(script.executionContextId, script.sourceURL, script.sourceMapURL);
+    if (!sourceMapId)
+      return;
+    this._sourceMapIdToScript.set(sourceMapId, script);
+    this._sourceMapManager.attachSourceMap(script, script.sourceURL, script.sourceMapURL);
+  }
+
+  /**
+   * @param {!SDK.ExecutionContext} executionContext
+   */
+  executionContextDestroyed(executionContext) {
+    var sourceMapIds = Array.from(this._sourceMapIdToScript.keys());
+    for (var sourceMapId of sourceMapIds) {
+      var script = this._sourceMapIdToScript.get(sourceMapId);
+      if (script.executionContextId === executionContext.id) {
+        this._sourceMapIdToScript.delete(sourceMapId);
+        this._sourceMapManager.detachSourceMap(script);
+      }
+    }
+  }
+
+  /**
+   * @param {!SDK.Script} script
    */
   _registerScript(script) {
-    this._scripts[script.scriptId] = script;
+    this._scripts.set(script.scriptId, script);
     if (script.isAnonymousScript())
       return;
 
@@ -533,7 +604,7 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
    */
   _unregisterScript(script) {
     console.assert(script.isAnonymousScript());
-    delete this._scripts[script.scriptId];
+    this._scripts.delete(script.scriptId);
   }
 
   _collectDiscardedScripts() {
@@ -653,7 +724,7 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
    * @param {boolean} silent
    * @param {boolean} returnByValue
    * @param {boolean} generatePreview
-   * @param {function(?SDK.RemoteObject, !Protocol.Runtime.ExceptionDetails=)} callback
+   * @param {function(?SDK.RemoteObject, !Protocol.Runtime.ExceptionDetails=, string=)} callback
    */
   evaluateOnSelectedCallFrame(
       code,
@@ -666,13 +737,14 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
     /**
      * @param {?Protocol.Runtime.RemoteObject} result
      * @param {!Protocol.Runtime.ExceptionDetails=} exceptionDetails
+     * @param {string=} error
      * @this {SDK.DebuggerModel}
      */
-    function didEvaluate(result, exceptionDetails) {
+    function didEvaluate(result, exceptionDetails, error) {
       if (!result)
-        callback(null);
+        callback(null, undefined, error);
       else
-        callback(this.target().runtimeModel.createRemoteObject(result), exceptionDetails);
+        callback(this._runtimeModel.createRemoteObject(result), exceptionDetails);
     }
 
     this.selectedCallFrame().evaluate(
@@ -684,7 +756,8 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
    * @return {!Promise<?SDK.DebuggerModel.FunctionDetails>}
    */
   functionDetailsPromise(remoteObject) {
-    return remoteObject.getAllPropertiesPromise(/* accessorPropertiesOnly */ false).then(buildDetails.bind(this));
+    return remoteObject.getAllPropertiesPromise(false /* accessorPropertiesOnly */, false /* generatePreview */)
+        .then(buildDetails.bind(this));
 
     /**
      * @param {!{properties: ?Array.<!SDK.RemoteObjectProperty>, internalProperties: ?Array.<!SDK.RemoteObjectProperty>}} response
@@ -788,6 +861,7 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
    * @override
    */
   dispose() {
+    this._sourceMapManager.dispose();
     Common.moduleSetting('pauseOnExceptionEnabled').removeChangeListener(this._pauseOnExceptionStateChanged, this);
     Common.moduleSetting('pauseOnCaughtException').removeChangeListener(this._pauseOnExceptionStateChanged, this);
     Common.moduleSetting('enableAsyncStackTraces').removeChangeListener(this.asyncStackTracesStateChanged, this);
@@ -836,6 +910,8 @@ SDK.DebuggerModel = class extends SDK.SDKModel {
   }
 };
 
+SDK.SDKModel.register(SDK.DebuggerModel, SDK.Target.Capability.JS, true);
+
 /** @typedef {{location: ?SDK.DebuggerModel.Location, functionName: string}} */
 SDK.DebuggerModel.FunctionDetails;
 
@@ -861,8 +937,7 @@ SDK.DebuggerModel.Events = {
   DiscardedAnonymousScriptSource: Symbol('DiscardedAnonymousScriptSource'),
   GlobalObjectCleared: Symbol('GlobalObjectCleared'),
   CallFrameSelected: Symbol('CallFrameSelected'),
-  ConsoleCommandEvaluatedInSelectedCallFrame: Symbol('ConsoleCommandEvaluatedInSelectedCallFrame'),
-  SourceMapURLAdded: Symbol('SourceMapURLAdded')
+  ConsoleCommandEvaluatedInSelectedCallFrame: Symbol('ConsoleCommandEvaluatedInSelectedCallFrame')
 };
 
 /** @enum {string} */
@@ -874,7 +949,15 @@ SDK.DebuggerModel.BreakReason = {
   PromiseRejection: 'promiseRejection',
   Assert: 'assert',
   DebugCommand: 'debugCommand',
+  OOM: 'OOM',
   Other: 'other'
+};
+
+/** @enum {string} */
+SDK.DebuggerModel.BreakLocationType = {
+  Return: 'return',
+  Call: 'call',
+  DebuggerStatement: 'debuggerStatement'
 };
 
 SDK.DebuggerEventTypes = {
@@ -928,23 +1011,15 @@ SDK.DebuggerDispatcher = class {
    * @param {boolean=} isLiveEdit
    * @param {string=} sourceMapURL
    * @param {boolean=} hasSourceURL
+   * @param {boolean=} isModule
+   * @param {number=} length
    */
   scriptParsed(
-      scriptId,
-      sourceURL,
-      startLine,
-      startColumn,
-      endLine,
-      endColumn,
-      executionContextId,
-      hash,
-      executionContextAuxData,
-      isLiveEdit,
-      sourceMapURL,
-      hasSourceURL) {
+      scriptId, sourceURL, startLine, startColumn, endLine, endColumn, executionContextId, hash,
+      executionContextAuxData, isLiveEdit, sourceMapURL, hasSourceURL, isModule, length) {
     this._debuggerModel._parsedScriptSource(
         scriptId, sourceURL, startLine, startColumn, endLine, endColumn, executionContextId, hash,
-        executionContextAuxData, !!isLiveEdit, sourceMapURL, hasSourceURL, false);
+        executionContextAuxData, !!isLiveEdit, sourceMapURL, !!hasSourceURL, false, length || 0);
   }
 
   /**
@@ -960,22 +1035,15 @@ SDK.DebuggerDispatcher = class {
    * @param {*=} executionContextAuxData
    * @param {string=} sourceMapURL
    * @param {boolean=} hasSourceURL
+   * @param {boolean=} isModule
+   * @param {number=} length
    */
   scriptFailedToParse(
-      scriptId,
-      sourceURL,
-      startLine,
-      startColumn,
-      endLine,
-      endColumn,
-      executionContextId,
-      hash,
-      executionContextAuxData,
-      sourceMapURL,
-      hasSourceURL) {
+      scriptId, sourceURL, startLine, startColumn, endLine, endColumn, executionContextId, hash,
+      executionContextAuxData, sourceMapURL, hasSourceURL, isModule, length) {
     this._debuggerModel._parsedScriptSource(
         scriptId, sourceURL, startLine, startColumn, endLine, endColumn, executionContextId, hash,
-        executionContextAuxData, false, sourceMapURL, hasSourceURL, true);
+        executionContextAuxData, false, sourceMapURL, !!hasSourceURL, true, length || 0);
   }
 
   /**
@@ -991,7 +1059,7 @@ SDK.DebuggerDispatcher = class {
 /**
  * @unrestricted
  */
-SDK.DebuggerModel.Location = class extends SDK.SDKObject {
+SDK.DebuggerModel.Location = class {
   /**
    * @param {!SDK.DebuggerModel} debuggerModel
    * @param {string} scriptId
@@ -999,8 +1067,7 @@ SDK.DebuggerModel.Location = class extends SDK.SDKObject {
    * @param {number=} columnNumber
    */
   constructor(debuggerModel, scriptId, lineNumber, columnNumber) {
-    super(debuggerModel.target());
-    this._debuggerModel = debuggerModel;
+    this.debuggerModel = debuggerModel;
     this.scriptId = scriptId;
     this.lineNumber = lineNumber;
     this.columnNumber = columnNumber || 0;
@@ -1026,36 +1093,60 @@ SDK.DebuggerModel.Location = class extends SDK.SDKObject {
    * @return {?SDK.Script}
    */
   script() {
-    return this._debuggerModel.scriptForId(this.scriptId);
+    return this.debuggerModel.scriptForId(this.scriptId);
   }
 
   continueToLocation() {
-    this._debuggerModel._agent.continueToLocation(this.payload());
+    this.debuggerModel._agent.continueToLocation(this.payload());
   }
 
   /**
    * @return {string}
    */
   id() {
-    return this.target().id() + ':' + this.scriptId + ':' + this.lineNumber + ':' + this.columnNumber;
+    return this.debuggerModel.target().id() + ':' + this.scriptId + ':' + this.lineNumber + ':' + this.columnNumber;
   }
 };
-
 
 /**
  * @unrestricted
  */
-SDK.DebuggerModel.CallFrame = class extends SDK.SDKObject {
+SDK.DebuggerModel.BreakLocation = class extends SDK.DebuggerModel.Location {
+  /**
+   * @param {!SDK.DebuggerModel} debuggerModel
+   * @param {string} scriptId
+   * @param {number} lineNumber
+   * @param {number=} columnNumber
+   * @param {!Protocol.Debugger.BreakLocationType=} type
+   */
+  constructor(debuggerModel, scriptId, lineNumber, columnNumber, type) {
+    super(debuggerModel, scriptId, lineNumber, columnNumber);
+    if (type)
+      this.type = type;
+  }
+
+  /**
+   * @param {!SDK.DebuggerModel} debuggerModel
+   * @param {!Protocol.Debugger.BreakLocation} payload
+   * @return {!SDK.DebuggerModel.BreakLocation}
+   */
+  static fromPayload(debuggerModel, payload) {
+    return new SDK.DebuggerModel.BreakLocation(
+        debuggerModel, payload.scriptId, payload.lineNumber, payload.columnNumber, payload.type);
+  }
+};
+
+/**
+ * @unrestricted
+ */
+SDK.DebuggerModel.CallFrame = class {
   /**
    * @param {!SDK.DebuggerModel} debuggerModel
    * @param {!SDK.Script} script
    * @param {!Protocol.Debugger.CallFrame} payload
    */
   constructor(debuggerModel, script, payload) {
-    var target = debuggerModel.target();
-    super(target);
     this.debuggerModel = debuggerModel;
-    this._debuggerAgent = debuggerModel._agent;
     this._script = script;
     this._payload = payload;
     this._location = SDK.DebuggerModel.Location.fromPayload(debuggerModel, payload.location);
@@ -1119,14 +1210,15 @@ SDK.DebuggerModel.CallFrame = class extends SDK.SDKObject {
    * @return {?SDK.RemoteObject}
    */
   thisObject() {
-    return this._payload.this ? this.target().runtimeModel.createRemoteObject(this._payload.this) : null;
+    return this._payload.this ? this.debuggerModel._runtimeModel.createRemoteObject(this._payload.this) : null;
   }
 
   /**
    * @return {?SDK.RemoteObject}
    */
   returnValue() {
-    return this._payload.returnValue ? this.target().runtimeModel.createRemoteObject(this._payload.returnValue) : null;
+    return this._payload.returnValue ? this.debuggerModel._runtimeModel.createRemoteObject(this._payload.returnValue) :
+                                       null;
   }
 
   /**
@@ -1157,7 +1249,7 @@ SDK.DebuggerModel.CallFrame = class extends SDK.SDKObject {
    * @param {boolean} silent
    * @param {boolean} returnByValue
    * @param {boolean} generatePreview
-   * @param {function(?Protocol.Runtime.RemoteObject, !Protocol.Runtime.ExceptionDetails=)} callback
+   * @param {function(?Protocol.Runtime.RemoteObject, !Protocol.Runtime.ExceptionDetails=, string=)} callback
    */
   evaluate(code, objectGroup, includeCommandLineAPI, silent, returnByValue, generatePreview, callback) {
     /**
@@ -1168,14 +1260,47 @@ SDK.DebuggerModel.CallFrame = class extends SDK.SDKObject {
     function didEvaluateOnCallFrame(error, result, exceptionDetails) {
       if (error) {
         console.error(error);
-        callback(null);
+        callback(null, undefined, error);
         return;
       }
       callback(result, exceptionDetails);
     }
-    this._debuggerAgent.evaluateOnCallFrame(
-        this._payload.callFrameId, code, objectGroup, includeCommandLineAPI, silent, returnByValue, generatePreview,
+    this.debuggerModel._agent.invoke_evaluateOnCallFrame(
+        {
+          callFrameId: this._payload.callFrameId,
+          expression: code, objectGroup, includeCommandLineAPI, silent, returnByValue, generatePreview
+        },
         didEvaluateOnCallFrame);
+  }
+
+  /**
+   * @param {string} code
+   * @param {string} objectGroup
+   * @param {boolean} includeCommandLineAPI
+   * @param {boolean} silent
+   * @param {boolean} returnByValue
+   * @param {boolean} generatePreview
+   * @return {!Promise<?SDK.RemoteObject>}
+   */
+  evaluatePromise(code, objectGroup, includeCommandLineAPI, silent, returnByValue, generatePreview) {
+    var fulfill;
+    var promise = new Promise(x => fulfill = x);
+    this.evaluate(
+        code, objectGroup, includeCommandLineAPI, silent, returnByValue, generatePreview, callback.bind(this));
+    return promise;
+
+    /**
+     * @param {?Protocol.Runtime.RemoteObject} result
+     * @param {!Protocol.Runtime.ExceptionDetails=} exceptionDetails
+     * @param {string=} error
+     * @this {SDK.DebuggerModel.CallFrame}
+     */
+    function callback(result, exceptionDetails, error) {
+      if (!result || exceptionDetails)
+        fulfill(null);
+      else
+        fulfill(this.debuggerModel._runtimeModel.createRemoteObject(result));
+    }
   }
 
   /**
@@ -1194,7 +1319,7 @@ SDK.DebuggerModel.CallFrame = class extends SDK.SDKObject {
       if (callback)
         callback(error);
     }
-    this._debuggerAgent.restartFrame(this._payload.callFrameId, protocolCallback.bind(this));
+    this.debuggerModel._agent.restartFrame(this._payload.callFrameId, protocolCallback.bind(this));
   }
 };
 
@@ -1286,7 +1411,7 @@ SDK.DebuggerModel.Scope = class {
   object() {
     if (this._object)
       return this._object;
-    var runtimeModel = this._callFrame.target().runtimeModel;
+    var runtimeModel = this._callFrame.debuggerModel._runtimeModel;
 
     var declarativeScope =
         this._type !== Protocol.Debugger.ScopeType.With && this._type !== Protocol.Debugger.ScopeType.Global;
@@ -1313,7 +1438,7 @@ SDK.DebuggerModel.Scope = class {
 /**
  * @unrestricted
  */
-SDK.DebuggerPausedDetails = class extends SDK.SDKObject {
+SDK.DebuggerPausedDetails = class {
   /**
    * @param {!SDK.DebuggerModel} debuggerModel
    * @param {!Array.<!Protocol.Debugger.CallFrame>} callFrames
@@ -1323,7 +1448,6 @@ SDK.DebuggerPausedDetails = class extends SDK.SDKObject {
    * @param {!Protocol.Runtime.StackTrace=} asyncStackTrace
    */
   constructor(debuggerModel, callFrames, reason, auxData, breakpointIds, asyncStackTrace) {
-    super(debuggerModel.target());
     this.debuggerModel = debuggerModel;
     this.callFrames = SDK.DebuggerModel.CallFrame.fromPayloadArray(debuggerModel, callFrames);
     this.reason = reason;
@@ -1340,7 +1464,8 @@ SDK.DebuggerPausedDetails = class extends SDK.SDKObject {
     if (this.reason !== SDK.DebuggerModel.BreakReason.Exception &&
         this.reason !== SDK.DebuggerModel.BreakReason.PromiseRejection)
       return null;
-    return this.target().runtimeModel.createRemoteObject(/** @type {!Protocol.Runtime.RemoteObject} */ (this.auxData));
+    return this.debuggerModel._runtimeModel.createRemoteObject(
+        /** @type {!Protocol.Runtime.RemoteObject} */ (this.auxData));
   }
 
   /**
@@ -1353,7 +1478,7 @@ SDK.DebuggerPausedDetails = class extends SDK.SDKObject {
     while (stack) {
       if (stack.description === 'async function' && stack.callFrames.length)
         stack.callFrames.shift();
-      if (previous && !stack.callFrames.length)
+      if (previous && (!stack.callFrames.length && !stack.promiseCreationFrame))
         previous.parent = stack.parent;
       else
         previous = stack;

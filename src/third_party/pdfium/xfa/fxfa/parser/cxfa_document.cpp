@@ -15,9 +15,10 @@
 #include "xfa/fxfa/parser/cxfa_document.h"
 #include "xfa/fxfa/parser/cxfa_document_parser.h"
 #include "xfa/fxfa/parser/cxfa_layoutprocessor.h"
+#include "xfa/fxfa/parser/cxfa_localemgr.h"
+#include "xfa/fxfa/parser/cxfa_node.h"
 #include "xfa/fxfa/parser/cxfa_scriptcontext.h"
-#include "xfa/fxfa/parser/xfa_localemgr.h"
-#include "xfa/fxfa/parser/xfa_object.h"
+#include "xfa/fxfa/parser/cxfa_traversestrategy_xfanode.h"
 #include "xfa/fxfa/parser/xfa_resolvenode_rs.h"
 #include "xfa/fxfa/parser/xfa_utils.h"
 
@@ -85,16 +86,7 @@ void MergeNode(CXFA_Document* pDocument,
 
 CXFA_Document::CXFA_Document(CXFA_DocumentParser* pParser)
     : m_pParser(pParser),
-      m_pScriptContext(nullptr),
-      m_pLayoutProcessor(nullptr),
       m_pRootNode(nullptr),
-      m_pLocalMgr(nullptr),
-      m_pScriptDataWindow(nullptr),
-      m_pScriptEvent(nullptr),
-      m_pScriptHost(nullptr),
-      m_pScriptLog(nullptr),
-      m_pScriptLayout(nullptr),
-      m_pScriptSignature(nullptr),
       m_eCurVersionMode(XFA_VERSION_DEFAULT),
       m_dwDocFlags(0) {
   ASSERT(m_pParser);
@@ -105,25 +97,26 @@ CXFA_Document::~CXFA_Document() {
   PurgeNodes();
 }
 
+CXFA_LayoutProcessor* CXFA_Document::GetLayoutProcessor() {
+  if (!m_pLayoutProcessor)
+    m_pLayoutProcessor = pdfium::MakeUnique<CXFA_LayoutProcessor>(this);
+  return m_pLayoutProcessor.get();
+}
+
+CXFA_LayoutProcessor* CXFA_Document::GetDocLayout() {
+  return GetLayoutProcessor();
+}
+
 void CXFA_Document::ClearLayoutData() {
-  delete m_pLayoutProcessor;
-  m_pLayoutProcessor = nullptr;
-  delete m_pScriptContext;
-  m_pScriptContext = nullptr;
-  delete m_pLocalMgr;
-  m_pLocalMgr = nullptr;
-  delete m_pScriptDataWindow;
-  m_pScriptDataWindow = nullptr;
-  delete m_pScriptEvent;
-  m_pScriptEvent = nullptr;
-  delete m_pScriptHost;
-  m_pScriptHost = nullptr;
-  delete m_pScriptLog;
-  m_pScriptLog = nullptr;
-  delete m_pScriptLayout;
-  m_pScriptLayout = nullptr;
-  delete m_pScriptSignature;
-  m_pScriptSignature = nullptr;
+  m_pLayoutProcessor.reset();
+  m_pScriptContext.reset();
+  m_pLocalMgr.reset();
+  m_pScriptDataWindow.reset();
+  m_pScriptEvent.reset();
+  m_pScriptHost.reset();
+  m_pScriptLog.reset();
+  m_pScriptLayout.reset();
+  m_pScriptSignature.reset();
 }
 
 void CXFA_Document::SetRoot(CXFA_Node* pNewRoot) {
@@ -176,33 +169,34 @@ CXFA_Object* CXFA_Document::GetXFAObject(XFA_HashCode dwNodeNameHash) {
     }
     case XFA_HASHCODE_DataWindow: {
       if (!m_pScriptDataWindow)
-        m_pScriptDataWindow = new CScript_DataWindow(this);
-      return m_pScriptDataWindow;
+        m_pScriptDataWindow = pdfium::MakeUnique<CScript_DataWindow>(this);
+      return m_pScriptDataWindow.get();
     }
     case XFA_HASHCODE_Event: {
       if (!m_pScriptEvent)
-        m_pScriptEvent = new CScript_EventPseudoModel(this);
-      return m_pScriptEvent;
+        m_pScriptEvent = pdfium::MakeUnique<CScript_EventPseudoModel>(this);
+      return m_pScriptEvent.get();
     }
     case XFA_HASHCODE_Host: {
       if (!m_pScriptHost)
-        m_pScriptHost = new CScript_HostPseudoModel(this);
-      return m_pScriptHost;
+        m_pScriptHost = pdfium::MakeUnique<CScript_HostPseudoModel>(this);
+      return m_pScriptHost.get();
     }
     case XFA_HASHCODE_Log: {
       if (!m_pScriptLog)
-        m_pScriptLog = new CScript_LogPseudoModel(this);
-      return m_pScriptLog;
+        m_pScriptLog = pdfium::MakeUnique<CScript_LogPseudoModel>(this);
+      return m_pScriptLog.get();
     }
     case XFA_HASHCODE_Signature: {
       if (!m_pScriptSignature)
-        m_pScriptSignature = new CScript_SignaturePseudoModel(this);
-      return m_pScriptSignature;
+        m_pScriptSignature =
+            pdfium::MakeUnique<CScript_SignaturePseudoModel>(this);
+      return m_pScriptSignature.get();
     }
     case XFA_HASHCODE_Layout: {
       if (!m_pScriptLayout)
-        m_pScriptLayout = new CScript_LayoutPseudoModel(this);
-      return m_pScriptLayout;
+        m_pScriptLayout = pdfium::MakeUnique<CScript_LayoutPseudoModel>(this);
+      return m_pScriptLayout.get();
     }
     default:
       return m_pRootNode->GetFirstChildByName(dwNodeNameHash);
@@ -272,8 +266,7 @@ bool CXFA_Document::IsInteractive() {
   CXFA_Node* pFormFiller = pPDF->GetChild(0, XFA_Element::Interactive);
   if (pFormFiller) {
     m_dwDocFlags |= XFA_DOCFLAG_HasInteractive;
-    if (pFormFiller->TryContent(wsInteractive) &&
-        wsInteractive == FX_WSTRC(L"1")) {
+    if (pFormFiller->TryContent(wsInteractive) && wsInteractive == L"1") {
       m_dwDocFlags |= XFA_DOCFLAG_Interactive;
       return true;
     }
@@ -283,28 +276,27 @@ bool CXFA_Document::IsInteractive() {
 
 CXFA_LocaleMgr* CXFA_Document::GetLocalMgr() {
   if (!m_pLocalMgr) {
-    m_pLocalMgr =
-        new CXFA_LocaleMgr(ToNode(GetXFAObject(XFA_HASHCODE_LocaleSet)),
-                           GetNotify()->GetAppProvider()->GetLanguage());
+    m_pLocalMgr = pdfium::MakeUnique<CXFA_LocaleMgr>(
+        ToNode(GetXFAObject(XFA_HASHCODE_LocaleSet)),
+        GetNotify()->GetAppProvider()->GetLanguage());
   }
-  return m_pLocalMgr;
+  return m_pLocalMgr.get();
 }
 
 CXFA_ScriptContext* CXFA_Document::InitScriptContext(v8::Isolate* pIsolate) {
-  if (!m_pScriptContext)
-    m_pScriptContext = new CXFA_ScriptContext(this);
-  m_pScriptContext->Initialize(pIsolate);
-  return m_pScriptContext;
+  CXFA_ScriptContext* result = GetScriptContext();
+  result->Initialize(pIsolate);
+  return result;
 }
 
 CXFA_ScriptContext* CXFA_Document::GetScriptContext() {
   if (!m_pScriptContext)
-    m_pScriptContext = new CXFA_ScriptContext(this);
-  return m_pScriptContext;
+    m_pScriptContext = pdfium::MakeUnique<CXFA_ScriptContext>(this);
+  return m_pScriptContext.get();
 }
 
 XFA_VERSION CXFA_Document::RecognizeXFAVersionNumber(
-    CFX_WideString& wsTemplateNS) {
+    const CFX_WideString& wsTemplateNS) {
   CFX_WideStringC wsTemplateURIPrefix =
       XFA_GetPacketByIndex(XFA_PACKET_Template)->pURI;
   FX_STRSIZE nPrefixLength = wsTemplateURIPrefix.GetLength();
@@ -352,7 +344,7 @@ void CXFA_Document::DoProtoMerge() {
     return;
 
   std::map<uint32_t, CXFA_Node*> mIDMap;
-  CXFA_NodeSet sUseNodes;
+  std::unordered_set<CXFA_Node*> sUseNodes;
   CXFA_NodeIterator sIterator(pTemplateRoot);
   for (CXFA_Node* pNode = sIterator.GetCurrent(); pNode;
        pNode = sIterator.MoveToNext()) {
@@ -381,8 +373,7 @@ void CXFA_Document::DoProtoMerge() {
         wsURI = CFX_WideStringC(wsUseVal.c_str(), uSharpPos);
         FX_STRSIZE uLen = wsUseVal.GetLength();
         if (uLen >= uSharpPos + 5 &&
-            CFX_WideStringC(wsUseVal.c_str() + uSharpPos, 5) ==
-                FX_WSTRC(L"#som(") &&
+            CFX_WideStringC(wsUseVal.c_str() + uSharpPos, 5) == L"#som(" &&
             wsUseVal[uLen - 1] == ')') {
           wsSOM = CFX_WideStringC(wsUseVal.c_str() + uSharpPos + 5,
                                   uLen - 1 - uSharpPos - 5);
@@ -399,7 +390,7 @@ void CXFA_Document::DoProtoMerge() {
         wsSOM = CFX_WideStringC(wsUseVal.c_str(), wsUseVal.GetLength());
     }
 
-    if (!wsURI.IsEmpty() && wsURI != FX_WSTRC(L"."))
+    if (!wsURI.IsEmpty() && wsURI != L".")
       continue;
 
     CXFA_Node* pProtoNode = nullptr;
@@ -410,8 +401,8 @@ void CXFA_Document::DoProtoMerge() {
       XFA_RESOLVENODE_RS resoveNodeRS;
       int32_t iRet = m_pScriptContext->ResolveObjects(pUseHrefNode, wsSOM,
                                                       resoveNodeRS, dwFlag);
-      if (iRet > 0 && resoveNodeRS.nodes[0]->IsNode())
-        pProtoNode = resoveNodeRS.nodes[0]->AsNode();
+      if (iRet > 0 && resoveNodeRS.objects.front()->IsNode())
+        pProtoNode = resoveNodeRS.objects.front()->AsNode();
     } else if (!wsID.IsEmpty()) {
       auto it = mIDMap.find(FX_HashCode_GetW(wsID, false));
       if (it == mIDMap.end())

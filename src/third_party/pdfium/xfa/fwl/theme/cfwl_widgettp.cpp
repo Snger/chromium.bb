@@ -10,7 +10,7 @@
 #include <utility>
 
 #include "third_party/base/ptr_util.h"
-#include "xfa/fde/tto/fde_textout.h"
+#include "xfa/fde/cfde_textout.h"
 #include "xfa/fgas/font/cfgas_fontmgr.h"
 #include "xfa/fgas/font/cfgas_gefont.h"
 #include "xfa/fwl/cfwl_themebackground.h"
@@ -84,8 +84,7 @@ void CFWL_WidgetTP::InitTTO() {
   if (m_pTextOut)
     return;
 
-  m_pFDEFont =
-      CFWL_FontManager::GetInstance()->FindFont(FX_WSTRC(L"Helvetica"), 0, 0);
+  m_pFDEFont = CFWL_FontManager::GetInstance()->FindFont(L"Helvetica", 0, 0);
   m_pTextOut = pdfium::MakeUnique<CFDE_TextOut>();
   m_pTextOut->SetFont(m_pFDEFont);
   m_pTextOut->SetFontSize(FWLTHEME_CAPACITY_FontSize);
@@ -105,7 +104,6 @@ void CFWL_WidgetTP::DrawBorder(CFX_Graphics* pGraphics,
   if (!pRect)
     return;
   CFX_Path path;
-  path.Create();
   path.AddRectangle(pRect->left, pRect->top, pRect->width, pRect->height);
   path.AddRectangle(pRect->left + 1, pRect->top + 1, pRect->width - 2,
                     pRect->height - 2);
@@ -134,17 +132,16 @@ void CFWL_WidgetTP::FillSoildRect(CFX_Graphics* pGraphics,
   CFX_Color crFill(fillColor);
   pGraphics->SetFillColor(&crFill);
   CFX_Path path;
-  path.Create();
   path.AddRectangle(pRect->left, pRect->top, pRect->width, pRect->height);
   pGraphics->FillPath(&path, FXFILL_WINDING, pMatrix);
   pGraphics->RestoreGraphState();
 }
 
 void CFWL_WidgetTP::DrawAxialShading(CFX_Graphics* pGraphics,
-                                     FX_FLOAT fx1,
-                                     FX_FLOAT fy1,
-                                     FX_FLOAT fx2,
-                                     FX_FLOAT fy2,
+                                     float fx1,
+                                     float fy1,
+                                     float fx2,
+                                     float fy2,
                                      FX_ARGB beginColor,
                                      FX_ARGB endColor,
                                      CFX_Path* path,
@@ -173,10 +170,9 @@ void CFWL_WidgetTP::DrawFocus(CFX_Graphics* pGraphics,
   pGraphics->SaveGraphState();
   CFX_Color cr(0xFF000000);
   pGraphics->SetStrokeColor(&cr);
-  FX_FLOAT DashPattern[2] = {1, 1};
+  float DashPattern[2] = {1, 1};
   pGraphics->SetLineDash(0.0f, DashPattern, 2);
   CFX_Path path;
-  path.Create();
   path.AddRectangle(pRect->left, pRect->top, pRect->width, pRect->height);
   pGraphics->StrokePath(&path, pMatrix);
   pGraphics->RestoreGraphState();
@@ -189,47 +185,46 @@ void CFWL_WidgetTP::DrawArrow(CFX_Graphics* pGraphics,
                               CFX_Matrix* pMatrix) {
   bool bVert =
       (eDict == FWLTHEME_DIRECTION_Up || eDict == FWLTHEME_DIRECTION_Down);
-  FX_FLOAT fLeft =
-      (FX_FLOAT)(((pRect->width - (bVert ? 9 : 6)) / 2 + pRect->left) + 0.5);
-  FX_FLOAT fTop =
-      (FX_FLOAT)(((pRect->height - (bVert ? 6 : 9)) / 2 + pRect->top) + 0.5);
+  float fLeft =
+      (float)(((pRect->width - (bVert ? 9 : 6)) / 2 + pRect->left) + 0.5);
+  float fTop =
+      (float)(((pRect->height - (bVert ? 6 : 9)) / 2 + pRect->top) + 0.5);
   CFX_Path path;
-  path.Create();
   switch (eDict) {
     case FWLTHEME_DIRECTION_Down: {
-      path.MoveTo(fLeft, fTop + 1);
-      path.LineTo(fLeft + 4, fTop + 5);
-      path.LineTo(fLeft + 8, fTop + 1);
-      path.LineTo(fLeft + 7, fTop);
-      path.LineTo(fLeft + 4, fTop + 3);
-      path.LineTo(fLeft + 1, fTop);
+      path.MoveTo(CFX_PointF(fLeft, fTop + 1));
+      path.LineTo(CFX_PointF(fLeft + 4, fTop + 5));
+      path.LineTo(CFX_PointF(fLeft + 8, fTop + 1));
+      path.LineTo(CFX_PointF(fLeft + 7, fTop));
+      path.LineTo(CFX_PointF(fLeft + 4, fTop + 3));
+      path.LineTo(CFX_PointF(fLeft + 1, fTop));
       break;
     }
     case FWLTHEME_DIRECTION_Up: {
-      path.MoveTo(fLeft, fTop + 4);
-      path.LineTo(fLeft + 4, fTop);
-      path.LineTo(fLeft + 8, fTop + 4);
-      path.LineTo(fLeft + 7, fTop + 5);
-      path.LineTo(fLeft + 4, fTop + 2);
-      path.LineTo(fLeft + 1, fTop + 5);
+      path.MoveTo(CFX_PointF(fLeft, fTop + 4));
+      path.LineTo(CFX_PointF(fLeft + 4, fTop));
+      path.LineTo(CFX_PointF(fLeft + 8, fTop + 4));
+      path.LineTo(CFX_PointF(fLeft + 7, fTop + 5));
+      path.LineTo(CFX_PointF(fLeft + 4, fTop + 2));
+      path.LineTo(CFX_PointF(fLeft + 1, fTop + 5));
       break;
     }
     case FWLTHEME_DIRECTION_Right: {
-      path.MoveTo(fLeft + 1, fTop);
-      path.LineTo(fLeft + 5, fTop + 4);
-      path.LineTo(fLeft + 1, fTop + 8);
-      path.LineTo(fLeft, fTop + 7);
-      path.LineTo(fLeft + 3, fTop + 4);
-      path.LineTo(fLeft, fTop + 1);
+      path.MoveTo(CFX_PointF(fLeft + 1, fTop));
+      path.LineTo(CFX_PointF(fLeft + 5, fTop + 4));
+      path.LineTo(CFX_PointF(fLeft + 1, fTop + 8));
+      path.LineTo(CFX_PointF(fLeft, fTop + 7));
+      path.LineTo(CFX_PointF(fLeft + 3, fTop + 4));
+      path.LineTo(CFX_PointF(fLeft, fTop + 1));
       break;
     }
     case FWLTHEME_DIRECTION_Left: {
-      path.MoveTo(fLeft, fTop + 4);
-      path.LineTo(fLeft + 4, fTop);
-      path.LineTo(fLeft + 5, fTop + 1);
-      path.LineTo(fLeft + 2, fTop + 4);
-      path.LineTo(fLeft + 5, fTop + 7);
-      path.LineTo(fLeft + 4, fTop + 8);
+      path.MoveTo(CFX_PointF(fLeft, fTop + 4));
+      path.LineTo(CFX_PointF(fLeft + 4, fTop));
+      path.LineTo(CFX_PointF(fLeft + 5, fTop + 1));
+      path.LineTo(CFX_PointF(fLeft + 2, fTop + 4));
+      path.LineTo(CFX_PointF(fLeft + 5, fTop + 7));
+      path.LineTo(CFX_PointF(fLeft + 4, fTop + 8));
       break;
     }
   }
@@ -243,12 +238,10 @@ void CFWL_WidgetTP::DrawBtn(CFX_Graphics* pGraphics,
                             FWLTHEME_STATE eState,
                             CFX_Matrix* pMatrix) {
   CFX_Path path;
-  path.Create();
-
   InitializeArrowColorData();
 
-  FX_FLOAT fRight = pRect->right();
-  FX_FLOAT fBottom = pRect->bottom();
+  float fRight = pRect->right();
+  float fBottom = pRect->bottom();
   path.AddRectangle(pRect->left, pRect->top, pRect->width, pRect->height);
   DrawAxialShading(pGraphics, pRect->left, pRect->top, fRight, fBottom,
                    m_pColorData->clrStart[eState - 1],

@@ -14,6 +14,7 @@ class Suppressor:
     self.has_xfa = "XFA" in feature_vector
     v8_option = "v8" if self.has_v8 else "nov8"
     xfa_option = "xfa" if self.has_xfa else "noxfa"
+
     with open(os.path.join(finder.TestingDir(), 'SUPPRESSIONS')) as f:
       self.suppression_set = set(self._FilterSuppressions(
         common.os_name(), v8_option, xfa_option, self._ExtractSuppressions(f)))

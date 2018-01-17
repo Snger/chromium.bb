@@ -21,6 +21,7 @@ triaging functionality in the chart.
 <link rel="import" href="/dashboard/elements/chart-title.html">
 <link rel="import" href="/dashboard/elements/chart-tooltip.html">
 <link rel="import" href="/dashboard/static/events.html">
+<link rel="import" href="/dashboard/static/series_group.html">
 <link rel="import" href="/dashboard/static/simple_xhr.html">
 <link rel="import" href="/dashboard/static/testselection.html">
 <link rel="import" href="/dashboard/static/uri.html">
@@ -176,7 +177,7 @@ triaging functionality in the chart.
 
         <div id="warning">
           <template is="dom-repeat" items="{{warnings}}">
-            <span>{{item}}</span><br>
+            <span>{{item.value}}</span><br>
           </template>
         </div>
 
@@ -200,72 +201,11 @@ triaging functionality in the chart.
   <script>
     'use strict';
     (function() {
-
-      // Minimum multiple standard deviation for a value to be considered
-      // an outlier.
-      var MULTIPLE_OF_STD_DEV = 5;
-
       // Regex for links in series annotation which are shown in tooltip.
       var TOOLTIP_LINK_REGEX = /\[(.+?)\]\((.+?)\)/;
 
       // Sinebow generator for graph color picking.
       var GENERATOR = new tr.b.SinebowColorGenerator();
-
-      /**
-       * Gets the mean for list of numbers.
-       *
-       * @return {number} A number.
-       */
-      function calculateMean(values) {
-        var len = values.length;
-        var sum = values.reduce(function(v1, v2) { return v1 + v2;}, 0);
-        return sum / len;
-      }
-
-      /**
-       * Gets standard deviation for list of numbers and a mean.
-       *
-       * @return {number} A number.
-       */
-      function calculateStdDev(values, mean) {
-        var squaredDevianceSum = values.reduce(
-            function(v1, v2) {return v1 + Math.pow(v2 - mean, 2);}, 0);
-        var variance = squaredDevianceSum / values.length;
-        return Math.sqrt(variance);
-      }
-
-      /**
-       * Finds outliers in a series, along with their directions.
-       *
-       * An outlier is defined as a value that deviates from the mean by over
-       * MULTIPLE_OF_STD_DEV times the standard deviation. An outlier direction
-       * is either 1 for positive, -1 for negative and 0 for non-outlier.
-       *
-       * Example:
-       * Input values: [50, 50, 50, 100, 50, 10, 50, 50, 50]
-       * Output directions: [0, 0, 0, 1, 0, -1, 0, 0, 0]
-       *
-       * @param {Array.<number>} values List of numbers.
-       * @return {Array.<number>} List of outlier directions.
-       */
-      function getOutlierDirections(values) {
-        var mean = calculateMean(values);
-        var stddev = calculateStdDev(values, mean);
-        var outlierDirections = [];
-        for (var i = 0; i < values.length; i++) {
-          var direction = 0;
-          var value = values[i];
-          var multDevFromMean = Math.abs(value - mean) / stddev;
-          if (multDevFromMean > MULTIPLE_OF_STD_DEV) {
-            if (value >= mean) {
-              direction = 1;
-            }
-            direction = -1;
-          }
-          outlierDirections.push(direction);
-        }
-        return outlierDirections;
-      }
 
       /**
        * Returns a date corresponding to the given timestamp, or null.
@@ -408,7 +348,7 @@ triaging functionality in the chart.
             type: Array,
             value: () => [],
           },
-          // TODO(chrisphan): Make seriesGroupList a class.
+
           // A list of series group dictionary. A series group contains test
           // path and list of test information. This is displayed in
           // chart-legend, where each test is a checkable series.
@@ -417,6 +357,7 @@ triaging functionality in the chart.
           //         'path': 'ChromiumPerf/linux/dromaeo/Total',
           //         'tests': [{
           //              name: 'Total',
+          //              displayName: 'Total',
           //              direction: 'Lower is better',
           //              units: 'm/s',
           //              description: 'Total time',
@@ -546,6 +487,7 @@ triaging functionality in the chart.
           // Warning text to be shown over the chart, if any.
           warnings: {
             type: Array,
+            notify: true,
             value: () => [],
             observer: 'warningsChanged'
           },
@@ -585,7 +527,6 @@ triaging functionality in the chart.
          * See https://github.com/Polymer/polymer/releases/tag/v0.0.20131025
          */
         ready: function() {
-
           // Handler for the 'resize' event.
           this.resizeHandler = this.onResize.bind(this);
 
@@ -633,13 +574,56 @@ triaging functionality in the chart.
         },
 
         /**
+         * Updates the display names for series groups.
+         *
+         * If there are multiple series groups, it's difficult to distinguish
+         * between them, so we use part of the path and prefix it to the metric
+         * in the legend.
+         *
+         **/
+        updateSeriesGroupDisplayNames: function() {
+          if (this.seriesGroupList.length > 1) {
+            let pathLengths = this.seriesGroupList.map(
+                p => p.path.split('/').length);
+            var minPathLength = Math.min.apply(null, pathLengths) - 1;
+
+            // This just scans the paths to find the last point at which all the
+            // paths were identical.
+            for (var commonIndex = 0; commonIndex < minPathLength;
+                commonIndex++) {
+              let parts = this.seriesGroupList.map(
+                  p => p.path.split('/')[commonIndex]);
+              if (!parts.every(p => p == parts[0])) {
+                break;
+              }
+            }
+
+            if (commonIndex < minPathLength) {
+              // Once it has an index where they differ, we create a prefix
+              // for the display name starting there.
+              for (let i = 0; i < this.seriesGroupList.length; i++) {
+                let prefix = this.seriesGroupList[i].path.split(
+                    '/').slice(commonIndex, minPathLength).join('/');
+                for (let j = 0; j < this.seriesGroupList[i].tests.length; j++) {
+                  let displayName = prefix + '/' + (
+                      this.seriesGroupList[i].tests[j].name);
+                  this.set(
+                      'seriesGroupList.' + i + '.tests.' + j + '.displayName',
+                      displayName);
+                }
+              }
+            }
+          }
+        },
+
+        /**
          * Adds series group to graph.
          *
          * If test path already exist, it will be ignored.
          *
          * @param {Array.<Array>} testPathAndSelected A list of
          *     pair of test path and a list of selected series.
-         * @return {boolean} collapse Whether unchecked and unimportant
+         * @param {boolean} collapse Whether unchecked and unimportant
          *     series should start off hidden.
          */
         addSeriesGroup: function(testPathAndSelected, collapse) {
@@ -683,6 +667,7 @@ triaging functionality in the chart.
                 for (var j = 0; j < selectedTraces.length; j++) {
                   var testData = {
                     name: selectedTraces[j],
+                    displayName: selectedTraces[j],
                     selected: true
                   };
                   seriesGroup.tests.push(testData);
@@ -695,6 +680,9 @@ triaging functionality in the chart.
             }
             this.push('seriesGroupList', seriesGroup);
           }
+
+          this.updateSeriesGroupDisplayNames();
+
           if (Object.keys(selectedTestPathDict).length > 0) {
             this.sendGraphJsonRequest(selectedTestPathDict, true);
           }
@@ -706,22 +694,95 @@ triaging functionality in the chart.
         },
 
         /**
+         * Adds series group to graph explicitly.
+         *
+         * Since adding the test_path_dict mode for /list_tests, the preferred
+         * flow for resolving a test path into lists of selected and unselected
+         * tests is to use this endpoint to resolve them directly. This function
+         * should be functionally equivalent to addSeriesGroup except for this
+         * resolution step, and the goal is to replace it
+         * (https://github.com/catapult-project/catapult/issues/3385).
+         *
+         * @param {d.SeriesGroup} seriesGroup The series group to be added.
+         * @param {boolean} collapse Whether unchecked and unimportant
+         *     series should start off hidden.
+         */
+        addSeriesGroup2: function(seriesGroup, collapse) {
+          const mainPath = seriesGroup.mainPath;
+          const selectedPaths = seriesGroup.selectedPaths;
+          const unselectedPaths = seriesGroup.unselectedPaths;
+
+          // Checks if test path already exists.
+          const testPathSet = new Set(
+              this.seriesGroupList.map(group => group.path));
+
+          if (testPathSet.has(mainPath)) {
+            return;
+          }
+
+          const tests = [];
+          for (const selectedPath of selectedPaths) {
+            tests.push({
+              name: selectedPath.split('/').slice(-1)[0],
+              selected: true
+            });
+          }
+
+          const legacySeriesGroup = {
+            path: mainPath,
+            tests: tests,
+            collapse: collapse,
+            numPendingRequests: 0
+          };
+
+          this.push('seriesGroupList', legacySeriesGroup);
+
+          if (selectedPaths.length > 0) {
+            this.sendGraphJsonRequest(selectedPaths, true, mainPath);
+          }
+
+          if (unselectedPaths.length > 0) {
+            this.sendGraphJsonRequest(unselectedPaths, false, mainPath);
+          }
+
+          this.updateSlider();
+          this.$.title.update();
+        },
+
+
+        /**
          * Sends a request for graph JSON.
          *
-         * @param {Object} testPathDict Dictionary of test path to list of
-         *     selected series.
-         * @return {boolean} isSelected Whether this request is for selected
+         * @param {Object} testPathDictOrList Dictionary of test path to list of
+         *     selected series, or flat list of test paths.
+         * @param {boolean} isSelected Whether this request is for selected
          *     or unselected series.
+         * @param {String} mainPath If a list of tests is supplied, the main
+         *     path to which they belong, for updating the counter.
          */
-        sendGraphJsonRequest: function(testPathDict, isSelected) {
+        sendGraphJsonRequest: function(
+            testPathDictOrList, isSelected, mainPath) {
+          // TODO(eakuefner): Get rid of mainPath once loading counter is
+          // cleaned up
           var params = JSON.parse(JSON.stringify(this.graphParams));
-          params['test_path_dict'] = testPathDict;
+
+          if (testPathDictOrList instanceof Array) {
+            var testPaths = testPathDictOrList;
+            params.test_path_list = testPathDictOrList;
+            var pathsForUpdate = [mainPath];
+          } else {
+            var testPaths = Object.keys(testPathDictOrList);
+            params.test_path_dict = testPathDictOrList;
+            var pathsForUpdate = testPaths;
+          }
+
+          // TODO(eakuefner): Figure out how to remove this parameter since in
+          // list mode we only need it for the _MAX_UNSELECTED_TESTS hack.
           if (isSelected) {
             params['is_selected'] = true;
           }
 
-          this.updateSeriesGroupLoadingCounter(
-              Object.keys(testPathDict), true);
+          this.updateSeriesGroupLoadingCounter(pathsForUpdate, true);
 
           var req = simple_xhr.send(
               '/graph_json',
@@ -736,17 +797,16 @@ triaging functionality in the chart.
                 }
 
                 this.updateSeriesGroupLoadingCounter(
-                    Object.keys(testPathDict), false);
+                    pathsForUpdate, false);
                 this.$['loading-div'].style.display = 'none';
               }.bind(this),
               function(error) {
                 if (error) {
                   this.addWarnings('Failed to fetch graph data.');
                   this.checkForInternalUser();
-                  console.warn(error);
                 }
                 this.updateSeriesGroupLoadingCounter(
-                    Object.keys(testPathDict), false);
+                    pathsForUpdate, false);
                 this.$['loading-div'].style.display = 'none';
               }.bind(this)
           );
@@ -778,14 +838,14 @@ triaging functionality in the chart.
           testPaths.forEach(function(testPath) {
             var index = testPathToGroupIndex[testPath];
             this.set('seriesGroupList.' + index + '.numPendingRequests',
-                     this.seriesGroupList[index].numPendingRequests + delta);
+                this.seriesGroupList[index].numPendingRequests + delta);
           }.bind(this));
         },
 
         checkForInternalUser: function() {
           if (!this.isInternalUser) {
-             this.addWarnings(
-               'Note that some data is only available when logged in.');
+            this.addWarnings(
+                'Note that some data is only available when logged in.');
           }
         },
 
@@ -794,11 +854,11 @@ triaging functionality in the chart.
          */
         addWarnings: function(warning) {
           for (var i = 0; i < this.warnings.length; i++) {
-            if (this.warnings[i].indexOf(warning) == 0) {
+            if (this.warnings[i].value.indexOf(warning) == 0) {
               return;
             }
           }
-          this.warnings.push(warning);
+          this.push('warnings', {'value': warning});
         },
 
         /**
@@ -896,7 +956,7 @@ triaging functionality in the chart.
             newSeries[nextIndex] = newJson.annotations.series[index];
 
             this.updateErrorBarsIndex(newJson['error_bars'][index], nextIndex,
-                                      color);
+                color);
             this.json['error_bars'][nextIndex] = newJson['error_bars'][index];
           }
 
@@ -929,6 +989,7 @@ triaging functionality in the chart.
             i = parseInt(i);
             var test = {
               name: series[i].name,
+              displayName: series[i].name,
               path: series[i].path,
               direction: series[i].better,
               units: series[i].units,
@@ -980,6 +1041,7 @@ triaging functionality in the chart.
               this.updateSeriesGroup(seriesGroupIndex, test);
             }
           }
+          this.updateSeriesGroupDisplayNames();
         },
 
         /**
@@ -1002,7 +1064,7 @@ triaging functionality in the chart.
             for (var key in newTest) {
               this.set('seriesGroupList.' + seriesGroupIndex + '.tests.' +
                        testIndex + '.' + key,
-                       newTest[key]);
+                  newTest[key]);
             }
           } else {
             this.addTestToSeriesGroup(seriesGroupIndex, newTest);
@@ -1029,11 +1091,11 @@ triaging functionality in the chart.
               this.set('seriesGroupList.' + seriesGroupIndex + '.numHidden', 0);
             }
             this.set('seriesGroupList.' + seriesGroupIndex + '.numHidden',
-                     seriesGroup.numHidden + 1);
+                seriesGroup.numHidden + 1);
           }
           this.push('seriesGroupList.' + seriesGroupIndex + '.tests', test);
           this.set('seriesGroupList.' + seriesGroupIndex + '.tests',
-                   seriesGroup.tests.sort(this.compareTest));
+              seriesGroup.tests.sort(this.compareTest));
         },
 
         getTestIndexInSeriesGroup: function(seriesGroupIndex, name) {
@@ -1264,7 +1326,7 @@ triaging functionality in the chart.
         },
 
         /**
-         * Determines a min and a max from a list of numbers without outliers.
+         * Determines a min and a max from a list of numbers.
          *
          * @param {number} seriesIndex Index into the data series list
          *     (this.json.data).
@@ -1275,25 +1337,14 @@ triaging functionality in the chart.
           values = values.filter(function(v) {
             return v != null;
           });
-          var outlierDirections = getOutlierDirections(values);
 
-          // Exclude value that is a stand-alone spike which has either
-          // outlier direction 1 or -1 in between zeros. Also include
-          // points that has an Anomaly.
-          var resultValues = [];
-          for (var i = 0; i < outlierDirections.length; i++) {
-            var direction = outlierDirections[i];
-            if (direction == 0 || this.hasAnomaly(seriesIndex, i)) {
-              resultValues.push(values[i]);
-            } else if (i > 0 && i < outlierDirections.length - 1) {
-              if (direction == outlierDirections[i - 1] ||
-                  direction == outlierDirections[i + 1]) {
-                resultValues.push(values[i]);
-              }
-            }
-          }
-          return {'min': Math.min.apply(Math, resultValues),
-                  'max': Math.max.apply(Math, resultValues)};
+          // We used to discard outliers, but there are cases in which users
+          // want to be able to examine them. Since you can zoom, we're
+          // just going to remove that feature.
+          // See https://github.com/catapult-project/catapult/issues/3213 for
+          // more context.
+          return {'min': Math.min.apply(Math, values),
+            'max': Math.max.apply(Math, values)};
         },
 
         /**
@@ -1357,11 +1408,13 @@ triaging functionality in the chart.
             max += axis.max == 0 ? 1 : margin;
           } else {
             min -= delta * margin;
-            if (min < 0 && axis.min >= 0)
+            if (min < 0 && axis.min >= 0) {
               min = 0;
+            }
             max += delta * margin;
-            if (max > 0 && axis.max <= 0)
+            if (max > 0 && axis.max <= 0) {
               max = 0;
+            }
           }
           axis.min = min;
           axis.max = max;
@@ -1433,11 +1486,9 @@ triaging functionality in the chart.
          */
         getDataForFlot: function() {
           if (!this.jsonHasData(this.json)) {
-            console.debug('getDataForFlot: this.json not set.');
             return [];
           }
           if (!this.json['error_bars']) {
-            console.debug('getDataForFlot: data or error bars not set.');
             return [];
           }
 
@@ -1447,8 +1498,6 @@ triaging functionality in the chart.
             if (index >= 0 && this.json.data[index]) {
               data.push(tr.b.deepCopy(this.json.data[index]));
             } else {
-              console.debug('getDataForFlot: indicesToGraph: ',
-                            this.indicesToGraph);
               return [];
             }
           }
@@ -1460,8 +1509,6 @@ triaging functionality in the chart.
               data.push(tr.b.deepCopy(this.json['error_bars'][index][0]));
               data.push(tr.b.deepCopy(this.json['error_bars'][index][1]));
             } else {
-              console.debug('getDataForFlot: indicesToGraph: ',
-                            this.indicesToGraph);
               return [];
             }
           }
@@ -1496,8 +1543,6 @@ triaging functionality in the chart.
           if (!this.json ||
               !this.json.data ||
               this.indicesToGraph.length == 0) {
-            console.debug('createFixedXAxis: !this.json, !this.json.data or ' +
-                          'this.indicesToGraph.length == 0');
             return;
           }
 
@@ -1634,8 +1679,8 @@ triaging functionality in the chart.
 
               var alertIcon = document.createElement('alert-icon');
               alertIcon.initialize(
-                annotations[jsonSeriesIndex][dataIndex]['g_anomaly'],
-                this.alertKey);
+                  annotations[jsonSeriesIndex][dataIndex]['g_anomaly'],
+                  this.alertKey);
               Polymer.dom(
                   this.$['alert-icon-container']).appendChild(alertIcon);
               alertIcon.setPosition(top, left);
@@ -1866,8 +1911,9 @@ triaging functionality in the chart.
          * @param {Event} The click event.
          */
         onAlertMouseOver: function(flotSeriesIndex, dataIndex, event) {
-          if (!this.stickyTooltip)
+          if (!this.stickyTooltip) {
             this.showTooltip(flotSeriesIndex, dataIndex);
+          }
         },
         /**
          * Updates the interface when a bug is triaged.
@@ -1970,8 +2016,7 @@ triaging functionality in the chart.
           var flotData = this.chart.getData();
           var jsonSeriesIndex = this.chart.getData()[flotSeriesIndex].index;
           if (jsonSeriesIndex == null) {
-            console.warn('showTooltip returned after ' + jsonSeriesIndex +
-                         ' was null for flotSeriesIndex ' + flotSeriesIndex);
+            // TODO: Display error.
             return;
           }
 
@@ -2003,18 +2048,20 @@ triaging functionality in the chart.
           this.$.tooltip.revisions = this.getRevisions(
               jsonSeriesIndex, dataIndex);
           this.$.tooltip.links = this.getTooltipLinks(annotation, series.path,
-                                                      pointId);
+              pointId);
           if (annotation.timestamp) {
             var d = new Date(annotation.timestamp);
             this.$.tooltip.timestamp = d.toISOString();
           }
 
           // Set the alert-related properties of the tooltip.
-          if (opt_alerts === undefined)
+          if (opt_alerts === undefined) {
             opt_alerts = null;
+          }
           this.$.tooltip.alerts = opt_alerts;
-          if (opt_triaged === undefined)
+          if (opt_triaged === undefined) {
             opt_triaged = null;
+          }
           this.$.tooltip.triagedAlerts = opt_triaged;
           if (annotation['g_anomaly']) {
             if (annotation.g_anomaly['bug_id']) {
@@ -2031,15 +2078,15 @@ triaging functionality in the chart.
             for (var i in annotation['a_trace_rerun_options']) {
               var currentOption = annotation['a_trace_rerun_options'][i];
               traceRerunInfo.push({
-                  'name': i,
-                  'option': currentOption
+                'name': i,
+                'option': currentOption
               });
             }
           } else {
-              traceRerunInfo.push({
-                  'name': 'Default Trace Profiler',
-                  'option': '--profiler=trace'
-              });
+            traceRerunInfo.push({
+              'name': 'Default Trace Profiler',
+              'option': '--profiler=trace'
+            });
           }
           this.$.tooltip.bisectInfo = {
             canBisect: series.can_bisect,
@@ -2135,20 +2182,20 @@ triaging functionality in the chart.
               var debugUrl = '/debug_alert?test_path=' + testPath +
                              '&rev=' + pointId;
               links.push({
-                  'text': 'Debug alert',
-                  'url': debugUrl
+                'text': 'Debug alert',
+                'url': debugUrl
               });
             } else if (key == 'a_tracing_uri') {
               links.push({
-                  'text': 'Trace',
-                  'url': annotation['a_tracing_uri']
+                'text': 'Trace',
+                'url': annotation['a_tracing_uri']
               });
             } else if (key.indexOf('a_') === 0) {
               var match = TOOLTIP_LINK_REGEX.exec(annotation[key]);
               if (match) {
                 links.push({
-                    'text': match[1],
-                    'url': match[2]
+                  'text': match[1],
+                  'url': match[2]
                 });
               }
             }
@@ -2190,8 +2237,7 @@ triaging functionality in the chart.
               continue;  // Not a revision.
             }
             if (!this.revisionInfo[revisionTypeKey]) {
-              console.warn(
-                  'No entry', revisionTypeKey, 'in', this.revisionInfo);
+              // TODO: Display error.
               continue;
             }
             var end = annotation[revisionTypeKey];
@@ -2235,14 +2281,10 @@ triaging functionality in the chart.
          */
         getRevisionRangeInfo: function(revisionTypeKey, start, end) {
           var revisionInfo = this.revisionInfo[revisionTypeKey];
-          if (!revisionInfo) {
-            console.warn('No entry', revisionTypeKey, 'in', this.revisionInfo);
-          }
           var revisionTypeKey = revisionInfo['name'];
           var urlTemplate = revisionInfo['url'];
 
           if (!isNaN(start) && !isNaN(end) && Number(start) > Number(end)) {
-            console.warn('Start and end revisions flipped:', start, end);
             var temp = start;
             start = end;
             end = temp;
@@ -2336,7 +2378,7 @@ triaging functionality in the chart.
           }
           // The chart is resized when it's updated.
           this.updateChart();
-         },
+        },
 
         /**
          * On collapseLegend change, updates graph and chart-revision sizes.
@@ -2379,7 +2421,7 @@ triaging functionality in the chart.
             if (targetIndices.indexOf(series.index) != -1) {
               this.updateSeriesHighlighting(series, 2.5, 1, 0.2, 4);
             } else {
-               this.updateSeriesHighlighting(series, 2, 0.25, 0, 0);
+              this.updateSeriesHighlighting(series, 2, 0.25, 0, 0);
             }
           }
 
@@ -2427,7 +2469,7 @@ triaging functionality in the chart.
         },
 
         updateSeriesHighlighting: function(series, lineWidth, opacity,
-                                           fill, shadowSize) {
+            fill, shadowSize) {
           if (series.fillBetween) {
             series.lines.fill = fill;
           } else {
@@ -2461,7 +2503,9 @@ triaging functionality in the chart.
           }
           var data = JSON.parse(dataTransfer.getData('data'));
           if (data) {
-            this.addSeriesGroup(data, true);
+            const seriesGroup = new d.SeriesGroup(
+                data.mainPath, data.selectedPaths, data.unselectedPaths);
+            this.addSeriesGroup2(seriesGroup, true);
           }
           this.fireChartStateChangedEvent(this.seriesGroupList);
         },

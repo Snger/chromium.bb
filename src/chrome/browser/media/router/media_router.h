@@ -12,8 +12,8 @@
 
 #include "base/callback.h"
 #include "base/callback_list.h"
-#include "base/memory/scoped_vector.h"
 #include "base/time/time.h"
+#include "chrome/browser/media/router/discovery/media_sink_internal.h"
 #include "chrome/browser/media/router/issue.h"
 #include "chrome/browser/media/router/media_route.h"
 #include "chrome/browser/media/router/media_sink.h"
@@ -25,6 +25,10 @@
 namespace content {
 class WebContents;
 }
+
+namespace url {
+class Origin;
+}  // namespace url
 
 namespace media_router {
 
@@ -78,7 +82,7 @@ class MediaRouter : public KeyedService {
   virtual void CreateRoute(
       const MediaSource::Id& source_id,
       const MediaSink::Id& sink_id,
-      const GURL& origin,
+      const url::Origin& origin,
       content::WebContents* web_contents,
       const std::vector<MediaRouteResponseCallback>& callbacks,
       base::TimeDelta timeout,
@@ -100,7 +104,7 @@ class MediaRouter : public KeyedService {
   virtual void ConnectRouteByRouteId(
       const MediaSource::Id& source_id,
       const MediaRoute::Id& route_id,
-      const GURL& origin,
+      const url::Origin& origin,
       content::WebContents* web_contents,
       const std::vector<MediaRouteResponseCallback>& callbacks,
       base::TimeDelta timeout,
@@ -120,7 +124,7 @@ class MediaRouter : public KeyedService {
   virtual void JoinRoute(
       const MediaSource::Id& source,
       const std::string& presentation_id,
-      const GURL& origin,
+      const url::Origin& origin,
       content::WebContents* web_contents,
       const std::vector<MediaRouteResponseCallback>& callbacks,
       base::TimeDelta timeout,
@@ -167,6 +171,13 @@ class MediaRouter : public KeyedService {
       const std::string& search_input,
       const std::string& domain,
       const MediaSinkSearchResponseCallback& sink_callback) = 0;
+
+  // Notifies the Media Router that the list of MediaSinks discovered by a
+  // MediaSinkService has been updated.
+  // |provider_name|: Name of the MediaSinkService providing the sinks.
+  // |sinks|: sinks discovered by MediaSinkService.
+  virtual void ProvideSinks(const std::string& provider_name,
+                            const std::vector<MediaSinkInternal>& sinks) = 0;
 
   // Adds |callback| to listen for state changes for presentation connected to
   // |route_id|. The returned Subscription object is owned by the caller.

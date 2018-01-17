@@ -4,7 +4,7 @@
  * Use of this source code is governed by a BSD-style license that can be
  * found in the LICENSE file.
  */
- 
+
 #ifndef SKSL_FUNCTIONCALL
 #define SKSL_FUNCTIONCALL
 
@@ -23,9 +23,9 @@ struct FunctionCall : public Expression {
     , fFunction(std::move(function))
     , fArguments(std::move(arguments)) {}
 
-    SkString description() const override {
-        SkString result = fFunction.fName + "(";
-        SkString separator;
+    String description() const override {
+        String result = fFunction.fName + "(";
+        String separator;
         for (size_t i = 0; i < fArguments.size(); i++) {
             result += separator;
             result += fArguments[i]->description();
@@ -36,7 +36,7 @@ struct FunctionCall : public Expression {
     }
 
     const FunctionDeclaration& fFunction;
-    const std::vector<std::unique_ptr<Expression>> fArguments;
+    std::vector<std::unique_ptr<Expression>> fArguments;
 
     typedef Expression INHERITED;
 };

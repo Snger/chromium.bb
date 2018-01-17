@@ -15,6 +15,7 @@
 #include "GrSwizzle.h"
 #include "GrTexture.h"
 #include "SkAutoMalloc.h"
+#include "SkATrace.h"
 #include "SkTraceEvent.h"
 #include "gl/GrGLGpu.h"
 #include "gl/GrGLProgram.h"
@@ -30,8 +31,9 @@
 
 GrGLProgram* GrGLProgramBuilder::CreateProgram(const GrPipeline& pipeline,
                                                const GrPrimitiveProcessor& primProc,
-                                               const GrProgramDesc& desc,
+                                               GrProgramDesc* desc,
                                                GrGLGpu* gpu) {
+    ATRACE_ANDROID_FRAMEWORK("Shader Compile");
     GrAutoLocaleSetter als("C");
 
     // create a builder.  This will be handed off to effects so they can use it to add
@@ -56,7 +58,7 @@ GrGLProgram* GrGLProgramBuilder::CreateProgram(const GrPipeline& pipeline,
 GrGLProgramBuilder::GrGLProgramBuilder(GrGLGpu* gpu,
                                        const GrPipeline& pipeline,
                                        const GrPrimitiveProcessor& primProc,
-                                       const GrProgramDesc& desc)
+                                       GrProgramDesc* desc)
     : INHERITED(pipeline, primProc, desc)
     , fGpu(gpu)
     , fVaryingHandler(this)
@@ -89,6 +91,12 @@ bool GrGLProgramBuilder::compileAndAttachShaders(GrGLSLShaderBuilder& shader,
     }
 
     *shaderIds->append() = shaderId;
+    if (outInputs->fFlipY) {
+        GrProgramDesc* d = this->desc();
+        d->setSurfaceOriginKey(GrGLSLFragmentShaderBuilder::KeyForSurfaceOrigin(
+                                                     this->pipeline().getRenderTarget()->origin()));
+        d->finalize();
+    }
 
     return true;
 }
@@ -244,7 +252,7 @@ void GrGLProgramBuilder::cleanupShaders(const SkTDArray<GrGLuint>& shaderIDs) {
 
 GrGLProgram* GrGLProgramBuilder::createProgram(GrGLuint programID) {
     return new GrGLProgram(fGpu,
-                           this->desc(),
+                           *this->desc(),
                            fUniformHandles,
                            programID,
                            fUniformHandler.fUniforms,

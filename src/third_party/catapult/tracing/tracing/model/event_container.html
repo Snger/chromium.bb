@@ -7,13 +7,12 @@ found in the LICENSE file.
 
 <link rel="import" href="/tracing/base/base.html">
 <link rel="import" href="/tracing/base/guid.html">
-<link rel="import" href="/tracing/base/range.html">
+<link rel="import" href="/tracing/base/math/range.html">
 
 <script>
 'use strict';
 
 tr.exportTo('tr.model', function() {
-
   /**
    * EventContainer is a base class for any class in the trace model that
    * contains child events or child EventContainers.
@@ -26,7 +25,7 @@ tr.exportTo('tr.model', function() {
   function EventContainer() {
     this.guid_ = tr.b.GUID.allocateSimple();
     this.important = true;
-    this.bounds_ = new tr.b.Range();
+    this.bounds_ = new tr.b.math.Range();
   }
 
   EventContainer.prototype = {
@@ -84,8 +83,9 @@ tr.exportTo('tr.model', function() {
      */
     getDescendantEvents: function* () {
       yield* this.childEvents();
-      for (var container of this.childEventContainers())
+      for (var container of this.childEventContainers()) {
         yield* container.getDescendantEvents();
+      }
     },
 
     /**
@@ -99,8 +99,9 @@ tr.exportTo('tr.model', function() {
     */
     getDescendantEventContainers: function* () {
       yield this;
-      for (var container of this.childEventContainers())
+      for (var container of this.childEventContainers()) {
         yield* container.getDescendantEventContainers();
+      }
     },
 
     /**
@@ -125,8 +126,9 @@ tr.exportTo('tr.model', function() {
      * not itself a top-level slice.
      */
     findTopmostSlices: function* (eventPredicate) {
-      for (var ec of this.getDescendantEventContainers())
+      for (var ec of this.getDescendantEventContainers()) {
         yield* ec.findTopmostSlicesInThisContainer(eventPredicate);
+      }
     },
 
     findTopmostSlicesNamed: function* (name) {

@@ -46,7 +46,7 @@
 #include "ui/gfx/x/x11_connection.h"  // nogncheck
 #endif
 
-base::LazyInstance<base::TestDiscardableMemoryAllocator>
+base::LazyInstance<base::TestDiscardableMemoryAllocator>::DestructorAtExit
     g_discardable_memory_allocator = LAZY_INSTANCE_INITIALIZER;
 
 int main(int argc, char** argv) {
@@ -97,6 +97,7 @@ int main(int argc, char** argv) {
 #if defined(USE_AURA)
   std::unique_ptr<aura::Env> env = aura::Env::CreateInstance();
   aura::Env::GetInstance()->set_context_factory(context_factory.get());
+  aura::Env::GetInstance()->set_context_factory_private(context_factory.get());
 #endif
   ui::InitializeInputMethodForTesting();
   ui::MaterialDesignController::Initialize();

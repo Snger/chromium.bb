@@ -5,7 +5,7 @@
 #ifndef ASH_TEST_SHELF_VIEW_TEST_API_H_
 #define ASH_TEST_SHELF_VIEW_TEST_API_H_
 
-#include "ash/common/shelf/shelf_item_types.h"
+#include "ash/public/cpp/shelf_item.h"
 #include "base/macros.h"
 
 namespace gfx {
@@ -95,12 +95,6 @@ class ShelfViewTestAPI {
 
   // Returns the preferred size of |shelf_view_|.
   gfx::Size GetPreferredSize();
-
-  // Returns the button size.
-  int GetButtonSize();
-
-  // Returns the button space size.
-  int GetButtonSpacing();
 
   // Returns minimum distance before drag starts.
   int GetMinimumDragDistance() const;

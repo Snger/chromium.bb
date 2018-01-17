@@ -22,17 +22,12 @@ class TestPhysicalWebDataSource : public PhysicalWebDataSourceImpl {
 
   void StartDiscovery(bool network_request_enabled) override;
   void StopDiscovery() override;
-  std::unique_ptr<base::ListValue> GetMetadata() override;
   std::unique_ptr<MetadataList> GetMetadataList() override;
   bool HasUnresolvedDiscoveries() override;
 };
 void TestPhysicalWebDataSource::StartDiscovery(bool network_request_enabled) {}
 
 void TestPhysicalWebDataSource::StopDiscovery() {}
-
-std::unique_ptr<base::ListValue> TestPhysicalWebDataSource::GetMetadata() {
-  return NULL;
-}
 
 std::unique_ptr<MetadataList> TestPhysicalWebDataSource::GetMetadataList() {
   return NULL;
@@ -100,7 +95,7 @@ class PhysicalWebDataSourceImplTest : public ::testing::Test {
 };
 
 void PhysicalWebDataSourceImplTest::SetUp() {
-  data_source_.RegisterListener(&listener_);
+  data_source_.RegisterListener(&listener_, physical_web::OPPORTUNISTIC);
 }
 
 void PhysicalWebDataSourceImplTest::TearDown() {

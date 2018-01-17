@@ -5,7 +5,6 @@
 #import "ios/chrome/browser/ui/settings/password_details_collection_view_controller.h"
 
 #include "base/mac/foundation_util.h"
-#import "base/mac/scoped_nsobject.h"
 #include "base/strings/sys_string_conversions.h"
 #include "components/autofill/core/common/password_form.h"
 #import "ios/chrome/browser/ui/collection_view/collection_view_controller_test.h"
@@ -17,6 +16,10 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #import "testing/gtest_mac.h"
 #include "ui/base/l10n/l10n_util.h"
+
+#if !defined(__has_feature) || !__has_feature(objc_arc)
+#error "This file requires ARC support."
+#endif
 
 @interface MockReauthenticationModule : NSObject<ReauthenticationProtocol>
 
@@ -65,10 +68,9 @@ namespace {
 
 NSString* kUsername = @"testusername";
 NSString* kPassword = @"testpassword";
-int kShowButtonItem = 1;
-int kHideButtonItem = 2;
-int kCopyButtonItem = 3;
-int kDeleteButtonItem = 4;
+int kShowHideButtonItem = 1;
+int kCopyButtonItem = 2;
+int kDeleteButtonItem = 3;
 int kUsernameSection = 0;
 int kUsernameItem = 0;
 int kPasswordSection = 1;
@@ -82,11 +84,11 @@ class PasswordDetailsCollectionViewControllerTest
   void SetUp() override {
     CollectionViewControllerTest::SetUp();
     origin_ = @"testorigin.com";
-    delegate_.reset([[MockSavePasswordsCollectionViewController alloc] init]);
-    reauthenticationModule_.reset([[MockReauthenticationModule alloc] init]);
+    delegate_ = [[MockSavePasswordsCollectionViewController alloc] init];
+    reauthenticationModule_ = [[MockReauthenticationModule alloc] init];
   }
 
-  CollectionViewController* NewController() override NS_RETURNS_RETAINED {
+  CollectionViewController* InstantiateController() override {
     return [[PasswordDetailsCollectionViewController alloc]
           initWithPasswordForm:*(new autofill::PasswordForm())
                       delegate:delegate_
@@ -102,8 +104,8 @@ class PasswordDetailsCollectionViewControllerTest
   }
 
   web::TestWebThreadBundle thread_bundle_;
-  base::scoped_nsobject<MockSavePasswordsCollectionViewController> delegate_;
-  base::scoped_nsobject<MockReauthenticationModule> reauthenticationModule_;
+  MockSavePasswordsCollectionViewController* delegate_;
+  MockReauthenticationModule* reauthenticationModule_;
   NSString* origin_;
 };
 
@@ -120,7 +122,7 @@ TEST_F(PasswordDetailsCollectionViewControllerTest, TestInitialization) {
   EXPECT_NSEQ(kUsername, usernameItem.text);
   EXPECT_TRUE(usernameItem.showingText);
   // Password section
-  EXPECT_EQ(5, NumberOfItemsInSection(kPasswordSection));
+  EXPECT_EQ(4, NumberOfItemsInSection(kPasswordSection));
   CheckSectionHeaderWithId(IDS_IOS_SHOW_PASSWORD_VIEW_PASSWORD,
                            kPasswordSection);
   PasswordDetailsItem* passwordItem =
@@ -128,9 +130,7 @@ TEST_F(PasswordDetailsCollectionViewControllerTest, TestInitialization) {
   EXPECT_NSEQ(kPassword, passwordItem.text);
   EXPECT_FALSE(passwordItem.showingText);
   CheckTextCellTitleWithId(IDS_IOS_SETTINGS_PASSWORD_SHOW_BUTTON,
-                           kPasswordSection, kShowButtonItem);
-  CheckTextCellTitleWithId(IDS_IOS_SETTINGS_PASSWORD_HIDE_BUTTON,
-                           kPasswordSection, kHideButtonItem);
+                           kPasswordSection, kShowHideButtonItem);
   CheckTextCellTitleWithId(IDS_IOS_SETTINGS_PASSWORD_COPY_BUTTON,
                            kPasswordSection, kCopyButtonItem);
   CheckTextCellTitleWithId(IDS_IOS_SETTINGS_PASSWORD_DELETE_BUTTON,
@@ -160,7 +160,7 @@ TEST_F(PasswordDetailsCollectionViewControllerTest, SimplifyOrigin) {
 TEST_F(PasswordDetailsCollectionViewControllerTest, ShowPassword) {
   CreateController();
   [controller() collectionView:[controller() collectionView]
-      didSelectItemAtIndexPath:[NSIndexPath indexPathForRow:kShowButtonItem
+      didSelectItemAtIndexPath:[NSIndexPath indexPathForRow:kShowHideButtonItem
                                                   inSection:kPasswordSection]];
   PasswordDetailsItem* passwordItem =
       GetCollectionViewItem(kPasswordSection, kPasswordItem);
@@ -168,18 +168,27 @@ TEST_F(PasswordDetailsCollectionViewControllerTest, ShowPassword) {
   EXPECT_TRUE(passwordItem.showingText);
   EXPECT_NSEQ(
       l10n_util::GetNSString(IDS_IOS_SETTINGS_PASSWORD_REAUTH_REASON_SHOW),
-      reauthenticationModule_.get().localizedReasonForAuthentication);
+      reauthenticationModule_.localizedReasonForAuthentication);
+  CheckTextCellTitleWithId(IDS_IOS_SETTINGS_PASSWORD_HIDE_BUTTON,
+                           kPasswordSection, kShowHideButtonItem);
 }
 
 TEST_F(PasswordDetailsCollectionViewControllerTest, HidePassword) {
   CreateController();
+  // First show the password.
   [controller() collectionView:[controller() collectionView]
-      didSelectItemAtIndexPath:[NSIndexPath indexPathForRow:kHideButtonItem
+      didSelectItemAtIndexPath:[NSIndexPath indexPathForRow:kShowHideButtonItem
+                                                  inSection:kPasswordSection]];
+  // Then hide it.
+  [controller() collectionView:[controller() collectionView]
+      didSelectItemAtIndexPath:[NSIndexPath indexPathForRow:kShowHideButtonItem
                                                   inSection:kPasswordSection]];
   PasswordDetailsItem* passwordItem =
       GetCollectionViewItem(kPasswordSection, kPasswordItem);
   EXPECT_NSEQ(kPassword, passwordItem.text);
   EXPECT_FALSE(passwordItem.showingText);
+  CheckTextCellTitleWithId(IDS_IOS_SETTINGS_PASSWORD_SHOW_BUTTON,
+                           kPasswordSection, kShowHideButtonItem);
 }
 
 TEST_F(PasswordDetailsCollectionViewControllerTest, CopyPassword) {
@@ -191,7 +200,7 @@ TEST_F(PasswordDetailsCollectionViewControllerTest, CopyPassword) {
   EXPECT_NSEQ(kPassword, generalPasteboard.string);
   EXPECT_NSEQ(
       l10n_util::GetNSString(IDS_IOS_SETTINGS_PASSWORD_REAUTH_REASON_COPY),
-      reauthenticationModule_.get().localizedReasonForAuthentication);
+      reauthenticationModule_.localizedReasonForAuthentication);
 }
 
 TEST_F(PasswordDetailsCollectionViewControllerTest, DeletePassword) {
@@ -199,7 +208,7 @@ TEST_F(PasswordDetailsCollectionViewControllerTest, DeletePassword) {
   [controller() collectionView:[controller() collectionView]
       didSelectItemAtIndexPath:[NSIndexPath indexPathForRow:kDeleteButtonItem
                                                   inSection:kPasswordSection]];
-  EXPECT_EQ(1, delegate_.get().numberOfCallsToDeletePassword);
+  EXPECT_EQ(1, delegate_.numberOfCallsToDeletePassword);
 }
 
 }  // namespace

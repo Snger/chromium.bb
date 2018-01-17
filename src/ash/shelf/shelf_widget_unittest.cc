@@ -2,22 +2,21 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 
-#include "ash/common/shelf/shelf_widget.h"
+#include "ash/shelf/shelf_widget.h"
 
-#include "ash/common/material_design/material_design_controller.h"
-#include "ash/common/shelf/shelf_constants.h"
-#include "ash/common/shelf/shelf_layout_manager.h"
-#include "ash/common/shelf/shelf_view.h"
-#include "ash/common/shelf/wm_shelf.h"
-#include "ash/common/system/status_area_widget.h"
-#include "ash/common/wm_shell.h"
-#include "ash/common/wm_window.h"
 #include "ash/root_window_controller.h"
+#include "ash/shelf/shelf_constants.h"
+#include "ash/shelf/shelf_layout_manager.h"
+#include "ash/shelf/shelf_view.h"
+#include "ash/shelf/wm_shelf.h"
 #include "ash/shell.h"
-#include "ash/test/ash_md_test_base.h"
+#include "ash/shell_port.h"
+#include "ash/system/status_area_widget.h"
+#include "ash/test/ash_test_base.h"
 #include "ash/test/ash_test_helper.h"
 #include "ash/test/shelf_view_test_api.h"
 #include "ash/wm/window_util.h"
+#include "ash/wm_window.h"
 #include "ui/aura/window_event_dispatcher.h"
 #include "ui/display/display.h"
 #include "ui/events/event_utils.h"
@@ -38,14 +37,7 @@ ShelfLayoutManager* GetShelfLayoutManager() {
 
 }  // namespace
 
-using ShelfWidgetTest = test::AshMDTestBase;
-
-INSTANTIATE_TEST_CASE_P(
-    /* prefix intentionally left blank due to only one parameterization */,
-    ShelfWidgetTest,
-    testing::Values(MaterialDesignController::NON_MATERIAL,
-                    MaterialDesignController::MATERIAL_NORMAL,
-                    MaterialDesignController::MATERIAL_EXPERIMENTAL));
+using ShelfWidgetTest = test::AshTestBase;
 
 void TestLauncherAlignment(WmWindow* root,
                            ShelfAlignment alignment,
@@ -55,92 +47,81 @@ void TestLauncherAlignment(WmWindow* root,
             root->GetDisplayNearestWindow().work_area().ToString());
 }
 
-TEST_P(ShelfWidgetTest, TestAlignment) {
-  // Note that for a left- and right-aligned shelf, this offset must be
-  // applied to a maximized window's width rather than its height.
-  const int offset = GetMdMaximizedWindowHeightOffset();
+TEST_F(ShelfWidgetTest, TestAlignment) {
   const int kShelfSize = GetShelfConstant(SHELF_SIZE);
   UpdateDisplay("400x400");
   {
     SCOPED_TRACE("Single Bottom");
-    TestLauncherAlignment(WmShell::Get()->GetPrimaryRootWindow(),
-                          SHELF_ALIGNMENT_BOTTOM,
-                          gfx::Rect(0, 0, 400, 353 + offset));
+    TestLauncherAlignment(ShellPort::Get()->GetPrimaryRootWindow(),
+                          SHELF_ALIGNMENT_BOTTOM, gfx::Rect(0, 0, 400, 352));
   }
   {
     SCOPED_TRACE("Single Locked");
-    TestLauncherAlignment(WmShell::Get()->GetPrimaryRootWindow(),
+    TestLauncherAlignment(ShellPort::Get()->GetPrimaryRootWindow(),
                           SHELF_ALIGNMENT_BOTTOM_LOCKED,
-                          gfx::Rect(0, 0, 400, 353 + offset));
+                          gfx::Rect(0, 0, 400, 352));
   }
   {
     SCOPED_TRACE("Single Right");
-    TestLauncherAlignment(WmShell::Get()->GetPrimaryRootWindow(),
-                          SHELF_ALIGNMENT_RIGHT,
-                          gfx::Rect(0, 0, 353 + offset, 400));
+    TestLauncherAlignment(ShellPort::Get()->GetPrimaryRootWindow(),
+                          SHELF_ALIGNMENT_RIGHT, gfx::Rect(0, 0, 352, 400));
   }
   {
     SCOPED_TRACE("Single Left");
-    TestLauncherAlignment(WmShell::Get()->GetPrimaryRootWindow(),
+    TestLauncherAlignment(ShellPort::Get()->GetPrimaryRootWindow(),
                           SHELF_ALIGNMENT_LEFT,
-                          gfx::Rect(kShelfSize, 0, 353 + offset, 400));
+                          gfx::Rect(kShelfSize, 0, 352, 400));
   }
 }
 
-TEST_P(ShelfWidgetTest, TestAlignmentForMultipleDisplays) {
-  if (!SupportsMultipleDisplays())
-    return;
-
-  // Note that for a left- and right-aligned shelf, this offset must be
-  // applied to a maximized window's width rather than its height.
-  const int offset = GetMdMaximizedWindowHeightOffset();
+TEST_F(ShelfWidgetTest, TestAlignmentForMultipleDisplays) {
   const int kShelfSize = GetShelfConstant(SHELF_SIZE);
   UpdateDisplay("300x300,500x500");
-  std::vector<WmWindow*> root_windows = WmShell::Get()->GetAllRootWindows();
+  std::vector<WmWindow*> root_windows = ShellPort::Get()->GetAllRootWindows();
   {
     SCOPED_TRACE("Primary Bottom");
     TestLauncherAlignment(root_windows[0], SHELF_ALIGNMENT_BOTTOM,
-                          gfx::Rect(0, 0, 300, 253 + offset));
+                          gfx::Rect(0, 0, 300, 252));
   }
   {
     SCOPED_TRACE("Primary Locked");
     TestLauncherAlignment(root_windows[0], SHELF_ALIGNMENT_BOTTOM_LOCKED,
-                          gfx::Rect(0, 0, 300, 253 + offset));
+                          gfx::Rect(0, 0, 300, 252));
   }
   {
     SCOPED_TRACE("Primary Right");
     TestLauncherAlignment(root_windows[0], SHELF_ALIGNMENT_RIGHT,
-                          gfx::Rect(0, 0, 253 + offset, 300));
+                          gfx::Rect(0, 0, 252, 300));
   }
   {
     SCOPED_TRACE("Primary Left");
     TestLauncherAlignment(root_windows[0], SHELF_ALIGNMENT_LEFT,
-                          gfx::Rect(kShelfSize, 0, 253 + offset, 300));
+                          gfx::Rect(kShelfSize, 0, 252, 300));
   }
   {
     SCOPED_TRACE("Secondary Bottom");
     TestLauncherAlignment(root_windows[1], SHELF_ALIGNMENT_BOTTOM,
-                          gfx::Rect(300, 0, 500, 453 + offset));
+                          gfx::Rect(300, 0, 500, 452));
   }
   {
     SCOPED_TRACE("Secondary Locked");
     TestLauncherAlignment(root_windows[1], SHELF_ALIGNMENT_BOTTOM_LOCKED,
-                          gfx::Rect(300, 0, 500, 453 + offset));
+                          gfx::Rect(300, 0, 500, 452));
   }
   {
     SCOPED_TRACE("Secondary Right");
     TestLauncherAlignment(root_windows[1], SHELF_ALIGNMENT_RIGHT,
-                          gfx::Rect(300, 0, 453 + offset, 500));
+                          gfx::Rect(300, 0, 452, 500));
   }
   {
     SCOPED_TRACE("Secondary Left");
     TestLauncherAlignment(root_windows[1], SHELF_ALIGNMENT_LEFT,
-                          gfx::Rect(300 + kShelfSize, 0, 453 + offset, 500));
+                          gfx::Rect(300 + kShelfSize, 0, 452, 500));
   }
 }
 
 // Makes sure the shelf is initially sized correctly.
-TEST_P(ShelfWidgetTest, LauncherInitiallySized) {
+TEST_F(ShelfWidgetTest, LauncherInitiallySized) {
   ShelfWidget* shelf_widget = GetShelfWidget();
   ShelfLayoutManager* shelf_layout_manager = GetShelfLayoutManager();
   ASSERT_TRUE(shelf_layout_manager);
@@ -155,7 +136,7 @@ TEST_P(ShelfWidgetTest, LauncherInitiallySized) {
 }
 
 // Verifies when the shell is deleted with a full screen window we don't crash.
-TEST_P(ShelfWidgetTest, DontReferenceShelfAfterDeletion) {
+TEST_F(ShelfWidgetTest, DontReferenceShelfAfterDeletion) {
   views::Widget* widget = new views::Widget;
   views::Widget::InitParams params(views::Widget::InitParams::TYPE_WINDOW);
   params.bounds = gfx::Rect(0, 0, 200, 200);
@@ -168,15 +149,12 @@ TEST_P(ShelfWidgetTest, DontReferenceShelfAfterDeletion) {
 // Verifies shelf is created with correct size after user login and when its
 // container and status widget has finished sizing.
 // See http://crbug.com/252533
-TEST_P(ShelfWidgetTest, ShelfInitiallySizedAfterLogin) {
-  if (!SupportsMultipleDisplays())
-    return;
-
+TEST_F(ShelfWidgetTest, ShelfInitiallySizedAfterLogin) {
   SetUserLoggedIn(false);
   UpdateDisplay("300x200,400x300");
 
   // Both displays have a shelf controller.
-  std::vector<WmWindow*> roots = WmShell::Get()->GetAllRootWindows();
+  std::vector<WmWindow*> roots = ShellPort::Get()->GetAllRootWindows();
   WmShelf* shelf1 = WmShelf::ForWindow(roots[0]);
   WmShelf* shelf2 = WmShelf::ForWindow(roots[1]);
   ASSERT_TRUE(shelf1);
@@ -208,7 +186,7 @@ TEST_P(ShelfWidgetTest, ShelfInitiallySizedAfterLogin) {
 
 // Tests that the shelf lets mouse-events close to the edge fall through to the
 // window underneath.
-TEST_P(ShelfWidgetTest, ShelfEdgeOverlappingWindowHitTestMouse) {
+TEST_F(ShelfWidgetTest, ShelfEdgeOverlappingWindowHitTestMouse) {
   UpdateDisplay("400x400");
   ShelfWidget* shelf_widget = GetShelfWidget();
   gfx::Rect shelf_bounds = shelf_widget->GetWindowBoundsInScreen();
@@ -236,8 +214,9 @@ TEST_P(ShelfWidgetTest, ShelfEdgeOverlappingWindowHitTestMouse) {
   gfx::Rect widget_bounds = widget->GetWindowBoundsInScreen();
   EXPECT_TRUE(widget_bounds.Intersects(shelf_bounds));
 
-  ui::EventTarget* root = widget->GetNativeWindow()->GetRootWindow();
-  ui::EventTargeter* targeter = root->GetEventTargeter();
+  aura::Window* root = widget->GetNativeWindow()->GetRootWindow();
+  ui::EventTargeter* targeter =
+      root->GetHost()->dispatcher()->GetDefaultEventTargeter();
   {
     // Create a mouse-event targeting the top of the shelf widget. The
     // window-targeter should find |widget| as the target (instead of the
@@ -293,7 +272,7 @@ TEST_P(ShelfWidgetTest, ShelfEdgeOverlappingWindowHitTestMouse) {
 
 // Tests that the shelf has a slightly larger hit-region for touch-events when
 // it's in the auto-hidden state.
-TEST_P(ShelfWidgetTest, HiddenShelfHitTestTouch) {
+TEST_F(ShelfWidgetTest, HiddenShelfHitTestTouch) {
   WmShelf* shelf = GetPrimaryShelf();
   ShelfWidget* shelf_widget = GetShelfWidget();
   gfx::Rect shelf_bounds = shelf_widget->GetWindowBoundsInScreen();
@@ -312,14 +291,16 @@ TEST_P(ShelfWidgetTest, HiddenShelfHitTestTouch) {
   widget->Init(params);
   widget->Show();
 
-  ui::EventTarget* root = shelf_widget->GetNativeWindow()->GetRootWindow();
-  ui::EventTargeter* targeter = root->GetEventTargeter();
+  aura::Window* root = shelf_widget->GetNativeWindow()->GetRootWindow();
+  ui::EventTargeter* targeter =
+      root->GetHost()->dispatcher()->GetDefaultEventTargeter();
   // Touch just over the shelf. Since the shelf is visible, the window-targeter
   // should not find the shelf as the target.
   {
     gfx::Point event_location(20, shelf_bounds.y() - 1);
-    ui::TouchEvent touch(ui::ET_TOUCH_PRESSED, event_location, 0,
-                         ui::EventTimeForNow());
+    ui::TouchEvent touch(
+        ui::ET_TOUCH_PRESSED, event_location, ui::EventTimeForNow(),
+        ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 0));
     EXPECT_NE(shelf_widget->GetNativeWindow(),
               targeter->FindTargetForEvent(root, &touch));
   }
@@ -336,8 +317,9 @@ TEST_P(ShelfWidgetTest, HiddenShelfHitTestTouch) {
   // shelf as the target.
   {
     gfx::Point event_location(20, shelf_bounds.y() - 1);
-    ui::TouchEvent touch(ui::ET_TOUCH_PRESSED, event_location, 0,
-                         ui::EventTimeForNow());
+    ui::TouchEvent touch(
+        ui::ET_TOUCH_PRESSED, event_location, ui::EventTimeForNow(),
+        ui::PointerDetails(ui::EventPointerType::POINTER_TYPE_TOUCH, 0));
     EXPECT_EQ(shelf_widget->GetNativeWindow(),
               targeter->FindTargetForEvent(root, &touch));
   }
@@ -351,15 +333,16 @@ class ShelfInitializer : public ShellObserver {
  public:
   ShelfInitializer(ShelfAlignment alignment, ShelfAutoHideBehavior auto_hide)
       : alignment_(alignment), auto_hide_(auto_hide) {
-    WmShell::Get()->AddShellObserver(this);
+    Shell::Get()->AddShellObserver(this);
   }
-  ~ShelfInitializer() override { WmShell::Get()->RemoveShellObserver(this); }
+  ~ShelfInitializer() override { Shell::Get()->RemoveShellObserver(this); }
 
   // ShellObserver:
   void OnShelfCreatedForRootWindow(WmWindow* root_window) override {
     WmShelf* shelf = root_window->GetRootWindowController()->GetShelf();
     shelf->SetAlignment(alignment_);
     shelf->SetAutoHideBehavior(auto_hide_);
+    shelf->UpdateVisibilityState();
   }
 
  private:
@@ -405,35 +388,28 @@ class ShelfWidgetTestWithInitializer : public ShelfWidgetTest {
 
 }  // namespace
 
-INSTANTIATE_TEST_CASE_P(
-    /* prefix intentionally left blank due to only one parameterization */,
-    ShelfWidgetTestWithInitializer,
-    testing::Values(MaterialDesignController::NON_MATERIAL,
-                    MaterialDesignController::MATERIAL_NORMAL,
-                    MaterialDesignController::MATERIAL_EXPERIMENTAL));
-
-TEST_P(ShelfWidgetTestWithInitializer, CreateAutoHideAlwaysShelf) {
+TEST_F(ShelfWidgetTestWithInitializer, CreateAutoHideAlwaysShelf) {
   // The actual auto hide state is shown because there are no open windows.
   TestCreateShelfWithInitialValues(SHELF_ALIGNMENT_BOTTOM,
                                    SHELF_AUTO_HIDE_BEHAVIOR_ALWAYS,
                                    SHELF_AUTO_HIDE, SHELF_AUTO_HIDE_SHOWN);
 }
 
-TEST_P(ShelfWidgetTestWithInitializer, CreateAutoHideNeverShelf) {
+TEST_F(ShelfWidgetTestWithInitializer, CreateAutoHideNeverShelf) {
   // The auto hide state 'HIDDEN' is returned for any non-auto-hide behavior.
   TestCreateShelfWithInitialValues(SHELF_ALIGNMENT_LEFT,
                                    SHELF_AUTO_HIDE_BEHAVIOR_NEVER,
                                    SHELF_VISIBLE, SHELF_AUTO_HIDE_HIDDEN);
 }
 
-TEST_P(ShelfWidgetTestWithInitializer, CreateAutoHideAlwaysHideShelf) {
+TEST_F(ShelfWidgetTestWithInitializer, CreateAutoHideAlwaysHideShelf) {
   // The auto hide state 'HIDDEN' is returned for any non-auto-hide behavior.
   TestCreateShelfWithInitialValues(SHELF_ALIGNMENT_RIGHT,
                                    SHELF_AUTO_HIDE_ALWAYS_HIDDEN, SHELF_HIDDEN,
                                    SHELF_AUTO_HIDE_HIDDEN);
 }
 
-TEST_P(ShelfWidgetTestWithInitializer, CreateLockedShelf) {
+TEST_F(ShelfWidgetTestWithInitializer, CreateLockedShelf) {
   // The auto hide state 'HIDDEN' is returned for any non-auto-hide behavior.
   TestCreateShelfWithInitialValues(SHELF_ALIGNMENT_BOTTOM_LOCKED,
                                    SHELF_AUTO_HIDE_BEHAVIOR_NEVER,

@@ -28,6 +28,7 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_view_host.h"
 #include "content/public/browser/render_widget_host.h"
+#include "content/public/browser/render_widget_host_view.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
 #include "content/public/test/browser_test_utils.h"
@@ -339,7 +340,7 @@ class PluginPowerSaverBrowserTest : public InProcessBrowserTest {
                                             const gfx::Point& point) {
     WaitForPlaceholderReady(GetActiveWebContents(), element_id);
     content::SimulateMouseClickAt(GetActiveWebContents(), 0 /* modifiers */,
-                                  blink::WebMouseEvent::Button::Left, point);
+                                  blink::WebMouseEvent::Button::kLeft, point);
 
     VerifyPluginMarkedEssential(GetActiveWebContents(), element_id);
   }
@@ -366,13 +367,13 @@ class PluginPowerSaverBrowserTest : public InProcessBrowserTest {
     content::RenderWidgetHost* rwh =
         GetActiveWebContents()->GetRenderViewHost()->GetWidget();
 
-    if (!rwh->CanCopyFromBackingStore()) {
-      ADD_FAILURE() << "Could not copy from backing store.";
+    if (!rwh->GetView() || !rwh->GetView()->IsSurfaceAvailableForCopy()) {
+      ADD_FAILURE() << "RWHV surface not available for copy.";
       return false;
     }
 
     bool snapshot_matches = false;
-    rwh->CopyFromBackingStore(
+    rwh->GetView()->CopyFromSurface(
         gfx::Rect(), gfx::Size(),
         base::Bind(&CompareSnapshotToReference, reference, &snapshot_matches,
                    base::MessageLoop::QuitWhenIdleClosure()),
@@ -568,6 +569,7 @@ IN_PROC_BROWSER_TEST_F(PluginPowerSaverBrowserTest, BlockTinyPlugins) {
   VerifyPluginMarkedEssential(GetActiveWebContents(), "tiny_same_origin");
   VerifyPluginIsPlaceholderOnly("tiny_cross_origin_1");
   VerifyPluginIsPlaceholderOnly("tiny_cross_origin_2");
+  VerifyPluginIsPlaceholderOnly("completely_obscured");
 
   TabSpecificContentSettings* tab_specific_content_settings =
       TabSpecificContentSettings::FromWebContents(GetActiveWebContents());
@@ -615,15 +617,9 @@ class PluginPowerSaverFilterSameOriginTinyPluginsBrowserTest
   base::test::ScopedFeatureList feature_list;
 };
 
-// Flaky on Mac. crbug.com/680544
-// Flaky on Win7. crbug.com/682039
-#if defined(OS_MACOSX) || defined(OS_WIN)
-#define MAYBE_BlockSameOriginTinyPlugin DISABLED_BlockSameOriginTinyPlugin
-#else
-#define MAYBE_BlockSameOriginTinyPlugin BlockSameOriginTinyPlugin
-#endif
+// Flaky on every platform. crbug.com/680544, crbug.com/682039
 IN_PROC_BROWSER_TEST_F(PluginPowerSaverFilterSameOriginTinyPluginsBrowserTest,
-                       MAYBE_BlockSameOriginTinyPlugin) {
+                       DISABLED_BlockSameOriginTinyPlugin) {
   LoadHTML("/same_origin_tiny_plugin.html");
 
   VerifyPluginIsPlaceholderOnly("tiny_same_origin");

@@ -22,7 +22,7 @@
 #include "components/physical_web/data_source/physical_web_data_source.h"
 #include "components/prefs/pref_registry_simple.h"
 #include "components/prefs/pref_service.h"
-#include "grit/components_strings.h"
+#include "components/strings/grit/components_strings.h"
 #include "ui/base/l10n/l10n_util.h"
 #include "ui/base/resource/resource_bundle.h"
 #include "ui/gfx/image/image.h"
@@ -50,8 +50,7 @@ bool CompareByDistance(const physical_web::Metadata& left,
   return left.distance_estimate < right.distance_estimate;
 }
 
-void FilterOutByGroupId(
-    physical_web::MetadataList& page_metadata_list) {
+void FilterOutByGroupId(physical_web::MetadataList& page_metadata_list) {
   // |std::unique| only removes duplicates that immediately follow each other.
   // Thus, first, we have to sort by group_id and distance and only then remove
   // duplicates.
@@ -69,18 +68,17 @@ void FilterOutByGroupId(
 
   // Each empty group_id must be treated as unique, so we do not apply
   // std::unique to them at all.
-  auto nonempty_group_id_begin = std::find_if(
-      page_metadata_list.begin(), page_metadata_list.end(),
-      [](const physical_web::Metadata& page) {
-        return !page.group_id.empty();
-      });
+  auto nonempty_group_id_begin =
+      std::find_if(page_metadata_list.begin(), page_metadata_list.end(),
+                   [](const physical_web::Metadata& page) {
+                     return !page.group_id.empty();
+                   });
 
-  auto new_end = std::unique(
-      nonempty_group_id_begin, page_metadata_list.end(),
-      [](const physical_web::Metadata& left,
-         const physical_web::Metadata& right) {
-        return left.group_id == right.group_id;
-      });
+  auto new_end = std::unique(nonempty_group_id_begin, page_metadata_list.end(),
+                             [](const physical_web::Metadata& left,
+                                const physical_web::Metadata& right) {
+                               return left.group_id == right.group_id;
+                             });
 
   page_metadata_list.erase(new_end, page_metadata_list.end());
 }
@@ -98,7 +96,8 @@ PhysicalWebPageSuggestionsProvider::PhysicalWebPageSuggestionsProvider(
       physical_web_data_source_(physical_web_data_source),
       pref_service_(pref_service) {
   observer->OnCategoryStatusChanged(this, provided_category_, category_status_);
-  physical_web_data_source_->RegisterListener(this);
+  physical_web_data_source_->RegisterListener(
+      this, physical_web::BACKGROUND_INTERMITTENT);
   // TODO(vitaliii): Rewrite initial fetch once crbug.com/667754 is resolved.
   FetchPhysicalWebPages();
 }
@@ -117,9 +116,7 @@ CategoryInfo PhysicalWebPageSuggestionsProvider::GetCategoryInfo(
   return CategoryInfo(l10n_util::GetStringUTF16(
                           IDS_NTP_PHYSICAL_WEB_PAGE_SUGGESTIONS_SECTION_HEADER),
                       ContentSuggestionsCardLayout::FULL_CARD,
-                      /*has_more_action=*/false,
-                      /*has_reload_action=*/false,
-                      /*has_view_all_action=*/false,
+                      ContentSuggestionsAdditionalAction::NONE,
                       /*show_if_empty=*/false,
                       l10n_util::GetStringUTF16(
                           IDS_NTP_PHYSICAL_WEB_PAGE_SUGGESTIONS_SECTION_EMPTY));

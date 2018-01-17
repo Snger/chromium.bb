@@ -8,26 +8,23 @@
 
 #include "base/bind.h"
 #include "base/callback.h"
-#include "base/lazy_instance.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/common/service_manager_connection.h"
 #include "ipc/ipc_channel.h"
-#include "services/image_decoder/public/cpp/decode.h"
+#include "services/data_decoder/public/cpp/decode_image.h"
 #include "services/service_manager/public/cpp/connector.h"
 #include "third_party/skia/include/core/SkBitmap.h"
+#include "ui/gfx/geometry/size.h"
 
 namespace {
-
-// static, Leaky to allow access from any thread.
-base::LazyInstance<ImageDecoder>::Leaky g_decoder = LAZY_INSTANCE_INITIALIZER;
 
 const int64_t kMaxImageSizeInBytes =
     static_cast<int64_t>(IPC::Channel::kMaximumMessageSize);
 
 // Note that this is always called on the thread which initiated the
-// corresponding image_decoder::Decode request.
+// corresponding data_decoder::DecodeImage request.
 void OnDecodeImageDone(
     base::Callback<void(int)> fail_callback,
     base::Callback<void(const SkBitmap&, int)> success_callback,
@@ -52,7 +49,7 @@ void BindToBrowserConnector(service_manager::mojom::ConnectorRequest request) {
 }
 
 void RunDecodeCallbackOnTaskRunner(
-    const image_decoder::mojom::ImageDecoder::DecodeImageCallback& callback,
+    const data_decoder::mojom::ImageDecoder::DecodeImageCallback& callback,
     scoped_refptr<base::SequencedTaskRunner> task_runner,
     const SkBitmap& image) {
   task_runner->PostTask(FROM_HERE, base::Bind(callback, image));
@@ -60,9 +57,10 @@ void RunDecodeCallbackOnTaskRunner(
 
 void DecodeImage(
     std::vector<uint8_t> image_data,
-    image_decoder::mojom::ImageCodec codec,
+    data_decoder::mojom::ImageCodec codec,
     bool shrink_to_fit,
-    const image_decoder::mojom::ImageDecoder::DecodeImageCallback& callback,
+    const gfx::Size& desired_image_frame_size,
+    const data_decoder::mojom::ImageDecoder::DecodeImageCallback& callback,
     scoped_refptr<base::SequencedTaskRunner> callback_task_runner) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::IO);
 
@@ -71,10 +69,10 @@ void DecodeImage(
       service_manager::Connector::Create(&connector_request);
   BindToBrowserConnector(std::move(connector_request));
 
-  image_decoder::Decode(connector.get(), image_data, codec, shrink_to_fit,
-                        kMaxImageSizeInBytes,
-                        base::Bind(&RunDecodeCallbackOnTaskRunner,
-                                   callback, callback_task_runner));
+  data_decoder::DecodeImage(connector.get(), image_data, codec, shrink_to_fit,
+                            kMaxImageSizeInBytes, desired_image_frame_size,
+                            base::Bind(&RunDecodeCallbackOnTaskRunner, callback,
+                                       callback_task_runner));
 }
 
 }  // namespace
@@ -95,14 +93,17 @@ ImageDecoder::ImageRequest::~ImageRequest() {
   ImageDecoder::Cancel(this);
 }
 
-ImageDecoder::ImageDecoder() : image_request_id_counter_(0) {}
-
-ImageDecoder::~ImageDecoder() {}
+// static
+ImageDecoder* ImageDecoder::GetInstance() {
+  static auto* image_decoder = new ImageDecoder();
+  return image_decoder;
+}
 
 // static
 void ImageDecoder::Start(ImageRequest* image_request,
                          std::vector<uint8_t> image_data) {
-  StartWithOptions(image_request, std::move(image_data), DEFAULT_CODEC, false);
+  StartWithOptions(image_request, std::move(image_data), DEFAULT_CODEC, false,
+                   gfx::Size());
 }
 
 // static
@@ -116,9 +117,11 @@ void ImageDecoder::Start(ImageRequest* image_request,
 void ImageDecoder::StartWithOptions(ImageRequest* image_request,
                                     std::vector<uint8_t> image_data,
                                     ImageCodec image_codec,
-                                    bool shrink_to_fit) {
-  g_decoder.Get().StartWithOptionsImpl(image_request, std::move(image_data),
-                                       image_codec, shrink_to_fit);
+                                    bool shrink_to_fit,
+                                    const gfx::Size& desired_image_frame_size) {
+  ImageDecoder::GetInstance()->StartWithOptionsImpl(
+      image_request, std::move(image_data), image_codec, shrink_to_fit,
+      desired_image_frame_size);
 }
 
 // static
@@ -128,13 +131,17 @@ void ImageDecoder::StartWithOptions(ImageRequest* image_request,
                                     bool shrink_to_fit) {
   StartWithOptions(image_request,
                    std::vector<uint8_t>(image_data.begin(), image_data.end()),
-                   image_codec, shrink_to_fit);
+                   image_codec, shrink_to_fit, gfx::Size());
 }
 
-void ImageDecoder::StartWithOptionsImpl(ImageRequest* image_request,
-                                        std::vector<uint8_t> image_data,
-                                        ImageCodec image_codec,
-                                        bool shrink_to_fit) {
+ImageDecoder::ImageDecoder() : image_request_id_counter_(0) {}
+
+void ImageDecoder::StartWithOptionsImpl(
+    ImageRequest* image_request,
+    std::vector<uint8_t> image_data,
+    ImageCodec image_codec,
+    bool shrink_to_fit,
+    const gfx::Size& desired_image_frame_size) {
   DCHECK(image_request);
   DCHECK(image_request->task_runner());
 
@@ -145,13 +152,13 @@ void ImageDecoder::StartWithOptionsImpl(ImageRequest* image_request,
     image_request_id_map_.insert(std::make_pair(request_id, image_request));
   }
 
-  image_decoder::mojom::ImageCodec codec =
-      image_decoder::mojom::ImageCodec::DEFAULT;
+  data_decoder::mojom::ImageCodec codec =
+      data_decoder::mojom::ImageCodec::DEFAULT;
 #if defined(OS_CHROMEOS)
   if (image_codec == ROBUST_JPEG_CODEC)
-    codec = image_decoder::mojom::ImageCodec::ROBUST_JPEG;
+    codec = data_decoder::mojom::ImageCodec::ROBUST_JPEG;
   if (image_codec == ROBUST_PNG_CODEC)
-    codec = image_decoder::mojom::ImageCodec::ROBUST_PNG;
+    codec = data_decoder::mojom::ImageCodec::ROBUST_PNG;
 #endif  // defined(OS_CHROMEOS)
 
   auto callback = base::Bind(
@@ -167,13 +174,14 @@ void ImageDecoder::StartWithOptionsImpl(ImageRequest* image_request,
   content::BrowserThread::PostTask(
       content::BrowserThread::IO, FROM_HERE,
       base::Bind(&DecodeImage, base::Passed(&image_data), codec, shrink_to_fit,
-                 callback, make_scoped_refptr(image_request->task_runner())));
+                 desired_image_frame_size, callback,
+                 make_scoped_refptr(image_request->task_runner())));
 }
 
 // static
 void ImageDecoder::Cancel(ImageRequest* image_request) {
   DCHECK(image_request);
-  g_decoder.Get().CancelImpl(image_request);
+  ImageDecoder::GetInstance()->CancelImpl(image_request);
 }
 
 void ImageDecoder::CancelImpl(ImageRequest* image_request) {

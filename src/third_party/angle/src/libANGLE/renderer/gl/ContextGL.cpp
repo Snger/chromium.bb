@@ -328,9 +328,9 @@ void ContextGL::popGroupMarker()
     mRenderer->popGroupMarker();
 }
 
-void ContextGL::syncState(const gl::State &state, const gl::State::DirtyBits &dirtyBits)
+void ContextGL::syncState(const gl::State::DirtyBits &dirtyBits)
 {
-    mRenderer->getStateManager()->syncState(state, dirtyBits);
+    mRenderer->getStateManager()->syncState(mState, dirtyBits);
 }
 
 GLint ContextGL::getGPUDisjoint()
@@ -382,6 +382,11 @@ StateManagerGL *ContextGL::getStateManager()
 const WorkaroundsGL &ContextGL::getWorkaroundsGL() const
 {
     return mRenderer->getWorkarounds();
+}
+
+gl::Error ContextGL::dispatchCompute(GLuint numGroupsX, GLuint numGroupsY, GLuint numGroupsZ)
+{
+    return mRenderer->dispatchCompute(mState, numGroupsX, numGroupsY, numGroupsZ);
 }
 
 }  // namespace rx

@@ -12,6 +12,8 @@
 #include "GrOp.h"
 #include "GrPipeline.h"
 
+class GrAppliedClip;
+
 /**
  * GrDrawOps are flushed in two phases (preDraw, and draw). In preDraw uploads to GrGpuResources
  * and draws are determined and scheduled. They are issued in the draw phase. GrDrawOpUploadToken is
@@ -54,18 +56,30 @@ public:
 
     class Target;
 
-    GrDrawOp(uint32_t classID);
-    ~GrDrawOp() override;
+    GrDrawOp(uint32_t classID) : INHERITED(classID) {}
 
     /**
-     * Gets the inputs to pipeline analysis from the GrDrawOp.
+     * This information is required to determine how to compute a GrAppliedClip from a GrClip for
+     * this op.
      */
-    void initPipelineAnalysis(GrPipelineAnalysis*) const;
+    enum class FixedFunctionFlags : uint32_t {
+        kNone = 0x0,
+        /** Indices that the op will enable MSAA or mixed samples rendering. */
+        kUsesHWAA = 0x1,
+        /** Indices that the op reads and/or writes the stencil buffer */
+        kUsesStencil = 0x2,
+    };
+    GR_DECL_BITFIELD_CLASS_OPS_FRIENDS(FixedFunctionFlags);
+    virtual FixedFunctionFlags fixedFunctionFlags() const = 0;
 
-    bool installPipeline(const GrPipeline::CreateArgs&);
-
-    // TODO no GrPrimitiveProcessors yet read fragment position
-    bool willReadFragmentPosition() const { return false; }
+    /**
+     * This is called after the GrAppliedClip has been computed and just prior to recording the op
+     * or combining it with a previously recorded op. It is used to determine whether a copy of the
+     * destination (or destination texture itself) needs to be provided to the xp when this op
+     * executes. This is guaranteed to be called before an op is recorded. However, this is also
+     * called on ops that are not recorded because they combine with a previously recorded op.
+     */
+    virtual bool xpRequiresDstTexture(const GrCaps&, const GrAppliedClip*) = 0;
 
 protected:
     static SkString DumpPipelineInfo(const GrPipeline& pipeline) {
@@ -99,39 +113,20 @@ protected:
         return string;
     }
 
-    const GrPipeline* pipeline() const {
-        SkASSERT(fPipelineInstalled);
-        return reinterpret_cast<const GrPipeline*>(fPipelineStorage.get());
-    }
-
-private:
-    /**
-     * Provides information about the GrPrimitiveProccesor that will be used to issue draws by this
-     * op to GrPipeline analysis.
-     */
-    virtual void getPipelineAnalysisInput(GrPipelineAnalysisDrawOpInput*) const = 0;
-
-    /**
-     * After GrPipeline analysis is complete this is called so that the op can use the analysis
-     * results when constructing its GrPrimitiveProcessor.
-     */
-    virtual void applyPipelineOptimizations(const GrPipelineOptimizations&) = 0;
-
-protected:
     struct QueuedUpload {
         QueuedUpload(DeferredUploadFn&& upload, GrDrawOpUploadToken token)
             : fUpload(std::move(upload))
             , fUploadBeforeToken(token) {}
-        DeferredUploadFn    fUpload;
+        DeferredUploadFn fUpload;
         GrDrawOpUploadToken fUploadBeforeToken;
     };
 
-    SkTArray<QueuedUpload>                          fInlineUploads;
+    SkTArray<QueuedUpload> fInlineUploads;
 
 private:
-    SkAlignedSTStorage<1, GrPipeline>               fPipelineStorage;
-    bool                                            fPipelineInstalled;
     typedef GrOp INHERITED;
 };
+
+GR_MAKE_BITFIELD_CLASS_OPS(GrDrawOp::FixedFunctionFlags);
 
 #endif

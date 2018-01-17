@@ -1,5 +1,5 @@
-CONSOLE MESSAGE: line 236: callback not yet supported
 This is a testharness.js-based test.
+Found 1609 tests; 1429 PASS, 180 FAIL, 0 TIMEOUT, 0 NOTRUN.
 PASS Event interface: existence and properties of interface object 
 PASS Event interface object length 
 PASS Event interface object name 
@@ -24,7 +24,7 @@ PASS Event interface: attribute cancelable
 PASS Event interface: operation preventDefault() 
 PASS Event interface: attribute defaultPrevented 
 PASS Event interface: attribute timeStamp 
-FAIL Event interface: operation initEvent(DOMString,boolean,boolean) assert_equals: property has wrong .length expected 3 but got 0
+PASS Event interface: operation initEvent(DOMString,boolean,boolean) 
 PASS Event must be primary interface of document.createEvent("Event") 
 PASS Stringification of document.createEvent("Event") 
 PASS Event interface: document.createEvent("Event") must inherit property "type" with the proper type (0) 
@@ -44,9 +44,7 @@ PASS Event interface: document.createEvent("Event") must inherit property "defau
 PASS Event interface: document.createEvent("Event") must have own property "isTrusted" 
 PASS Event interface: document.createEvent("Event") must inherit property "timeStamp" with the proper type (15) 
 PASS Event interface: document.createEvent("Event") must inherit property "initEvent" with the proper type (16) 
-FAIL Event interface: calling initEvent(DOMString,boolean,boolean) on document.createEvent("Event") with too few arguments must throw TypeError assert_throws: Called with 0 arguments function "function () {
-            fn.apply(obj, args);
-        }" did not throw
+PASS Event interface: calling initEvent(DOMString,boolean,boolean) on document.createEvent("Event") with too few arguments must throw TypeError 
 PASS Event must be primary interface of new Event("foo") 
 PASS Stringification of new Event("foo") 
 PASS Event interface: new Event("foo") must inherit property "type" with the proper type (0) 
@@ -66,9 +64,7 @@ PASS Event interface: new Event("foo") must inherit property "defaultPrevented" 
 PASS Event interface: new Event("foo") must have own property "isTrusted" 
 PASS Event interface: new Event("foo") must inherit property "timeStamp" with the proper type (15) 
 PASS Event interface: new Event("foo") must inherit property "initEvent" with the proper type (16) 
-FAIL Event interface: calling initEvent(DOMString,boolean,boolean) on new Event("foo") with too few arguments must throw TypeError assert_throws: Called with 0 arguments function "function () {
-            fn.apply(obj, args);
-        }" did not throw
+PASS Event interface: calling initEvent(DOMString,boolean,boolean) on new Event("foo") with too few arguments must throw TypeError 
 PASS CustomEvent interface: existence and properties of interface object 
 PASS CustomEvent interface object length 
 PASS CustomEvent interface object name 
@@ -98,9 +94,7 @@ PASS Event interface: new CustomEvent("foo") must inherit property "defaultPreve
 PASS Event interface: new CustomEvent("foo") must have own property "isTrusted" 
 PASS Event interface: new CustomEvent("foo") must inherit property "timeStamp" with the proper type (15) 
 PASS Event interface: new CustomEvent("foo") must inherit property "initEvent" with the proper type (16) 
-FAIL Event interface: calling initEvent(DOMString,boolean,boolean) on new CustomEvent("foo") with too few arguments must throw TypeError assert_throws: Called with 0 arguments function "function () {
-            fn.apply(obj, args);
-        }" did not throw
+PASS Event interface: calling initEvent(DOMString,boolean,boolean) on new CustomEvent("foo") with too few arguments must throw TypeError 
 PASS EventTarget interface: existence and properties of interface object 
 PASS EventTarget interface object length 
 PASS EventTarget interface object name 
@@ -145,7 +139,7 @@ PASS MutationObserver interface object length
 PASS MutationObserver interface object name 
 FAIL MutationObserver interface: existence and properties of interface prototype object assert_equals: class string of MutationObserver.prototype expected "[object MutationObserverPrototype]" but got "[object MutationObserver]"
 PASS MutationObserver interface: existence and properties of interface prototype object's "constructor" property 
-FAIL MutationObserver interface: operation observe(Node,MutationObserverInit) assert_equals: property has wrong .length expected 1 but got 2
+PASS MutationObserver interface: operation observe(Node,MutationObserverInit) 
 PASS MutationObserver interface: operation disconnect() 
 PASS MutationObserver interface: operation takeRecords() 
 PASS MutationRecord interface: existence and properties of interface object 
@@ -411,7 +405,7 @@ PASS XMLDocument must be primary interface of xmlDoc
 PASS Stringification of xmlDoc 
 PASS Document interface: xmlDoc must inherit property "implementation" with the proper type (0) 
 PASS Document interface: xmlDoc must inherit property "URL" with the proper type (1) 
-FAIL Document interface: xmlDoc must inherit property "documentURI" with the proper type (2) assert_equals: expected "string" but got "object"
+PASS Document interface: xmlDoc must inherit property "documentURI" with the proper type (2) 
 PASS Document interface: xmlDoc must inherit property "origin" with the proper type (3) 
 PASS Document interface: xmlDoc must inherit property "compatMode" with the proper type (4) 
 PASS Document interface: xmlDoc must inherit property "characterSet" with the proper type (5) 
@@ -1545,7 +1539,7 @@ PASS TreeWalker interface: document.createTreeWalker(document.body, NodeFilter.S
 PASS TreeWalker interface: document.createTreeWalker(document.body, NodeFilter.SHOW_ALL, null, false) must inherit property "nextSibling" with the proper type (8) 
 PASS TreeWalker interface: document.createTreeWalker(document.body, NodeFilter.SHOW_ALL, null, false) must inherit property "previousNode" with the proper type (9) 
 PASS TreeWalker interface: document.createTreeWalker(document.body, NodeFilter.SHOW_ALL, null, false) must inherit property "nextNode" with the proper type (10) 
-FAIL NodeFilter interface: existence and properties of interface object assert_equals: prototype of self's property "NodeFilter" is not Object.prototype expected (object) object "[object Object]" but got (function) function "function () { [native code] }"
+PASS NodeFilter interface: existence and properties of interface object 
 PASS NodeFilter interface object name 
 FAIL NodeFilter interface: existence and properties of interface prototype object assert_false: NodeFilter should not have a "prototype" property expected false got true
 FAIL NodeFilter interface: existence and properties of interface prototype object's "constructor" property assert_false: NodeFilter should not have a "prototype" property expected false got true

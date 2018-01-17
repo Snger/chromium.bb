@@ -122,6 +122,7 @@ typedef GrGLvoid* (GR_GL_FUNCTION_TYPE* GrGLMapTexSubImage2DProc)(GrGLenum targe
 typedef GrGLvoid* (GR_GL_FUNCTION_TYPE* GrGLMemoryBarrierProc)(GrGLbitfield barriers);
 typedef GrGLvoid* (GR_GL_FUNCTION_TYPE* GrGLMemoryBarrierByRegionProc)(GrGLbitfield barriers);
 typedef GrGLvoid (GR_GL_FUNCTION_TYPE* GrGLPixelStoreiProc)(GrGLenum pname, GrGLint param);
+typedef GrGLvoid (GR_GL_FUNCTION_TYPE* GrGLPolygonModeProc)(GrGLenum face, GrGLenum mode);
 typedef GrGLvoid (GR_GL_FUNCTION_TYPE* GrGLPopGroupMarkerProc)();
 typedef GrGLvoid (GR_GL_FUNCTION_TYPE* GrGLPushGroupMarkerProc)(GrGLsizei length, const char* marker);
 typedef GrGLvoid (GR_GL_FUNCTION_TYPE* GrGLQueryCounterProc)(GrGLuint id, GrGLenum target);
@@ -351,6 +352,7 @@ typedef GrGLvoid (GR_GL_FUNCTION_TYPE* GrGLTextureBufferProc)(GrGLuint texture, 
 /* ARB_sync */
 typedef GrGLsync (GR_GL_FUNCTION_TYPE* GrGLFenceSyncProc)(GrGLenum condition, GrGLbitfield flags);
 typedef GrGLenum (GR_GL_FUNCTION_TYPE* GrGLClientWaitSyncProc)(GrGLsync sync, GrGLbitfield flags, GrGLuint64 timeout);
+typedef GrGLvoid (GR_GL_FUNCTION_TYPE* GrGLWaitSyncProc)(GrGLsync sync, GrGLbitfield flags, GrGLuint64 timeout);
 typedef GrGLvoid (GR_GL_FUNCTION_TYPE* GrGLDeleteSyncProc)(GrGLsync sync);
 
 /* KHR_debug */

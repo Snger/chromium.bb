@@ -33,6 +33,7 @@ class OffscreenSurfaceVk : public SurfaceImpl
     egl::Error querySurfacePointerANGLE(EGLint attribute, void **value) override;
     egl::Error bindTexImage(gl::Texture *texture, EGLint buffer) override;
     egl::Error releaseTexImage(EGLint buffer) override;
+    egl::Error getSyncValues(EGLuint64KHR *ust, EGLuint64KHR *msc, EGLuint64KHR *sbc) override;
     void setSwapInterval(EGLint interval) override;
 
     // width and height can change with client window resizing
@@ -50,7 +51,7 @@ class OffscreenSurfaceVk : public SurfaceImpl
     EGLint mHeight;
 };
 
-class WindowSurfaceVk : public SurfaceImpl
+class WindowSurfaceVk : public SurfaceImpl, public ResourceVk
 {
   public:
     WindowSurfaceVk(const egl::SurfaceState &surfaceState,
@@ -59,6 +60,8 @@ class WindowSurfaceVk : public SurfaceImpl
                     EGLint height);
     ~WindowSurfaceVk() override;
 
+    void destroy(const DisplayImpl *contextImpl) override;
+
     egl::Error initialize(const DisplayImpl *displayImpl) override;
     FramebufferImpl *createDefaultFramebuffer(const gl::FramebufferState &state) override;
     egl::Error swap(const DisplayImpl *displayImpl) override;
@@ -66,6 +69,7 @@ class WindowSurfaceVk : public SurfaceImpl
     egl::Error querySurfacePointerANGLE(EGLint attribute, void **value) override;
     egl::Error bindTexImage(gl::Texture *texture, EGLint buffer) override;
     egl::Error releaseTexImage(EGLint buffer) override;
+    egl::Error getSyncValues(EGLuint64KHR *ust, EGLuint64KHR *msc, EGLuint64KHR *sbc) override;
     void setSwapInterval(EGLint interval) override;
 
     // width and height can change with client window resizing
@@ -81,7 +85,6 @@ class WindowSurfaceVk : public SurfaceImpl
     gl::ErrorOrResult<vk::Framebuffer *> getCurrentFramebuffer(
         VkDevice device,
         const vk::RenderPass &compatibleRenderPass);
-    void onBeginRenderPass();
 
   private:
     vk::Error initializeImpl(RendererVk *renderer);
@@ -91,13 +94,10 @@ class WindowSurfaceVk : public SurfaceImpl
     EGLNativeWindowType mNativeWindowType;
     VkSurfaceKHR mSurface;
     VkSwapchainKHR mSwapchain;
-    // These are needed for resource deallocation.
-    // TODO(jmadill): Don't store these here.
-    VkDevice mDevice;
-    VkInstance mInstance;
 
     RenderTargetVk mRenderTarget;
-    vk::Semaphore mPresentCompleteSemaphore;
+    vk::Semaphore mImageAvailableSemaphore;
+    vk::Semaphore mRenderingCompleteSemaphore;
 
     uint32_t mCurrentSwapchainImageIndex;
     std::vector<vk::Image> mSwapchainImages;

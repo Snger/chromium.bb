@@ -116,12 +116,8 @@ using DragDropTest = test::AshInteractiveUITestBase;
 // Test if the mouse gets moved properly to another display
 // during drag & drop operation.
 TEST_F(DragDropTest, DragDropAcrossMultiDisplay) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("400x400,400x400");
-  aura::Window::Windows root_windows =
-      Shell::GetInstance()->GetAllRootWindows();
+  aura::Window::Windows root_windows = Shell::Get()->GetAllRootWindows();
   views::View* draggable_view = new DraggableView();
   draggable_view->set_drag_controller(NULL);
   draggable_view->SetBounds(0, 0, 100, 100);

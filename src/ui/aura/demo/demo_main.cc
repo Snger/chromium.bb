@@ -107,8 +107,7 @@ class DemoWindowParentingClient : public aura::client::WindowParentingClient {
   }
 
   // Overridden from aura::client::WindowParentingClient:
-  aura::Window* GetDefaultParent(aura::Window* context,
-                                 aura::Window* window,
+  aura::Window* GetDefaultParent(aura::Window* window,
                                  const gfx::Rect& bounds) override {
     if (!capture_client_) {
       capture_client_.reset(
@@ -154,6 +153,7 @@ int DemoMain() {
 
   std::unique_ptr<aura::Env> env = aura::Env::CreateInstance();
   env->set_context_factory(context_factory.get());
+  env->set_context_factory_private(context_factory.get());
   std::unique_ptr<aura::TestScreen> test_screen(
       aura::TestScreen::Create(gfx::Size()));
   display::Screen::SetScreenInstance(test_screen.get());

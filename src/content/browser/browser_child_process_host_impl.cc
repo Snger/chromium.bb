@@ -7,6 +7,7 @@
 #include "base/base_switches.h"
 #include "base/bind.h"
 #include "base/command_line.h"
+#include "base/debug/alias.h"
 #include "base/debug/dump_without_crashing.h"
 #include "base/feature_list.h"
 #include "base/files/file_path.h"
@@ -57,11 +58,12 @@
 namespace content {
 namespace {
 
-static base::LazyInstance<BrowserChildProcessHostImpl::BrowserChildProcessList>
+static base::LazyInstance<
+    BrowserChildProcessHostImpl::BrowserChildProcessList>::DestructorAtExit
     g_child_process_list = LAZY_INSTANCE_INITIALIZER;
 
-base::LazyInstance<base::ObserverList<BrowserChildProcessObserver>>
-    g_observers = LAZY_INSTANCE_INITIALIZER;
+base::LazyInstance<base::ObserverList<BrowserChildProcessObserver>>::
+    DestructorAtExit g_observers = LAZY_INSTANCE_INITIALIZER;
 
 void NotifyProcessLaunchedAndConnected(const ChildProcessData& data) {
   for (auto& observer : g_observers.Get())
@@ -87,21 +89,6 @@ void NotifyProcessKilled(const ChildProcessData& data, int exit_code) {
   for (auto& observer : g_observers.Get())
     observer.BrowserChildProcessKilled(data, exit_code);
 }
-
-class ConnectionFilterImpl : public ConnectionFilter {
- public:
-  ConnectionFilterImpl() {}
-
- private:
-  // ConnectionFilter:
-  bool OnConnect(const service_manager::Identity& remote_identity,
-                 service_manager::InterfaceRegistry* registry,
-                 service_manager::Connector* connector) override {
-    return true;
-  }
-
-  DISALLOW_COPY_AND_ASSIGN(ConnectionFilterImpl);
-};
 
 }  // namespace
 
@@ -161,7 +148,7 @@ BrowserChildProcessHostImpl::BrowserChildProcessHostImpl(
     const std::string& service_name)
     : data_(process_type),
       delegate_(delegate),
-      child_token_(mojo::edk::GenerateRandomToken()),
+      pending_connection_(new mojo::edk::PendingProcessConnection),
       channel_(nullptr),
       is_channel_connected_(false),
       notify_child_disconnected_(false),
@@ -179,16 +166,11 @@ BrowserChildProcessHostImpl::BrowserChildProcessHostImpl(
 
   if (!service_name.empty()) {
     DCHECK_CURRENTLY_ON(BrowserThread::IO);
-    child_connection_.reset(new ChildConnection(
-        service_name, base::StringPrintf("%d", data_.id), child_token_,
-        ServiceManagerContext::GetConnectorForIOThread(),
-        base::ThreadTaskRunnerHandle::Get()));
-  }
-
-  // May be null during test execution.
-  if (ServiceManagerConnection::GetForProcess()) {
-    ServiceManagerConnection::GetForProcess()->AddConnectionFilter(
-        base::MakeUnique<ConnectionFilterImpl>());
+    child_connection_.reset(
+        new ChildConnection(service_name, base::StringPrintf("%d", data_.id),
+                            pending_connection_.get(),
+                            ServiceManagerContext::GetConnectorForIOThread(),
+                            base::ThreadTaskRunnerHandle::Get()));
   }
 
   // Create a persistent memory segment for subprocess histograms.
@@ -256,7 +238,8 @@ void BrowserChildProcessHostImpl::Launch(
 
   notify_child_disconnected_ = true;
   child_process_.reset(new ChildProcessLauncher(
-      std::move(delegate), std::move(cmd_line), data_.id, this, child_token_,
+      std::move(delegate), std::move(cmd_line), data_.id, this,
+      std::move(pending_connection_),
       base::Bind(&BrowserChildProcessHostImpl::OnMojoError,
                  weak_factory_.GetWeakPtr(),
                  base::ThreadTaskRunnerHandle::Get()),
@@ -307,21 +290,18 @@ void BrowserChildProcessHostImpl::ForceShutdown() {
   child_process_host_->ForceShutdown();
 }
 
-void BrowserChildProcessHostImpl::SetBackgrounded(bool backgrounded) {
-  child_process_->SetProcessBackgrounded(backgrounded);
-}
-
 void BrowserChildProcessHostImpl::AddFilter(BrowserMessageFilter* filter) {
   child_process_host_->AddFilter(filter->GetFilter());
 }
 
-service_manager::InterfaceProvider*
-BrowserChildProcessHostImpl::GetRemoteInterfaces() {
+void BrowserChildProcessHostImpl::BindInterface(
+    const std::string& interface_name,
+    mojo::ScopedMessagePipeHandle interface_pipe) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
   if (!child_connection_)
-    return nullptr;
+    return;
 
-  return child_connection_->GetRemoteInterfaces();
+  child_connection_->BindInterface(interface_name, std::move(interface_pipe));
 }
 
 void BrowserChildProcessHostImpl::HistogramBadMessageTerminated(

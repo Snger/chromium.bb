@@ -6,11 +6,12 @@
  */
 
 #include "gm.h"
+#include "sk_tool_utils.h"
 #include "SkCanvas.h"
 #include "SkImage.h"
 #include "SkImageGenerator.h"
+#include "SkMakeUnique.h"
 #include "SkSurface.h"
-#include "sk_tool_utils.h"
 
 namespace {
 
@@ -33,7 +34,12 @@ public:
             return false;
         }
 
-        make_mask(SkSurface::MakeRasterDirect(info, pixels, rowBytes));
+        SkImageInfo surfaceInfo = info;
+        if (kAlpha_8_SkColorType == info.colorType()) {
+            surfaceInfo = surfaceInfo.makeColorSpace(nullptr);
+        }
+
+        make_mask(SkSurface::MakeRasterDirect(surfaceInfo, pixels, rowBytes));
         return true;
     }
 
@@ -59,7 +65,7 @@ const MakerT makers[] = {
 
     // SkImage_Generator
     [](SkCanvas*, const SkImageInfo& info) -> sk_sp<SkImage> {
-        return SkImage::MakeFromGenerator(new MaskGenerator(info));
+        return SkImage::MakeFromGenerator(skstd::make_unique<MaskGenerator>(info));
     },
 };
 

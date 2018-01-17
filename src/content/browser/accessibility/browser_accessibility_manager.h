@@ -14,14 +14,16 @@
 #include "base/containers/hash_tables.h"
 #include "base/macros.h"
 #include "build/build_config.h"
-#include "content/browser/accessibility/ax_tree_id_registry.h"
+#include "content/browser/accessibility/ax_platform_position.h"
 #include "content/browser/accessibility/browser_accessibility_event.h"
 #include "content/common/content_export.h"
 #include "content/public/browser/ax_event_notification_details.h"
 #include "third_party/WebKit/public/web/WebAXEnums.h"
 #include "ui/accessibility/ax_action_data.h"
 #include "ui/accessibility/ax_node_data.h"
+#include "ui/accessibility/ax_range.h"
 #include "ui/accessibility/ax_serializable_tree.h"
+#include "ui/accessibility/ax_tree_id_registry.h"
 #include "ui/accessibility/ax_tree_update.h"
 #include "ui/gfx/native_widget_types.h"
 
@@ -71,6 +73,7 @@ class CONTENT_EXPORT BrowserAccessibilityDelegate {
   virtual gfx::Rect AccessibilityGetViewBounds() const = 0;
   virtual gfx::Point AccessibilityOriginInScreen(
       const gfx::Rect& bounds) const = 0;
+  virtual float AccessibilityGetDeviceScaleFactor() const = 0;
   virtual void AccessibilityFatalError() = 0;
   virtual gfx::AcceleratedWidget AccessibilityGetAcceleratedWidget() = 0;
   virtual gfx::NativeViewAccessible AccessibilityGetNativeViewAccessible() = 0;
@@ -116,7 +119,7 @@ class CONTENT_EXPORT BrowserAccessibilityManager : public ui::AXTreeDelegate {
       BrowserAccessibilityFactory* factory = new BrowserAccessibilityFactory());
 
   static BrowserAccessibilityManager* FromID(
-      AXTreeIDRegistry::AXTreeID ax_tree_id);
+      ui::AXTreeIDRegistry::AXTreeID ax_tree_id);
 
   ~BrowserAccessibilityManager() override;
 
@@ -198,13 +201,13 @@ class CONTENT_EXPORT BrowserAccessibilityManager : public ui::AXTreeDelegate {
   void SetScrollOffset(const BrowserAccessibility& node, gfx::Point offset);
   void SetValue(
       const BrowserAccessibility& node, const base::string16& value);
-  void SetTextSelection(
-      const BrowserAccessibility& node, int start_offset, int end_offset);
+  void SetSelection(
+      ui::AXRange<AXPlatformPosition::AXPositionInstance::element_type> range);
   void SetAccessibilityFocus(const BrowserAccessibility& node);
   void ShowContextMenu(const BrowserAccessibility& node);
 
   // Retrieve the bounds of the parent View in screen coordinates.
-  gfx::Rect GetViewBounds();
+  virtual gfx::Rect GetViewBounds();
 
   // Fire an event telling native assistive technology to move focus to the
   // given find in page result.
@@ -228,7 +231,9 @@ class CONTENT_EXPORT BrowserAccessibilityManager : public ui::AXTreeDelegate {
   // Called in response to a hit test, when the object hit has a child frame
   // (like an iframe element or browser plugin), and we need to do another
   // hit test recursively.
-  void OnChildFrameHitTestResult(const gfx::Point& point, int hit_obj_id);
+  void OnChildFrameHitTestResult(const gfx::Point& point,
+                                 int hit_obj_id,
+                                 ui::AXEvent event_to_fire);
 
   // This is called when the user has committed to a find in page query,
   // e.g. by pressing enter or tapping on the next / previous result buttons.
@@ -323,7 +328,8 @@ class CONTENT_EXPORT BrowserAccessibilityManager : public ui::AXTreeDelegate {
       int end_offset);
 
   // Accessors.
-  AXTreeIDRegistry::AXTreeID ax_tree_id() const { return ax_tree_id_; }
+  ui::AXTreeIDRegistry::AXTreeID ax_tree_id() const { return ax_tree_id_; }
+  float device_scale_factor() const { return device_scale_factor_; }
 
   // AXTreeDelegate implementation.
   void OnNodeDataWillChange(ui::AXTree* tree,
@@ -361,6 +367,9 @@ class CONTENT_EXPORT BrowserAccessibilityManager : public ui::AXTreeDelegate {
   // Get a snapshot of the current tree as an AXTreeUpdate.
   ui::AXTreeUpdate SnapshotAXTreeForTesting();
 
+  // Use a custom device scale factor for testing.
+  void UseCustomDeviceScaleFactorForTesting(float device_scale_factor);
+
   // Given a point in screen coordinates, trigger an asynchronous hit test
   // but return the best possible match instantly.
   //
@@ -372,6 +381,9 @@ class CONTENT_EXPORT BrowserAccessibilityManager : public ui::AXTreeDelegate {
   void CacheHitTestResult(BrowserAccessibility* hit_test_result);
 
  protected:
+  using AXPlatformPositionInstance = AXPlatformPosition::AXPositionInstance;
+  using AXPlatformRange = ui::AXRange<AXPlatformPositionInstance::element_type>;
+
   BrowserAccessibilityManager(
       BrowserAccessibilityDelegate* delegate,
       BrowserAccessibilityFactory* factory);
@@ -455,13 +467,22 @@ class CONTENT_EXPORT BrowserAccessibilityManager : public ui::AXTreeDelegate {
   bool connected_to_parent_tree_node_;
 
   // The global ID of this accessibility tree.
-  AXTreeIDRegistry::AXTreeID ax_tree_id_;
+  ui::AXTreeIDRegistry::AXTreeID ax_tree_id_;
 
   // If this tree has a parent tree, this is the cached ID of the parent
   // node within that parent tree. It's computed as needed and cached for
   // speed so that it can be accessed quickly if it hasn't changed.
   int parent_node_id_from_parent_tree_;
 
+  // The device scale factor for the view associated with this frame,
+  // cached each time there's any update to the accessibility tree.
+  float device_scale_factor_;
+
+  // For testing only: If true, the manually-set device scale factor will be
+  // used and it won't be updated from the delegate.
+  bool use_custom_device_scale_factor_for_testing_;
+
+ private:
   DISALLOW_COPY_AND_ASSIGN(BrowserAccessibilityManager);
 };
 

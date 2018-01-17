@@ -6,11 +6,8 @@
 
 #include <stddef.h>
 
-#include "ash/common/wallpaper/wallpaper_controller.h"
-#include "ash/common/wm_shell.h"
 #include "ash/shell.h"
-#include "ash/test/ash_test_base.h"
-#include "ash/test/ash_test_helper.h"
+#include "ash/wallpaper/wallpaper_controller.h"
 #include "base/command_line.h"
 #include "base/compiler_specific.h"
 #include "base/files/file_path.h"
@@ -22,6 +19,7 @@
 #include "base/time/time.h"
 #include "base/values.h"
 #include "chrome/browser/chromeos/login/users/wallpaper/wallpaper_manager_test_utils.h"
+#include "chrome/browser/ui/ash/session_controller_client.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/testing_browser_process.h"
@@ -73,7 +71,7 @@ class WallpaperManagerBrowserTest : public InProcessBrowserTest {
   ~WallpaperManagerBrowserTest() override {}
 
   void SetUpOnMainThread() override {
-    controller_ = ash::WmShell::Get()->wallpaper_controller();
+    controller_ = ash::Shell::Get()->wallpaper_controller();
     controller_->set_wallpaper_reload_delay_for_test(0);
     local_state_ = g_browser_process->local_state();
     UpdateDisplay("800x600");
@@ -89,8 +87,7 @@ class WallpaperManagerBrowserTest : public InProcessBrowserTest {
   // Update the display configuration as given in |display_specs|.  See
   // display::test::DisplayManagerTestApi::UpdateDisplay for more details.
   void UpdateDisplay(const std::string& display_specs) {
-    display::test::DisplayManagerTestApi(
-        ash::Shell::GetInstance()->display_manager())
+    display::test::DisplayManagerTestApi(ash::Shell::Get()->display_manager())
         .UpdateDisplay(display_specs);
   }
 
@@ -117,9 +114,9 @@ class WallpaperManagerBrowserTest : public InProcessBrowserTest {
   // Logs in |account_id|.
   void LogIn(const AccountId& account_id, const std::string& user_id_hash) {
     SessionManager::Get()->CreateSession(account_id, user_id_hash);
-    // Adding a secondary display creates a shelf on that display, which
-    // assumes a shelf on the primary display if the user was logged in.
-    ash::WmShell::Get()->CreateShelfView();
+    SessionManager::Get()->SessionStarted();
+    // Flush to ensure the created session and ACTIVE state reaches ash.
+    SessionControllerClient::FlushForTesting();
     WaitAsyncWallpaperLoadStarted();
   }
 
@@ -629,7 +626,12 @@ class TestObserver : public WallpaperManager::Observer {
   DISALLOW_COPY_AND_ASSIGN(TestObserver);
 };
 
-IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, DisplayChange) {
+#if defined(OS_CHROMEOS) && defined(USE_OZONE)
+#define MAYBE_DisplayChange DISABLED_DisplayChange
+#else
+#define MAYBE_DisplayChange DisplayChange
+#endif
+IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, MAYBE_DisplayChange) {
   TestObserver observer(WallpaperManager::Get());
 
   // Set the wallpaper to ensure that UpdateWallpaper() will be called when the
@@ -717,9 +719,6 @@ IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, DisplayChange) {
 // Splitting these into separate tests avoids needing to run animations.
 // TODO(derat): Combine these into a single test
 IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, SmallDefaultWallpaper) {
-  if (!ash::test::AshTestHelper::SupportsMultipleDisplays())
-    return;
-
   CreateCmdlineWallpapers();
 
   // At 800x600, the small wallpaper should be loaded.
@@ -732,9 +731,6 @@ IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, SmallDefaultWallpaper) {
 }
 
 IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, LargeDefaultWallpaper) {
-  if (!ash::test::AshTestHelper::SupportsMultipleDisplays())
-    return;
-
   CreateCmdlineWallpapers();
   UpdateDisplay("1600x1200");
   WallpaperManager::Get()->SetDefaultWallpaperNow(EmptyAccountId());
@@ -746,8 +742,6 @@ IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, LargeDefaultWallpaper) {
 
 IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest,
                        LargeDefaultWallpaperWhenRotated) {
-  if (!ash::test::AshTestHelper::SupportsMultipleDisplays())
-    return;
   CreateCmdlineWallpapers();
 
   UpdateDisplay("1200x800/r");
@@ -759,8 +753,6 @@ IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest,
 }
 
 IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, SmallGuestWallpaper) {
-  if (!ash::test::AshTestHelper::SupportsMultipleDisplays())
-    return;
   CreateCmdlineWallpapers();
   SessionManager::Get()->CreateSession(user_manager::GuestAccountId(),
                                        user_manager::kGuestUserName);
@@ -773,9 +765,6 @@ IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, SmallGuestWallpaper) {
 }
 
 IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, LargeGuestWallpaper) {
-  if (!ash::test::AshTestHelper::SupportsMultipleDisplays())
-    return;
-
   CreateCmdlineWallpapers();
   SessionManager::Get()->CreateSession(user_manager::GuestAccountId(),
                                        user_manager::kGuestUserName);
@@ -788,8 +777,6 @@ IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, LargeGuestWallpaper) {
 }
 
 IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, SmallChildWallpaper) {
-  if (!ash::test::AshTestHelper::SupportsMultipleDisplays())
-    return;
   CreateCmdlineWallpapers();
   LogInAsChild(test_account_id1_, kTestUser1Hash);
   UpdateDisplay("800x600");
@@ -801,9 +788,6 @@ IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, SmallChildWallpaper) {
 }
 
 IN_PROC_BROWSER_TEST_F(WallpaperManagerBrowserTest, LargeChildWallpaper) {
-  if (!ash::test::AshTestHelper::SupportsMultipleDisplays())
-    return;
-
   CreateCmdlineWallpapers();
   LogInAsChild(test_account_id1_, kTestUser1Hash);
   UpdateDisplay("1600x1200");

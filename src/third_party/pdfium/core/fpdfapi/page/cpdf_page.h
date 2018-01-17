@@ -7,6 +7,7 @@
 #ifndef CORE_FPDFAPI_PAGE_CPDF_PAGE_H_
 #define CORE_FPDFAPI_PAGE_CPDF_PAGE_H_
 
+#include <map>
 #include <memory>
 
 #include "core/fpdfapi/page/cpdf_pageobjectholder.h"
@@ -20,6 +21,20 @@ class CPDF_Object;
 class CPDF_PageRenderCache;
 class CPDF_PageRenderContext;
 
+// These structs are used to keep track of resources that have already been
+// generated in the page.
+struct GraphicsData {
+  float fillAlpha;
+  float strokeAlpha;
+  bool operator<(const GraphicsData& other) const;
+};
+
+struct FontData {
+  CFX_ByteString baseFont;
+  CFX_ByteString type;
+  bool operator<(const FontData& other) const;
+};
+
 class CPDF_Page : public CPDF_PageObjectHolder {
  public:
   class View {};  // Caller implements as desired, empty here due to layering.
@@ -31,15 +46,14 @@ class CPDF_Page : public CPDF_PageObjectHolder {
 
   void ParseContent();
 
-  void GetDisplayMatrix(CFX_Matrix& matrix,
-                        int xPos,
-                        int yPos,
-                        int xSize,
-                        int ySize,
-                        int iRotate) const;
+  CFX_Matrix GetDisplayMatrix(int xPos,
+                              int yPos,
+                              int xSize,
+                              int ySize,
+                              int iRotate) const;
 
-  FX_FLOAT GetPageWidth() const { return m_PageWidth; }
-  FX_FLOAT GetPageHeight() const { return m_PageHeight; }
+  float GetPageWidth() const { return m_PageWidth; }
+  float GetPageHeight() const { return m_PageHeight; }
   CFX_FloatRect GetPageBBox() const { return m_BBox; }
   const CFX_Matrix& GetPageMatrix() const { return m_PageMatrix; }
   CPDF_Object* GetPageAttr(const CFX_ByteString& name) const;
@@ -53,11 +67,14 @@ class CPDF_Page : public CPDF_PageObjectHolder {
   View* GetView() const { return m_pView; }
   void SetView(View* pView) { m_pView = pView; }
 
+  std::map<GraphicsData, CFX_ByteString> m_GraphicsMap;
+  std::map<FontData, CFX_ByteString> m_FontsMap;
+
  protected:
   void StartParse();
 
-  FX_FLOAT m_PageWidth;
-  FX_FLOAT m_PageHeight;
+  float m_PageWidth;
+  float m_PageHeight;
   CFX_Matrix m_PageMatrix;
   View* m_pView;
   std::unique_ptr<CPDF_PageRenderCache> m_pPageRender;

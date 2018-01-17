@@ -6,6 +6,7 @@
  */
 
 #include "gm.h"
+#include "sk_tool_utils.h"
 #include "SkBlendModePriv.h"
 #include "SkPath.h"
 #include "SkShader.h"
@@ -219,9 +220,9 @@ protected:
                     // Just clear the dst, we need to preserve the paint's opacity.
                     dimPaint.setARGB(0, 0, 0, 0);
                 }
-                canvas->drawRectCoords(-kShapeSpacing/2, -kShapeSpacing/2,
-                                       kShapeSpacing/2 + 3 * kShapeTypeSpacing,
-                                       kShapeSpacing/2, dimPaint);
+                canvas->drawRect({ -kShapeSpacing/2, -kShapeSpacing/2,
+                                   kShapeSpacing/2 + 3 * kShapeTypeSpacing, kShapeSpacing/2 },
+                                 dimPaint);
             }
         }
     }
@@ -234,15 +235,15 @@ protected:
 
         switch (shape) {
             case kSquare_Shape:
-                canvas->drawRectCoords(-kShapeSize/2, -kShapeSize/2, kShapeSize/2, kShapeSize/2,
-                                       shapePaint);
+                canvas->drawRect({ -kShapeSize/2, -kShapeSize/2, kShapeSize/2, kShapeSize/2 },
+                                 shapePaint);
                 break;
 
             case kDiamond_Shape:
                 canvas->save();
                 canvas->rotate(45);
-                canvas->drawRectCoords(-kShapeSize/2, -kShapeSize/2, kShapeSize/2, kShapeSize/2,
-                                       shapePaint);
+                canvas->drawRect({ -kShapeSize/2, -kShapeSize/2, kShapeSize/2, kShapeSize/2 },
+                                 shapePaint);
                 canvas->restore();
                 break;
 

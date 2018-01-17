@@ -683,7 +683,7 @@ TEST_F(BluetoothTest, DiscoverMultipleLowEnergyDevices) {
 }
 #endif  // defined(OS_ANDROID) || defined(OS_MACOSX) || defined(OS_WIN)
 
-#if defined(OS_ANDROID)
+#if defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_CHROMEOS)
 TEST_F(BluetoothTest, TogglePowerFakeAdapter) {
   InitWithFakeAdapter();
   TestBluetoothAdapterObserver observer(adapter_);
@@ -704,7 +704,7 @@ TEST_F(BluetoothTest, TogglePowerFakeAdapter) {
   EXPECT_TRUE(adapter_->IsPowered());
   EXPECT_EQ(2, observer.powered_changed_count());
 }
-#endif  // defined(OS_ANDROID)
+#endif  // defined(OS_ANDROID) || defined(OS_LINUX) || defined(OS_CHROMEOS)
 
 #if defined(OS_ANDROID)
 TEST_F(BluetoothTest, TogglePowerBeforeScan) {
@@ -859,6 +859,7 @@ TEST_F(BluetoothTest, RemoveOutdatedDeviceGattConnect) {
   device->CreateGattConnection(GetGattConnectionCallback(Call::EXPECTED),
                                GetConnectErrorCallback(Call::NOT_EXPECTED));
   SimulateGattConnection(device);
+  base::RunLoop().RunUntilIdle();
   EXPECT_EQ(1u, adapter_->GetDevices().size());
   RemoveTimedOutDevices();
   EXPECT_EQ(0, observer.device_removed_count());

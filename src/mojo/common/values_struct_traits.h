@@ -8,6 +8,7 @@
 #include "base/values.h"
 #include "mojo/common/values.mojom.h"
 #include "mojo/public/cpp/bindings/array_traits.h"
+#include "mojo/public/cpp/bindings/clone_traits.h"
 #include "mojo/public/cpp/bindings/map_traits.h"
 #include "mojo/public/cpp/bindings/struct_traits.h"
 #include "mojo/public/cpp/bindings/union_traits.h"
@@ -16,7 +17,7 @@ namespace mojo {
 
 template <>
 struct ArrayTraits<base::ListValue> {
-  using Element = std::unique_ptr<base::Value>;
+  using Element = base::Value;
   using ConstIterator = base::ListValue::const_iterator;
 
   static size_t GetSize(const base::ListValue& input) {
@@ -109,6 +110,12 @@ struct StructTraits<common::mojom::DictionaryValueDataView,
 };
 
 template <>
+struct CloneTraits<std::unique_ptr<base::DictionaryValue>, false> {
+  static std::unique_ptr<base::DictionaryValue> Clone(
+      const std::unique_ptr<base::DictionaryValue>& input);
+};
+
+template <>
 struct UnionTraits<common::mojom::ValueDataView, base::Value> {
   static common::mojom::ValueDataView::Tag GetTag(const base::Value& data) {
     switch (data.GetType()) {
@@ -166,7 +173,7 @@ struct UnionTraits<common::mojom::ValueDataView, base::Value> {
   }
 
   static mojo::ConstCArray<uint8_t> binary_value(const base::Value& value) {
-    const base::BinaryValue* binary_value = nullptr;
+    const base::Value* binary_value = nullptr;
     if (!value.GetAsBinary(&binary_value))
       NOTREACHED();
     return mojo::ConstCArray<uint8_t>(

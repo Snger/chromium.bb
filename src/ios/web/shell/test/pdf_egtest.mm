@@ -10,8 +10,8 @@
 #import "ios/web/public/test/http_server.h"
 #include "ios/web/public/test/http_server_util.h"
 #import "ios/web/shell/test/app/web_shell_test_util.h"
-#import "ios/web/shell/test/earl_grey/shell_base_test_case.h"
 #import "ios/web/shell/test/earl_grey/shell_earl_grey.h"
+#import "ios/web/shell/test/earl_grey/web_shell_test_case.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
@@ -23,7 +23,7 @@ const char kTestPDFURL[] =
     "http://ios/web/shell/test/http_server_files/testpage.pdf";
 
 // Matcher for WKWebView displaying PDF.
-id<GREYMatcher> webViewWithPdf() {
+id<GREYMatcher> WebViewWithPdf() {
   web::WebState* web_state = web::shell_test_util::GetCurrentWebState();
   MatchesBlock matches = ^BOOL(UIView* view) {
     return testing::WaitUntilConditionOrTimeout(
@@ -37,7 +37,7 @@ id<GREYMatcher> webViewWithPdf() {
   };
 
   return grey_allOf(
-      webViewInWebState(web_state),
+      WebViewInWebState(web_state),
       [[GREYElementMatcherBlock alloc] initWithMatchesBlock:matches
                                            descriptionBlock:describe],
       nil);
@@ -48,7 +48,7 @@ id<GREYMatcher> webViewWithPdf() {
 using web::test::HttpServer;
 
 // PDF test cases for the web shell.
-@interface PDFTestCase : ShellBaseTestCase
+@interface PDFTestCase : WebShellTestCase
 @end
 
 @implementation PDFTestCase
@@ -57,7 +57,7 @@ using web::test::HttpServer;
 - (void)testMIMEType {
   web::test::SetUpFileBasedHttpServer();
   [ShellEarlGrey loadURL:HttpServer::MakeUrl(kTestPDFURL)];
-  [[EarlGrey selectElementWithMatcher:webViewWithPdf()]
+  [[EarlGrey selectElementWithMatcher:WebViewWithPdf()]
       assertWithMatcher:grey_notNil()];
 }
 

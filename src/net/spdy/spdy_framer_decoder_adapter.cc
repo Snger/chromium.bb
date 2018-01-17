@@ -5,19 +5,19 @@
 #include "net/spdy/spdy_framer_decoder_adapter.h"
 
 #include <memory>
-#include <string>
 #include <utility>
 
 #include "base/format_macros.h"
 #include "base/logging.h"
-#include "base/strings/stringprintf.h"
+#include "net/spdy/platform/api/spdy_estimate_memory_usage.h"
+#include "net/spdy/platform/api/spdy_string_utils.h"
 
 #if defined(COMPILER_GCC)
-#define PRETTY_THIS base::StringPrintf("%s@%p ", __PRETTY_FUNCTION__, this)
+#define PRETTY_THIS SpdyStringPrintf("%s@%p ", __PRETTY_FUNCTION__, this)
 #elif defined(COMPILER_MSVC)
-#define PRETTY_THIS base::StringPrintf("%s@%p ", __FUNCSIG__, this)
+#define PRETTY_THIS SpdyStringPrintf("%s@%p ", __FUNCSIG__, this)
 #else
-#define PRETTY_THIS base::StringPrintf("%s@%p ", __func__, this)
+#define PRETTY_THIS SpdyStringPrintf("%s@%p ", __func__, this)
 #endif
 
 namespace net {
@@ -87,8 +87,8 @@ void SpdyFramerVisitorAdapter::OnHeaderFrameEnd(SpdyStreamId stream_id,
 }
 
 void SpdyFramerVisitorAdapter::OnRstStream(SpdyStreamId stream_id,
-                                           SpdyRstStreamStatus status) {
-  visitor_->OnRstStream(stream_id, status);
+                                           SpdyErrorCode error_code) {
+  visitor_->OnRstStream(stream_id, error_code);
 }
 
 void SpdyFramerVisitorAdapter::OnSetting(SpdySettingsIds id,
@@ -113,8 +113,8 @@ void SpdyFramerVisitorAdapter::OnSettingsEnd() {
 }
 
 void SpdyFramerVisitorAdapter::OnGoAway(SpdyStreamId last_accepted_stream_id,
-                                        SpdyGoAwayStatus status) {
-  visitor_->OnGoAway(last_accepted_stream_id, status);
+                                        SpdyErrorCode error_code) {
+  visitor_->OnGoAway(last_accepted_stream_id, error_code);
 }
 
 void SpdyFramerVisitorAdapter::OnHeaders(SpdyStreamId stream_id,
@@ -138,15 +138,6 @@ bool SpdyFramerVisitorAdapter::OnGoAwayFrameData(const char* goaway_data,
   return visitor_->OnGoAwayFrameData(goaway_data, len);
 }
 
-bool SpdyFramerVisitorAdapter::OnRstStreamFrameData(const char* rst_stream_data,
-                                                    size_t len) {
-  return visitor_->OnRstStreamFrameData(rst_stream_data, len);
-}
-
-void SpdyFramerVisitorAdapter::OnBlocked(SpdyStreamId stream_id) {
-  visitor_->OnBlocked(stream_id);
-}
-
 void SpdyFramerVisitorAdapter::OnPushPromise(SpdyStreamId stream_id,
                                              SpdyStreamId promised_stream_id,
                                              bool end) {
@@ -167,19 +158,19 @@ void SpdyFramerVisitorAdapter::OnPriority(SpdyStreamId stream_id,
 
 void SpdyFramerVisitorAdapter::OnAltSvc(
     SpdyStreamId stream_id,
-    base::StringPiece origin,
+    SpdyStringPiece origin,
     const SpdyAltSvcWireFormat::AlternativeServiceVector& altsvc_vector) {
   visitor_->OnAltSvc(stream_id, origin, altsvc_vector);
 }
 
 bool SpdyFramerVisitorAdapter::OnUnknownFrame(SpdyStreamId stream_id,
-                                              int frame_type) {
+                                              uint8_t frame_type) {
   return visitor_->OnUnknownFrame(stream_id, frame_type);
 }
 
 class NestedSpdyFramerDecoder : public SpdyFramerDecoderAdapter {
   typedef SpdyFramer::SpdyState SpdyState;
-  typedef SpdyFramer::SpdyError SpdyError;
+  typedef SpdyFramer::SpdyFramerError SpdyFramerError;
 
  public:
   explicit NestedSpdyFramerDecoder(SpdyFramer* outer)
@@ -198,6 +189,10 @@ class NestedSpdyFramerDecoder : public SpdyFramerDecoderAdapter {
     visitor_adapter_.reset(new SpdyFramerVisitorAdapter(visitor, outer_));
     SpdyFramerDecoderAdapter::set_visitor(visitor_adapter_.get());
     framer_.set_visitor(visitor_adapter_.get());
+  }
+
+  void set_extension_visitor(ExtensionVisitorInterface* visitor) override {
+    framer_.set_extension_visitor(visitor);
   }
 
   // Passes the call on to the base adapter class and wrapped SpdyFramer.
@@ -229,12 +224,16 @@ class NestedSpdyFramerDecoder : public SpdyFramerDecoderAdapter {
 
   void Reset() override { framer_.Reset(); }
 
-  SpdyFramer::SpdyError error_code() const override {
-    return framer_.error_code();
+  SpdyFramer::SpdyFramerError spdy_framer_error() const override {
+    return framer_.spdy_framer_error();
   }
   SpdyFramer::SpdyState state() const override { return framer_.state(); }
   bool probable_http_response() const override {
     return framer_.probable_http_response();
+  }
+  size_t EstimateMemoryUsage() const override {
+    // Skip |visitor_adapter_| because it doesn't allocate.
+    return SpdyEstimateMemoryUsage(framer_);
   }
 
  private:

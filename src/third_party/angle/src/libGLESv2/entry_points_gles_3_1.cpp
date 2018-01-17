@@ -30,11 +30,13 @@ void GL_APIENTRY DispatchCompute(GLuint numGroupsX, GLuint numGroupsY, GLuint nu
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!context->skipValidation())
+        if (!context->skipValidation() &&
+            !ValidateDispatchCompute(context, numGroupsX, numGroupsY, numGroupsZ))
         {
-            context->handleError(Error(GL_INVALID_OPERATION, "Entry point not implemented"));
+            return;
         }
-        UNIMPLEMENTED();
+
+        context->dispatchCompute(numGroupsX, numGroupsY, numGroupsZ);
     }
 }
 
@@ -89,11 +91,13 @@ void GL_APIENTRY FramebufferParameteri(GLenum target, GLenum pname, GLint param)
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!context->skipValidation())
+        if (!context->skipValidation() &&
+            !ValidationFramebufferParameteri(context, target, pname, param))
         {
-            context->handleError(Error(GL_INVALID_OPERATION, "Entry point not implemented"));
+            return;
         }
-        UNIMPLEMENTED();
+
+        context->setFramebufferParameteri(target, pname, param);
     }
 }
 
@@ -104,11 +108,13 @@ void GL_APIENTRY GetFramebufferParameteriv(GLenum target, GLenum pname, GLint *p
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!context->skipValidation())
+        if (!context->skipValidation() &&
+            !ValidationGetFramebufferParameteri(context, target, pname, params))
         {
-            context->handleError(Error(GL_INVALID_OPERATION, "Entry point not implemented"));
+            return;
         }
-        UNIMPLEMENTED();
+
+        context->getFramebufferParameteriv(target, pname, params);
     }
 }
 
@@ -141,11 +147,12 @@ GLuint GL_APIENTRY GetProgramResourceIndex(GLuint program,
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!context->skipValidation())
+        if (!context->skipValidation() &&
+            !ValidateGetProgramResourceIndex(context, program, programInterface, name))
         {
-            context->handleError(Error(GL_INVALID_OPERATION, "Entry point not implemented"));
+            return GL_INVALID_INDEX;
         }
-        UNIMPLEMENTED();
+        return context->getProgramResourceIndex(program, programInterface, name);
     }
     return 0u;
 }
@@ -164,11 +171,13 @@ void GL_APIENTRY GetProgramResourceName(GLuint program,
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!context->skipValidation())
+        if (!context->skipValidation() &&
+            !ValidateGetProgramResourceName(context, program, programInterface, index, bufSize,
+                                            length, name))
         {
-            context->handleError(Error(GL_INVALID_OPERATION, "Entry point not implemented"));
+            return;
         }
-        UNIMPLEMENTED();
+        context->getProgramResourceName(program, programInterface, index, bufSize, length, name);
     }
 }
 
@@ -417,7 +426,7 @@ void GL_APIENTRY ProgramUniform1iv(GLuint program,
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!ValidateProgramUniform(context, GL_INT, program, location, count))
+        if (!ValidateProgramUniform1iv(context, program, location, count, value))
         {
             return;
         }
@@ -1114,11 +1123,13 @@ void GL_APIENTRY BindVertexBuffer(GLuint bindingindex,
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!context->skipValidation())
+        if (!context->skipValidation() &&
+            !ValidateBindVertexBuffer(context, bindingindex, buffer, offset, stride))
         {
-            context->handleError(Error(GL_INVALID_OPERATION, "Entry point not implemented"));
+            return;
         }
-        UNIMPLEMENTED();
+
+        context->bindVertexBuffer(bindingindex, buffer, offset, stride);
     }
 }
 
@@ -1135,11 +1146,13 @@ void GL_APIENTRY VertexAttribFormat(GLuint attribindex,
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!context->skipValidation())
+        if (!context->skipValidation() &&
+            !ValidateVertexAttribFormat(context, attribindex, size, type, relativeoffset, false))
         {
-            context->handleError(Error(GL_INVALID_OPERATION, "Entry point not implemented"));
+            return;
         }
-        UNIMPLEMENTED();
+
+        context->vertexAttribFormat(attribindex, size, type, normalized, relativeoffset);
     }
 }
 
@@ -1155,11 +1168,13 @@ void GL_APIENTRY VertexAttribIFormat(GLuint attribindex,
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!context->skipValidation())
+        if (!context->skipValidation() &&
+            !ValidateVertexAttribFormat(context, attribindex, size, type, relativeoffset, true))
         {
-            context->handleError(Error(GL_INVALID_OPERATION, "Entry point not implemented"));
+            return;
         }
-        UNIMPLEMENTED();
+
+        context->vertexAttribIFormat(attribindex, size, type, relativeoffset);
     }
 }
 
@@ -1169,11 +1184,13 @@ void GL_APIENTRY VertexAttribBinding(GLuint attribindex, GLuint bindingindex)
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!context->skipValidation())
+        if (!context->skipValidation() &&
+            !ValidateVertexAttribBinding(context, attribindex, bindingindex))
         {
-            context->handleError(Error(GL_INVALID_OPERATION, "Entry point not implemented"));
+            return;
         }
-        UNIMPLEMENTED();
+
+        context->vertexAttribBinding(attribindex, bindingindex);
     }
 }
 
@@ -1183,11 +1200,13 @@ void GL_APIENTRY VertexBindingDivisor(GLuint bindingindex, GLuint divisor)
     Context *context = GetValidGlobalContext();
     if (context)
     {
-        if (!context->skipValidation())
+        if (!context->skipValidation() &&
+            !ValidateVertexBindingDivisor(context, bindingindex, divisor))
         {
-            context->handleError(Error(GL_INVALID_OPERATION, "Entry point not implemented"));
+            return;
         }
-        UNIMPLEMENTED();
+
+        context->setVertexBindingDivisor(bindingindex, divisor);
     }
 }
 }  // namespace gl

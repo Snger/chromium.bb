@@ -5,8 +5,7 @@
 #ifndef COMPONENTS_SESSION_MANAGER_CORE_SESSION_MANAGER_H_
 #define COMPONENTS_SESSION_MANAGER_CORE_SESSION_MANAGER_H_
 
-#include <stdint.h>
-
+#include <string>
 #include <vector>
 
 #include "base/macros.h"
@@ -51,13 +50,13 @@ class SESSION_EXPORT SessionManager {
   // before the session has been started.
   virtual void SessionStarted();
 
+  // Returns true if the session for the given user was started.
+  bool HasSessionForAccountId(const AccountId& user_account_id) const;
+
   // Convenience wrapps of session state.
   bool IsInSecondaryLoginScreen() const;
   bool IsScreenLocked() const;
   bool IsUserSessionBlocked() const;
-
-  // Returns the maximum number of allowed user sessions.
-  uint32_t GetMaximumNumberOfUserSessions() const;
 
   void AddObserver(SessionManagerObserver* observer);
   void RemoveObserver(SessionManagerObserver* observer);

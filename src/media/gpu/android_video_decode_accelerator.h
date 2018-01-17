@@ -18,8 +18,8 @@
 #include "base/timer/timer.h"
 #include "gpu/command_buffer/service/gles2_cmd_decoder.h"
 #include "gpu/command_buffer/service/gpu_preferences.h"
+#include "media/base/android/media_codec_bridge_impl.h"
 #include "media/base/android/media_drm_bridge_cdm_context.h"
-#include "media/base/android/sdk_media_codec_bridge.h"
 #include "media/base/content_decryption_module.h"
 #include "media/gpu/avda_codec_allocator.h"
 #include "media/gpu/avda_picture_buffer_manager.h"
@@ -46,6 +46,7 @@ class MEDIA_GPU_EXPORT AndroidVideoDecodeAccelerator
       const gpu::GpuPreferences& gpu_preferences);
 
   AndroidVideoDecodeAccelerator(
+      AVDACodecAllocator* codec_allocator,
       const MakeGLContextCurrentCallback& make_context_current_cb,
       const GetGLES2DecoderCallback& get_gles2_decoder_cb);
 
@@ -68,14 +69,15 @@ class MEDIA_GPU_EXPORT AndroidVideoDecodeAccelerator
   // AVDAStateProvider implementation:
   const gfx::Size& GetSize() const override;
   base::WeakPtr<gpu::gles2::GLES2Decoder> GetGlDecoder() const override;
-  // Notifies the client about the error and sets |state_| to |ERROR|.
+  // Notifies the client about the error and sets |state_| to |ERROR|.  If we're
+  // in the middle of Initialize, we guarantee that Initialize will return
+  // failure.  If deferred init is pending, then we'll fail deferred init.
+  // Otherwise, we'll signal errors normally.
   void NotifyError(Error error) override;
 
   // AVDACodecAllocatorClient implementation:
-  void OnSurfaceAvailable(bool success) override;
-  void OnSurfaceDestroyed() override;
   void OnCodecConfigured(
-      std::unique_ptr<VideoCodecBridge> media_codec) override;
+      std::unique_ptr<MediaCodecBridge> media_codec) override;
 
  private:
   friend class AVDAManager;
@@ -84,6 +86,11 @@ class MEDIA_GPU_EXPORT AndroidVideoDecodeAccelerator
   enum State {
     NO_ERROR,
     ERROR,
+    // We have requested a surface, but haven't allocated it yet.  When the
+    // surface arrives, we'll transition to WAITING_FOR_CODEC, NO_ERROR, or
+    // ERROR.  This is also the initial state, before we've even requested a
+    // surface, just because it's convenient.
+    WAITING_FOR_SURFACE,
     // Set when we are asynchronously constructing the codec.  Will transition
     // to NO_ERROR or ERROR depending on success.
     WAITING_FOR_CODEC,
@@ -100,12 +107,37 @@ class MEDIA_GPU_EXPORT AndroidVideoDecodeAccelerator
     DRAIN_FOR_DESTROY,
   };
 
-  // Initialize of the picture buffer manager.  This is to be called when the
-  // SurfaceView in |surface_id_|, if any, is no longer busy.  It will return
-  // false on failure, and true if initialization was successful.  This includes
-  // synchronous and asynchronous init; the AVDA might not yet have a codec on
-  // success, but async init will at least be in progress.
-  bool InitializePictureBufferManager();
+  // Entry point for configuring / reconfiguring a codec with a new surface.
+  // Start surface creation by trying to allocate the surface id.  Will either
+  // InitializePictureBufferManager if the surface is available immediately, or
+  // will wait for OnOverlayReady to do it.  This will transition |state_|
+  // to WAITING_FOR_SURFACE or WAITING_FOR_CODEC, as needed (or NO_ERROR if it
+  // gets the surface and the codec without waiting).
+  // Note that this requires that you create a new |incoming_bundle_| with the
+  // appropriate surface id.
+  void StartSurfaceCreation();
+
+  // Called by AndroidOverlay when a surface becomes available.
+  void OnOverlayReady(AndroidOverlay* overlay);
+
+  // Called by AndroidOverlay when the overlay will not call OnOverlayReady.
+  void OnOverlayFailed(AndroidOverlay* overlay);
+
+  // Called by AndroidOverlay when a surface is lost.
+  void OnSurfaceDestroyed(AndroidOverlay* overlay);
+
+  // Initializes the picture buffer manager to use the current surface, once
+  // it is available.  This is not normally called directly, but rather via
+  // StartSurfaceCreation.  If we have a media codec already, then this will
+  // attempt to setSurface the new surface.  Otherwise, it will start codec
+  // config using the new surface.  In that case, there might not be a codec
+  // ready even if this succeeds, but async config will be started.  If
+  // setSurface fails, this will not replace the codec.  On failure, this will
+  // transition |state_| to ERROR.
+  // Note that this assumes that there is an |incoming_bundle_| that we'll use.
+  // On success, we'll replace the bundle in |codec_config_|.  On failure, we'll
+  // delete the incoming bundle.
+  void InitializePictureBufferManager();
 
   // A part of destruction process that is sometimes postponed after the drain.
   void ActualDestroy();
@@ -118,16 +150,10 @@ class MEDIA_GPU_EXPORT AndroidVideoDecodeAccelerator
   // |state_| is no longer WAITING_FOR_CODEC.
   void ConfigureMediaCodecAsynchronously();
 
-  // Like ConfigureMediaCodecAsynchronously, but synchronous.  Returns true if
-  // and only if |media_codec_| is non-null.  Since all configuration is done
-  // synchronously, there is no concern with modifying |codec_config_| after
-  // this returns.
-  bool ConfigureMediaCodecSynchronously();
-
-  // Instantiate a media codec using |codec_config|.
-  // This may be called on any thread.
-  static std::unique_ptr<VideoCodecBridge> ConfigureMediaCodecOnAnyThread(
-      scoped_refptr<CodecConfig> codec_config);
+  // Like ConfigureMediaCodecAsynchronously, but synchronous.  Will NotifyError
+  // on failure.  Since all configuration is done synchronously, there is no
+  // concern with modifying |codec_config_| after this returns.
+  void ConfigureMediaCodecSynchronously();
 
   // Sends the decoded frame specified by |codec_buffer_index| to the client.
   void SendDecodedFrameToClient(int32_t codec_buffer_index,
@@ -164,8 +190,9 @@ class MEDIA_GPU_EXPORT AndroidVideoDecodeAccelerator
   // Called when a new key is added to the CDM.
   void OnKeyAdded();
 
-  // Notifies the client of the result of deferred initialization.
-  void NotifyInitializationComplete(bool success);
+  // Notifies the client that deferred initialization succeeded.  If it fails,
+  // then call NotifyError instead.
+  void NotifyInitializationSucceeded();
 
   // Notifies the client about the availability of a picture.
   void NotifyPictureReady(const Picture& picture);
@@ -220,11 +247,23 @@ class MEDIA_GPU_EXPORT AndroidVideoDecodeAccelerator
   // |picture_buffer_manager_|.
   void ReleaseCodec();
 
+  // Returns the surface ID from the incoming bundle, if we have one, or
+  // the current surface bundle if not.  The reasoning is that, if we have an
+  // incoming bundle, then the current (outgoing) one has already been returned
+  // to the codec allocator via DeallocateSurface.  The only place this happens
+  // is UpdateSurface, which handles it specially.
+  int surface_id() const {
+    return incoming_bundle_ ? incoming_bundle_->surface_id
+                            : codec_config_->surface_bundle->surface_id;
+  }
+
   // Used to DCHECK that we are called on the correct thread.
   base::ThreadChecker thread_checker_;
 
   // To expose client callbacks from VideoDecodeAccelerator.
   Client* client_;
+
+  AVDACodecAllocator* codec_allocator_;
 
   // Callback to set the correct gl context.
   MakeGLContextCurrentCallback make_context_current_cb_;
@@ -244,7 +283,7 @@ class MEDIA_GPU_EXPORT AndroidVideoDecodeAccelerator
   std::queue<int32_t> free_picture_ids_;
 
   // The low-level decoder which Android SDK provides.
-  std::unique_ptr<VideoCodecBridge> media_codec_;
+  std::unique_ptr<MediaCodecBridge> media_codec_;
 
   // Set to true after requesting picture buffers to the client.
   bool picturebuffers_requested_;
@@ -309,6 +348,10 @@ class MEDIA_GPU_EXPORT AndroidVideoDecodeAccelerator
   // from being sent after a reset.
   int error_sequence_token_;
 
+  // Are we currently processing a call to Initialize()?  Please don't use this
+  // unless you're NotifyError.
+  bool during_initialize_;
+
   // True if and only if VDA initialization is deferred, and we have not yet
   // called NotifyInitializationComplete.
   bool deferred_initialization_pending_;
@@ -327,12 +370,15 @@ class MEDIA_GPU_EXPORT AndroidVideoDecodeAccelerator
   // pictures have been rendered in DequeueOutput().
   base::Optional<int32_t> pending_surface_id_;
 
-  // The task type used for the last codec release. For posting SurfaceTexture
-  // release to the same thread.
-  TaskType last_release_task_type_;
-
   // Copy of the VDA::Config we were given.
   Config config_;
+
+  // SurfaceBundle that we're going to use for StartSurfaceCreation.  This is
+  // separate than the bundle in |codec_config_|, since we can start surface
+  // creation while another codec is using the old surface.  For example, if
+  // we're going to SetSurface, then the current codec will depend on the
+  // current bundle until then.
+  scoped_refptr<AVDASurfaceBundle> incoming_bundle_;
 
   // WeakPtrFactory for posting tasks back to |this|.
   base::WeakPtrFactory<AndroidVideoDecodeAccelerator> weak_this_factory_;

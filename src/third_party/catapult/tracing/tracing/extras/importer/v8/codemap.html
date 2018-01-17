@@ -77,7 +77,7 @@ tr.exportTo('tr.e.importer.v8', function() {
   CodeMap.prototype.moveCode = function(from, to) {
     var removedNode = this.dynamics_.remove(from);
     this.deleteAllCoveredNodes_(this.dynamics_, to,
-                                to + removedNode.value.size);
+        to + removedNode.value.size);
     this.dynamics_.insert(to, removedNode.value);
   };
 
@@ -163,8 +163,9 @@ tr.exportTo('tr.e.importer.v8', function() {
    */
   CodeMap.prototype.findEntryInLibraries = function(addr) {
     var pageAddr = addr >>> CodeMap.PAGE_ALIGNMENT;
-    if (pageAddr in this.pages_)
+    if (pageAddr in this.pages_) {
       return this.findInTree_(this.libraries_, addr);
+    }
     return undefined;
   };
 
@@ -204,9 +205,9 @@ tr.exportTo('tr.e.importer.v8', function() {
    */
   CodeMap.prototype.findDynamicEntryByStartAddress =
       function(addr) {
-    var node = this.dynamics_.find(addr);
-    return node ? node.value : null;
-  };
+        var node = this.dynamics_.find(addr);
+        return node ? node.value : null;
+      };
 
   /**
    * Returns an array of all dynamic code entries.

@@ -21,7 +21,7 @@
 #include "Shlwapi.h"
 #include "WinDef.h"
 
-#include "webrtc/system_wrappers/include/utf_util_win.h"
+#include "webrtc/base/win32.h"
 #define GET_CURRENT_DIR _getcwd
 #else
 #include <unistd.h>
@@ -101,9 +101,15 @@ void SetExecutablePath(const std::string& path) {
   relative_dir_path_set = true;
 }
 
-bool FileExists(std::string& file_name) {
+bool FileExists(const std::string& file_name) {
   struct stat file_info = {0};
   return stat(file_name.c_str(), &file_info) == 0;
+}
+
+bool DirExists(const std::string& directory_name) {
+  struct stat directory_info = {0};
+  return stat(directory_name.c_str(), &directory_info) == 0 && S_ISDIR(
+      directory_info.st_mode);
 }
 
 #ifdef WEBRTC_ANDROID
@@ -183,9 +189,9 @@ std::string WorkingDir() {
 std::string TempFilename(const std::string &dir, const std::string &prefix) {
 #ifdef WIN32
   wchar_t filename[MAX_PATH];
-  if (::GetTempFileName(ToUtf16(dir).c_str(),
-                        ToUtf16(prefix).c_str(), 0, filename) != 0)
-    return ToUtf8(filename);
+  if (::GetTempFileName(rtc::ToUtf16(dir).c_str(),
+                        rtc::ToUtf16(prefix).c_str(), 0, filename) != 0)
+    return rtc::ToUtf8(filename);
   assert(false);
   return "";
 #else
@@ -206,7 +212,7 @@ std::string TempFilename(const std::string &dir, const std::string &prefix) {
 #endif
 }
 
-bool CreateDir(std::string directory_name) {
+bool CreateDir(const std::string& directory_name) {
   struct stat path_info = {0};
   // Check if the path exists already:
   if (stat(directory_name.c_str(), &path_info) == 0) {
@@ -226,7 +232,8 @@ bool CreateDir(std::string directory_name) {
   return true;
 }
 
-std::string ResourcePath(std::string name, std::string extension) {
+std::string ResourcePath(const std::string& name,
+                         const std::string& extension) {
 #if defined(WEBRTC_IOS)
   return IOSResourcePath(name, extension);
 #else
@@ -270,7 +277,7 @@ std::string ResourcePath(std::string name, std::string extension) {
 #endif  // defined (WEBRTC_IOS)
 }
 
-size_t GetFileSize(std::string filename) {
+size_t GetFileSize(const std::string& filename) {
   FILE* f = fopen(filename.c_str(), "rb");
   size_t size = 0;
   if (f != NULL) {

@@ -6,6 +6,7 @@
  */
 
 #include "gm.h"
+#include "sk_tool_utils.h"
 #include "SkCanvas.h"
 #include "SkPathPriv.h"
 #include "SkTextFormatParams.h"
@@ -241,7 +242,7 @@ static void path_bold(SkCanvas* canvas, const SkPath& path, const SkPaint& paint
         SkScalar fakeBoldScale = SkScalarInterpFunc(p.getTextSize(),
                 kStdFakeBoldInterpKeys, kStdFakeBoldInterpValues,
                 kStdFakeBoldInterpLength);
-        SkScalar extra = SkScalarMul(p.getTextSize(), fakeBoldScale);
+        SkScalar extra = p.getTextSize() * fakeBoldScale;
         p.setStrokeWidth(extra);
         canvas->save();
         canvas->translate(0, 120);

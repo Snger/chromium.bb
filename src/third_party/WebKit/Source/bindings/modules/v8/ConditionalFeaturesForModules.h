@@ -5,11 +5,9 @@
 #ifndef ConditionalFeaturesForModules_h
 #define ConditionalFeaturesForModules_h
 
-#include "bindings/core/v8/ConditionalFeatures.h"
-
 namespace blink {
 
-void registerInstallConditionalFeaturesForModules();
+void RegisterInstallConditionalFeaturesForModules();
 
 }  // namespace blink
 

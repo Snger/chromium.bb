@@ -54,7 +54,6 @@ source_set("activity_services") {
     ":assets",
     ":resources",
     "//base",
-    "//components/reading_list/core",
     "//ios/chrome/app/strings",
     "//ios/chrome/browser",
     "//ios/chrome/browser/browser_state",
@@ -72,6 +71,7 @@ source_set("activity_services") {
 }
 
 source_set("unit_tests") {
+  configs += [ "//build/config/compiler:enable_arc" ]
   testonly = true
   sources = [
     "activity_service_controller_unittest.mm",
@@ -82,7 +82,6 @@ source_set("unit_tests") {
     ":activity_services",
     "//base",
     "//base/test:test_support",
-    "//components/reading_list/core",
     "//ios/chrome/app/strings",
     "//ios/chrome/browser/browser_state:test_support",
     "//ios/chrome/browser/tabs",
@@ -95,6 +94,7 @@ source_set("unit_tests") {
 }
 
 source_set("eg_tests") {
+  configs += [ "//build/config/compiler:enable_arc" ]
   testonly = true
   sources = [
     "activity_service_controller_egtest.mm",
@@ -105,8 +105,10 @@ source_set("eg_tests") {
     "//ios/chrome/app/strings",
     "//ios/chrome/browser/ui",
     "//ios/chrome/browser/ui:ui_internal",
+    "//ios/chrome/test/app:test_support",
     "//ios/chrome/test/earl_grey:test_support",
     "//ios/third_party/material_components_ios",
+    "//ios/web:earl_grey_test_support",
     "//ios/web:test_support",
     "//ui/base",
   ]

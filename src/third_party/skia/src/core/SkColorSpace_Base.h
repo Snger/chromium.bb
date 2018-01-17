@@ -164,6 +164,8 @@ public:
 
     virtual bool onIsNumericalTransferFn(SkColorSpaceTransferFn* coeffs) const = 0;
 
+    virtual bool onIsCMYK() const { return false; }
+
     /**
      *  Returns a color space with the same gamut as this one, but with a linear gamma.
      *  For color spaces whose gamut can not be described in terms of XYZ D50, returns
@@ -194,12 +196,19 @@ public:
 
     static sk_sp<SkColorSpace> MakeRGB(SkGammaNamed gammaNamed, const SkMatrix44& toXYZD50);
 
+    enum Named : uint8_t {
+        kSRGB_Named,
+        kAdobeRGB_Named,
+        kSRGBLinear_Named,
+        kSRGB_NonLinearBlending_Named,
+    };
+
+    static sk_sp<SkColorSpace> MakeNamed(Named);
+
 protected:
     SkColorSpace_Base(sk_sp<SkData> profileData);
 
 private:
-    SkColorSpace_Base(SkGammaNamed gammaNamed, const SkMatrix44& toXYZ);
-
     sk_sp<SkData> fProfileData;
 
     friend class SkColorSpace;

@@ -67,7 +67,7 @@ HRESULT FillCapabilities(IMFSourceReader* source,
     VideoCaptureFormat format;
     if (FillFormat(type.get(), &format))
       capabilities->emplace_back(stream_index, format);
-    type.Release();
+    type.Reset();
     ++stream_index;
   }
 
@@ -239,6 +239,7 @@ void VideoCaptureDeviceMFWin::AllocateAndStart(
               reader_->ReadSample(kFirstVideoStream, 0, NULL, NULL, NULL, NULL);
           if (SUCCEEDED(hr)) {
             capture_format_ = found_capability.supported_format;
+            client_->OnStarted();
             capture_ = true;
             return;
           }

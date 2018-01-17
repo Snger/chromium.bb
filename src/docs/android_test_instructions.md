@@ -158,11 +158,11 @@ with the following commands:
 
 ```shell
 # Resize userdata partition to be 1G
-resize2fs android_emulator_sdk/sdk/system-images/android-24/x86/userdata.img 1G
+resize2fs android_emulator_sdk/sdk/system-images/android-25/x86/userdata.img 1G
 
 # Set filesystem parameter to continue on errors; Android doesn't like some
 # things e2fsprogs does.
-tune2fs -e continue android_emulator_sdk/sdk/system-images/android-24/x86/userdata.img
+tune2fs -e continue android_emulator_sdk/sdk/system-images/android-25/x86/userdata.img
 ```
 
 ## Symbolizing Crashes
@@ -206,13 +206,13 @@ run the test.
 
 ```shell
 # Build the test suite.
-ninja -C out/Release chrome_junit_tests
+ninja -C out/my_build chrome_junit_tests
 
 # Run the test suite.
-build/android/test_runner.py junit -s chrome_junit_tests --release -vvv
+BUILDTYPE=my_build build/android/test_runner.py junit -s chrome_junit_tests -vvv
 
 # Run a subset of tests. You might need to pass the package name for some tests.
-build/android/test_runner.py junit -s chrome_junit_tests --release -vvv
+BUILDTYPE=my_build build/android/test_runner.py junit -s chrome_junit_tests -vvv
 -f "org.chromium.chrome.browser.media.*"
 ```
 

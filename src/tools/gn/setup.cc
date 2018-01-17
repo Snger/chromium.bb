@@ -58,8 +58,12 @@ extern const char kDotfile_Help[] =
 
 Variables
 
+  arg_file_template [optional]
+      Path to a file containing the text that should be used as the default
+      args.gn content when you run `gn args`.
+
   buildconfig [required]
-      Label of the build config file. This file will be used to set up the
+      Path to the build config file. This file will be used to set up the
       build file execution environment for each toolchain.
 
   check_targets [optional]
@@ -106,6 +110,15 @@ Variables
 
       The secondary source root must be inside the main source tree.
 
+  default_args [optional]
+      Scope containing the default overrides for declared arguments. These
+      overrides take precedence over the default values specified in the
+      declare_args() block, but can be overriden using --args or the
+      args.gn file.
+
+      This is intended to be used when subprojects declare arguments with
+      default values that need to be changed for whatever reason.
+
 Example .gn file contents
 
   buildconfig = "//build/config/BUILDCONFIG.gn"
@@ -118,6 +131,12 @@ Example .gn file contents
   root = "//:root"
 
   secondary_source = "//build/config/temporary_buildfiles/"
+
+  default_args = {
+    # Default to release builds for this project.
+    is_debug = false
+    is_component_build = false
+  }
 )";
 
 namespace {
@@ -273,6 +292,7 @@ Setup::Setup()
       check_public_headers_(false),
       dotfile_settings_(&build_settings_, std::string()),
       dotfile_scope_(&dotfile_settings_),
+      default_args_(nullptr),
       fill_arguments_(true) {
   dotfile_settings_.set_toolchain_label(Label());
 
@@ -314,6 +334,14 @@ bool Setup::DoSetup(const std::string& build_dir, bool force_create) {
   if (!dotfile_scope_.CheckForUnusedVars(&err)) {
     err.PrintToStdout();
     return false;
+  }
+
+  // Apply project-specific default (if specified).
+  // Must happen before FillArguments().
+  if (default_args_) {
+    Scope::KeyValueMap overrides;
+    default_args_->GetCurrentScopeValues(&overrides);
+    build_settings_.build_args().AddArgOverrides(overrides);
   }
 
   if (fill_arguments_) {
@@ -752,6 +780,29 @@ bool Setup::FillOtherConfig(const base::CommandLine& cmdline) {
       }
     }
     build_settings_.set_exec_script_whitelist(std::move(whitelist));
+  }
+
+  // Fill optional default_args.
+  const Value* default_args_value =
+      dotfile_scope_.GetValue("default_args", true);
+  if (default_args_value) {
+    if (!default_args_value->VerifyTypeIs(Value::SCOPE, &err)) {
+      err.PrintToStdout();
+      return false;
+    }
+
+    default_args_ = default_args_value->scope_value();
+  }
+
+  const Value* arg_file_template_value =
+      dotfile_scope_.GetValue("arg_file_template", true);
+  if (arg_file_template_value) {
+    if (!arg_file_template_value->VerifyTypeIs(Value::STRING, &err)) {
+      err.PrintToStdout();
+      return false;
+    }
+    SourceFile path(arg_file_template_value->string_value());
+    build_settings_.set_arg_file_template_path(path);
   }
 
   return true;

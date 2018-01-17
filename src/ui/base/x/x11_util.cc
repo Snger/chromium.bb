@@ -288,7 +288,9 @@ void UnrefCustomXCursor(::Cursor cursor) {
 
 XcursorImage* SkBitmapToXcursorImage(const SkBitmap* cursor_image,
                                      const gfx::Point& hotspot) {
-  DCHECK(cursor_image->colorType() == kN32_SkColorType);
+  // TODO(crbug.com/596782): It is possible for cursor_image to be zeroed out
+  // at this point, which leads to benign debug errors. Once this is fixed, we
+  // should  DCHECK_EQ(cursor_image->colorType(), kN32_SkColorType).
   gfx::Point hotspot_point = hotspot;
   SkBitmap scaled;
 
@@ -1181,6 +1183,12 @@ std::string GuessWindowManagerName() {
   if (GetWindowManagerName(&name))
     return name;
   return "Unknown";
+}
+
+bool IsCompositingManagerPresent() {
+  static bool is_compositing_manager_present =
+      XGetSelectionOwner(gfx::GetXDisplay(), GetAtom("_NET_WM_CM_S0")) != None;
+  return is_compositing_manager_present;
 }
 
 void SetDefaultX11ErrorHandlers() {

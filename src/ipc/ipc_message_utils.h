@@ -21,7 +21,6 @@
 #include "base/containers/stack_container.h"
 #include "base/files/file.h"
 #include "base/format_macros.h"
-#include "base/memory/scoped_vector.h"
 #include "base/optional.h"
 #include "base/strings/string16.h"
 #include "base/strings/string_util.h"
@@ -305,6 +304,37 @@ struct IPC_EXPORT ParamTraits<double> {
                    base::PickleIterator* iter,
                    param_type* r);
   static void Log(const param_type& p, std::string* l);
+};
+
+template <class P, size_t Size>
+struct ParamTraits<P[Size]> {
+  using param_type = P[Size];
+  static void GetSize(base::PickleSizer* sizer, const param_type& p) {
+    for (const P& element : p)
+      GetParamSize(sizer, element);
+  }
+  static void Write(base::Pickle* m, const param_type& p) {
+    for (const P& element : p)
+      WriteParam(m, element);
+  }
+  static bool Read(const base::Pickle* m,
+                   base::PickleIterator* iter,
+                   param_type* r) {
+    for (P& element : *r) {
+      if (!ReadParam(m, iter, &element))
+        return false;
+    }
+    return true;
+  }
+  static void Log(const param_type& p, std::string* l) {
+    l->append("[");
+    for (const P& element : p) {
+      if (&element != &p[0])
+        l->append(" ");
+      LogParam(element, l);
+    }
+    l->append("]");
+  }
 };
 
 // STL ParamTraits -------------------------------------------------------------
@@ -822,39 +852,6 @@ struct ParamTraits<std::tuple<A, B, C, D, E>> {
     LogParam(std::get<3>(p), l);
     l->append(", ");
     LogParam(std::get<4>(p), l);
-  }
-};
-
-template<class P>
-struct ParamTraits<ScopedVector<P> > {
-  typedef ScopedVector<P> param_type;
-  static void Write(base::Pickle* m, const param_type& p) {
-    WriteParam(m, static_cast<int>(p.size()));
-    for (size_t i = 0; i < p.size(); i++)
-      WriteParam(m, *p[i]);
-  }
-  static bool Read(const base::Pickle* m,
-                   base::PickleIterator* iter,
-                   param_type* r) {
-    int size = 0;
-    if (!iter->ReadLength(&size))
-      return false;
-    if (INT_MAX/sizeof(P) <= static_cast<size_t>(size))
-      return false;
-    r->resize(size);
-    for (int i = 0; i < size; i++) {
-      (*r)[i] = new P();
-      if (!ReadParam(m, iter, (*r)[i]))
-        return false;
-    }
-    return true;
-  }
-  static void Log(const param_type& p, std::string* l) {
-    for (size_t i = 0; i < p.size(); ++i) {
-      if (i != 0)
-        l->append(" ");
-      LogParam(*p[i], l);
-    }
   }
 };
 

@@ -10,27 +10,16 @@
 #include "xfa/fde/css/cfde_cssstringvalue.h"
 #include "xfa/fde/css/cfde_cssvaluelist.h"
 
-CFDE_CSSComputedStyle::CFDE_CSSComputedStyle() : m_dwRefCount(1) {}
+CFDE_CSSComputedStyle::CFDE_CSSComputedStyle() {}
 
 CFDE_CSSComputedStyle::~CFDE_CSSComputedStyle() {}
 
-uint32_t CFDE_CSSComputedStyle::Retain() {
-  return ++m_dwRefCount;
-}
-
-uint32_t CFDE_CSSComputedStyle::Release() {
-  uint32_t dwRefCount = --m_dwRefCount;
-  if (dwRefCount == 0)
-    delete this;
-  return dwRefCount;
-}
-
-bool CFDE_CSSComputedStyle::GetCustomStyle(const CFX_WideStringC& wsName,
+bool CFDE_CSSComputedStyle::GetCustomStyle(const CFX_WideString& wsName,
                                            CFX_WideString& wsValue) const {
-  for (int32_t i = pdfium::CollectionSize<int32_t>(m_CustomProperties) - 2;
-       i > -1; i -= 2) {
-    if (wsName == m_CustomProperties[i]) {
-      wsValue = m_CustomProperties[i + 1];
+  for (auto iter = m_CustomProperties.rbegin();
+       iter != m_CustomProperties.rend(); iter++) {
+    if (wsName == iter->name()) {
+      wsValue = iter->value();
       return true;
     }
   }
@@ -44,8 +33,8 @@ int32_t CFDE_CSSComputedStyle::CountFontFamilies() const {
 }
 
 const CFX_WideString CFDE_CSSComputedStyle::GetFontFamily(int32_t index) const {
-  return static_cast<CFDE_CSSStringValue*>(
-             m_InheritedData.m_pFontFamily->GetValue(index))
+  return m_InheritedData.m_pFontFamily->GetValue(index)
+      .As<CFDE_CSSStringValue>()
       ->Value();
 }
 
@@ -61,7 +50,7 @@ FDE_CSSFontStyle CFDE_CSSComputedStyle::GetFontStyle() const {
   return m_InheritedData.m_eFontStyle;
 }
 
-FX_FLOAT CFDE_CSSComputedStyle::GetFontSize() const {
+float CFDE_CSSComputedStyle::GetFontSize() const {
   return m_InheritedData.m_fFontSize;
 }
 
@@ -81,7 +70,7 @@ void CFDE_CSSComputedStyle::SetFontStyle(FDE_CSSFontStyle eFontStyle) {
   m_InheritedData.m_eFontStyle = eFontStyle;
 }
 
-void CFDE_CSSComputedStyle::SetFontSize(FX_FLOAT fFontSize) {
+void CFDE_CSSComputedStyle::SetFontSize(float fFontSize) {
   m_InheritedData.m_fFontSize = fFontSize;
 }
 
@@ -118,7 +107,7 @@ FDE_CSSDisplay CFDE_CSSComputedStyle::GetDisplay() const {
   return m_NonInheritedData.m_eDisplay;
 }
 
-FX_FLOAT CFDE_CSSComputedStyle::GetLineHeight() const {
+float CFDE_CSSComputedStyle::GetLineHeight() const {
   return m_InheritedData.m_fLineHeight;
 }
 
@@ -134,7 +123,7 @@ FDE_CSSVerticalAlign CFDE_CSSComputedStyle::GetVerticalAlign() const {
   return m_NonInheritedData.m_eVerticalAlign;
 }
 
-FX_FLOAT CFDE_CSSComputedStyle::GetNumberVerticalAlign() const {
+float CFDE_CSSComputedStyle::GetNumberVerticalAlign() const {
   return m_NonInheritedData.m_fVerticalAlign;
 }
 
@@ -146,7 +135,7 @@ const FDE_CSSLength& CFDE_CSSComputedStyle::GetLetterSpacing() const {
   return m_InheritedData.m_LetterSpacing;
 }
 
-void CFDE_CSSComputedStyle::SetLineHeight(FX_FLOAT fLineHeight) {
+void CFDE_CSSComputedStyle::SetLineHeight(float fLineHeight) {
   m_InheritedData.m_fLineHeight = fLineHeight;
 }
 
@@ -158,7 +147,7 @@ void CFDE_CSSComputedStyle::SetTextAlign(FDE_CSSTextAlign eTextAlign) {
   m_InheritedData.m_eTextAlign = eTextAlign;
 }
 
-void CFDE_CSSComputedStyle::SetNumberVerticalAlign(FX_FLOAT fAlign) {
+void CFDE_CSSComputedStyle::SetNumberVerticalAlign(float fAlign) {
   m_NonInheritedData.m_eVerticalAlign = FDE_CSSVerticalAlign::Number,
   m_NonInheritedData.m_fVerticalAlign = fAlign;
 }
@@ -172,10 +161,10 @@ void CFDE_CSSComputedStyle::SetLetterSpacing(
   m_InheritedData.m_LetterSpacing = letterSpacing;
 }
 
-void CFDE_CSSComputedStyle::AddCustomStyle(const CFX_WideString& wsName,
-                                           const CFX_WideString& wsValue) {
-  m_CustomProperties.push_back(wsName);
-  m_CustomProperties.push_back(wsValue);
+void CFDE_CSSComputedStyle::AddCustomStyle(const CFDE_CSSCustomProperty& prop) {
+  // Force the property to be copied so we aren't dependent on the lifetime
+  // of whatever currently owns it.
+  m_CustomProperties.push_back(prop);
 }
 
 CFDE_CSSComputedStyle::InheritedData::InheritedData()
@@ -190,6 +179,8 @@ CFDE_CSSComputedStyle::InheritedData::InheritedData()
       m_eFontVariant(FDE_CSSFontVariant::Normal),
       m_eFontStyle(FDE_CSSFontStyle::Normal),
       m_eTextAlign(FDE_CSSTextAlign::Left) {}
+
+CFDE_CSSComputedStyle::InheritedData::~InheritedData() {}
 
 CFDE_CSSComputedStyle::NonInheritedData::NonInheritedData()
     : m_MarginWidth(FDE_CSSLengthUnit::Point, 0),

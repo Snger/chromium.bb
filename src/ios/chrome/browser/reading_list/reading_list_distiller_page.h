@@ -45,10 +45,11 @@ class ReadingListDistillerPage : public dom_distiller::DistillerPageIOS {
  public:
   typedef base::Callback<void(const GURL&, const GURL&)> RedirectionCallback;
 
-  // Creates a ReadingListDistillerPage. WebStates to download the pages will
-  // be provided by web_state_dispatcher.
+  // Creates a ReadingListDistillerPage to distill |url|. WebStates to download
+  // the pages will be provided by web_state_dispatcher.
   // |browser_state|, |web_state_dispatcher| and |delegate| must not be null.
   explicit ReadingListDistillerPage(
+      const GURL& url,
       web::BrowserState* browser_state,
       FaviconWebStateDispatcher* web_state_dispatcher,
       ReadingListDistillerPageDelegate* delegate);
@@ -91,10 +92,13 @@ class ReadingListDistillerPage : public dom_distiller::DistillerPageIOS {
   // Continue the distillation on the page that is currently loaded in
   // |CurrentWebState()|.
   void ContinuePageDistillation();
+  // Starts the fetching of |page_url|'s favicon.
+  void FetchFavicon(const GURL& page_url);
 
   // Continues distillation by calling superclass |OnLoadURLDone|.
   void DelayedOnLoadURLDone(int delayed_task_id);
   GURL original_url_;
+  bool distilling_main_page_;
 
   FaviconWebStateDispatcher* web_state_dispatcher_;
   ReadingListDistillerPageDelegate* delegate_;

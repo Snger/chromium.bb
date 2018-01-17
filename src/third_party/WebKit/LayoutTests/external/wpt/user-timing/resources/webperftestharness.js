@@ -14,29 +14,45 @@ policies and contribution forms [3].
 
 var performanceNamespace = self.performance;
 var timingAttributes = [
-    'connectEnd',
-    'connectStart',
-    'domComplete',
-    'domContentLoadedEventEnd',
-    'domContentLoadedEventStart',
-    'domInteractive',
-    'domLoading',
-    'domainLookupEnd',
-    'domainLookupStart',
-    'fetchStart',
-    'loadEventEnd',
-    'loadEventStart',
-    'navigationStart',
-    'redirectEnd',
-    'redirectStart',
-    'requestStart',
-    'responseEnd',
-    'responseStart',
-    'unloadEventEnd',
-    'unloadEventStart'
+    "navigationStart",
+    "unloadEventStart",
+    "unloadEventEnd",
+    "redirectStart",
+    "redirectEnd",
+    "fetchStart",
+    "domainLookupStart",
+    "domainLookupEnd",
+    "connectStart",
+    "connectEnd",
+    "secureConnectionStart",
+    "requestStart",
+    "responseStart",
+    "responseEnd",
+    "domLoading",
+    "domInteractive",
+    "domContentLoadedEventStart",
+    "domContentLoadedEventEnd",
+    "domComplete",
+    "loadEventStart",
+    "loadEventEnd"
 ];
 
 var namespace_check = false;
+
+function has_required_interfaces()
+{
+    if (window.performance.mark == undefined ||
+        window.performance.clearMarks == undefined ||
+        window.performance.measure == undefined ||
+        window.performance.clearMeasures == undefined ||
+        window.performance.getEntriesByName == undefined ||
+        window.performance.getEntriesByType == undefined ||
+        window.performance.getEntries == undefined) {
+        return false;
+    }
+
+    return true;
+}
 
 //
 // All test() functions in the WebPerf test suite should use wp_test() instead.

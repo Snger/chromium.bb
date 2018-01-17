@@ -9,20 +9,22 @@ import android.app.PendingIntent;
 import android.content.ActivityNotFoundException;
 import android.content.Context;
 import android.content.Intent;
+import android.content.res.ColorStateList;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
 import android.graphics.Color;
 import android.net.Uri;
 import android.os.StrictMode;
 import android.provider.Browser;
+import android.support.annotation.IntDef;
 import android.support.annotation.Nullable;
 import android.support.customtabs.CustomTabsIntent;
 import android.text.TextUtils;
 
 import org.chromium.base.ApiCompatibilityUtils;
 import org.chromium.base.ApplicationStatus;
-import org.chromium.base.ContentUriUtils;
 import org.chromium.base.ContextUtils;
+import org.chromium.base.FileUtils;
 import org.chromium.base.Log;
 import org.chromium.base.VisibleForTesting;
 import org.chromium.base.metrics.RecordHistogram;
@@ -37,7 +39,7 @@ import org.chromium.chrome.browser.download.ui.BackendProvider;
 import org.chromium.chrome.browser.download.ui.BackendProvider.DownloadDelegate;
 import org.chromium.chrome.browser.download.ui.DownloadFilter;
 import org.chromium.chrome.browser.download.ui.DownloadHistoryItemWrapper;
-import org.chromium.chrome.browser.offlinepages.ClientId;
+import org.chromium.chrome.browser.offlinepages.DownloadUiActionFlags;
 import org.chromium.chrome.browser.offlinepages.OfflinePageBridge;
 import org.chromium.chrome.browser.offlinepages.downloads.OfflinePageDownloadBridge;
 import org.chromium.chrome.browser.tab.Tab;
@@ -50,8 +52,12 @@ import org.chromium.ui.base.DeviceFormFactor;
 import org.chromium.ui.widget.Toast;
 
 import java.io.File;
+import java.lang.annotation.Retention;
+import java.lang.annotation.RetentionPolicy;
 import java.text.NumberFormat;
 import java.util.ArrayList;
+import java.util.Calendar;
+import java.util.Date;
 import java.util.List;
 import java.util.Locale;
 
@@ -72,6 +78,7 @@ public class DownloadUtils {
 
     private static final String DEFAULT_MIME_TYPE = "*/*";
     private static final String MIME_TYPE_DELIMITER = "/";
+    private static final String MIME_TYPE_VIDEO = "video";
 
     private static final String EXTRA_IS_OFF_THE_RECORD =
             "org.chromium.chrome.browser.download.IS_OFF_THE_RECORD";
@@ -82,6 +89,16 @@ public class DownloadUtils {
 
     @VisibleForTesting
     static final String ELLIPSIS = "\u2026";
+
+    /**
+     * Possible sizes of type-based icons.
+     */
+    @IntDef({ICON_SIZE_24_DP, ICON_SIZE_36_DP})
+    @Retention(RetentionPolicy.SOURCE)
+    public @interface IconSize {}
+
+    public static final int ICON_SIZE_24_DP = 24;
+    public static final int ICON_SIZE_36_DP = 36;
 
     /**
      * Displays the download manager UI. Note the UI is different on tablets and on phones.
@@ -125,6 +142,8 @@ public class DownloadUtils {
                 appContext.startActivity(intent);
             } else {
                 // Sits on top of another Activity.
+                intent.addFlags(
+                        Intent.FLAG_ACTIVITY_MULTIPLE_TASK | Intent.FLAG_ACTIVITY_SINGLE_TOP);
                 intent.putExtra(IntentHandler.EXTRA_PARENT_COMPONENT, activity.getComponentName());
                 activity.startActivity(intent);
             }
@@ -186,10 +205,9 @@ public class DownloadUtils {
         if (tab.isShowingErrorPage()) {
             // The download needs to be scheduled to happen at later time due to current network
             // error.
-            ClientId clientId = ClientId.createGuidClientIdForNamespace(
-                    OfflinePageBridge.ASYNC_NAMESPACE);
             final OfflinePageBridge bridge = OfflinePageBridge.getForProfile(tab.getProfile());
-            bridge.savePageLater(tab.getUrl(), clientId, true /* userRequested */);
+            bridge.scheduleDownload(tab.getWebContents(), OfflinePageBridge.ASYNC_NAMESPACE,
+                    tab.getUrl(), DownloadUiActionFlags.PROMPT_DUPLICATE);
         } else {
             // Otherwise, the download can be started immediately.
             final OfflinePageDownloadBridge bridge =
@@ -419,6 +437,7 @@ public class DownloadUtils {
         intent.setData(contentUri);
         intent.putExtra(CustomTabIntentDataProvider.EXTRA_IS_MEDIA_VIEWER, true);
         intent.putExtra(CustomTabIntentDataProvider.EXTRA_MEDIA_VIEWER_URL, fileUri.toString());
+        intent.putExtra(CustomTabIntentDataProvider.EXTRA_ENABLE_EMBEDDED_MEDIA_EXPERIENCE, true);
         intent.putExtra(
                 CustomTabIntentDataProvider.EXTRA_INITIAL_BACKGROUND_COLOR, mediaColor);
         intent.putExtra(
@@ -439,22 +458,14 @@ public class DownloadUtils {
     public static Uri getUriForItem(File file) {
         Uri uri = null;
 
-        // #getContentUriFromFile causes a disk read when it calls into FileProvider#getUriForFile.
-        // Obtaining a content URI is on the critical path for creating a share intent after the
-        // user taps on the share button, so even if we were to run this method on a background
-        // thread we would have to wait. As it depends on user-selected items, we cannot
-        // know/preload which URIs we need until the user presses share.
+        // FileUtils.getUriForFile() causes a disk read when it calls into
+        // FileProvider#getUriForFile. Obtaining a content URI is on the critical path for creating
+        // a share intent after the user taps on the share button, so even if we were to run this
+        // method on a background thread we would have to wait. As it depends on user-selected
+        // items, we cannot know/preload which URIs we need until the user presses share.
         StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskReads();
-        try {
-            // Try to obtain a content:// URI, which is preferred to a file:// URI so that
-            // receiving apps don't attempt to determine the file's mime type (which often fails).
-            uri = ContentUriUtils.getContentUriFromFile(ContextUtils.getApplicationContext(), file);
-        } catch (IllegalArgumentException e) {
-            Log.e(TAG, "Could not create content uri: " + e);
-        }
+        uri = FileUtils.getUriForFile(file);
         StrictMode.setThreadPolicy(oldPolicy);
-
-        if (uri == null) uri = Uri.fromFile(file);
 
         return uri;
     }
@@ -463,13 +474,14 @@ public class DownloadUtils {
      * Opens a file in Chrome or in another app if appropriate.
      * @param file path to the file to open.
      * @param mimeType mime type of the file.
+     * @param downloadGuid The associated download GUID.
      * @param isOffTheRecord whether we are in an off the record context.
      * @return whether the file could successfully be opened.
      */
-    public static boolean openFile(File file, String mimeType, boolean isOffTheRecord) {
+    public static boolean openFile(
+            File file, String mimeType, String downloadGuid, boolean isOffTheRecord) {
         Context context = ContextUtils.getApplicationContext();
-        Intent viewIntent = createViewIntentForDownloadItem(getUriForItem(file), mimeType);
-        DownloadManagerService service = DownloadManagerService.getDownloadManagerService(context);
+        DownloadManagerService service = DownloadManagerService.getDownloadManagerService();
 
         // Check if Chrome should open the file itself.
         if (service.isDownloadOpenableInBrowser(isOffTheRecord, mimeType)) {
@@ -482,12 +494,19 @@ public class DownloadUtils {
             Intent intent =
                     getMediaViewerIntentForDownloadItem(fileUri, contentUri, normalizedMimeType);
             IntentHandler.startActivityForTrustedIntent(intent);
+            service.updateLastAccessTime(downloadGuid, isOffTheRecord);
             return true;
         }
 
         // Check if any apps can open the file.
         try {
+            // TODO(qinmin): Move this to an AsyncTask so we don't need to temper with strict mode.
+            StrictMode.ThreadPolicy oldPolicy = StrictMode.allowThreadDiskReads();
+            Uri uri = ApiCompatibilityUtils.getUriForDownloadedFile(file);
+            StrictMode.setThreadPolicy(oldPolicy);
+            Intent viewIntent = createViewIntentForDownloadItem(uri, mimeType);
             context.startActivity(viewIntent);
+            service.updateLastAccessTime(downloadGuid, isOffTheRecord);
             return true;
         } catch (ActivityNotFoundException e) {
             // Can't launch the Intent.
@@ -555,7 +574,8 @@ public class DownloadUtils {
         }
 
         DownloadSharedPreferenceHelper helper = DownloadSharedPreferenceHelper.getInstance();
-        DownloadSharedPreferenceEntry entry = helper.getDownloadSharedPreferenceEntry(item.getId());
+        DownloadSharedPreferenceEntry entry =
+                helper.getDownloadSharedPreferenceEntry(item.getContentId());
         boolean isDownloadPending =
                 entry != null && state == DownloadState.INTERRUPTED && entry.isAutoResumable;
 
@@ -566,13 +586,13 @@ public class DownloadUtils {
         }
 
         if (info.getBytesReceived() == 0
-                || (!item.isIndeterminate() && info.getTimeRemainingInMillis() == 0)) {
+                || (!item.isIndeterminate() && info.getTimeRemainingInMillis() < 0)) {
             // We lack enough information about the download to display a useful string.
             return context.getString(R.string.download_started);
         } else if (item.isIndeterminate()) {
             // Count up the bytes.
             long bytes = info.getBytesReceived();
-            return DownloadUtils.getStringForBytes(context, BYTES_DOWNLOADED_STRINGS, bytes);
+            return DownloadUtils.getStringForDownloadedBytes(context, bytes);
         } else {
             // Count down the time.
             long msRemaining = info.getTimeRemainingInMillis();
@@ -591,7 +611,8 @@ public class DownloadUtils {
      */
     public static boolean isDownloadPaused(DownloadItem item) {
         DownloadSharedPreferenceHelper helper = DownloadSharedPreferenceHelper.getInstance();
-        DownloadSharedPreferenceEntry entry = helper.getDownloadSharedPreferenceEntry(item.getId());
+        DownloadSharedPreferenceEntry entry =
+                helper.getDownloadSharedPreferenceEntry(item.getContentId());
 
         if (entry != null) {
             // The Java downloads backend knows more about the download than the native backend.
@@ -604,6 +625,17 @@ public class DownloadUtils {
                 return item.getDownloadInfo().state() == DownloadState.INTERRUPTED;
             }
         }
+    }
+
+    /**
+     * Format the number of bytes into KB, or MB, or GB and return the corresponding string
+     * resource. Uses default download-related set of strings.
+     * @param context Context to use.
+     * @param bytes Number of bytes.
+     * @return A formatted string to be displayed.
+     */
+    public static String getStringForDownloadedBytes(Context context, long bytes) {
+        return getStringForBytes(context, BYTES_DOWNLOADED_STRINGS, bytes);
     }
 
     /**
@@ -634,10 +666,10 @@ public class DownloadUtils {
 
     /**
      * Abbreviate a file name into a given number of characters with ellipses.
-     * e.g. thisisaverylongfilename.txt => thisisave....txt
-     * @param fileName File name to abbreviate
-     * @param limit Character limit
-     * @return Abbreviated file name
+     * e.g. "thisisaverylongfilename.txt" => "thisisave....txt".
+     * @param fileName File name to abbreviate.
+     * @param limit Character limit.
+     * @return Abbreviated file name.
      */
     public static String getAbbreviatedFileName(String fileName, int limit) {
         assert limit >= 1;  // Abbreviated file name should at least be 1 characters (a...)
@@ -656,5 +688,83 @@ public class DownloadUtils {
         }
         int remainingLength = limit - extensionLength;
         return fileName.substring(0, remainingLength) + ELLIPSIS + fileName.substring(index);
+    }
+
+    /**
+     * Return an icon for a given file type.
+     * @param fileType Type of the file as returned by DownloadFilter.
+     * @param iconSize Size of the returned icon.
+     * @return Resource ID of the corresponding icon.
+     */
+    public static int getIconResId(int fileType, @IconSize int iconSize) {
+        switch (fileType) {
+            case DownloadFilter.FILTER_PAGE:
+                return iconSize == ICON_SIZE_24_DP ? R.drawable.ic_drive_site_white_24dp
+                                                   : R.drawable.ic_drive_site_white_36dp;
+            case DownloadFilter.FILTER_VIDEO:
+                return iconSize == ICON_SIZE_24_DP ? R.drawable.ic_play_arrow_white_24dp
+                                                   : R.drawable.ic_play_arrow_white_36dp;
+            case DownloadFilter.FILTER_AUDIO:
+                return iconSize == ICON_SIZE_24_DP ? R.drawable.ic_music_note_white_24dp
+                                                   : R.drawable.ic_music_note_white_36dp;
+            case DownloadFilter.FILTER_IMAGE:
+                return iconSize == ICON_SIZE_24_DP ? R.drawable.ic_image_white_24dp
+                                                   : R.drawable.ic_image_white_36dp;
+            case DownloadFilter.FILTER_DOCUMENT:
+                return iconSize == ICON_SIZE_24_DP ? R.drawable.ic_drive_text_white_24dp
+                                                   : R.drawable.ic_drive_text_white_36dp;
+            default:
+                return iconSize == ICON_SIZE_24_DP ? R.drawable.ic_drive_file_white_24dp
+                                                   : R.drawable.ic_drive_text_white_36dp;
+        }
+    }
+
+    /**
+     * Return a background color for the file type icon.
+     * @param context Context from which to extract the resources.
+     * @return Background color.
+     */
+    public static int getIconBackgroundColor(Context context) {
+        return ApiCompatibilityUtils.getColor(context.getResources(), R.color.light_active_color);
+    }
+
+    /**
+     * Return a foreground color list for the file type icon.
+     * @param context Context from which to extract the resources.
+     * @return a foreground color list.
+     */
+    public static ColorStateList getIconForegroundColorList(Context context) {
+        return ApiCompatibilityUtils.getColorStateList(
+                context.getResources(), R.color.white_mode_tint);
+    }
+
+    private static boolean isMimeTypeVideo(String mimeType) {
+        if (TextUtils.isEmpty(mimeType)) return false;
+
+        String[] pieces = mimeType.split(MIME_TYPE_DELIMITER);
+        if (pieces.length != 2) return false;
+
+        return MIME_TYPE_VIDEO.equals(pieces[0]);
+    }
+
+    /**
+     * Given two timestamps, calculates if both occur on the same date.
+     * @return True if they belong in the same day. False otherwise.
+     */
+    public static boolean isSameDay(long timestamp1, long timestamp2) {
+        return getDateAtMidnight(timestamp1).equals(getDateAtMidnight(timestamp2));
+    }
+
+    /**
+     * Calculates the {@link Date} for midnight of the date represented by the |timestamp|.
+     */
+    public static Date getDateAtMidnight(long timestamp) {
+        Calendar cal = Calendar.getInstance();
+        cal.setTimeInMillis(timestamp);
+        cal.set(Calendar.HOUR_OF_DAY, 0);
+        cal.set(Calendar.MINUTE, 0);
+        cal.set(Calendar.SECOND, 0);
+        cal.set(Calendar.MILLISECOND, 0);
+        return cal.getTime();
     }
 }

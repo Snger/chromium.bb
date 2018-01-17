@@ -17,7 +17,10 @@ namespace chrome_test_util {
 // error resulting from the execution, if one occurs. The return value is the
 // result of the JavaScript execution. If the request is timed out, then nil is
 // returned.
-id ExecuteJavaScript(NSString* javascript, NSError** out_error);
+// TODO(crbug.com/690057): Remove __unsafe_unretained once all callers are
+// converted to ARC.
+id ExecuteJavaScript(NSString* javascript,
+                     NSError* __unsafe_unretained* out_error);
 
 }  // namespace chrome_test_util
 
@@ -31,6 +34,13 @@ id ExecuteJavaScript(NSString* javascript, NSError** out_error);
 // Clears browsing history.
 + (void)clearBrowsingHistory;
 
+#pragma mark - Cookie Utilities
+
+// Returns cookies as key value pairs, where key is a cookie name and value is a
+// cookie value.
+// NOTE: this method fails the test if there are errors getting cookies.
++ (NSDictionary*)cookies;
+
 #pragma mark - Navigation Utilities
 
 // Loads |URL| in the current WebState with transition of type
@@ -38,12 +48,34 @@ id ExecuteJavaScript(NSString* javascript, NSError** out_error);
 // a timeout.
 + (void)loadURL:(GURL)URL;
 
+// Reloads the page and waits for the loading to complete, or a timeout.
++ (void)reload;
+
+// Navigates back to the previous page and waits for the loading to complete, or
+// a timeout.
++ (void)goBack;
+
+// Navigates forward to the next page and waits for the loading to complete, or
+// a timeout.
++ (void)goForward;
+
 // Waits for the page to finish loading or a timeout.
 + (void)waitForPageToFinishLoading;
 
 // Taps html element with |elementID| in the current web view.
 + (void)tapWebViewElementWithID:(NSString*)elementID;
 
+// Waits for a static html view containing |text|. If the condition is not met
+// before a timeout, there is a GREYAssert.
++ (void)waitForStaticHTMLViewContainingText:(NSString*)text;
+
+// Waits for there to be no static html view, or a static html view that does
+// not contain |text|. If the condition is not met before a timeout, there is a
+// GREYAssert.
++ (void)waitForStaticHTMLViewNotContainingText:(NSString*)text;
+
+// Waits for a Chrome error page. If it is not found, a GREYAssert is induced.
++ (void)waitForErrorPage;
 @end
 
 #endif  // IOS_CHROME_TEST_EARL_GREY_CHROME_EARL_GREY_H_

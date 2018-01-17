@@ -13,16 +13,16 @@
 #include "base/time/default_tick_clock.h"
 #include "components/cryptauth/bluetooth_throttler_impl.h"
 #include "components/cryptauth/connection_finder.h"
+#include "components/cryptauth/device_to_device_authenticator.h"
+#include "components/cryptauth/secure_context.h"
 #include "components/cryptauth/secure_message_delegate.h"
 #include "components/proximity_auth/ble/bluetooth_low_energy_connection.h"
 #include "components/proximity_auth/ble/bluetooth_low_energy_connection_finder.h"
 #include "components/proximity_auth/bluetooth_connection.h"
 #include "components/proximity_auth/bluetooth_connection_finder.h"
-#include "components/proximity_auth/device_to_device_authenticator.h"
 #include "components/proximity_auth/logging/logging.h"
 #include "components/proximity_auth/messenger_impl.h"
 #include "components/proximity_auth/proximity_auth_client.h"
-#include "components/proximity_auth/secure_context.h"
 
 namespace proximity_auth {
 
@@ -48,8 +48,7 @@ RemoteDeviceLifeCycleImpl::RemoteDeviceLifeCycleImpl(
       proximity_auth_client_(proximity_auth_client),
       state_(RemoteDeviceLifeCycle::State::STOPPED),
       observers_(base::ObserverList<Observer>::NOTIFY_EXISTING_ONLY),
-      bluetooth_throttler_(new cryptauth::BluetoothThrottlerImpl(
-          base::WrapUnique(new base::DefaultTickClock()))),
+      bluetooth_throttler_(cryptauth::BluetoothThrottlerImpl::GetInstance()),
       weak_ptr_factory_(this) {}
 
 RemoteDeviceLifeCycleImpl::~RemoteDeviceLifeCycleImpl() {}
@@ -83,11 +82,11 @@ void RemoteDeviceLifeCycleImpl::RemoveObserver(Observer* observer) {
 
 std::unique_ptr<cryptauth::ConnectionFinder>
 RemoteDeviceLifeCycleImpl::CreateConnectionFinder() {
-  if (remote_device_.bluetooth_type == cryptauth::RemoteDevice::BLUETOOTH_LE) {
+  if (remote_device_.bluetooth_address.empty()) {
     return base::MakeUnique<BluetoothLowEnergyConnectionFinder>(
         remote_device_, kBLESmartLockServiceUUID,
         BluetoothLowEnergyConnectionFinder::FinderStrategy::FIND_PAIRED_DEVICE,
-        nullptr, bluetooth_throttler_.get(), 3);
+        nullptr, bluetooth_throttler_, 3);
   } else {
     return base::MakeUnique<BluetoothConnectionFinder>(
         remote_device_, device::BluetoothUUID(kClassicBluetoothServiceUUID),
@@ -95,9 +94,9 @@ RemoteDeviceLifeCycleImpl::CreateConnectionFinder() {
   }
 }
 
-std::unique_ptr<Authenticator>
+std::unique_ptr<cryptauth::Authenticator>
 RemoteDeviceLifeCycleImpl::CreateAuthenticator() {
-  return base::MakeUnique<DeviceToDeviceAuthenticator>(
+  return base::MakeUnique<cryptauth::DeviceToDeviceAuthenticator>(
       connection_.get(), remote_device_.user_id,
       proximity_auth_client_->CreateSecureMessageDelegate());
 }
@@ -132,11 +131,11 @@ void RemoteDeviceLifeCycleImpl::OnConnectionFound(
 }
 
 void RemoteDeviceLifeCycleImpl::OnAuthenticationResult(
-    Authenticator::Result result,
-    std::unique_ptr<SecureContext> secure_context) {
+    cryptauth::Authenticator::Result result,
+    std::unique_ptr<cryptauth::SecureContext> secure_context) {
   DCHECK(state_ == RemoteDeviceLifeCycle::State::AUTHENTICATING);
   authenticator_.reset();
-  if (result != Authenticator::Result::SUCCESS) {
+  if (result != cryptauth::Authenticator::Result::SUCCESS) {
     PA_LOG(WARNING) << "Waiting " << kAuthenticationRecoveryTimeSeconds
                     << " seconds to retry after authentication failure.";
     connection_->Disconnect();

@@ -20,7 +20,7 @@
 namespace net {
 
 class HttpCache;
-class IOBuffer;
+class IOBufferWithSize;
 class QuicServerId;
 
 // DiskCacheBasedQuicServerInfo fetches information about a QUIC server from
@@ -32,6 +32,7 @@ class NET_EXPORT_PRIVATE DiskCacheBasedQuicServerInfo
  public:
   DiskCacheBasedQuicServerInfo(const QuicServerId& server_id,
                                HttpCache* http_cache);
+  ~DiskCacheBasedQuicServerInfo() override;
 
   // QuicServerInfo implementation.
   void Start() override;
@@ -42,6 +43,7 @@ class NET_EXPORT_PRIVATE DiskCacheBasedQuicServerInfo
   bool IsReadyToPersist() override;
   void Persist() override;
   void OnExternalCacheHit() override;
+  size_t EstimateMemoryUsage() const override;
 
  private:
   struct CacheOperationDataShim;
@@ -61,8 +63,6 @@ class NET_EXPORT_PRIVATE DiskCacheBasedQuicServerInfo
     SET_DONE,
     NONE,
   };
-
-  ~DiskCacheBasedQuicServerInfo() override;
 
   // Persists |pending_write_data_| if it is not empty, otherwise serializes the
   // data and pesists it.
@@ -119,8 +119,8 @@ class NET_EXPORT_PRIVATE DiskCacheBasedQuicServerInfo
   disk_cache::Backend* backend_;
   disk_cache::Entry* entry_;
   CompletionCallback wait_for_ready_callback_;
-  scoped_refptr<IOBuffer> read_buffer_;
-  scoped_refptr<IOBuffer> write_buffer_;
+  scoped_refptr<IOBufferWithSize> read_buffer_;
+  scoped_refptr<IOBufferWithSize> write_buffer_;
   std::string data_;
   base::TimeTicks load_start_time_;
   FailureReason last_failure_;

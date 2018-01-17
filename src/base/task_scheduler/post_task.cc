@@ -4,6 +4,9 @@
 
 #include "base/task_scheduler/post_task.h"
 
+#include <utility>
+
+#include "base/logging.h"
 #include "base/task_scheduler/task_scheduler.h"
 #include "base/threading/post_task_and_reply_impl.h"
 
@@ -18,8 +21,8 @@ class PostTaskAndReplyTaskRunner : public internal::PostTaskAndReplyImpl {
 
  private:
   bool PostTask(const tracked_objects::Location& from_here,
-                const Closure& task) override {
-    PostTaskWithTraits(from_here, traits_, task);
+                OnceClosure task) override {
+    PostTaskWithTraits(from_here, traits_, std::move(task));
     return true;
   }
 
@@ -29,57 +32,76 @@ class PostTaskAndReplyTaskRunner : public internal::PostTaskAndReplyImpl {
 
 }  // namespace
 
-void PostTask(const tracked_objects::Location& from_here, const Closure& task) {
-  PostDelayedTask(from_here, task, TimeDelta());
+void PostTask(const tracked_objects::Location& from_here, OnceClosure task) {
+  PostDelayedTask(from_here, std::move(task), TimeDelta());
 }
 
 void PostDelayedTask(const tracked_objects::Location& from_here,
-                     const Closure& task,
+                     OnceClosure task,
                      TimeDelta delay) {
-  PostDelayedTaskWithTraits(from_here, TaskTraits(), task, delay);
+  PostDelayedTaskWithTraits(from_here, TaskTraits(), std::move(task), delay);
 }
 
 void PostTaskAndReply(const tracked_objects::Location& from_here,
-                      const Closure& task,
-                      const Closure& reply) {
-  PostTaskWithTraitsAndReply(from_here, TaskTraits(), task, reply);
+                      OnceClosure task,
+                      OnceClosure reply) {
+  PostTaskWithTraitsAndReply(from_here, TaskTraits(), std::move(task),
+                             std::move(reply));
 }
 
 void PostTaskWithTraits(const tracked_objects::Location& from_here,
                         const TaskTraits& traits,
-                        const Closure& task) {
-  PostDelayedTaskWithTraits(from_here, traits, task, TimeDelta());
+                        OnceClosure task) {
+  PostDelayedTaskWithTraits(from_here, traits, std::move(task), TimeDelta());
 }
 
 void PostDelayedTaskWithTraits(const tracked_objects::Location& from_here,
                                const TaskTraits& traits,
-                               const Closure& task,
+                               OnceClosure task,
                                TimeDelta delay) {
-  TaskScheduler::GetInstance()->PostDelayedTaskWithTraits(from_here, traits,
-                                                          task, delay);
+  DCHECK(TaskScheduler::GetInstance())
+      << "Ref. Prerequisite section of post_task.h";
+  TaskScheduler::GetInstance()->PostDelayedTaskWithTraits(
+      from_here, traits, std::move(task), std::move(delay));
 }
 
 void PostTaskWithTraitsAndReply(const tracked_objects::Location& from_here,
                                 const TaskTraits& traits,
-                                const Closure& task,
-                                const Closure& reply) {
-  PostTaskAndReplyTaskRunner(traits).PostTaskAndReply(from_here, task, reply);
+                                OnceClosure task,
+                                OnceClosure reply) {
+  PostTaskAndReplyTaskRunner(traits).PostTaskAndReply(
+      from_here, std::move(task), std::move(reply));
 }
 
 scoped_refptr<TaskRunner> CreateTaskRunnerWithTraits(const TaskTraits& traits) {
+  DCHECK(TaskScheduler::GetInstance())
+      << "Ref. Prerequisite section of post_task.h";
   return TaskScheduler::GetInstance()->CreateTaskRunnerWithTraits(traits);
 }
 
 scoped_refptr<SequencedTaskRunner> CreateSequencedTaskRunnerWithTraits(
     const TaskTraits& traits) {
+  DCHECK(TaskScheduler::GetInstance())
+      << "Ref. Prerequisite section of post_task.h";
   return TaskScheduler::GetInstance()->CreateSequencedTaskRunnerWithTraits(
       traits);
 }
 
 scoped_refptr<SingleThreadTaskRunner> CreateSingleThreadTaskRunnerWithTraits(
     const TaskTraits& traits) {
+  DCHECK(TaskScheduler::GetInstance())
+      << "Ref. Prerequisite section of post_task.h";
   return TaskScheduler::GetInstance()->CreateSingleThreadTaskRunnerWithTraits(
       traits);
 }
+
+#if defined(OS_WIN)
+scoped_refptr<SingleThreadTaskRunner> CreateCOMSTATaskRunnerWithTraits(
+    const TaskTraits& traits) {
+  DCHECK(TaskScheduler::GetInstance())
+      << "Ref. Prerequisite section of post_task.h";
+  return TaskScheduler::GetInstance()->CreateCOMSTATaskRunnerWithTraits(traits);
+}
+#endif  // defined(OS_WIN)
 
 }  // namespace base

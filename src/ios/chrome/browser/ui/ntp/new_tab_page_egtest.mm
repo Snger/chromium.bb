@@ -16,9 +16,12 @@
 #import "ios/chrome/test/earl_grey/accessibility_util.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
-#import "ios/testing/earl_grey/disabled_test_macros.h"
 #import "ios/testing/wait_util.h"
 #include "ui/base/l10n/l10n_util.h"
+
+#if !defined(__has_feature) || !__has_feature(objc_arc)
+#error "This file requires ARC support."
+#endif
 
 @implementation NewTabPageController (ExposedForTesting)
 - (GoogleLandingController*)googleLandingController {
@@ -73,8 +76,8 @@ void SelectNewTabPagePanel(NewTabPage::PanelIdentifier panel_type) {
       tag = IDC_SHOW_OTHER_DEVICES;
     }
     if (tag) {
-      base::scoped_nsobject<GenericChromeCommand> command(
-          [[GenericChromeCommand alloc] initWithTag:tag]);
+      GenericChromeCommand* command =
+          [[GenericChromeCommand alloc] initWithTag:tag];
       chrome_test_util::RunCommandWithActiveViewController(command);
     }
   }
@@ -110,14 +113,12 @@ void AssertNTPScrolledToTop(bool scrolledToTop) {
 // Tests that all items are accessible on the most visited page.
 - (void)testAccessibilityOnMostVisited {
   SelectNewTabPagePanel(NewTabPage::kMostVisitedPanel);
-  // TODO(crbug.com/640179): Implement and call
   chrome_test_util::VerifyAccessibilityForCurrentScreen();
 }
 
 // Tests that all items are accessible on the open tabs page.
 - (void)testAccessibilityOnOpenTabs {
   SelectNewTabPagePanel(NewTabPage::kOpenTabsPanel);
-  // TODO(crbug.com/640179): Implement and call
   chrome_test_util::VerifyAccessibilityForCurrentScreen();
   DismissNewTabPagePanel();
 }
@@ -125,7 +126,6 @@ void AssertNTPScrolledToTop(bool scrolledToTop) {
 // Tests that all items are accessible on the bookmarks page.
 - (void)testAccessibilityOnBookmarks {
   SelectNewTabPagePanel(NewTabPage::kBookmarksPanel);
-  // TODO(crbug.com/640179): Implement and call
   chrome_test_util::VerifyAccessibilityForCurrentScreen();
   DismissNewTabPagePanel();
 }
@@ -135,7 +135,6 @@ void AssertNTPScrolledToTop(bool scrolledToTop) {
   chrome_test_util::OpenNewIncognitoTab();
   SelectNewTabPagePanel(NewTabPage::kIncognitoPanel);
   WaitForHistoryToDisappear();
-  // TODO(crbug.com/640179): Implement and call
   chrome_test_util::VerifyAccessibilityForCurrentScreen();
   chrome_test_util::CloseAllIncognitoTabs();
 }
@@ -288,12 +287,10 @@ void AssertNTPScrolledToTop(bool scrolledToTop) {
     EARL_GREY_TEST_SKIPPED(@"Skipped for iPad (no hidden toolbar in tablet)");
   }
 
-  NSString* tabSwitcherLabel =
-      l10n_util::GetNSString(IDS_IOS_TOOLBAR_SHOW_TABS);
   NSString* toolsMenuLabel = l10n_util::GetNSString(IDS_IOS_TOOLBAR_SETTINGS);
 
   // Check that the toolbar's tab switcher and tools menu buttons are visible.
-  [[EarlGrey selectElementWithMatcher:grey_accessibilityLabel(tabSwitcherLabel)]
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::ShowTabsButton()]
       assertWithMatcher:grey_sufficientlyVisible()];
   [[EarlGrey selectElementWithMatcher:grey_accessibilityLabel(toolsMenuLabel)]
       assertWithMatcher:grey_sufficientlyVisible()];
@@ -306,7 +303,7 @@ void AssertNTPScrolledToTop(bool scrolledToTop) {
   AssertNTPScrolledToTop(YES);
 
   // Check that tab switcher and tools menu buttons are not on screen.
-  [[EarlGrey selectElementWithMatcher:grey_accessibilityLabel(tabSwitcherLabel)]
+  [[EarlGrey selectElementWithMatcher:chrome_test_util::ShowTabsButton()]
       assertWithMatcher:grey_notVisible()];
   [[EarlGrey selectElementWithMatcher:grey_accessibilityLabel(toolsMenuLabel)]
       assertWithMatcher:grey_notVisible()];

@@ -11,6 +11,7 @@
 #include "base/logging.h"
 #include "base/macros.h"
 #include "base/run_loop.h"
+#include "base/test/scoped_task_environment.h"
 #include "media/base/cdm_callback_promise.h"
 #include "media/base/cdm_key_information.h"
 #include "media/base/content_decryption_module.h"
@@ -18,6 +19,7 @@
 #include "media/cdm/cdm_file_io.h"
 #include "media/cdm/external_clear_key_test_helper.h"
 #include "media/cdm/simple_cdm_allocator.h"
+#include "media/media_features.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -27,6 +29,10 @@ using ::testing::StrictMock;
 
 MATCHER(IsNotEmpty, "") {
   return !arg.empty();
+}
+
+MATCHER(IsNullTime, "") {
+  return arg.is_null();
 }
 
 // TODO(jrummell): These tests are a subset of those in aes_decryptor_unittest.
@@ -150,6 +156,11 @@ class CdmAdapterTest : public testing::Test {
       EXPECT_CALL(cdm_client_, OnSessionKeysChangeCalled(_, _)).Times(0);
     }
 
+    // ClearKeyCdm always call OnSessionExpirationUpdate() for testing purpose.
+    EXPECT_CALL(cdm_client_,
+                OnSessionExpirationUpdate(session_id, IsNullTime()))
+        .Times(1);
+
     adapter_->UpdateSession(session_id,
                             std::vector<uint8_t>(key.begin(), key.end()),
                             CreatePromise(expected_result));
@@ -233,7 +244,7 @@ class CdmAdapterTest : public testing::Test {
   // |session_id_| is the latest result of calling CreateSession().
   std::string session_id_;
 
-  base::MessageLoop message_loop_;
+  base::test::ScopedTaskEnvironment scoped_task_environment_;
 
   DISALLOW_COPY_AND_ASSIGN(CdmAdapterTest);
 };
@@ -268,7 +279,7 @@ TEST_F(CdmAdapterTest, CreateCencSession) {
 
   std::vector<uint8_t> key_id(kKeyIdAsPssh,
                               kKeyIdAsPssh + arraysize(kKeyIdAsPssh));
-#if defined(USE_PROPRIETARY_CODECS)
+#if BUILDFLAG(USE_PROPRIETARY_CODECS)
   CreateSessionAndExpect(EmeInitDataType::CENC, key_id, SUCCESS);
 #else
   CreateSessionAndExpect(EmeInitDataType::CENC, key_id, FAILURE);

@@ -30,14 +30,13 @@
 #include "components/dom_distiller/core/url_constants.h"
 #include "components/dom_distiller/core/url_utils.h"
 #include "components/dom_distiller/core/viewer.h"
+#include "components/strings/grit/components_strings.h"
 #include "content/public/browser/navigation_details.h"
 #include "content/public/browser/navigation_entry.h"
 #include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
-#include "content/public/browser/render_view_host.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/browser/web_contents_observer.h"
-#include "grit/components_strings.h"
 #include "mojo/public/cpp/bindings/strong_binding.h"
 #include "net/base/url_util.h"
 #include "net/url_request/url_request.h"
@@ -137,16 +136,14 @@ void DomDistillerViewerSource::RequestViewerHandle::DidFinishNavigation(
 
   const GURL& navigation = navigation_handle->GetURL();
   bool expected_main_view_request =
-      navigation.SchemeIs(expected_scheme_.c_str()) &&
+      navigation.SchemeIs(expected_scheme_) &&
       expected_request_path_ == navigation.query();
-  if (navigation_handle->IsSamePage() || expected_main_view_request) {
+  if (navigation_handle->IsSameDocument() || expected_main_view_request) {
     // In-page navigations, as well as the main view request can be ignored.
     if (expected_main_view_request) {
       content::RenderFrameHost* render_frame_host =
           navigation_handle->GetRenderFrameHost();
-      content::RenderViewHost* render_view_host =
-          render_frame_host->GetRenderViewHost();
-      CHECK_EQ(0, render_view_host->GetEnabledBindings());
+      CHECK_EQ(0, render_frame_host->GetEnabledBindings());
 
       // Add mojo service for JavaScript functionality. This is the receiving
       // end of this particular service.
@@ -294,7 +291,7 @@ std::string DomDistillerViewerSource::GetMimeType(
 
 bool DomDistillerViewerSource::ShouldServiceRequest(
     const net::URLRequest* request) const {
-  return request->url().SchemeIs(scheme_.c_str());
+  return request->url().SchemeIs(scheme_);
 }
 
 // TODO(nyquist): Start tracking requests using this method.

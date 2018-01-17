@@ -16,7 +16,6 @@
 #include "base/trace_event/trace_event.h"
 #include "ui/gl/gl_bindings.h"
 #include "ui/gl/gl_context.h"
-#include "ui/gl/scoped_api.h"
 #include "ui/gl/scoped_binders.h"
 #include "ui/gl/yuv_to_rgb_converter.h"
 
@@ -51,6 +50,7 @@ bool ValidFormat(gfx::BufferFormat format) {
     case gfx::BufferFormat::BGRA_8888:
     case gfx::BufferFormat::BGRX_8888:
     case gfx::BufferFormat::RGBA_8888:
+    case gfx::BufferFormat::RGBA_F16:
     case gfx::BufferFormat::UYVY_422:
     case gfx::BufferFormat::YUV_420_BIPLANAR:
       return true;
@@ -80,6 +80,7 @@ GLenum TextureFormat(gfx::BufferFormat format) {
     case gfx::BufferFormat::BGRA_8888:
     case gfx::BufferFormat::BGRX_8888:
     case gfx::BufferFormat::RGBA_8888:
+    case gfx::BufferFormat::RGBA_F16:
       return GL_RGBA;
     case gfx::BufferFormat::UYVY_422:
       return GL_RGB;
@@ -112,6 +113,8 @@ GLenum DataFormat(gfx::BufferFormat format) {
     case gfx::BufferFormat::BGRX_8888:
     case gfx::BufferFormat::RGBA_8888:
       return GL_BGRA;
+    case gfx::BufferFormat::RGBA_F16:
+      return GL_RGBA;
     case gfx::BufferFormat::UYVY_422:
       return GL_YCBCR_422_APPLE;
     case gfx::BufferFormat::ATC:
@@ -141,6 +144,8 @@ GLenum DataType(gfx::BufferFormat format) {
     case gfx::BufferFormat::BGRX_8888:
     case gfx::BufferFormat::RGBA_8888:
       return GL_UNSIGNED_INT_8_8_8_8_REV;
+    case gfx::BufferFormat::RGBA_F16:
+      return GL_HALF_APPLE;
     case gfx::BufferFormat::UYVY_422:
       return GL_UNSIGNED_SHORT_8_8_APPLE;
       break;
@@ -280,8 +285,6 @@ bool GLImageIOSurface::CopyTexImage(unsigned target) {
   YUVToRGBConverter* yuv_to_rgb_converter = gl_context->GetYUVToRGBConverter();
   DCHECK(yuv_to_rgb_converter);
 
-  ScopedSetGLToRealGLApi scoped_set_gl_api;
-
   // Note that state restoration is done explicitly instead of scoped binders to
   // avoid https://crbug.com/601729.
   GLint rgb_texture = 0;
@@ -363,6 +366,14 @@ void GLImageIOSurface::OnMemoryDump(base::trace_event::ProcessMemoryDump* pmd,
   dump->AddScalar(base::trace_event::MemoryAllocatorDump::kNameSize,
                   base::trace_event::MemoryAllocatorDump::kUnitsBytes,
                   static_cast<uint64_t>(size_bytes));
+
+  // The process tracing id is to identify the GpuMemoryBuffer client that
+  // created the allocation. For CVPixelBufferRefs, there is no corresponding
+  // GpuMemoryBuffer, so use an invalid process id.
+  if (cv_pixel_buffer_) {
+    process_tracing_id =
+        base::trace_event::MemoryDumpManager::kInvalidTracingProcessId;
+  }
 
   auto guid =
       GetGenericSharedMemoryGUIDForTracing(process_tracing_id, io_surface_id_);

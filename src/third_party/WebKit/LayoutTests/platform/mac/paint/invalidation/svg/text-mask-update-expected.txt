@@ -7,17 +7,7 @@
       "drawsContent": true,
       "paintInvalidations": [
         {
-          "object": "LayoutSVGInlineText #text",
-          "rect": [10, 2, 46, 23],
-          "reason": "layoutObject insertion"
-        },
-        {
           "object": "LayoutSVGRect rect",
-          "rect": [10, 2, 46, 23],
-          "reason": "style change"
-        },
-        {
-          "object": "LayoutSVGText text id='text1'",
           "rect": [10, 2, 46, 23],
           "reason": "style change"
         },
@@ -25,11 +15,6 @@
           "object": "LayoutSVGInlineText #text",
           "rect": [10, 32, 43, 23],
           "reason": "layoutObject removal"
-        },
-        {
-          "object": "LayoutSVGText text id='text2'",
-          "rect": [10, 32, 43, 23],
-          "reason": "full"
         },
         {
           "object": "LayoutSVGRect rect",

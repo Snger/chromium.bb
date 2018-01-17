@@ -13,6 +13,7 @@
 #include "headless/public/devtools/domains/security.h"
 #include "headless/public/headless_browser.h"
 #include "headless/public/headless_devtools_client.h"
+#include "headless/public/headless_tab_socket.h"
 #include "headless/public/headless_web_contents.h"
 #include "headless/test/headless_browser_test.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -61,6 +62,44 @@ IN_PROC_BROWSER_TEST_F(HeadlessWebContentsTest, WindowOpen) {
             browser_context->GetAllWebContents().size());
 }
 
+IN_PROC_BROWSER_TEST_F(HeadlessWebContentsTest, Focus) {
+  EXPECT_TRUE(embedded_test_server()->Start());
+
+  HeadlessBrowserContext* browser_context =
+      browser()->CreateBrowserContextBuilder().Build();
+
+  HeadlessWebContents* web_contents =
+      browser_context->CreateWebContentsBuilder()
+          .SetInitialURL(embedded_test_server()->GetURL("/hello.html"))
+          .Build();
+  EXPECT_TRUE(WaitForLoad(web_contents));
+
+  bool result;
+  EXPECT_TRUE(EvaluateScript(web_contents, "document.hasFocus()")
+                  ->GetResult()
+                  ->GetValue()
+                  ->GetAsBoolean(&result));
+  EXPECT_TRUE(result);
+
+  HeadlessWebContents* web_contents2 =
+      browser_context->CreateWebContentsBuilder()
+          .SetInitialURL(embedded_test_server()->GetURL("/hello.html"))
+          .Build();
+  EXPECT_TRUE(WaitForLoad(web_contents2));
+
+  // Focus of different WebContents is independent.
+  EXPECT_TRUE(EvaluateScript(web_contents, "document.hasFocus()")
+                  ->GetResult()
+                  ->GetValue()
+                  ->GetAsBoolean(&result));
+  EXPECT_TRUE(result);
+  EXPECT_TRUE(EvaluateScript(web_contents2, "document.hasFocus()")
+                  ->GetResult()
+                  ->GetValue()
+                  ->GetAsBoolean(&result));
+  EXPECT_TRUE(result);
+}
+
 namespace {
 bool DecodePNG(std::string base64_data, SkBitmap* bitmap) {
   std::string png_data;
@@ -97,7 +136,7 @@ class HeadlessWebContentsScreenshotTest
 
   void OnPageSetupCompleted(std::unique_ptr<runtime::EvaluateResult> result) {
     devtools_client_->GetPage()->GetExperimental()->CaptureScreenshot(
-        page::CaptureScreenshotParams::Builder().Build(),
+        page::CaptureScreenshotParams::Builder().SetFromSurface(true).Build(),
         base::Bind(&HeadlessWebContentsScreenshotTest::OnScreenshotCaptured,
                    base::Unretained(this)));
   }
@@ -147,5 +186,35 @@ class HeadlessWebContentsSecurityTest
 };
 
 HEADLESS_ASYNC_DEVTOOLED_TEST_F(HeadlessWebContentsSecurityTest);
+
+class HeadlessTabSocketTest : public HeadlessAsyncDevTooledBrowserTest,
+                              public HeadlessTabSocket::Listener {
+ public:
+  void RunDevTooledTest() override {
+    devtools_client_->GetRuntime()->Evaluate(
+        R"(window.TabSocket.onmessage =
+            function(event) {
+              window.TabSocket.send(
+                  'Embedder sent us: ' + event.detail.message);
+            };
+          )");
+
+    HeadlessTabSocket* headless_tab_socket =
+        web_contents_->GetHeadlessTabSocket();
+    DCHECK(headless_tab_socket);
+
+    headless_tab_socket->SendMessageToTab("Hello");
+    headless_tab_socket->SetListener(this);
+  }
+
+  void OnMessageFromTab(const std::string& message) override {
+    EXPECT_EQ("Embedder sent us: Hello", message);
+    FinishAsynchronousTest();
+  }
+
+  bool GetCreateTabSocket() override { return true; }
+};
+
+HEADLESS_ASYNC_DEVTOOLED_TEST_F(HeadlessTabSocketTest);
 
 }  // namespace headless

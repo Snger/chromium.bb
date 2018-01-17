@@ -8,11 +8,21 @@
 #ifndef GrTypesPriv_DEFINED
 #define GrTypesPriv_DEFINED
 
+#include <chrono>
 #include "GrTypes.h"
 #include "SkRefCnt.h"
 
+// The old libstdc++ uses the draft name "monotonic_clock" rather than "steady_clock". This might
+// not actually be monotonic, depending on how libstdc++ was built. However, this is only currently
+// used for idle resource purging so it shouldn't cause a correctness problem.
+#if defined(__GLIBCXX__) && (__GLIBCXX__ < 20130000)
+using GrStdSteadyClock = std::chrono::monotonic_clock;
+#else
+using GrStdSteadyClock = std::chrono::steady_clock;
+#endif
+
 /** This enum indicates the type of antialiasing to be performed. */
-enum class GrAAType {
+enum class GrAAType : unsigned {
     /** No antialiasing */
     kNone,
     /** Use fragment shader code to compute a fractional pixel coverage. */
@@ -54,6 +64,9 @@ enum GrSLType {
     kVec2f_GrSLType,
     kVec3f_GrSLType,
     kVec4f_GrSLType,
+    kVec2i_GrSLType,
+    kVec3i_GrSLType,
+    kVec4i_GrSLType,
     kMat22f_GrSLType,
     kMat33f_GrSLType,
     kMat44f_GrSLType,
@@ -103,11 +116,14 @@ enum GrSLPrecision {
     kMedium_GrSLPrecision,
     kHigh_GrSLPrecision,
 
-    // Default precision is medium. This is because on OpenGL ES 2 highp support is not
-    // guaranteed. On (non-ES) OpenGL the specifiers have no effect on precision.
-    kDefault_GrSLPrecision = kMedium_GrSLPrecision,
+    // Default precision is a special tag that means "whatever the default for the program/type
+    // combination is". In other words, it maps to the empty string in shader code. There are some
+    // scenarios where kDefault is not allowed (as the default precision for a program, or for
+    // varyings, for example).
+    kDefault_GrSLPrecision,
 
-    kLast_GrSLPrecision = kHigh_GrSLPrecision
+    // We only consider the "real" precisions here
+    kLast_GrSLPrecision = kHigh_GrSLPrecision,
 };
 
 static const int kGrSLPrecisionCount = kLast_GrSLPrecision + 1;
@@ -133,6 +149,9 @@ static inline bool GrSLTypeIsFloatType(GrSLType type) {
         case kBool_GrSLType:
         case kInt_GrSLType:
         case kUint_GrSLType:
+        case kVec2i_GrSLType:
+        case kVec3i_GrSLType:
+        case kVec4i_GrSLType:
         case kTexture2D_GrSLType:
         case kSampler_GrSLType:
         case kImageStorage2D_GrSLType:
@@ -156,6 +175,9 @@ static inline bool GrSLTypeIs2DCombinedSamplerType(GrSLType type) {
         case kVec2f_GrSLType:
         case kVec3f_GrSLType:
         case kVec4f_GrSLType:
+        case kVec2i_GrSLType:
+        case kVec3i_GrSLType:
+        case kVec4i_GrSLType:
         case kMat22f_GrSLType:
         case kMat33f_GrSLType:
         case kMat44f_GrSLType:
@@ -187,6 +209,9 @@ static inline bool GrSLTypeIsCombinedSamplerType(GrSLType type) {
         case kVec2f_GrSLType:
         case kVec3f_GrSLType:
         case kVec4f_GrSLType:
+        case kVec2i_GrSLType:
+        case kVec3i_GrSLType:
+        case kVec4i_GrSLType:
         case kMat22f_GrSLType:
         case kMat33f_GrSLType:
         case kMat44f_GrSLType:
@@ -214,6 +239,9 @@ static inline bool GrSLTypeIsImageStorage(GrSLType type) {
         case kVec2f_GrSLType:
         case kVec3f_GrSLType:
         case kVec4f_GrSLType:
+        case kVec2i_GrSLType:
+        case kVec3i_GrSLType:
+        case kVec4i_GrSLType:
         case kMat22f_GrSLType:
         case kMat33f_GrSLType:
         case kMat44f_GrSLType:
@@ -241,6 +269,9 @@ static inline bool GrSLTypeAcceptsPrecision(GrSLType type) {
         case kVec2f_GrSLType:
         case kVec3f_GrSLType:
         case kVec4f_GrSLType:
+        case kVec2i_GrSLType:
+        case kVec3i_GrSLType:
+        case kVec4i_GrSLType:
         case kMat22f_GrSLType:
         case kMat33f_GrSLType:
         case kMat44f_GrSLType:
@@ -274,6 +305,10 @@ enum GrVertexAttribType {
     kVec3f_GrVertexAttribType,
     kVec4f_GrVertexAttribType,
 
+    kVec2i_GrVertexAttribType,   // vector of 2 32-bit ints
+    kVec3i_GrVertexAttribType,   // vector of 3 32-bit ints
+    kVec4i_GrVertexAttribType,   // vector of 4 32-bit ints
+
     kUByte_GrVertexAttribType,   // unsigned byte, e.g. coverage
     kVec4ub_GrVertexAttribType,  // vector of 4 unsigned bytes, e.g. colors
 
@@ -300,6 +335,12 @@ static inline size_t GrVertexAttribTypeSize(GrVertexAttribType type) {
             return 3*sizeof(float);
         case kVec4f_GrVertexAttribType:
             return 4*sizeof(float);
+        case kVec2i_GrVertexAttribType:
+            return 2*sizeof(int32_t);
+        case kVec3i_GrVertexAttribType:
+            return 3*sizeof(int32_t);
+        case kVec4i_GrVertexAttribType:
+            return 4*sizeof(int32_t);
         case kUByte_GrVertexAttribType:
             return 1*sizeof(char);
         case kVec4ub_GrVertexAttribType:
@@ -328,6 +369,12 @@ static inline bool GrVertexAttribTypeIsIntType(GrVertexAttribType type) {
             return false;
         case kVec4f_GrVertexAttribType:
             return false;
+        case kVec2i_GrVertexAttribType:
+            return true;
+        case kVec3i_GrVertexAttribType:
+            return true;
+        case kVec4i_GrVertexAttribType:
+            return true;
         case kUByte_GrVertexAttribType:
             return false;
         case kVec4ub_GrVertexAttribType:
@@ -359,6 +406,12 @@ static inline GrSLType GrVertexAttribTypeToSLType(GrVertexAttribType type) {
         case kVec4ub_GrVertexAttribType:
         case kVec4f_GrVertexAttribType:
             return kVec4f_GrSLType;
+        case kVec2i_GrVertexAttribType:
+            return kVec2i_GrSLType;
+        case kVec3i_GrVertexAttribType:
+            return kVec3i_GrSLType;
+        case kVec4i_GrVertexAttribType:
+            return kVec4i_GrSLType;
         case kInt_GrVertexAttribType:
             return kInt_GrSLType;
         case kUint_GrVertexAttribType:
@@ -501,7 +554,7 @@ enum GrAccessPattern {
 #ifdef SK_DEBUG
 // Takes a pointer to a GrCaps, and will suppress prints if required
 #define GrCapsDebugf(caps, ...)         \
-    if (!caps->suppressPrints()) {      \
+    if (!(caps)->suppressPrints()) {    \
         SkDebugf(__VA_ARGS__);          \
     }
 #else
@@ -526,6 +579,6 @@ template <typename T> T * const * sk_sp_address_as_pointer_address(sk_sp<T> cons
 /*
  * Object for CPU-GPU synchronization
  */
-typedef intptr_t GrFence;
+typedef uint64_t GrFence;
 
 #endif

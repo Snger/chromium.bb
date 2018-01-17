@@ -24,12 +24,6 @@ CCodec_ModuleMgr::CCodec_ModuleMgr()
       m_pJpxModule(new CCodec_JpxModule),
       m_pJbig2Module(new CCodec_Jbig2Module),
       m_pIccModule(new CCodec_IccModule),
-#ifdef PDF_ENABLE_XFA
-      m_pPngModule(new CCodec_PngModule),
-      m_pGifModule(new CCodec_GifModule),
-      m_pBmpModule(new CCodec_BmpModule),
-      m_pTiffModule(new CCodec_TiffModule),
-#endif  // PDF_ENABLE_XFA
       m_pFlateModule(new CCodec_FlateModule) {
 }
 
@@ -229,7 +223,7 @@ bool CCodec_BasicModule::A85Encode(const uint8_t* src_buf,
     uint32_t val = 0;
     int count = 0;
     while (pos < src_size) {
-      val += (uint32_t)(src_buf[pos] << (8 * (3 - pos)));
+      val += (uint32_t)(src_buf[pos]) << (8 * (3 - count));
       count++;
       pos++;
     }
@@ -260,7 +254,7 @@ CFX_DIBAttribute::CFX_DIBAttribute()
       m_pGifLocalPalette(nullptr),
       m_nGifLocalPalNum(0),
       m_nBmpCompressType(0) {
-  FXSYS_memset(m_strTime, 0, sizeof(m_strTime));
+  memset(m_strTime, 0, sizeof(m_strTime));
 }
 CFX_DIBAttribute::~CFX_DIBAttribute() {
   for (const auto& pair : m_Exif)
@@ -367,7 +361,7 @@ bool CCodec_RLScanlineDecoder::Create(const uint8_t* src_buf,
   return CheckDestSize();
 }
 bool CCodec_RLScanlineDecoder::v_Rewind() {
-  FXSYS_memset(m_pScanline, 0, m_Pitch);
+  memset(m_pScanline, 0, m_Pitch);
   m_SrcOffset = 0;
   m_bEOD = false;
   m_Operator = 0;
@@ -381,7 +375,7 @@ uint8_t* CCodec_RLScanlineDecoder::v_GetNextLine() {
       return nullptr;
     }
   }
-  FXSYS_memset(m_pScanline, 0, m_Pitch);
+  memset(m_pScanline, 0, m_Pitch);
   uint32_t col_pos = 0;
   bool eol = false;
   while (m_SrcOffset < m_SrcSize && !eol) {
@@ -395,7 +389,7 @@ uint8_t* CCodec_RLScanlineDecoder::v_GetNextLine() {
         copy_len = m_SrcSize - m_SrcOffset;
         m_bEOD = true;
       }
-      FXSYS_memcpy(m_pScanline + col_pos, m_pSrcBuf + m_SrcOffset, copy_len);
+      memcpy(m_pScanline + col_pos, m_pSrcBuf + m_SrcOffset, copy_len);
       col_pos += copy_len;
       UpdateOperator((uint8_t)copy_len);
     } else if (m_Operator > 128) {
@@ -408,7 +402,7 @@ uint8_t* CCodec_RLScanlineDecoder::v_GetNextLine() {
         duplicate_len = m_dwLineBytes - col_pos;
         eol = true;
       }
-      FXSYS_memset(m_pScanline + col_pos, fill, duplicate_len);
+      memset(m_pScanline + col_pos, fill, duplicate_len);
       col_pos += duplicate_len;
       UpdateOperator((uint8_t)duplicate_len);
     } else {

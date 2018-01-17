@@ -6,6 +6,7 @@
 
 #include "xfa/fxfa/app/xfa_ffchoicelist.h"
 
+#include <algorithm>
 #include <vector>
 
 #include "third_party/base/ptr_util.h"
@@ -20,14 +21,13 @@
 #include "xfa/fxfa/app/xfa_fffield.h"
 #include "xfa/fxfa/app/xfa_fwladapter.h"
 #include "xfa/fxfa/cxfa_eventparam.h"
-#include "xfa/fxfa/xfa_ffdoc.h"
-#include "xfa/fxfa/xfa_ffdocview.h"
-#include "xfa/fxfa/xfa_ffpageview.h"
-#include "xfa/fxfa/xfa_ffwidget.h"
+#include "xfa/fxfa/cxfa_ffdoc.h"
+#include "xfa/fxfa/cxfa_ffdocview.h"
+#include "xfa/fxfa/cxfa_ffpageview.h"
+#include "xfa/fxfa/cxfa_ffwidget.h"
 
-CXFA_FFListBox::CXFA_FFListBox(CXFA_FFPageView* pPageView,
-                               CXFA_WidgetAcc* pDataAcc)
-    : CXFA_FFField(pPageView, pDataAcc), m_pOldDelegate(nullptr) {}
+CXFA_FFListBox::CXFA_FFListBox(CXFA_WidgetAcc* pDataAcc)
+    : CXFA_FFField(pDataAcc), m_pOldDelegate(nullptr) {}
 
 CXFA_FFListBox::~CXFA_FFListBox() {
   if (m_pNormalWidget) {
@@ -53,25 +53,18 @@ bool CXFA_FFListBox::LoadWidget() {
   m_pNormalWidget->SetDelegate(this);
   m_pNormalWidget->LockUpdate();
 
-  std::vector<CFX_WideString> wsLabelArray;
-  m_pDataAcc->GetChoiceListItems(wsLabelArray, false);
-  int32_t iItems = pdfium::CollectionSize<int32_t>(wsLabelArray);
-  for (int32_t i = 0; i < iItems; i++) {
-    pListBox->AddString(wsLabelArray[i].AsStringC());
-  }
+  for (const auto& label : m_pDataAcc->GetChoiceListItems(false))
+    pListBox->AddString(label.AsStringC());
+
   uint32_t dwExtendedStyle = FWL_STYLEEXT_LTB_ShowScrollBarFocus;
-  if (m_pDataAcc->GetChoiceListOpen() == XFA_ATTRIBUTEENUM_MultiSelect) {
+  if (m_pDataAcc->GetChoiceListOpen() == XFA_ATTRIBUTEENUM_MultiSelect)
     dwExtendedStyle |= FWL_STYLEEXT_LTB_MultiSelection;
-  }
+
   dwExtendedStyle |= GetAlignment();
   m_pNormalWidget->ModifyStylesEx(dwExtendedStyle, 0xFFFFFFFF);
-  CFX_Int32Array iSelArray;
-  m_pDataAcc->GetSelectedItems(iSelArray);
-  int32_t iSelCount = iSelArray.GetSize();
-  for (int32_t j = 0; j < iSelCount; j++) {
-    CFWL_ListItem* item = pListBox->GetItem(nullptr, iSelArray[j]);
-    pListBox->SetSelItem(item, true);
-  }
+  for (int32_t selected : m_pDataAcc->GetSelectedItems())
+    pListBox->SetSelItem(pListBox->GetItem(nullptr, selected), true);
+
   m_pNormalWidget->UnlockUpdate();
   return CXFA_FFField::LoadWidget();
 }
@@ -85,19 +78,18 @@ bool CXFA_FFListBox::OnKillFocus(CXFA_FFWidget* pNewFocus) {
 
 bool CXFA_FFListBox::CommitData() {
   CFWL_ListBox* pListBox = static_cast<CFWL_ListBox*>(m_pNormalWidget);
+  std::vector<int32_t> iSelArray;
   int32_t iSels = pListBox->CountSelItems();
-  CFX_Int32Array iSelArray;
   for (int32_t i = 0; i < iSels; ++i)
-    iSelArray.Add(pListBox->GetSelIndex(i));
+    iSelArray.push_back(pListBox->GetSelIndex(i));
   m_pDataAcc->SetSelectedItems(iSelArray, true, false, true);
   return true;
 }
 
 bool CXFA_FFListBox::IsDataChanged() {
-  CFX_Int32Array iSelArray;
-  m_pDataAcc->GetSelectedItems(iSelArray);
-  int32_t iOldSels = iSelArray.GetSize();
-  CFWL_ListBox* pListBox = (CFWL_ListBox*)m_pNormalWidget;
+  std::vector<int32_t> iSelArray = m_pDataAcc->GetSelectedItems();
+  int32_t iOldSels = pdfium::CollectionSize<int32_t>(iSelArray);
+  auto* pListBox = static_cast<CFWL_ListBox*>(m_pNormalWidget);
   int32_t iSels = pListBox->CountSelItems();
   if (iOldSels != iSels)
     return true;
@@ -135,27 +127,24 @@ uint32_t CXFA_FFListBox::GetAlignment() {
   return dwExtendedStyle;
 }
 bool CXFA_FFListBox::UpdateFWLData() {
-  if (!m_pNormalWidget) {
+  if (!m_pNormalWidget)
     return false;
-  }
-  CFWL_ListBox* pListBox = ((CFWL_ListBox*)m_pNormalWidget);
-  CFX_ArrayTemplate<CFWL_ListItem*> selItemArray;
-  CFX_Int32Array iSelArray;
-  m_pDataAcc->GetSelectedItems(iSelArray);
-  int32_t iSelCount = iSelArray.GetSize();
-  for (int32_t j = 0; j < iSelCount; j++) {
-    CFWL_ListItem* lpItemSel = pListBox->GetSelItem(iSelArray[j]);
-    selItemArray.Add(lpItemSel);
-  }
+
+  auto* pListBox = static_cast<CFWL_ListBox*>(m_pNormalWidget);
+  std::vector<int32_t> iSelArray = m_pDataAcc->GetSelectedItems();
+  std::vector<CFWL_ListItem*> selItemArray(iSelArray.size());
+  std::transform(iSelArray.begin(), iSelArray.end(), selItemArray.begin(),
+                 [pListBox](int32_t val) { return pListBox->GetSelItem(val); });
+
   pListBox->SetSelItem(pListBox->GetSelItem(-1), false);
-  for (int32_t i = 0; i < iSelCount; i++) {
-    ((CFWL_ListBox*)m_pNormalWidget)->SetSelItem(selItemArray[i], true);
-  }
+  for (CFWL_ListItem* pItem : selItemArray)
+    pListBox->SetSelItem(pItem, true);
+
   m_pNormalWidget->Update();
   return true;
 }
 void CXFA_FFListBox::OnSelectChanged(CFWL_Widget* pWidget,
-                                     const CFX_Int32Array& arrSels) {
+                                     const std::vector<int32_t>& arrSels) {
   CXFA_EventParam eParam;
   eParam.m_eType = XFA_EVENT_Change;
   eParam.m_pTarget = m_pDataAcc;
@@ -201,7 +190,7 @@ void CXFA_FFListBox::OnProcessEvent(CFWL_Event* pEvent) {
   CXFA_FFField::OnProcessEvent(pEvent);
   switch (pEvent->GetType()) {
     case CFWL_Event::Type::SelectChanged: {
-      CFX_Int32Array arrSels;
+      std::vector<int32_t> arrSels;
       OnSelectChanged(m_pNormalWidget, arrSels);
       break;
     }
@@ -215,26 +204,20 @@ void CXFA_FFListBox::OnDrawWidget(CFX_Graphics* pGraphics,
   m_pOldDelegate->OnDrawWidget(pGraphics, pMatrix);
 }
 
-CXFA_FFComboBox::CXFA_FFComboBox(CXFA_FFPageView* pPageView,
-                                 CXFA_WidgetAcc* pDataAcc)
-    : CXFA_FFField(pPageView, pDataAcc), m_pOldDelegate(nullptr) {}
+CXFA_FFComboBox::CXFA_FFComboBox(CXFA_WidgetAcc* pDataAcc)
+    : CXFA_FFField(pDataAcc), m_pOldDelegate(nullptr) {}
 
 CXFA_FFComboBox::~CXFA_FFComboBox() {}
 
-bool CXFA_FFComboBox::GetBBox(CFX_RectF& rtBox,
-                              uint32_t dwStatus,
-                              bool bDrawFocus) {
+CFX_RectF CXFA_FFComboBox::GetBBox(uint32_t dwStatus, bool bDrawFocus) {
   if (bDrawFocus)
-    return false;
-  return CXFA_FFWidget::GetBBox(rtBox, dwStatus);
+    return CFX_RectF();
+  return CXFA_FFWidget::GetBBox(dwStatus);
 }
 
-bool CXFA_FFComboBox::PtInActiveRect(FX_FLOAT fx, FX_FLOAT fy) {
-  if (!m_pNormalWidget)
-    return false;
-  return static_cast<CFWL_ComboBox*>(m_pNormalWidget)
-      ->GetBBox()
-      .Contains(fx, fy);
+bool CXFA_FFComboBox::PtInActiveRect(const CFX_PointF& point) {
+  auto* pComboBox = static_cast<CFWL_ComboBox*>(m_pNormalWidget);
+  return pComboBox && pComboBox->GetBBox().Contains(point);
 }
 
 bool CXFA_FFComboBox::LoadWidget() {
@@ -250,17 +233,12 @@ bool CXFA_FFComboBox::LoadWidget() {
   m_pNormalWidget->SetDelegate(this);
   m_pNormalWidget->LockUpdate();
 
-  std::vector<CFX_WideString> wsLabelArray;
-  m_pDataAcc->GetChoiceListItems(wsLabelArray, false);
-  int32_t iItems = pdfium::CollectionSize<int32_t>(wsLabelArray);
-  for (int32_t i = 0; i < iItems; i++) {
-    pComboBox->AddString(wsLabelArray[i].AsStringC());
-  }
-  CFX_Int32Array iSelArray;
-  m_pDataAcc->GetSelectedItems(iSelArray);
-  int32_t iSelCount = iSelArray.GetSize();
-  if (iSelCount > 0) {
-    pComboBox->SetCurSel(iSelArray[0]);
+  for (const auto& label : m_pDataAcc->GetChoiceListItems(false))
+    pComboBox->AddString(label.AsStringC());
+
+  std::vector<int32_t> iSelArray = m_pDataAcc->GetSelectedItems();
+  if (!iSelArray.empty()) {
+    pComboBox->SetCurSel(iSelArray.front());
   } else {
     CFX_WideString wsText;
     m_pDataAcc->GetValue(wsText, XFA_VALUEPICTURE_Raw);
@@ -295,13 +273,15 @@ void CXFA_FFComboBox::UpdateWidgetProperty() {
   }
   pComboBox->EditModifyStylesEx(dwEditStyles, 0xFFFFFFFF);
 }
-bool CXFA_FFComboBox::OnRButtonUp(uint32_t dwFlags, FX_FLOAT fx, FX_FLOAT fy) {
-  if (!CXFA_FFField::OnRButtonUp(dwFlags, fx, fy))
+
+bool CXFA_FFComboBox::OnRButtonUp(uint32_t dwFlags, const CFX_PointF& point) {
+  if (!CXFA_FFField::OnRButtonUp(dwFlags, point))
     return false;
 
-  GetDoc()->GetDocEnvironment()->PopupMenu(this, CFX_PointF(fx, fy));
+  GetDoc()->GetDocEnvironment()->PopupMenu(this, point);
   return true;
 }
+
 bool CXFA_FFComboBox::OnKillFocus(CXFA_FFWidget* pNewWidget) {
   bool flag = ProcessCommittedData();
   if (!flag) {
@@ -379,24 +359,25 @@ uint32_t CXFA_FFComboBox::GetAlignment() {
   }
   return dwExtendedStyle;
 }
+
 bool CXFA_FFComboBox::UpdateFWLData() {
-  if (!m_pNormalWidget) {
+  auto* pComboBox = static_cast<CFWL_ComboBox*>(m_pNormalWidget);
+  if (!pComboBox)
     return false;
-  }
-  CFX_Int32Array iSelArray;
-  m_pDataAcc->GetSelectedItems(iSelArray);
-  int32_t iSelCount = iSelArray.GetSize();
-  if (iSelCount > 0) {
-    ((CFWL_ComboBox*)m_pNormalWidget)->SetCurSel(iSelArray[0]);
+
+  std::vector<int32_t> iSelArray = m_pDataAcc->GetSelectedItems();
+  if (!iSelArray.empty()) {
+    pComboBox->SetCurSel(iSelArray.front());
   } else {
     CFX_WideString wsText;
-    ((CFWL_ComboBox*)m_pNormalWidget)->SetCurSel(-1);
+    pComboBox->SetCurSel(-1);
     m_pDataAcc->GetValue(wsText, XFA_VALUEPICTURE_Raw);
-    ((CFWL_ComboBox*)m_pNormalWidget)->SetEditText(wsText);
+    pComboBox->SetEditText(wsText);
   }
-  m_pNormalWidget->Update();
+  pComboBox->Update();
   return true;
 }
+
 bool CXFA_FFComboBox::CanUndo() {
   return m_pDataAcc->IsChoiceListAllowTextEntry() &&
          ((CFWL_ComboBox*)m_pNormalWidget)->EditCanUndo();

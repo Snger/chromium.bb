@@ -43,18 +43,17 @@ TIntermSymbol *CreateReturnValueOutSymbol(const TType &type)
 TIntermAggregate *CreateReplacementCall(TIntermAggregate *originalCall,
                                         TIntermTyped *returnValueTarget)
 {
-    TIntermAggregate *replacementCall = new TIntermAggregate(EOpFunctionCall);
-    replacementCall->setType(TType(EbtVoid));
-    replacementCall->setUserDefined();
-    *replacementCall->getFunctionSymbolInfo() = *originalCall->getFunctionSymbolInfo();
-    replacementCall->setLine(originalCall->getLine());
-    TIntermSequence *replacementParameters = replacementCall->getSequence();
-    TIntermSequence *originalParameters    = originalCall->getSequence();
-    for (auto &param : *originalParameters)
+    TIntermSequence *replacementArguments = new TIntermSequence();
+    TIntermSequence *originalArguments    = originalCall->getSequence();
+    for (auto &arg : *originalArguments)
     {
-        replacementParameters->push_back(param);
+        replacementArguments->push_back(arg);
     }
-    replacementParameters->push_back(returnValueTarget);
+    replacementArguments->push_back(returnValueTarget);
+    TIntermAggregate *replacementCall = TIntermAggregate::CreateFunctionCall(
+        TType(EbtVoid), originalCall->getFunctionSymbolInfo()->getId(),
+        originalCall->getFunctionSymbolInfo()->getNameObj(), replacementArguments);
+    replacementCall->setLine(originalCall->getLine());
     return replacementCall;
 }
 
@@ -111,7 +110,8 @@ bool ArrayReturnValueToOutParameterTraverser::visitFunctionPrototype(Visit visit
     {
         // Replace the whole prototype node with another node that has the out parameter
         // added. Also set the function to return void.
-        TIntermFunctionPrototype *replacement = new TIntermFunctionPrototype(TType(EbtVoid));
+        TIntermFunctionPrototype *replacement =
+            new TIntermFunctionPrototype(TType(EbtVoid), node->getFunctionSymbolInfo()->getId());
         CopyAggregateChildren(node, replacement);
         replacement->getSequence()->push_back(CreateReturnValueOutSymbol(node->getType()));
         *replacement->getFunctionSymbolInfo() = *node->getFunctionSymbolInfo();
@@ -124,7 +124,8 @@ bool ArrayReturnValueToOutParameterTraverser::visitFunctionPrototype(Visit visit
 
 bool ArrayReturnValueToOutParameterTraverser::visitAggregate(Visit visit, TIntermAggregate *node)
 {
-    if (visit == PreVisit && node->isArray() && node->getOp() == EOpFunctionCall)
+    ASSERT(!node->isArray() || node->getOp() != EOpCallInternalRawFunction);
+    if (visit == PreVisit && node->isArray() && node->getOp() == EOpCallFunctionInAST)
     {
         // Handle call sites where the returned array is not assigned.
         // Examples where f() is a function returning an array:
@@ -181,8 +182,8 @@ bool ArrayReturnValueToOutParameterTraverser::visitBinary(Visit visit, TIntermBi
     if (node->getOp() == EOpAssign && node->getLeft()->isArray())
     {
         TIntermAggregate *rightAgg = node->getRight()->getAsAggregate();
-        if (rightAgg != nullptr && rightAgg->getOp() == EOpFunctionCall &&
-            rightAgg->isUserDefined())
+        ASSERT(rightAgg == nullptr || rightAgg->getOp() != EOpCallInternalRawFunction);
+        if (rightAgg != nullptr && rightAgg->getOp() == EOpCallFunctionInAST)
         {
             TIntermAggregate *replacementCall = CreateReplacementCall(rightAgg, node->getLeft());
             queueReplacement(node, replacementCall, OriginalNode::IS_DROPPED);

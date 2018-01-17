@@ -20,6 +20,7 @@
 #include "base/macros.h"
 #include "base/memory/weak_ptr.h"
 #include "base/observer_list.h"
+#include "base/optional.h"
 #include "base/threading/thread_task_runner_handle.h"
 #include "build/build_config.h"
 #include "chrome/browser/media/router/issue.h"
@@ -27,6 +28,7 @@
 #include "chrome/browser/media/router/media_router_base.h"
 #include "chrome/browser/media/router/media_routes_observer.h"
 #include "chrome/browser/media/router/mojo/media_router.mojom.h"
+#include "chrome/browser/media/router/route_request_result.h"
 #include "mojo/public/cpp/bindings/binding.h"
 
 namespace content {
@@ -69,14 +71,14 @@ class MediaRouterMojoImpl : public MediaRouterBase,
   // enqueued for later use if the extension is temporarily suspended.
   void CreateRoute(const MediaSource::Id& source_id,
                    const MediaSink::Id& sink_id,
-                   const GURL& origin,
+                   const url::Origin& origin,
                    content::WebContents* web_contents,
                    const std::vector<MediaRouteResponseCallback>& callbacks,
                    base::TimeDelta timeout,
                    bool incognito) override;
   void JoinRoute(const MediaSource::Id& source_id,
                  const std::string& presentation_id,
-                 const GURL& origin,
+                 const url::Origin& origin,
                  content::WebContents* web_contents,
                  const std::vector<MediaRouteResponseCallback>& callbacks,
                  base::TimeDelta timeout,
@@ -84,7 +86,7 @@ class MediaRouterMojoImpl : public MediaRouterBase,
   void ConnectRouteByRouteId(
       const MediaSource::Id& source,
       const MediaRoute::Id& route_id,
-      const GURL& origin,
+      const url::Origin& origin,
       content::WebContents* web_contents,
       const std::vector<MediaRouteResponseCallback>& callbacks,
       base::TimeDelta timeout,
@@ -107,6 +109,8 @@ class MediaRouterMojoImpl : public MediaRouterBase,
       const std::string& search_input,
       const std::string& domain,
       const MediaSinkSearchResponseCallback& sink_callback) override;
+  void ProvideSinks(const std::string& provider_name,
+                    const std::vector<MediaSinkInternal>& sinks) override;
 
   const std::string& media_route_provider_extension_id() const {
     return media_route_provider_extension_id_;
@@ -150,6 +154,8 @@ class MediaRouterMojoImpl : public MediaRouterBase,
                            AttemptedWakeupTooManyTimes);
   FRIEND_TEST_ALL_PREFIXES(MediaRouterMojoExtensionTest,
                            WakeupFailedDrainsQueue);
+  FRIEND_TEST_ALL_PREFIXES(MediaRouterMojoExtensionTest,
+                           SyncStateToMediaRouteProvider);
 
   // The max number of pending requests allowed. When number of pending requests
   // exceeds this number, the oldest request will be dropped.
@@ -169,13 +175,10 @@ class MediaRouterMojoImpl : public MediaRouterBase,
     // True if the query has been sent to the MRPM.
     bool is_active = false;
 
-    // True if cached result is available.
-    bool has_cached_result = false;
+    // Cached list of sinks and origins for the query.
+    base::Optional<std::vector<MediaSink>> cached_sink_list;
+    std::vector<url::Origin> origins;
 
-    // Cached list of sinks for the query, if |has_cached_result| is true.
-    // Empty otherwise.
-    std::vector<MediaSink> cached_sink_list;
-    std::vector<GURL> origins;
     base::ObserverList<MediaSinksObserver> observers;
 
    private:
@@ -187,8 +190,10 @@ class MediaRouterMojoImpl : public MediaRouterBase,
     MediaRoutesQuery();
     ~MediaRoutesQuery();
 
-    // True if the query has been sent to the MRPM.  False otherwise.
-    bool is_active = false;
+    // Cached list of routes and joinable route IDs for the query.
+    base::Optional<std::vector<MediaRoute>> cached_route_list;
+    std::vector<std::string> joinable_route_ids;
+
     base::ObserverList<MediaRoutesObserver> observers;
 
    private:
@@ -231,17 +236,22 @@ class MediaRouterMojoImpl : public MediaRouterBase,
   void RegisterRouteMessageObserver(RouteMessageObserver* observer) override;
   void UnregisterRouteMessageObserver(RouteMessageObserver* observer) override;
 
+  // Notifies |observer| of any existing cached routes, if it is still
+  // registered.
+  void NotifyOfExistingRoutesIfRegistered(const MediaSource::Id& source_id,
+                                          MediaRoutesObserver* observer) const;
+
   // These calls invoke methods in the component extension via Mojo.
   void DoCreateRoute(const MediaSource::Id& source_id,
                      const MediaSink::Id& sink_id,
-                     const std::string& origin,
+                     const url::Origin& origin,
                      int tab_id,
                      const std::vector<MediaRouteResponseCallback>& callbacks,
                      base::TimeDelta timeout,
                      bool incognito);
   void DoJoinRoute(const MediaSource::Id& source_id,
                    const std::string& presentation_id,
-                   const std::string& origin,
+                   const url::Origin& origin,
                    int tab_id,
                    const std::vector<MediaRouteResponseCallback>& callbacks,
                    base::TimeDelta timeout,
@@ -249,7 +259,7 @@ class MediaRouterMojoImpl : public MediaRouterBase,
   void DoConnectRouteByRouteId(
       const MediaSource::Id& source_id,
       const MediaRoute::Id& route_id,
-      const std::string& origin,
+      const url::Origin& origin,
       int tab_id,
       const std::vector<MediaRouteResponseCallback>& callbacks,
       base::TimeDelta timeout,
@@ -275,8 +285,22 @@ class MediaRouterMojoImpl : public MediaRouterBase,
       const std::string& domain,
       const MediaSinkSearchResponseCallback& sink_callback);
 
+  void DoProvideSinks(const std::string& provider_name,
+                      const std::vector<MediaSinkInternal>& sinks);
+
   // Error handler callback for |binding_| and |media_route_provider_|.
   void OnConnectionError();
+
+  // Issues 0+ calls to |media_route_provider_| to ensure its state is in sync
+  // with MediaRouter on a best-effort basis. This method can be only called if
+  // |media_route_provider_| is a valid handle.
+  // The extension might have become out of sync with MediaRouter due to one
+  // of few reasons:
+  // (1) The extension crashed and lost unpersisted changes.
+  // (2) The extension was updated; temporary data is cleared.
+  // (3) The extension has an unforseen bug which causes temporary data to be
+  //     persisted incorrectly on suspension.
+  void SyncStateToMediaRouteProvider();
 
   // mojom::MediaRouter implementation.
   void RegisterMediaRouteProvider(
@@ -285,20 +309,20 @@ class MediaRouterMojoImpl : public MediaRouterBase,
           callback) override;
   void OnIssue(const IssueInfo& issue) override;
   void OnSinksReceived(const std::string& media_source,
-                       std::vector<mojom::MediaSinkPtr> sinks,
-                       const std::vector<std::string>& origins) override;
+                       const std::vector<MediaSinkInternal>& internal_sinks,
+                       const std::vector<url::Origin>& origins) override;
   void OnRoutesUpdated(
-      std::vector<mojom::MediaRoutePtr> routes,
+      const std::vector<MediaRoute>& routes,
       const std::string& media_source,
       const std::vector<std::string>& joinable_route_ids) override;
   void OnSinkAvailabilityUpdated(
       mojom::MediaRouter::SinkAvailability availability) override;
   void OnPresentationConnectionStateChanged(
       const std::string& route_id,
-      mojom::MediaRouter::PresentationConnectionState state) override;
+      content::PresentationConnectionState state) override;
   void OnPresentationConnectionClosed(
       const std::string& route_id,
-      mojom::MediaRouter::PresentationConnectionCloseReason reason,
+      content::PresentationConnectionCloseReason reason,
       const std::string& message) override;
   void OnRouteMessagesReceived(
       const std::string& route_id,
@@ -308,7 +332,7 @@ class MediaRouterMojoImpl : public MediaRouterBase,
   // to the ID of the route that was terminated.
   void OnTerminateRouteResult(const MediaRoute::Id& route_id,
                               const base::Optional<std::string>& error_text,
-                              mojom::RouteRequestResultCode result_code);
+                              RouteRequestResult::ResultCode result_code);
 
   // Converts the callback result of calling Mojo CreateRoute()/JoinRoute()
   // into a local callback.
@@ -317,9 +341,9 @@ class MediaRouterMojoImpl : public MediaRouterBase,
       bool is_incognito,
       const std::vector<MediaRouteResponseCallback>& callbacks,
       bool is_join,
-      mojom::MediaRoutePtr media_route,
+      const base::Optional<MediaRoute>& media_route,
       const base::Optional<std::string>& error_text,
-      mojom::RouteRequestResultCode result_code);
+      RouteRequestResult::ResultCode result_code);
 
   // Callback invoked by |event_page_tracker_| after an attempt to wake the
   // component extension. If |success| is false, the pending request queue is

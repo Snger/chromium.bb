@@ -8,9 +8,10 @@
 #include <stddef.h>
 #include <stdint.h>
 
+#include <cstdint>
 #include <memory>
 
-#include "base/strings/string_piece.h"
+#include "net/spdy/platform/api/spdy_string_piece.h"
 #include "net/spdy/spdy_framer.h"
 #include "net/spdy/spdy_test_utils.h"
 #include "testing/gmock/include/gmock/gmock.h"
@@ -34,15 +35,15 @@ class MockSpdyFramerVisitor : public SpdyFramerVisitorInterface {
   MOCK_METHOD1(OnHeaderFrameStart,
                SpdyHeadersHandlerInterface*(SpdyStreamId stream_id));
   MOCK_METHOD2(OnHeaderFrameEnd, void(SpdyStreamId stream_id, bool end));
-  MOCK_METHOD2(OnRstStream, void(SpdyStreamId stream_id,
-                                 SpdyRstStreamStatus status));
+  MOCK_METHOD2(OnRstStream,
+               void(SpdyStreamId stream_id, SpdyErrorCode error_code));
   MOCK_METHOD1(OnSettings, void(bool clear_persisted));
   MOCK_METHOD2(OnSetting, void(SpdySettingsIds id, uint32_t value));
   MOCK_METHOD2(OnPing, void(SpdyPingId unique_id, bool is_ack));
   MOCK_METHOD0(OnSettingsEnd, void());
-  MOCK_METHOD2(OnGoAway, void(SpdyStreamId last_accepted_stream_id,
-                              SpdyGoAwayStatus status));
-
+  MOCK_METHOD2(OnGoAway,
+               void(SpdyStreamId last_accepted_stream_id,
+                    SpdyErrorCode error_code));
   MOCK_METHOD7(OnHeaders,
                void(SpdyStreamId stream_id,
                     bool has_priority,
@@ -53,14 +54,13 @@ class MockSpdyFramerVisitor : public SpdyFramerVisitorInterface {
                     bool end));
   MOCK_METHOD2(OnWindowUpdate,
                void(SpdyStreamId stream_id, int delta_window_size));
-  MOCK_METHOD1(OnBlocked, void(SpdyStreamId stream_id));
   MOCK_METHOD3(OnPushPromise, void(SpdyStreamId stream_id,
                                    SpdyStreamId promised_stream_id,
                                    bool end));
   MOCK_METHOD2(OnContinuation, void(SpdyStreamId stream_id, bool end));
   MOCK_METHOD3(OnAltSvc,
                void(SpdyStreamId stream_id,
-                    base::StringPiece origin,
+                    SpdyStringPiece origin,
                     const SpdyAltSvcWireFormat::AlternativeServiceVector&
                         altsvc_vector));
   MOCK_METHOD4(OnPriority,
@@ -68,7 +68,8 @@ class MockSpdyFramerVisitor : public SpdyFramerVisitorInterface {
                     SpdyStreamId parent_stream_id,
                     int weight,
                     bool exclusive));
-  MOCK_METHOD2(OnUnknownFrame, bool(SpdyStreamId stream_id, int frame_type));
+  MOCK_METHOD2(OnUnknownFrame,
+               bool(SpdyStreamId stream_id, uint8_t frame_type));
 
   void DelegateHeaderHandling() {
     ON_CALL(*this, OnHeaderFrameStart(testing::_))

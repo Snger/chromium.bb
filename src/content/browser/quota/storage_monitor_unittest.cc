@@ -9,13 +9,13 @@
 #include "base/files/scoped_temp_dir.h"
 #include "base/run_loop.h"
 #include "base/threading/thread_task_runner_handle.h"
-#include "content/public/test/mock_special_storage_policy.h"
 #include "content/public/test/mock_storage_client.h"
 #include "net/base/url_util.h"
 #include "storage/browser/quota/quota_manager.h"
 #include "storage/browser/quota/quota_manager_proxy.h"
 #include "storage/browser/quota/storage_monitor.h"
 #include "storage/browser/quota/storage_observer.h"
+#include "storage/browser/test/mock_special_storage_policy.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 using storage::HostStorageObservers;
@@ -68,7 +68,8 @@ class UsageMockQuotaManager : public QuotaManager {
                      base::FilePath(),
                      base::ThreadTaskRunnerHandle::Get().get(),
                      base::ThreadTaskRunnerHandle::Get().get(),
-                     special_storage_policy),
+                     special_storage_policy,
+                     storage::GetQuotaSettingsFunc()),
         callback_usage_(0),
         callback_quota_(0),
         callback_status_(kQuotaStatusOk),
@@ -88,7 +89,7 @@ class UsageMockQuotaManager : public QuotaManager {
   void GetUsageAndQuotaForWebApps(
       const GURL& origin,
       StorageType type,
-      const GetUsageAndQuotaCallback& callback) override {
+      const UsageAndQuotaCallback& callback) override {
     if (initialized_)
       callback.Run(callback_status_, callback_usage_, callback_quota_);
     else
@@ -103,7 +104,7 @@ class UsageMockQuotaManager : public QuotaManager {
   int64_t callback_quota_;
   QuotaStatusCode callback_status_;
   bool initialized_;
-  GetUsageAndQuotaCallback delayed_callback_;
+  UsageAndQuotaCallback delayed_callback_;
 };
 
 }  // namespace
@@ -649,7 +650,8 @@ class StorageMonitorIntegrationTest : public testing::Test {
     storage_policy_ = new MockSpecialStoragePolicy();
     quota_manager_ = new QuotaManager(
         false, data_dir_.GetPath(), base::ThreadTaskRunnerHandle::Get().get(),
-        base::ThreadTaskRunnerHandle::Get().get(), storage_policy_.get());
+        base::ThreadTaskRunnerHandle::Get().get(), storage_policy_.get(),
+        storage::GetQuotaSettingsFunc());
 
     client_ = new MockStorageClient(quota_manager_->proxy(),
                                     NULL,

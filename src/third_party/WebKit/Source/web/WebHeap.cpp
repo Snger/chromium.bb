@@ -34,22 +34,13 @@
 
 namespace blink {
 
-WebHeap::SafePointScope::SafePointScope() {
-  CHECK(!ThreadState::current()->isAtSafePoint());
-  ThreadState::current()->enterSafePoint(BlinkGC::HeapPointersOnStack, this);
+void WebHeap::CollectGarbageForTesting() {
+  ThreadState::Current()->CollectGarbage(
+      BlinkGC::kHeapPointersOnStack, BlinkGC::kGCWithSweep, BlinkGC::kForcedGC);
 }
 
-WebHeap::SafePointScope::~SafePointScope() {
-  ThreadState::current()->leaveSafePoint();
-}
-
-void WebHeap::collectGarbageForTesting() {
-  ThreadState::current()->collectGarbage(
-      BlinkGC::HeapPointersOnStack, BlinkGC::GCWithSweep, BlinkGC::ForcedGC);
-}
-
-void WebHeap::collectAllGarbageForTesting() {
-  ThreadState::current()->collectAllGarbage();
+void WebHeap::CollectAllGarbageForTesting() {
+  ThreadState::Current()->CollectAllGarbage();
 }
 
 }  // namespace blink

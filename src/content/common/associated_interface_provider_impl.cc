@@ -13,7 +13,7 @@ class AssociatedInterfaceProviderImpl::LocalProvider
   explicit LocalProvider(mojom::AssociatedInterfaceProviderAssociatedPtr* proxy)
       : associated_interface_provider_binding_(this) {
     associated_interface_provider_binding_.Bind(
-        mojo::MakeRequestForTesting(proxy));
+        mojo::MakeIsolatedRequest(proxy));
   }
 
   ~LocalProvider() override {}
@@ -60,10 +60,6 @@ void AssociatedInterfaceProviderImpl::GetInterface(
   mojom::AssociatedInterfaceAssociatedRequest request;
   request.Bind(std::move(handle));
   return proxy_->GetAssociatedInterface(name, std::move(request));
-}
-
-mojo::AssociatedGroup* AssociatedInterfaceProviderImpl::GetAssociatedGroup() {
-  return proxy_.associated_group();
 }
 
 void AssociatedInterfaceProviderImpl::OverrideBinderForTesting(

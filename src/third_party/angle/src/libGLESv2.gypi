@@ -8,7 +8,6 @@
         # These file lists are shared with the GN build.
         'libangle_common_sources':
         [
-            'common/BitSetIterator.h',
             'common/Color.h',
             'common/Color.inl',
             'common/Float16ToFloat32.cpp',
@@ -17,6 +16,7 @@
             'common/Optional.h',
             'common/angleutils.cpp',
             'common/angleutils.h',
+            'common/bitset_utils.h',
             'common/debug.cpp',
             'common/debug.h',
             'common/mathutil.cpp',
@@ -62,6 +62,32 @@
             'image_util/loadimage.h',
             'image_util/loadimage.inl',
             'image_util/loadimage_etc.cpp',
+        ],
+        'libangle_gpu_info_util_sources':
+        [
+            'gpu_info_util/SystemInfo.cpp',
+            'gpu_info_util/SystemInfo.h',
+            'gpu_info_util/SystemInfo_internal.h',
+        ],
+        'libangle_gpu_info_util_win_sources':
+        [
+            'gpu_info_util/SystemInfo_win.cpp',
+        ],
+        'libangle_gpu_info_util_linux_sources':
+        [
+            'gpu_info_util/SystemInfo_linux.cpp',
+        ],
+        'libangle_gpu_info_util_libpci_sources':
+        [
+            'gpu_info_util/SystemInfo_libpci.cpp',
+        ],
+        'libangle_gpu_info_util_x11_sources':
+        [
+            'gpu_info_util/SystemInfo_x11.cpp',
+        ],
+        'libangle_gpu_info_util_mac_sources':
+        [
+            'gpu_info_util/SystemInfo_mac.mm',
         ],
         'libangle_includes':
         [
@@ -128,6 +154,8 @@
             'libANGLE/ImageIndex.cpp',
             'libANGLE/IndexRangeCache.cpp',
             'libANGLE/IndexRangeCache.h',
+            'libANGLE/LoggingAnnotator.cpp',
+            'libANGLE/LoggingAnnotator.h',
             'libANGLE/Path.h',
             'libANGLE/Path.cpp',
             'libANGLE/Platform.cpp',
@@ -158,6 +186,8 @@
             'libANGLE/TransformFeedback.h',
             'libANGLE/Uniform.cpp',
             'libANGLE/Uniform.h',
+            'libANGLE/UniformLinker.cpp',
+            'libANGLE/UniformLinker.h',
             'libANGLE/VaryingPacking.cpp',
             'libANGLE/VaryingPacking.h',
             'libANGLE/Version.h',
@@ -218,7 +248,6 @@
             'libANGLE/renderer/load_functions_table_autogen.cpp',
             'libANGLE/renderer/renderer_utils.cpp',
             'libANGLE/renderer/renderer_utils.h',
-            'libANGLE/signal_utils.cpp',
             'libANGLE/signal_utils.h',
             'libANGLE/validationEGL.cpp',
             'libANGLE/validationEGL.h',
@@ -232,6 +261,7 @@
             'libANGLE/validationES31.h',
             'third_party/murmurhash/MurmurHash3.cpp',
             'third_party/murmurhash/MurmurHash3.h',
+            'third_party/trace_event/trace_event.h',
         ],
         'libangle_d3d_shared_sources':
         [
@@ -621,6 +651,8 @@
             'libANGLE/renderer/vulkan/FenceSyncVk.h',
             'libANGLE/renderer/vulkan/FramebufferVk.cpp',
             'libANGLE/renderer/vulkan/FramebufferVk.h',
+            'libANGLE/renderer/vulkan/GlslangWrapper.cpp',
+            'libANGLE/renderer/vulkan/GlslangWrapper.h',
             'libANGLE/renderer/vulkan/ImageVk.cpp',
             'libANGLE/renderer/vulkan/ImageVk.h',
             'libANGLE/renderer/vulkan/ProgramVk.cpp',
@@ -824,6 +856,7 @@
                 'commit_id',
                 'angle_common',
                 'angle_image_util',
+                'angle_gpu_info_util',
                 'libANGLE_d3d11_config',
                 'libANGLE_renderer_config',
             ],
@@ -969,10 +1002,6 @@
                             'defines':
                             [
                                 'ANGLE_USE_X11',
-                            ],
-                            'dependencies':
-                            [
-                                '<(angle_path)/src/third_party/libXNVCtrl/libXNVCtrl.gyp:libXNVCtrl',
                             ],
                             'sources':
                             [

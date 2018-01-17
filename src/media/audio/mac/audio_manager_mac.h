@@ -74,10 +74,6 @@ class MEDIA_EXPORT AudioManagerMac : public AudioManagerBase {
   void ReleaseOutputStreamUsingRealDevice(AudioOutputStream* stream,
                                           AudioDeviceID device_id);
 
-  static bool GetDeviceChannels(AudioDeviceID device,
-                                AudioObjectPropertyScope scope,
-                                int* channels);
-
   static int HardwareSampleRateForDevice(AudioDeviceID device_id);
   static int HardwareSampleRate();
 
@@ -125,8 +121,6 @@ class MEDIA_EXPORT AudioManagerMac : public AudioManagerBase {
   size_t basic_input_streams() const { return basic_input_streams_.size(); }
 
  protected:
-  friend class media::AudioManagerDeleter;
-
   ~AudioManagerMac() override;
   AudioParameters GetPreferredOutputStreamParameters(
       const std::string& output_device_id,

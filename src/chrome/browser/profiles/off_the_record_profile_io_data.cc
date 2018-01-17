@@ -12,7 +12,6 @@
 #include "base/macros.h"
 #include "base/memory/ptr_util.h"
 #include "base/stl_util.h"
-#include "base/threading/worker_pool.h"
 #include "build/build_config.h"
 #include "chrome/browser/browser_process.h"
 #include "chrome/browser/custom_handlers/protocol_handler_registry.h"
@@ -31,11 +30,9 @@
 #include "content/public/browser/resource_context.h"
 #include "extensions/common/constants.h"
 #include "extensions/features/features.h"
-#include "net/base/sdch_manager.h"
 #include "net/http/http_cache.h"
 #include "net/http/http_network_session.h"
 #include "net/http/http_server_properties_impl.h"
-#include "net/sdch/sdch_owner.h"
 #include "net/ssl/channel_id_service.h"
 #include "net/ssl/default_channel_id_store.h"
 #include "net/url_request/url_request_context_storage.h"
@@ -232,13 +229,15 @@ void OffTheRecordProfileIOData::InitializeInternal(
   // For incognito, we use a non-persistent channel ID store.
   main_context_storage->set_channel_id_service(
       base::MakeUnique<net::ChannelIDService>(
-          new net::DefaultChannelIDStore(nullptr),
-          base::WorkerPool::GetTaskRunner(true)));
+          new net::DefaultChannelIDStore(nullptr)));
 
   using content::CookieStoreConfig;
   main_context_storage->set_cookie_store(CreateCookieStore(CookieStoreConfig(
       base::FilePath(), CookieStoreConfig::EPHEMERAL_SESSION_COOKIES, NULL,
       profile_params->cookie_monster_delegate.get())));
+
+  main_context->cookie_store()->SetChannelIDServiceID(
+      main_context->channel_id_service()->GetUniqueID());
 
   main_context_storage->set_http_network_session(
       CreateHttpNetworkSession(*profile_params));
@@ -254,11 +253,6 @@ void OffTheRecordProfileIOData::InitializeInternal(
       std::move(main_job_factory), std::move(request_interceptors),
       std::move(profile_params->protocol_handler_interceptor),
       main_context->network_delegate(), main_context->host_resolver()));
-
-  // Setup SDCH for this profile.
-  main_context_storage->set_sdch_manager(base::MakeUnique<net::SdchManager>());
-  sdch_policy_.reset(
-      new net::SdchOwner(main_context->sdch_manager(), main_context));
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   InitializeExtensionsRequestContext(profile_params);
@@ -323,8 +317,7 @@ net::URLRequestContext* OffTheRecordProfileIOData::InitializeAppRequestContext(
   std::unique_ptr<net::CookieStore> cookie_store =
       content::CreateCookieStore(content::CookieStoreConfig());
   std::unique_ptr<net::ChannelIDService> channel_id_service(
-      new net::ChannelIDService(new net::DefaultChannelIDStore(nullptr),
-                                base::WorkerPool::GetTaskRunner(true)));
+      new net::ChannelIDService(new net::DefaultChannelIDStore(nullptr)));
   cookie_store->SetChannelIDServiceID(channel_id_service->GetUniqueID());
   context->SetCookieStore(std::move(cookie_store));
 
@@ -336,7 +329,7 @@ net::URLRequestContext* OffTheRecordProfileIOData::InitializeAppRequestContext(
       new net::HttpNetworkSession(network_params));
 
   // Use a separate in-memory cache for the app.
-  std::unique_ptr<net::HttpCache> app_http_cache = CreateHttpFactory(
+  std::unique_ptr<net::HttpCache> app_http_cache = CreateMainHttpFactory(
       http_network_session.get(), net::HttpCache::DefaultBackend::InMemory(0));
 
   context->SetChannelIDService(std::move(channel_id_service));
@@ -359,7 +352,7 @@ net::URLRequestContext*
 OffTheRecordProfileIOData::InitializeMediaRequestContext(
     net::URLRequestContext* original_context,
     const StoragePartitionDescriptor& partition_descriptor,
-    const std::string& name) const {
+    const char* name) const {
   NOTREACHED();
   return NULL;
 }

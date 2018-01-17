@@ -7,31 +7,31 @@
 #ifndef XFA_FDE_CFDE_TXTEDTTEXTSET_H_
 #define XFA_FDE_CFDE_TXTEDTTEXTSET_H_
 
-#include "xfa/fde/fde_visualset.h"
+#include <vector>
+
+#include "xfa/fde/ifde_visualset.h"
 
 class CFDE_TxtEdtPage;
 
-class CFDE_TxtEdtTextSet : public IFDE_TextSet {
+class CFDE_TxtEdtTextSet : public IFDE_VisualSet {
  public:
   explicit CFDE_TxtEdtTextSet(CFDE_TxtEdtPage* pPage);
   ~CFDE_TxtEdtTextSet() override;
 
   // IFDE_VisualSet
   FDE_VISUALOBJTYPE GetType() override;
-  void GetRect(FDE_TEXTEDITPIECE* hVisualObj, CFX_RectF& rt) override;
+  CFX_RectF GetRect(const FDE_TEXTEDITPIECE& hVisualObj) override;
 
-  // IFDE_TextSet
-  int32_t GetString(FDE_TEXTEDITPIECE* pPiece, CFX_WideString& wsText) override;
-  CFX_RetainPtr<CFGAS_GEFont> GetFont() override;
-  FX_FLOAT GetFontSize() override;
-  FX_ARGB GetFontColor() override;
-  int32_t GetDisplayPos(FDE_TEXTEDITPIECE* pPiece,
+  int32_t GetString(FDE_TEXTEDITPIECE* pPiece, CFX_WideString& wsText);
+  CFX_RetainPtr<CFGAS_GEFont> GetFont();
+  float GetFontSize();
+  FX_ARGB GetFontColor();
+  int32_t GetDisplayPos(const FDE_TEXTEDITPIECE& pPiece,
                         FXTEXT_CHARPOS* pCharPos,
                         bool bCharCode = false,
-                        CFX_WideString* pWSForms = nullptr) override;
-  int32_t GetCharRects(const FDE_TEXTEDITPIECE* pPiece,
-                       CFX_RectFArray& rtArray,
-                       bool bBBox) override;
+                        CFX_WideString* pWSForms = nullptr);
+  std::vector<CFX_RectF> GetCharRects(const FDE_TEXTEDITPIECE* pPiece,
+                                      bool bBBox);
 
  private:
   CFDE_TxtEdtPage* const m_pPage;

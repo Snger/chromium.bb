@@ -94,7 +94,21 @@ struct ShaderVariable
     }
 };
 
-struct Uniform : public ShaderVariable
+// A variable with an integer location to pass back to the GL API: either uniform (can have location
+// in GLES3.1+), vertex shader input or fragment shader output.
+struct VariableWithLocation : public ShaderVariable
+{
+    VariableWithLocation();
+    ~VariableWithLocation();
+    VariableWithLocation(const VariableWithLocation &other);
+    VariableWithLocation &operator=(const VariableWithLocation &other);
+    bool operator==(const VariableWithLocation &other) const;
+    bool operator!=(const VariableWithLocation &other) const { return !operator==(other); }
+
+    int location;
+};
+
+struct Uniform : public VariableWithLocation
 {
     Uniform();
     ~Uniform();
@@ -106,28 +120,16 @@ struct Uniform : public ShaderVariable
         return !operator==(other);
     }
 
+    int binding;
+
     // Decide whether two uniforms are the same at shader link time,
     // assuming one from vertex shader and the other from fragment shader.
-    // See GLSL ES Spec 3.00.3, sec 4.3.5.
+    // GLSL ES Spec 3.00.3, section 4.3.5.
+    // GLSL ES Spec 3.10.4, section 4.4.5
     bool isSameUniformAtLinkTime(const Uniform &other) const;
 };
 
-// An interface variable is a variable which passes data between the GL data structures and the
-// shader execution: either vertex shader inputs or fragment shader outputs. These variables can
-// have integer locations to pass back to the GL API.
-struct InterfaceVariable : public ShaderVariable
-{
-    InterfaceVariable();
-    ~InterfaceVariable();
-    InterfaceVariable(const InterfaceVariable &other);
-    InterfaceVariable &operator=(const InterfaceVariable &other);
-    bool operator==(const InterfaceVariable &other) const;
-    bool operator!=(const InterfaceVariable &other) const { return !operator==(other); }
-
-    int location;
-};
-
-struct Attribute : public InterfaceVariable
+struct Attribute : public VariableWithLocation
 {
     Attribute();
     ~Attribute();
@@ -137,7 +139,7 @@ struct Attribute : public InterfaceVariable
     bool operator!=(const Attribute &other) const { return !operator==(other); }
 };
 
-struct OutputVariable : public InterfaceVariable
+struct OutputVariable : public VariableWithLocation
 {
     OutputVariable();
     ~OutputVariable();

@@ -14,35 +14,40 @@ found in the LICENSE file.
 'use strict';
 tr.exportTo('tr.v.ui', function() {
   /**
-   * @param {undefined|tr.v.ScalarNumeric|tr.v.Histogram} value
+   * One common simple way to use this function is
+   * createScalarSpan(number, {unit: tr.b.Unit.byName.whatever})
+   *
+   * This function can also take a Scalar, undefined, or a Histogram plus
+   * significance, contextGroup, customContextRange, leftAlign and/or inline.
+   *
+   * @param {undefined|tr.b.Scalar|tr.v.Histogram} value
    * @param {Object=} opt_config
-   * @param {!tr.b.Range=} opt_config.customContextRange
+   * @param {!tr.b.math.Range=} opt_config.customContextRange
    * @param {boolean=} opt_config.leftAlign
+   * @param {boolean=} opt_config.inline
    * @param {!tr.b.Unit=} opt_config.unit
-   * @param {tr.b.Statistics.Significance=} opt_config.significance
+   * @param {tr.b.math.Statistics.Significance=} opt_config.significance
    * @param {string=} opt_config.contextGroup
    * @return {(string|!HTMLElement)}
    */
   function createScalarSpan(value, opt_config) {
-    if (value === undefined)
-      return '';
+    if (value === undefined) return '';
 
-    var config = opt_config || {};
-    var ownerDocument = config.ownerDocument || document;
+    let config = opt_config || {};
+    let ownerDocument = config.ownerDocument || document;
 
-    var span = ownerDocument.createElement('tr-v-ui-scalar-span');
+    let span = ownerDocument.createElement('tr-v-ui-scalar-span');
 
-    var numericValue;
-    if (value instanceof tr.v.ScalarNumeric) {
+    let numericValue;
+    if (value instanceof tr.b.Scalar) {
       span.value = value;
       numericValue = value.value;
     } else if (value instanceof tr.v.Histogram) {
       numericValue = value.average;
-      if (numericValue === undefined)
-        return '';
+      if (numericValue === undefined) return '';
       span.setValueAndUnit(numericValue, value.unit);
     } else {
-      var unit = config.unit;
+      let unit = config.unit;
       if (unit === undefined) {
         throw new Error(
             'Unit must be provided in config when value is a number');
@@ -51,11 +56,13 @@ tr.exportTo('tr.v.ui', function() {
       numericValue = value;
     }
 
-    if (config.context)
+    if (config.context) {
       span.context = config.context;
+    }
 
-    if (config.customContextRange)
+    if (config.customContextRange) {
       span.customContextRange = config.customContextRange;
+    }
 
     if (config.leftAlign) {
       span.leftAlign = true;
@@ -65,11 +72,13 @@ tr.exportTo('tr.v.ui', function() {
       span.inline = true;
     }
 
-    if (config.significance !== undefined)
+    if (config.significance !== undefined) {
       span.significance = config.significance;
+    }
 
-    if (config.contextGroup !== undefined)
+    if (config.contextGroup !== undefined) {
       span.contextGroup = config.contextGroup;
+    }
 
     return span;
   }
@@ -238,7 +247,7 @@ Polymer({
     this.context_ = undefined;
 
     this.warning_ = undefined;
-    this.significance_ = tr.b.Statistics.Significance.DONT_CARE;
+    this.significance_ = tr.b.math.Statistics.Significance.DONT_CARE;
 
     // To avoid unnecessary DOM traversal, search for the context controller
     // only when necessary (when the span is attached and has a context group).
@@ -269,17 +278,18 @@ Polymer({
   },
 
   set value(value) {
-    if (value instanceof tr.v.ScalarNumeric) {
+    if (value instanceof tr.b.Scalar) {
       this.value_ = value.value;
       this.unit_ = value.unit;
     } else {
       this.value_ = value;
     }
     this.updateContents_();
-    if (this.hasContext_(this.contextGroup))
+    if (this.hasContext_(this.contextGroup)) {
       this.contextController_.onScalarSpanUpdated(this.contextGroup, this);
-    else
+    } else {
       this.updateSparkline_();
+    }
   },
 
   get contextController_() {
@@ -307,8 +317,8 @@ Polymer({
   },
 
   attachToContextControllerIfPossible_: function(contextGroup) {
-    if (!this.hasContext_(contextGroup))
-      return false;
+    if (!this.hasContext_(contextGroup)) return false;
+
     this.contextController_.addEventListener(
         'context-updated', this.onContextUpdated_);
     this.contextController_.onScalarSpanAdded(contextGroup, this);
@@ -316,8 +326,8 @@ Polymer({
   },
 
   detachFromContextControllerIfPossible_: function(contextGroup) {
-    if (!this.hasContext_(contextGroup))
-      return;
+    if (!this.hasContext_(contextGroup)) return;
+
     this.contextController_.removeEventListener(
         'context-updated', this.onContextUpdated_);
     this.contextController_.onScalarSpanRemoved(contextGroup, this);
@@ -410,18 +420,18 @@ Polymer({
     this.$.sparkline.style.width = '0';
 
     // Custom context range takes precedence over controller context range.
-    var range = this.customContextRange_;
+    let range = this.customContextRange_;
     if (!range && this.hasContext_(this.contextGroup)) {
-      var context = this.contextController_.getContext(this.contextGroup);
-      if (context)
+      let context = this.contextController_.getContext(this.contextGroup);
+      if (context) {
         range = context.range;
+      }
     }
-    if (!range || range.isEmpty)
-      return;
+    if (!range || range.isEmpty) return;
 
-    var leftPoint = Math.min(range.min, 0);
-    var rightPoint = Math.max(range.max, 0);
-    var pointDistance = rightPoint - leftPoint;
+    let leftPoint = Math.min(range.min, 0);
+    let rightPoint = Math.max(range.max, 0);
+    let pointDistance = rightPoint - leftPoint;
     if (pointDistance === 0) {
       // This can happen, for example, when all spans within the context have
       // zero values (so |range| is [0, 0]).
@@ -430,8 +440,8 @@ Polymer({
 
     // Draw the sparkline.
     this.$.sparkline.style.display = 'block';
-    var left;
-    var width;
+    let left;
+    let width;
     if (this.value > 0) {
       width = Math.min(this.value, rightPoint);
       left = -leftPoint;
@@ -446,9 +456,10 @@ Polymer({
         width / pointDistance, true);
 
     // Set the sparkline color (if applicable).
-    var changeClass = this.changeClassName_;
-    if (changeClass)
+    let changeClass = this.changeClassName_;
+    if (changeClass) {
       Polymer.dom(this.$.sparkline).classList.add(changeClass);
+    }
   },
 
   buildSparklineStyle_: function(ratio, isWidth) {
@@ -463,9 +474,10 @@ Polymer({
     //                     |:::::             -5 MiB
     //                |::::::::::            -10 MiB
     //
-    var position = 'calc(' + ratio + ' * (100% - 1px)';
-    if (isWidth)
+    let position = 'calc(' + ratio + ' * (100% - 1px)';
+    if (isWidth) {
       position += ' + 1px';  // Extra pixel for sparkline border.
+    }
     position += ')';
     return position;
   },
@@ -479,8 +491,7 @@ Polymer({
     this.$.significantly_better.style.display = '';
     this.$.significantly_worse.style.display = '';
 
-    if (this.unit_ === undefined)
-      return;
+    if (this.unit_ === undefined) return;
 
     this.$.content.title = '';
     Polymer.dom(this.$.content).textContent =
@@ -489,7 +500,7 @@ Polymer({
   },
 
   updateDelta_: function() {
-    var changeClass = this.changeClassName_;
+    let changeClass = this.changeClassName_;
     if (!changeClass) {
       this.$.significance.style.display = 'none';
       return;  // Not a delta or we don't care.
@@ -497,7 +508,7 @@ Polymer({
 
     this.$.significance.style.display = 'inline';
 
-    var title;
+    let title;
     switch (changeClass) {
       case 'better':
         title = 'improvement';
@@ -520,19 +531,19 @@ Polymer({
     Polymer.dom(this.$.content).classList.add(changeClass);
 
     switch (this.significance) {
-      case tr.b.Statistics.Significance.DONT_CARE:
+      case tr.b.math.Statistics.Significance.DONT_CARE:
         break;
 
-      case tr.b.Statistics.Significance.INSIGNIFICANT:
-        if (changeClass !== 'same')
-          title = 'insignificant ' + title;
+      case tr.b.math.Statistics.Significance.INSIGNIFICANT:
+        if (changeClass !== 'same') title = 'insignificant ' + title;
         this.$.insignificant.style.display = 'inline';
         changeClass = 'same';
         break;
 
-      case tr.b.Statistics.Significance.SIGNIFICANT:
-        if (changeClass === 'same')
+      case tr.b.math.Statistics.Significance.SIGNIFICANT:
+        if (changeClass === 'same') {
           throw new Error('How can no change be significant?');
+        }
         this.$['significantly_' + changeClass].style.display = 'inline';
         title = 'significant ' + title;
         break;
@@ -546,21 +557,18 @@ Polymer({
   },
 
   get changeClassName_() {
-    if (!this.unit_ || !this.unit_.isDelta)
-      return undefined;
+    if (!this.unit_ || !this.unit_.isDelta) return undefined;
 
     switch (this.unit_.improvementDirection) {
       case tr.b.ImprovementDirection.DONT_CARE:
         return undefined;
 
       case tr.b.ImprovementDirection.BIGGER_IS_BETTER:
-        if (this.value === 0)
-          return 'same';
+        if (this.value === 0) return 'same';
         return this.value > 0 ? 'better' : 'worse';
 
       case tr.b.ImprovementDirection.SMALLER_IS_BETTER:
-        if (this.value === 0)
-          return 'same';
+        if (this.value === 0) return 'same';
         return this.value < 0 ? 'better' : 'worse';
 
       default:
@@ -575,7 +583,7 @@ Polymer({
 
   set warning(warning) {
     this.warning_ = warning;
-    var warningEl = this.$.warning;
+    let warningEl = this.$.warning;
     if (this.warning_) {
       warningEl.title = warning;
       warningEl.style.display = 'inline';

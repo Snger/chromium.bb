@@ -17,9 +17,10 @@
 #include "content/public/browser/browser_context.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/navigation_controller.h"
-#include "content/public/browser/navigation_details.h"
+#include "content/public/browser/navigation_handle.h"
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_view_host.h"
+#include "content/public/browser/render_widget_host.h"
 #include "content/public/browser/render_widget_host_view.h"
 #include "content/public/browser/site_instance.h"
 #include "content/public/browser/storage_partition.h"
@@ -35,12 +36,12 @@ ContentAutofillDriver::ContentAutofillDriver(
     const std::string& app_locale,
     AutofillManager::AutofillDownloadManagerState enable_download_manager)
     : render_frame_host_(render_frame_host),
-      client_(client),
       autofill_manager_(new AutofillManager(this,
                                             client,
                                             app_locale,
                                             enable_download_manager)),
       autofill_external_delegate_(autofill_manager_.get(), this),
+      key_press_handler_manager_(this),
       binding_(this) {
   autofill_manager_->SetExternalDelegate(&autofill_external_delegate_);
 }
@@ -60,7 +61,7 @@ void ContentAutofillDriver::BindRequest(mojom::AutofillDriverRequest request) {
   binding_.Bind(std::move(request));
 }
 
-bool ContentAutofillDriver::IsOffTheRecord() const {
+bool ContentAutofillDriver::IsIncognito() const {
   return render_frame_host_->GetSiteInstance()
       ->GetBrowserContext()
       ->IsOffTheRecord();
@@ -179,11 +180,6 @@ void ContentAutofillDriver::DidInteractWithCreditCardForm() {
   contents->OnCreditCardInputShownOnHttp();
 }
 
-// mojom::AutofillDriver:
-void ContentAutofillDriver::FirstUserGestureObserved() {
-  client_->OnFirstUserGestureObserved();
-}
-
 void ContentAutofillDriver::FormsSeen(const std::vector<FormData>& forms,
                                       base::TimeTicks timestamp) {
   autofill_manager_->OnFormsSeen(forms, timestamp);
@@ -240,20 +236,17 @@ void ContentAutofillDriver::SetDataList(
 }
 
 void ContentAutofillDriver::DidNavigateFrame(
-    const content::LoadCommittedDetails& details,
-    const content::FrameNavigateParams& params) {
-  if (details.is_navigation_to_different_page())
+    content::NavigationHandle* navigation_handle) {
+  if (navigation_handle->IsInMainFrame() &&
+      !navigation_handle->IsSameDocument()) {
     autofill_manager_->Reset();
+  }
 }
 
 void ContentAutofillDriver::SetAutofillManager(
     std::unique_ptr<AutofillManager> manager) {
   autofill_manager_ = std::move(manager);
   autofill_manager_->SetExternalDelegate(&autofill_external_delegate_);
-}
-
-void ContentAutofillDriver::NotifyFirstUserGestureObservedInTab() {
-  GetAutofillAgent()->FirstUserGestureObservedInTab();
 }
 
 const mojom::AutofillAgentPtr& ContentAutofillDriver::GetAutofillAgent() {
@@ -264,6 +257,31 @@ const mojom::AutofillAgentPtr& ContentAutofillDriver::GetAutofillAgent() {
   }
 
   return autofill_agent_;
+}
+
+void ContentAutofillDriver::RegisterKeyPressHandler(
+    const content::RenderWidgetHost::KeyPressEventCallback& handler) {
+  key_press_handler_manager_.RegisterKeyPressHandler(handler);
+}
+
+void ContentAutofillDriver::RemoveKeyPressHandler() {
+  key_press_handler_manager_.RemoveKeyPressHandler();
+}
+
+void ContentAutofillDriver::AddHandler(
+    const content::RenderWidgetHost::KeyPressEventCallback& handler) {
+  content::RenderWidgetHostView* view = render_frame_host_->GetView();
+  if (!view)
+    return;
+  view->GetRenderWidgetHost()->AddKeyPressEventCallback(handler);
+}
+
+void ContentAutofillDriver::RemoveHandler(
+    const content::RenderWidgetHost::KeyPressEventCallback& handler) {
+  content::RenderWidgetHostView* view = render_frame_host_->GetView();
+  if (!view)
+    return;
+  view->GetRenderWidgetHost()->RemoveKeyPressEventCallback(handler);
 }
 
 }  // namespace autofill

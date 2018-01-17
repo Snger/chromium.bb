@@ -5,7 +5,7 @@ Use of this source code is governed by a BSD-style license that can be
 found in the LICENSE file.
 -->
 
-<link rel="import" href="/tracing/base/sorted_array_utils.html">
+<link rel="import" href="/tracing/base/math/sorted_array_utils.html">
 <link rel="import" href="/tracing/model/model_settings.html">
 <link rel="import" href="/tracing/ui/base/ui.html">
 <link rel="import" href="/tracing/ui/tracks/container_track.html">
@@ -84,22 +84,22 @@ tr.exportTo('tr.ui.tracks', function() {
     },
 
     set expanded(expanded) {
-      if (this.expanded_ === expanded)
-        return;
+      if (this.expanded_ === expanded) return;
+
       this.expanded_ = expanded;
       this.expandedStateChanged_();
     },
 
     onHeadingClicked_: function(e) {
-      if (this.subRows.length <= 1)
-        return;
+      if (this.subRows.length <= 1) return;
+
       this.expanded = !this.expanded;
 
       if (this.groupingSource_) {
         var modelSettings = new tr.model.ModelSettings(
             this.groupingSource_.model);
         modelSettings.setSettingFor(this.groupingSource_, 'expanded',
-                                    this.expanded);
+            this.expanded);
       }
 
       e.stopPropagation();
@@ -131,8 +131,9 @@ tr.exportTo('tr.ui.tracks', function() {
 
       for (var i = 0; i < this.children.length; i++) {
         this.children[i].height = h;
-        if (i === 0)
+        if (i === 0) {
           this.children[i].arrowVisible = true;
+        }
         this.children[i].expanded = this.expanded;
       }
 
@@ -151,7 +152,7 @@ tr.exportTo('tr.ui.tracks', function() {
       }
 
       if (this.areArrayContentsSame_(this.itemsGroupedOnLastUpdateContents_,
-                                     this.itemsToGroup_)) {
+          this.itemsToGroup_)) {
         this.updateHeadingAndTooltip_();
         return;
       }
@@ -167,19 +168,19 @@ tr.exportTo('tr.ui.tracks', function() {
       this.currentSubRows_ = subRows;
       for (var srI = 0; srI < subRows.length; srI++) {
         var subRow = subRows[srI];
-        if (!subRow.length)
-          continue;
+        if (!subRow.length) continue;
+
         var track = this.addSubTrack_(subRow);
         track.addEventListener(
-          'heading-clicked', this.onHeadingClicked_.bind(this));
+            'heading-clicked', this.onHeadingClicked_.bind(this));
       }
       this.updateHeadingAndTooltip_();
       this.expandedStateChanged_();
     },
 
     updateHeadingAndTooltip_: function() {
-      if (!Polymer.dom(this).firstChild)
-        return;
+      if (!Polymer.dom(this).firstChild) return;
+
       Polymer.dom(this).firstChild.heading = this.heading_;
       Polymer.dom(this).firstChild.tooltip = this.tooltip_;
     },
@@ -197,15 +198,14 @@ tr.exportTo('tr.ui.tracks', function() {
     },
 
     areArrayContentsSame_: function(a, b) {
-      if (!a || !b)
-        return false;
-      if (!a.length || !b.length)
-        return false;
-      if (a.length !== b.length)
-        return false;
+      if (!a || !b) return false;
+
+      if (!a.length || !b.length) return false;
+
+      if (a.length !== b.length) return false;
+
       for (var i = 0; i < a.length; ++i) {
-        if (a[i] !== b[i])
-          return false;
+        if (a[i] !== b[i]) return false;
       }
       return true;
     }

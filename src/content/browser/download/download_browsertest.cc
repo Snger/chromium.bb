@@ -22,6 +22,7 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/threading/platform_thread.h"
+#include "base/threading/sequenced_worker_pool.h"
 #include "base/threading/thread_restrictions.h"
 #include "base/time/time.h"
 #include "build/build_config.h"
@@ -320,10 +321,15 @@ class CountingDownloadFile : public DownloadFileImpl {
     active_files_--;
   }
 
-  void Initialize(const InitializeCallback& callback) override {
+  void Initialize(
+      const InitializeCallback& callback,
+      const CancelRequestCallback& cancel_request_callback,
+      const DownloadItem::ReceivedSlices& received_slices,
+      bool is_parallelizable) override {
     DCHECK_CURRENTLY_ON(BrowserThread::FILE);
     active_files_++;
-    return DownloadFileImpl::Initialize(callback);
+    DownloadFileImpl::Initialize(callback, cancel_request_callback,
+                                 received_slices, is_parallelizable);
   }
 
   static void GetNumberActiveFiles(int* result) {
@@ -1846,7 +1852,8 @@ IN_PROC_BROWSER_TEST_F(DownloadContentTest, ResumeRestoredDownload_NoFile) {
       base::Time(), parameters.etag, std::string(), kIntermediateSize,
       parameters.size, std::string(), DownloadItem::INTERRUPTED,
       DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS,
-      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false);
+      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false, base::Time(), false,
+      std::vector<DownloadItem::ReceivedSlice>());
 
   download->Resume();
   WaitForCompletion(download);
@@ -1908,7 +1915,8 @@ IN_PROC_BROWSER_TEST_F(DownloadContentTest, ResumeRestoredDownload_NoHash) {
       base::Time(), parameters.etag, std::string(), kIntermediateSize,
       parameters.size, std::string(), DownloadItem::INTERRUPTED,
       DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS,
-      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false);
+      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false, base::Time(), false,
+      std::vector<DownloadItem::ReceivedSlice>());
 
   download->Resume();
   WaitForCompletion(download);
@@ -1957,7 +1965,8 @@ IN_PROC_BROWSER_TEST_F(DownloadContentTest,
       base::Time(), "fake-etag", std::string(), kIntermediateSize,
       parameters.size, std::string(), DownloadItem::INTERRUPTED,
       DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS,
-      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false);
+      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false, base::Time(), false,
+      std::vector<DownloadItem::ReceivedSlice>());
 
   download->Resume();
   WaitForCompletion(download);
@@ -2012,7 +2021,8 @@ IN_PROC_BROWSER_TEST_F(DownloadContentTest,
       parameters.size,
       std::string(std::begin(kPartialHash), std::end(kPartialHash)),
       DownloadItem::INTERRUPTED, DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS,
-      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false);
+      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false, base::Time(), false,
+      std::vector<DownloadItem::ReceivedSlice>());
 
   download->Resume();
   WaitForCompletion(download);
@@ -2073,7 +2083,8 @@ IN_PROC_BROWSER_TEST_F(DownloadContentTest, ResumeRestoredDownload_WrongHash) {
       parameters.size,
       std::string(std::begin(kPartialHash), std::end(kPartialHash)),
       DownloadItem::INTERRUPTED, DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS,
-      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false);
+      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false, base::Time(), false,
+      std::vector<DownloadItem::ReceivedSlice>());
 
   download->Resume();
   WaitForCompletion(download);
@@ -2143,7 +2154,8 @@ IN_PROC_BROWSER_TEST_F(DownloadContentTest, ResumeRestoredDownload_ShortFile) {
       base::Time(), parameters.etag, std::string(), kIntermediateSize,
       parameters.size, std::string(), DownloadItem::INTERRUPTED,
       DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS,
-      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false);
+      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false, base::Time(), false,
+      std::vector<DownloadItem::ReceivedSlice>());
 
   download->Resume();
   WaitForCompletion(download);
@@ -2211,7 +2223,8 @@ IN_PROC_BROWSER_TEST_F(DownloadContentTest, ResumeRestoredDownload_LongFile) {
       base::Time(), parameters.etag, std::string(), kIntermediateSize,
       parameters.size, std::string(), DownloadItem::INTERRUPTED,
       DOWNLOAD_DANGER_TYPE_NOT_DANGEROUS,
-      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false);
+      DOWNLOAD_INTERRUPT_REASON_NETWORK_FAILED, false, base::Time(), false,
+      std::vector<DownloadItem::ReceivedSlice>());
 
   download->Resume();
   WaitForCompletion(download);

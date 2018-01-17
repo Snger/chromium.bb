@@ -19,6 +19,7 @@
 #include <vector>
 
 #include "webrtc/api/call/audio_sink.h"
+#include "webrtc/api/rtpreceiverinterface.h"
 #include "webrtc/base/asyncinvoker.h"
 #include "webrtc/base/asyncudpsocket.h"
 #include "webrtc/base/criticalsection.h"
@@ -30,6 +31,8 @@
 #include "webrtc/media/base/streamparams.h"
 #include "webrtc/media/base/videosinkinterface.h"
 #include "webrtc/media/base/videosourceinterface.h"
+#include "webrtc/p2p/base/dtlstransportinternal.h"
+#include "webrtc/p2p/base/packettransportinternal.h"
 #include "webrtc/p2p/base/transportcontroller.h"
 #include "webrtc/p2p/client/socketmonitor.h"
 #include "webrtc/pc/audiomonitor.h"
@@ -37,11 +40,8 @@
 #include "webrtc/pc/mediamonitor.h"
 #include "webrtc/pc/mediasession.h"
 #include "webrtc/pc/rtcpmuxfilter.h"
+#include "webrtc/pc/rtptransport.h"
 #include "webrtc/pc/srtpfilter.h"
-
-namespace rtc {
-class PacketTransportInterface;
-}
 
 namespace webrtc {
 class AudioSinkInterface;
@@ -75,7 +75,6 @@ class BaseChannel
       public MediaChannel::NetworkInterface,
       public ConnectionStatsGetter {
  public:
-  // |rtcp| represents whether or not this channel uses RTCP.
   // If |srtp_required| is true, the channel will not send or receive any
   // RTP/RTCP packets without using SRTP (either using SDES or DTLS-SRTP).
   BaseChannel(rtc::Thread* worker_thread,
@@ -86,8 +85,10 @@ class BaseChannel
               bool rtcp_mux_required,
               bool srtp_required);
   virtual ~BaseChannel();
-  bool Init_w(TransportChannel* rtp_transport,
-              TransportChannel* rtcp_transport);
+  bool Init_w(DtlsTransportInternal* rtp_dtls_transport,
+              DtlsTransportInternal* rtcp_dtls_transport,
+              rtc::PacketTransportInternal* rtp_packet_transport,
+              rtc::PacketTransportInternal* rtcp_packet_transport);
   // Deinit may be called multiple times and is simply ignored if it's already
   // done.
   void Deinit();
@@ -95,6 +96,7 @@ class BaseChannel
   rtc::Thread* worker_thread() const { return worker_thread_; }
   rtc::Thread* network_thread() const { return network_thread_; }
   const std::string& content_name() const { return content_name_; }
+  // TODO(deadbeef): This is redundant; remove this.
   const std::string& transport_name() const { return transport_name_; }
   bool enabled() const { return enabled_; }
 
@@ -107,8 +109,18 @@ class BaseChannel
 
   bool writable() const { return writable_; }
 
-  bool SetTransport(TransportChannel* rtp_transport,
-                    TransportChannel* rtcp_transport);
+  // Set the transport(s), and update writability and "ready-to-send" state.
+  // |rtp_transport| must be non-null.
+  // |rtcp_transport| must be supplied if NeedsRtcpTransport() is true (meaning
+  // RTCP muxing is not fully active yet).
+  // |rtp_transport| and |rtcp_transport| must share the same transport name as
+  // well.
+  // Can not start with "rtc::PacketTransportInternal" and switch to
+  // "DtlsTransportInternal", or vice-versa.
+  void SetTransports(DtlsTransportInternal* rtp_dtls_transport,
+                     DtlsTransportInternal* rtcp_dtls_transport);
+  void SetTransports(rtc::PacketTransportInternal* rtp_packet_transport,
+                     rtc::PacketTransportInternal* rtcp_packet_transport);
   bool PushdownLocalDescription(const SessionDescription* local_desc,
                                 ContentAction action,
                                 std::string* error_desc);
@@ -153,7 +165,7 @@ class BaseChannel
   // Used for latency measurements.
   sigslot::signal1<BaseChannel*> SignalFirstPacketReceived;
 
-  // Forward TransportChannel SignalSentPacket to worker thread.
+  // Forward SignalSentPacket to worker thread.
   sigslot::signal1<const rtc::SentPacket&> SignalSentPacket;
 
   // Emitted whenever rtcp-mux is fully negotiated and the rtcp-transport can
@@ -161,8 +173,13 @@ class BaseChannel
   // Fired on the network thread.
   sigslot::signal1<const std::string&> SignalRtcpMuxFullyActive;
 
-  TransportChannel* rtp_transport() const { return rtp_transport_; }
-  TransportChannel* rtcp_transport() const { return rtcp_transport_; }
+  // Only public for unit tests.  Otherwise, consider private.
+  DtlsTransportInternal* rtp_dtls_transport() const {
+    return rtp_dtls_transport_;
+  }
+  DtlsTransportInternal* rtcp_dtls_transport() const {
+    return rtcp_dtls_transport_;
+  }
 
   bool NeedsRtcpTransport();
 
@@ -194,15 +211,16 @@ class BaseChannel
  protected:
   virtual MediaChannel* media_channel() const { return media_channel_; }
 
-  // Sets the |rtp_transport_| (and |rtcp_transport_|, if
-  // |rtcp_enabled_| is true).
-  // This method also updates writability and "ready-to-send" state.
-  bool SetTransport_n(TransportChannel* rtp_transport,
-                      TransportChannel* rtcp_transport);
+  void SetTransports_n(DtlsTransportInternal* rtp_dtls_transport,
+                       DtlsTransportInternal* rtcp_dtls_transport,
+                       rtc::PacketTransportInternal* rtp_packet_transport,
+                       rtc::PacketTransportInternal* rtcp_packet_transport);
 
   // This does not update writability or "ready-to-send" state; it just
   // disconnects from the old channel and connects to the new one.
-  void SetTransportChannel_n(bool rtcp, TransportChannel* new_transport);
+  void SetTransport_n(bool rtcp,
+                      DtlsTransportInternal* new_dtls_transport,
+                      rtc::PacketTransportInternal* new_packet_transport);
 
   bool was_ever_writable() const { return was_ever_writable_; }
   void set_local_content_direction(MediaContentDirection direction) {
@@ -225,8 +243,10 @@ class BaseChannel
   bool IsReadyToSendMedia_w() const;
   rtc::Thread* signaling_thread() { return signaling_thread_; }
 
-  void ConnectToTransportChannel(TransportChannel* tc);
-  void DisconnectFromTransportChannel(TransportChannel* tc);
+  void ConnectToDtlsTransport(DtlsTransportInternal* transport);
+  void DisconnectFromDtlsTransport(DtlsTransportInternal* transport);
+  void ConnectToPacketTransport(rtc::PacketTransportInternal* transport);
+  void DisconnectFromPacketTransport(rtc::PacketTransportInternal* transport);
 
   void FlushRtcpMessages_n();
 
@@ -237,23 +257,23 @@ class BaseChannel
                 const rtc::PacketOptions& options) override;
 
   // From TransportChannel
-  void OnWritableState(rtc::PacketTransportInterface* transport);
-  virtual void OnPacketRead(rtc::PacketTransportInterface* transport,
+  void OnWritableState(rtc::PacketTransportInternal* transport);
+  virtual void OnPacketRead(rtc::PacketTransportInternal* transport,
                             const char* data,
                             size_t len,
                             const rtc::PacketTime& packet_time,
                             int flags);
-  void OnReadyToSend(rtc::PacketTransportInterface* transport);
+  void OnReadyToSend(rtc::PacketTransportInternal* transport);
 
-  void OnDtlsState(TransportChannel* channel, DtlsTransportState state);
+  void OnDtlsState(DtlsTransportInternal* transport, DtlsTransportState state);
 
   void OnSelectedCandidatePairChanged(
-      TransportChannel* channel,
+      IceTransportInternal* ice_transport,
       CandidatePairInterface* selected_candidate_pair,
       int last_sent_packet_id,
       bool ready_to_send);
 
-  bool PacketIsRtcp(const rtc::PacketTransportInterface* transport,
+  bool PacketIsRtcp(const rtc::PacketTransportInternal* transport,
                     const char* data,
                     size_t len);
   bool SendPacket(bool rtcp,
@@ -284,10 +304,10 @@ class BaseChannel
   bool ShouldSetupDtlsSrtp_n() const;
   // Do the DTLS key expansion and impose it on the SRTP/SRTCP filters.
   // |rtcp_channel| indicates whether to set up the RTP or RTCP filter.
-  bool SetupDtlsSrtp_n(bool rtcp_channel);
+  bool SetupDtlsSrtp_n(bool rtcp);
   void MaybeSetupDtlsSrtp_n();
   // Set the DTLS-SRTP cipher policy on this channel as appropriate.
-  bool SetDtlsSrtpCryptoSuites_n(TransportChannel* tc, bool rtcp);
+  bool SetDtlsSrtpCryptoSuites_n(DtlsTransportInternal* transport, bool rtcp);
 
   // Should be called whenever the conditions for
   // IsReadyToReceiveMedia/IsReadyToSendMedia are satisfied (or unsatisfied).
@@ -357,10 +377,12 @@ class BaseChannel
   }
 
  private:
-  bool InitNetwork_n(TransportChannel* rtp_transport,
-                     TransportChannel* rtcp_transport);
+  bool InitNetwork_n(DtlsTransportInternal* rtp_dtls_transport,
+                     DtlsTransportInternal* rtcp_dtls_transport,
+                     rtc::PacketTransportInternal* rtp_packet_transport,
+                     rtc::PacketTransportInternal* rtcp_packet_transport);
   void DisconnectTransportChannels_n();
-  void SignalSentPacket_n(rtc::PacketTransportInterface* transport,
+  void SignalSentPacket_n(rtc::PacketTransportInternal* transport,
                           const rtc::SentPacket& sent_packet);
   void SignalSentPacket_w(const rtc::SentPacket& sent_packet);
   bool IsReadyToSendMedia_n() const;
@@ -376,14 +398,16 @@ class BaseChannel
   const std::string content_name_;
   std::unique_ptr<ConnectionMonitor> connection_monitor_;
 
+  // Won't be set when using raw packet transports. SDP-specific thing.
   std::string transport_name_;
-  // True if RTCP-multiplexing is required. In other words, no standalone RTCP
-  // transport will ever be used for this channel.
-  const bool rtcp_mux_required_;
-  // TODO(johan): Replace TransportChannel* with rtc::PacketTransportInterface*.
-  TransportChannel* rtp_transport_ = nullptr;
+
+  // Separate DTLS/non-DTLS pointers to support using BaseChannel without DTLS.
+  // Temporary measure until more refactoring is done.
+  // If non-null, "X_dtls_transport_" will always equal "X_packet_transport_".
+  DtlsTransportInternal* rtp_dtls_transport_ = nullptr;
+  DtlsTransportInternal* rtcp_dtls_transport_ = nullptr;
+  webrtc::RtpTransport rtp_transport_;
   std::vector<std::pair<rtc::Socket::Option, int> > socket_options_;
-  TransportChannel* rtcp_transport_ = nullptr;
   std::vector<std::pair<rtc::Socket::Option, int> > rtcp_socket_options_;
   SrtpFilter srtp_filter_;
   RtcpMuxFilter rtcp_mux_filter_;
@@ -425,8 +449,6 @@ class VoiceChannel : public BaseChannel {
                bool rtcp_mux_required,
                bool srtp_required);
   ~VoiceChannel();
-  bool Init_w(TransportChannel* rtp_transport,
-              TransportChannel* rtcp_transport);
 
   // Configure sending media on the stream with SSRC |ssrc|
   // If there is only one sending stream SSRC 0 can be used.
@@ -467,6 +489,8 @@ class VoiceChannel : public BaseChannel {
   // Get statistics about the current media session.
   bool GetStats(VoiceMediaInfo* stats);
 
+  std::vector<webrtc::RtpSource> GetSources(uint32_t ssrc) const;
+
   // Monitoring functions
   sigslot::signal2<VoiceChannel*, const std::vector<ConnectionInfo>&>
       SignalConnectionMonitor;
@@ -492,7 +516,7 @@ class VoiceChannel : public BaseChannel {
 
  private:
   // overrides from BaseChannel
-  void OnPacketRead(rtc::PacketTransportInterface* transport,
+  void OnPacketRead(rtc::PacketTransportInternal* transport,
                     const char* data,
                     size_t len,
                     const rtc::PacketTime& packet_time,
@@ -508,7 +532,6 @@ class VoiceChannel : public BaseChannel {
   void HandleEarlyMediaTimeout();
   bool InsertDtmf_w(uint32_t ssrc, int event, int duration);
   bool SetOutputVolume_w(uint32_t ssrc, double volume);
-  bool GetStats_w(VoiceMediaInfo* stats);
 
   void OnMessage(rtc::Message* pmsg) override;
   void GetSrtpCryptoSuites_n(std::vector<int>* crypto_suites) const override;
@@ -544,8 +567,6 @@ class VideoChannel : public BaseChannel {
                bool rtcp_mux_required,
                bool srtp_required);
   ~VideoChannel();
-  bool Init_w(TransportChannel* rtp_transport,
-              TransportChannel* rtcp_transport);
 
   // downcasts a MediaChannel
   VideoMediaChannel* media_channel() const override {
@@ -624,8 +645,10 @@ class RtpDataChannel : public BaseChannel {
                  bool rtcp_mux_required,
                  bool srtp_required);
   ~RtpDataChannel();
-  bool Init_w(TransportChannel* rtp_transport,
-              TransportChannel* rtcp_transport);
+  bool Init_w(DtlsTransportInternal* rtp_dtls_transport,
+              DtlsTransportInternal* rtcp_dtls_transport,
+              rtc::PacketTransportInternal* rtp_packet_transport,
+              rtc::PacketTransportInternal* rtcp_packet_transport);
 
   virtual bool SendData(const SendDataParams& params,
                         const rtc::CopyOnWriteBuffer& payload,

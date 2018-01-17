@@ -35,6 +35,8 @@ enum BufferUsage
     BUFFER_USAGE_STAGING,
     BUFFER_USAGE_VERTEX_OR_TRANSFORM_FEEDBACK,
     BUFFER_USAGE_INDEX,
+    // TODO: possibly share this buffer type with shader storage buffers.
+    BUFFER_USAGE_INDIRECT,
     BUFFER_USAGE_PIXEL_UNPACK,
     BUFFER_USAGE_PIXEL_PACK,
     BUFFER_USAGE_UNIFORM,
@@ -74,22 +76,35 @@ class Buffer11 : public BufferD3D
     void invalidateStaticData() override;
 
     // BufferImpl implementation
-    gl::Error setData(GLenum target, const void *data, size_t size, GLenum usage) override;
-    gl::Error setSubData(GLenum target, const void *data, size_t size, size_t offset) override;
-    gl::Error copySubData(BufferImpl *source,
+    gl::Error setData(ContextImpl *context,
+                      GLenum target,
+                      const void *data,
+                      size_t size,
+                      GLenum usage) override;
+    gl::Error setSubData(ContextImpl *context,
+                         GLenum target,
+                         const void *data,
+                         size_t size,
+                         size_t offset) override;
+    gl::Error copySubData(ContextImpl *contextImpl,
+                          BufferImpl *source,
                           GLintptr sourceOffset,
                           GLintptr destOffset,
                           GLsizeiptr size) override;
-    gl::Error map(GLenum access, GLvoid **mapPtr) override;
-    gl::Error mapRange(size_t offset, size_t length, GLbitfield access, GLvoid **mapPtr) override;
-    gl::Error unmap(GLboolean *result) override;
+    gl::Error map(ContextImpl *contextImpl, GLenum access, GLvoid **mapPtr) override;
+    gl::Error mapRange(ContextImpl *contextImpl,
+                       size_t offset,
+                       size_t length,
+                       GLbitfield access,
+                       GLvoid **mapPtr) override;
+    gl::Error unmap(ContextImpl *contextImpl, GLboolean *result) override;
     gl::Error markTransformFeedbackUsage() override;
 
     // We use two set of dirty events. Static buffers are marked dirty whenever
     // data changes, because they must be re-translated. Direct buffers only need to be
     // updated when the underlying ID3D11Buffer pointer changes - hopefully far less often.
-    angle::BroadcastChannel *getStaticBroadcastChannel();
-    angle::BroadcastChannel *getDirectBroadcastChannel();
+    angle::BroadcastChannel<> *getStaticBroadcastChannel();
+    angle::BroadcastChannel<> *getDirectBroadcastChannel();
 
   private:
     class BufferStorage;
@@ -147,8 +162,8 @@ class Buffer11 : public BufferD3D
     size_t mConstantBufferStorageAdditionalSize;
     unsigned int mMaxConstantBufferLruCount;
 
-    angle::BroadcastChannel mStaticBroadcastChannel;
-    angle::BroadcastChannel mDirectBroadcastChannel;
+    angle::BroadcastChannel<> mStaticBroadcastChannel;
+    angle::BroadcastChannel<> mDirectBroadcastChannel;
 };
 
 }  // namespace rx

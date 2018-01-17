@@ -17,7 +17,6 @@
 #include "mash/session/session.h"
 #include "mash/task_viewer/public/interfaces/constants.mojom.h"
 #include "mash/task_viewer/task_viewer.h"
-#include "services/service_manager/public/cpp/interface_registry.h"
 #include "services/service_manager/public/cpp/service_context.h"
 #include "services/ui/ime/test_ime_driver/test_ime_application.h"
 #include "services/ui/public/interfaces/constants.mojom.h"
@@ -26,6 +25,7 @@
 #if defined(OS_CHROMEOS)
 #include "ash/autoclick/mus/autoclick_application.h"  // nogncheck
 #include "ash/mus/window_manager_application.h"  // nogncheck
+#include "ash/public/interfaces/constants.mojom.h"    // nogncheck
 #include "ash/touch_hud/mus/touch_hud_application.h"  // nogncheck
 #endif
 
@@ -35,15 +35,18 @@
 
 namespace mash {
 
-MashPackagedService::MashPackagedService() {}
+MashPackagedService::MashPackagedService() {
+  registry_.AddInterface<ServiceFactory>(this);
+}
 
 MashPackagedService::~MashPackagedService() {}
 
-bool MashPackagedService::OnConnect(
-    const service_manager::ServiceInfo& remote_info,
-    service_manager::InterfaceRegistry* registry) {
-  registry->AddInterface<ServiceFactory>(this);
-  return true;
+void MashPackagedService::OnBindInterface(
+    const service_manager::ServiceInfo& source_info,
+    const std::string& interface_name,
+    mojo::ScopedMessagePipeHandle interface_pipe) {
+  registry_.BindInterface(source_info.identity, interface_name,
+                          std::move(interface_pipe));
 }
 
 void MashPackagedService::Create(
@@ -84,7 +87,7 @@ std::unique_ptr<service_manager::Service> MashPackagedService::CreateService(
   }
 
 #if defined(OS_CHROMEOS)
-  if (name == "ash")
+  if (name == ash::mojom::kServiceName)
     return base::WrapUnique(new ash::mus::WindowManagerApplication);
   if (name == "accessibility_autoclick")
     return base::WrapUnique(new ash::autoclick::AutoclickApplication);

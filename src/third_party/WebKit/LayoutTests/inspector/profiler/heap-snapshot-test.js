@@ -482,7 +482,7 @@ InspectorTest.checkArrayIsSorted = function(contents, sortType, sortOrder)
     function parseSize(size)
     {
         // Remove thousands separator.
-        return parseInt(size.replace(/[\u2009,]/g, ""), 10);
+        return parseInt(size.replace(/[\xa0,]/g, ""), 10);
     }
     var extractor = {
         text: function (data) { data; },
@@ -696,7 +696,7 @@ InspectorTest.takeAndOpenSnapshot = function(generator, callback)
         }
         snapshot.snapshot.typeId = "HEAP";
         profileType._addHeapSnapshotChunk({data: JSON.stringify(snapshot)});
-        setTimeout(callback2, 0);
+        return Promise.resolve(callback2(null));
     }
     InspectorTest.override(InspectorTest.HeapProfilerAgent, "takeHeapSnapshot", pushGeneratedSnapshot);
     InspectorTest._takeAndOpenSnapshotCallback = callback;

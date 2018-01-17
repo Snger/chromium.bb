@@ -12,7 +12,7 @@
 #include "xfa/fxfa/fxfa.h"
 
 class CPDFXFA_Context;
-class IJS_Context;
+class IJS_EventContext;
 
 class CPDFXFA_DocEnvironment : public IXFA_DocEnvironment {
  public:
@@ -21,18 +21,16 @@ class CPDFXFA_DocEnvironment : public IXFA_DocEnvironment {
 
   // IXFA_DocEnvironment
   void SetChangeMark(CXFA_FFDoc* hDoc) override;
-  // used in dynamic xfa, dwFlags refer to XFA_INVALIDATE_XXX macros.
-  void InvalidateRect(CXFA_FFPageView* pPageView,
-                      const CFX_RectF& rt,
-                      uint32_t dwFlags) override;
-  // show or hide caret
+  // Used in dynamic xfa.
+  void InvalidateRect(CXFA_FFPageView* pPageView, const CFX_RectF& rt) override;
+  // Show or hide caret.
   void DisplayCaret(CXFA_FFWidget* hWidget,
                     bool bVisible,
                     const CFX_RectF* pRtAnchor) override;
   // dwPos: (0:bottom 1:top)
   bool GetPopupPos(CXFA_FFWidget* hWidget,
-                   FX_FLOAT fMinPopup,
-                   FX_FLOAT fMaxPopup,
+                   float fMinPopup,
+                   float fMaxPopup,
                    const CFX_RectF& rtAnchor,
                    CFX_RectF& rtPopup) override;
   bool PopupMenu(CXFA_FFWidget* hWidget, CFX_PointF ptPopup) override;
@@ -107,8 +105,8 @@ class CPDFXFA_DocEnvironment : public IXFA_DocEnvironment {
                         FPDF_DWORD flag);
   void ToXFAContentFlags(CFX_WideString csSrcContent, FPDF_DWORD& flag);
 
-  CPDFXFA_Context* const m_pContext;  // Not owned;
-  IJS_Context* m_pJSContext;
+  CPDFXFA_Context* const m_pContext;    // Not owned.
+  IJS_EventContext* m_pJSEventContext;  // Not owned.
 };
 
 #endif  // FPDFSDK_FPDFXFA_CPDFXFA_DOCENVIRONMENT_H_

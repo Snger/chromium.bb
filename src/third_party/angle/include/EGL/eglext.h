@@ -517,6 +517,10 @@ EGLAPI EGLBoolean EGLAPIENTRY eglPresentationTimeANDROID (EGLDisplay dpy, EGLSur
 #define EGL_RECORDABLE_ANDROID            0x3142
 #endif /* EGL_ANDROID_recordable */
 
+#ifndef EGL_ANGLE_create_context_robust_resource_initialization
+#define EGL_ANGLE_create_context_robust_resource_initialization 1
+#define EGL_CONTEXT_ROBUST_RESOURCE_INITIALIZATION_ANGLE 0x320F
+#endif /* EGL_ANGLE_create_context_robust_resource_initialization */
 
 #ifndef EGL_ANGLE_d3d_share_handle_client_buffer
 #define EGL_ANGLE_d3d_share_handle_client_buffer 1
@@ -650,10 +654,20 @@ EGLAPI EGLBoolean EGLAPIENTRY eglStreamPostD3DTextureNV12ANGLE(EGLDisplay dpy, E
 #define EGL_CONTEXT_WEBGL_COMPATIBILITY_ANGLE 0x3AAC
 #endif /* EGL_ANGLE_create_context_webgl_compatibility */
 
+#ifndef EGL_ANGLE_display_texture_share_group
+#define EGL_ANGLE_display_texture_share_group 1
+#define EGL_DISPLAY_TEXTURE_SHARE_GROUP_ANGLE 0x3AAF
+#endif /* EGL_ANGLE_display_texture_share_group */
+
 #ifndef EGL_CHROMIUM_create_context_bind_generates_resource
 #define EGL_CHROMIUM_create_context_bind_generates_resource 1
 #define EGL_CONTEXT_BIND_GENERATES_RESOURCE_CHROMIUM 0x3AAD
 #endif /* EGL_CHROMIUM_create_context_bind_generates_resource */
+
+#ifndef EGL_ANGLE_create_context_client_arrays
+#define EGL_ANGLE_create_context_client_arrays 1
+#define EGL_CONTEXT_CLIENT_ARRAYS_ENABLED_ANGLE 0x3452
+#endif /* EGL_ANGLE_create_context_client_arrays */
 
 #ifndef EGL_ARM_implicit_external_sync
 #define EGL_ARM_implicit_external_sync 1

@@ -11,6 +11,10 @@
 #include "testing/gtest_mac.h"
 #include "ui/base/l10n/l10n_util_mac.h"
 
+#if !defined(__has_feature) || !__has_feature(objc_arc)
+#error "This file requires ARC support."
+#endif
+
 namespace {
 
 void StringToTypeTestHelper(NSString* activityString,
@@ -37,7 +41,7 @@ TEST(ActivityTypeUtilTest, StringToTypeTest) {
 
 void TypeToMessageTestHelper(activity_type_util::ActivityType type,
                              NSString* expectedMessage) {
-  EXPECT_NSEQ(activity_type_util::SuccessMessageForActivity(type),
+  EXPECT_NSEQ(activity_type_util::CompletionMessageForActivity(type),
               expectedMessage);
 }
 
@@ -45,8 +49,8 @@ TEST(ActivityTypeUtilTest, TypeToMessageTest) {
   TypeToMessageTestHelper(activity_type_util::UNKNOWN, nil);
   TypeToMessageTestHelper(activity_type_util::PRINT, nil);
   TypeToMessageTestHelper(
-      activity_type_util::NATIVE_TWITTER,
-      l10n_util::GetNSString(IDS_IOS_SHARE_TWITTER_COMPLETE));
+      activity_type_util::NATIVE_CLIPBOARD,
+      l10n_util::GetNSString(IDS_IOS_SHARE_TO_CLIPBOARD_SUCCESS));
   TypeToMessageTestHelper(
       activity_type_util::APPEX_PASSWORD_MANAGEMENT_OTHERS,
       l10n_util::GetNSString(IDS_IOS_APPEX_PASSWORD_FORM_FILLED_SUCCESS));

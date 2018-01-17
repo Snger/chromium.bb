@@ -20,10 +20,6 @@
 namespace gl
 {
 class Buffer;
-class State;
-class Program;
-struct VertexAttribute;
-struct VertexAttribCurrentValueData;
 
 enum PrimitiveType
 {
@@ -172,6 +168,27 @@ struct DepthStencilState
     GLuint stencilBackWritemask;
 };
 
+struct DrawArraysIndirectCommand
+{
+    GLuint count;
+    GLuint instanceCount;
+    GLuint first;
+    GLuint baseInstance;
+};
+static_assert(sizeof(DrawArraysIndirectCommand) == 16,
+              "Unexpected size of DrawArraysIndirectCommand");
+
+struct DrawElementsIndirectCommand
+{
+    GLuint count;
+    GLuint primCount;
+    GLuint firstIndex;
+    GLint baseVertex;
+    GLuint baseInstance;
+};
+static_assert(sizeof(DrawElementsIndirectCommand) == 20,
+              "Unexpected size of DrawElementsIndirectCommand");
+
 // State from Table 6.10 (state per sampler object)
 struct SamplerState
 {
@@ -245,6 +262,8 @@ typedef std::bitset<IMPLEMENTATION_MAX_COMBINED_SHADER_UNIFORM_BUFFERS> UniformB
 // Client code should treat it as a std::map.
 template <class ResourceT>
 using ResourceMap = std::unordered_map<GLuint, ResourceT *>;
+
+using ContextID = uintptr_t;
 }
 
 namespace rx
@@ -294,7 +313,15 @@ inline DestT *SafeGetImplAs(SrcT *src)
 {
     return src != nullptr ? GetAs<DestT>(src->getImplementation()) : nullptr;
 }
+
+// In some cases we want to retrieve an Impl object, while handling nullptr cases trivially.
+template <typename ObjT>
+auto SafeGetImpl(ObjT *src) -> decltype(src->getImplementation())
+{
+    return src ? src->getImplementation() : nullptr;
 }
+
+}  // namespace rx
 
 #include "angletypes.inl"
 

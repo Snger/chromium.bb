@@ -320,6 +320,8 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate {
   // Runs the specified PendingTask.
   void RunTask(PendingTask* pending_task);
 
+  bool nesting_allowed() const { return allow_nesting_; }
+
   // Disallow nesting. After this is called, running a nested RunLoop or calling
   // Add/RemoveNestingObserver() on this MessageLoop will crash.
   void DisallowNesting() { allow_nesting_ = false; }
@@ -346,11 +348,13 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate {
   void BindToCurrentThread();
 
  private:
-  friend class RunLoop;
   friend class internal::IncomingTaskQueue;
+  friend class RunLoop;
   friend class ScheduleWorkTest;
   friend class Thread;
+  friend struct PendingTask;
   FRIEND_TEST_ALL_PREFIXES(MessageLoopTest, DeleteUnboundLoop);
+  friend class PendingTaskTest;
 
   // Creates a MessageLoop without binding to a thread.
   // If |type| is TYPE_CUSTOM non-null |pump_factory| must be also given
@@ -449,6 +453,13 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate {
   ObserverList<TaskObserver> task_observers_;
 
   debug::TaskAnnotator task_annotator_;
+
+  // Used to allow creating a breadcrumb of program counters in PostTask.
+  // This variable is only initialized while a task is being executed and is
+  // meant only to store context for creating a backtrace breadcrumb. Do not
+  // attach other semantics to it without thinking through the use caes
+  // thoroughly.
+  const PendingTask* current_pending_task_;
 
   scoped_refptr<internal::IncomingTaskQueue> incoming_task_queue_;
 

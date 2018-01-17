@@ -263,7 +263,7 @@ static bool alloc_row_bytes(SkBitmap* bm, const SkImageInfo& info, size_t rowByt
     if (!bm->setInfo(info, rowBytes)) {
         return false;
     }
-    sk_sp<SkPixelRef> pr(SkMallocPixelRef::NewAllocate(info, rowBytes, nullptr));
+    sk_sp<SkPixelRef> pr = SkMallocPixelRef::MakeAllocate(info, rowBytes, nullptr);
     bm->setPixelRef(std::move(pr), 0, 0);
     return true;
 }
@@ -382,7 +382,7 @@ static void test_write_pixels(skiatest::Reporter* reporter, SkSurface* surface) 
                                                       rect.fLeft, rect.fTop));
 
                 // we should change the genID iff pixels were actually written.
-                SkIRect canvasRect = SkIRect::MakeSize(canvas.getDeviceSize());
+                SkIRect canvasRect = SkIRect::MakeSize(canvas.getBaseLayerSize());
                 SkIRect writeRect = SkIRect::MakeXYWH(rect.fLeft, rect.fTop,
                                                       bmp.width(), bmp.height());
                 bool intersects = SkIRect::Intersects(canvasRect, writeRect) ;

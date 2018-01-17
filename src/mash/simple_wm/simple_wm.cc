@@ -46,7 +46,7 @@ class SimpleWM::WindowListModel : public aura::WindowObserver {
   }
   ~WindowListModel() override {
     window_container_->RemoveObserver(this);
-    for (auto window : windows_)
+    for (auto* window : windows_)
       window->RemoveObserver(this);
   }
 
@@ -353,8 +353,6 @@ SimpleWM::~SimpleWM() {
   // WindowTreeClient destruction may callback to us.
   window_tree_client_.reset();
 
-  gpu_.reset();
-
   display::Screen::SetScreenInstance(nullptr);
 }
 
@@ -369,21 +367,10 @@ void SimpleWM::OnStart() {
   aura_init_ = base::MakeUnique<views::AuraInit>(
       context()->connector(), context()->identity(), "views_mus_resources.pak",
       std::string(), nullptr, views::AuraInit::Mode::AURA_MUS_WINDOW_MANAGER);
-  gpu_ = ui::Gpu::Create(context()->connector(), nullptr);
-  compositor_context_factory_ =
-      base::MakeUnique<aura::MusContextFactory>(gpu_.get());
-  aura::Env::GetInstance()->set_context_factory(
-      compositor_context_factory_.get());
   window_tree_client_ = base::MakeUnique<aura::WindowTreeClient>(
       context()->connector(), this, this);
   aura::Env::GetInstance()->SetWindowTreeClient(window_tree_client_.get());
   window_tree_client_->ConnectAsWindowManager();
-}
-
-bool SimpleWM::OnConnect(
-    const service_manager::ServiceInfo& remote_info,
-    service_manager::InterfaceRegistry* registry) {
-  return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -412,10 +399,6 @@ void SimpleWM::OnPointerEventObserved(const ui::PointerEvent& event,
   // Don't care.
 }
 
-aura::client::CaptureClient* SimpleWM::GetCaptureClient() {
-  return wm_state_.capture_controller();
-}
-
 aura::PropertyConverter* SimpleWM::GetPropertyConverter() {
   return &property_converter_;
 }
@@ -428,10 +411,9 @@ void SimpleWM::SetWindowManagerClient(
   window_manager_client_ = client;
 }
 
-bool SimpleWM::OnWmSetBounds(aura::Window* window, gfx::Rect* bounds) {
+void SimpleWM::OnWmSetBounds(aura::Window* window, const gfx::Rect& bounds) {
   FrameView* frame_view = GetFrameViewForClientWindow(window);
-  frame_view->GetWidget()->SetBounds(*bounds);
-  return false;
+  frame_view->GetWidget()->SetBounds(bounds);
 }
 
 bool SimpleWM::OnWmSetProperty(
@@ -440,6 +422,10 @@ bool SimpleWM::OnWmSetProperty(
     std::unique_ptr<std::vector<uint8_t>>* new_data) {
   return true;
 }
+
+void SimpleWM::OnWmSetModalType(aura::Window* window, ui::ModalType type) {}
+
+void SimpleWM::OnWmSetCanFocus(aura::Window* window, bool can_focus) {}
 
 aura::Window* SimpleWM::OnWmCreateTopLevelWindow(
     ui::mojom::WindowType window_type,
@@ -476,6 +462,15 @@ void SimpleWM::OnWmClientJankinessChanged(
     bool janky) {
   // Don't care.
 }
+
+void SimpleWM::OnWmBuildDragImage(const gfx::Point& screen_location,
+                                  const SkBitmap& drag_image,
+                                  const gfx::Vector2d& drag_image_offset,
+                                  ui::mojom::PointerKind source) {}
+
+void SimpleWM::OnWmMoveDragImage(const gfx::Point& screen_location) {}
+
+void SimpleWM::OnWmDestroyDragImage() {}
 
 void SimpleWM::OnWmWillCreateDisplay(const display::Display& display) {
   screen_->display_list().AddDisplay(display,

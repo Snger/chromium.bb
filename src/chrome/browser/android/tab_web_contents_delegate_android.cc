@@ -13,7 +13,6 @@
 #include "chrome/browser/android/banners/app_banner_manager_android.h"
 #include "chrome/browser/android/feature_utilities.h"
 #include "chrome/browser/android/hung_renderer_infobar_delegate.h"
-#include "chrome/browser/android/media/media_throttle_infobar_delegate.h"
 #include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/file_select_helper.h"
 #include "chrome/browser/infobars/infobar_service.h"
@@ -42,7 +41,6 @@
 #include "content/public/common/file_chooser_params.h"
 #include "jni/TabWebContentsDelegateAndroid_jni.h"
 #include "ppapi/features/features.h"
-#include "third_party/WebKit/public/web/WebWindowFeatures.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
 
@@ -179,7 +177,7 @@ blink::WebDisplayMode TabWebContentsDelegateAndroid::GetDisplayMode(
 
   ScopedJavaLocalRef<jobject> obj = GetJavaDelegate(env);
   if (obj.is_null())
-    return blink::WebDisplayModeUndefined;
+    return blink::kWebDisplayModeUndefined;
 
   return static_cast<blink::WebDisplayMode>(
       Java_TabWebContentsDelegateAndroid_getDisplayMode(env, obj));
@@ -276,12 +274,6 @@ bool TabWebContentsDelegateAndroid::CheckMediaAccessPermission(
       ->CheckMediaAccessPermission(web_contents, security_origin, type);
 }
 
-void TabWebContentsDelegateAndroid::RequestMediaDecodePermission(
-    content::WebContents* web_contents,
-    const base::Callback<void(bool)>& callback) {
-  MediaThrottleInfoBarDelegate::Create(web_contents, callback);
-}
-
 bool TabWebContentsDelegateAndroid::RequestPpapiBrokerPermission(
     WebContents* web_contents,
     const GURL& url,
@@ -331,7 +323,7 @@ WebContents* TabWebContentsDelegateAndroid::OpenURLFromTab(
       !base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kDisablePopupBlocking)) {
     if (popup_blocker_helper->MaybeBlockPopup(nav_params,
-                                              blink::WebWindowFeatures())) {
+                                              blink::mojom::WindowFeatures())) {
       return nullptr;
     }
   }

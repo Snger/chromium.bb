@@ -278,7 +278,11 @@ bool SkOpCoincidence::addEndMovedSpans(const SkOpSpan* base, const SkOpSpanBase*
     const SkOpPtT* testPtT = testSpan->ptT();
     const SkOpPtT* stopPtT = testPtT;
     const SkOpSegment* baseSeg = base->segment();
+    int escapeHatch = 100000;  // this is 100 times larger than the debugLoopLimit test
     while ((testPtT = testPtT->next()) != stopPtT) {
+        if (--escapeHatch <= 0) {
+            return false;  // if triggered (likely by a fuzz-generated test) too complex to succeed
+        }
         const SkOpSegment* testSeg = testPtT->segment();
         if (testPtT->deleted()) {
             continue;
@@ -296,7 +300,7 @@ bool SkOpCoincidence::addEndMovedSpans(const SkOpSpan* base, const SkOpSpanBase*
         SkDVector dxdy = baseSeg->dSlopeAtT(base->t());
         const SkPoint& pt = base->pt();
         SkDLine ray = {{{pt.fX, pt.fY}, {pt.fX + dxdy.fY, pt.fY - dxdy.fX}}};
-        SkIntersections i;
+        SkIntersections i  SkDEBUGCODE((this->globalState()));
         (*CurveIntersectRay[testSeg->verb()])(testSeg->pts(), testSeg->weight(), ray, &i);
         for (int index = 0; index < i.used(); ++index) {
             double t = i[0][index];
@@ -791,7 +795,7 @@ bool SkOpCoincidence::addMissing(bool* added  DEBUG_COIN_DECLARE_PARAMS()) {
             return true;
         }
         const SkOpSegment* outerOpp = oos->segment();
-        SkASSERT(!outerOpp->done());
+        SkOPASSERT(!outerOpp->done());
         SkOpSegment* outerCoinWritable = const_cast<SkOpSegment*>(outerCoin);
         SkOpSegment* outerOppWritable = const_cast<SkOpSegment*>(outerOpp);
         SkCoincidentSpans* inner = outer;
@@ -805,7 +809,7 @@ bool SkOpCoincidence::addMissing(bool* added  DEBUG_COIN_DECLARE_PARAMS()) {
             const SkOpPtT* ios = inner->oppPtTStart();
             FAIL_IF(ios->deleted());
             const SkOpSegment* innerOpp = ios->segment();
-            SkASSERT(!innerOpp->done());
+            SkOPASSERT(!innerOpp->done());
             SkOpSegment* innerCoinWritable = const_cast<SkOpSegment*>(innerCoin);
             SkOpSegment* innerOppWritable = const_cast<SkOpSegment*>(innerOpp);
             if (outerCoin == innerCoin) {

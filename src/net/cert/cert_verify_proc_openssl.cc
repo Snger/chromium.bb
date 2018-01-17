@@ -109,8 +109,12 @@ void GetCertChainInfo(X509_STORE_CTX* store_ctx,
   // Set verify_result->verified_cert and
   // verify_result->is_issued_by_known_root.
   if (verified_cert) {
-    verify_result->verified_cert =
+    scoped_refptr<X509Certificate> verified_cert_with_chain =
         X509Certificate::CreateFromHandle(verified_cert, verified_chain);
+    if (verified_cert_with_chain)
+      verify_result->verified_cert = std::move(verified_cert_with_chain);
+    else
+      verify_result->cert_status |= CERT_STATUS_INVALID;
 
     // For OpenSSL builds, only certificates used for unit tests are treated
     // as not issued by known roots. The only way to determine whether a
@@ -181,11 +185,6 @@ int CertVerifyProcOpenSSL::VerifyInternal(
     CertVerifyResult* verify_result) {
   crypto::EnsureOpenSSLInit();
 
-  if (!cert->VerifyNameMatch(hostname,
-                             &verify_result->common_name_fallback_used)) {
-    verify_result->cert_status |= CERT_STATUS_COMMON_NAME_INVALID;
-  }
-
   bssl::UniquePtr<X509_STORE_CTX> ctx(X509_STORE_CTX_new());
 
   std::unique_ptr<STACK_OF(X509), ShallowX509StackDeleter> intermediates(
@@ -219,6 +218,7 @@ int CertVerifyProcOpenSSL::VerifyInternal(
 
   GetCertChainInfo(ctx.get(), verify_result);
   AppendPublicKeyHashes(ctx.get(), &verify_result->public_key_hashes);
+
   if (IsCertStatusError(verify_result->cert_status))
     return MapCertStatusToNetError(verify_result->cert_status);
 

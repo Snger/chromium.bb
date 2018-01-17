@@ -43,14 +43,8 @@ WhatsNewPromoStatus GetWhatsNewPromoStatus();
 // Whether background crash report upload should generate a local notification.
 bool IsAlertOnBackgroundUploadEnabled();
 
-// Whether the All Bookmarks view is visible in bookmarks.
-bool IsAllBookmarksEnabled();
-
 // Whether auto-reload is enabled.
 bool IsAutoReloadEnabled();
-
-// Whether the credential management API is enabled.
-bool IsCredentialManagementEnabled();
 
 // Whether "Save Image" should be renamed as "Download Image".
 bool IsDownloadRenamingEnabled();
@@ -82,23 +76,14 @@ bool IsPasswordGenerationEnabled();
 // Whether the Payment Request API is enabled or not.
 bool IsPaymentRequestEnabled();
 
-// Whether the back-forward navigation uses pending index.
-bool IsPendingIndexNavigationEnabled();
-
 // Whether the Physical Web feature is enabled.
 bool IsPhysicalWebEnabled();
 
 // Whether reader mode is enabled.
 bool IsReaderModeEnabled();
 
-// Whether the reading list is enabled.
-bool IsReadingListEnabled();
-
 // Whether the Sign In Flow via SFSafariViewController is enabled.
 bool IsSafariVCSignInEnabled();
-
-// Whether launching actions from Spotlight is enabled.
-bool IsSpotlightActionsEnabled();
 
 // Whether startup crash is enabled.
 bool IsStartupCrashEnabled();
@@ -106,15 +91,18 @@ bool IsStartupCrashEnabled();
 // Whether or not the tab strip scrolls new tabs to be visible.
 bool IsTabStripAutoScrollNewTabsEnabled();
 
-// Whether the Tab Switcher is enabled for iPad or not.
-bool IsTabSwitcherEnabled();
-
 // Whether viewing and copying passwords is enabled.
 bool IsViewCopyPasswordsEnabled();
 
 // Whether password generation fields are determined using local heuristics
 // only.
 bool UseOnlyLocalHeuristicsForPasswordGeneration();
+
+// Whether the Suggestions UI is enabled.
+bool IsSuggestionsUIEnabled();
+
+// Wether Sign-in promo is enabled.
+bool IsSigninPromoEnabled();
 
 }  // namespace experimental_flags
 

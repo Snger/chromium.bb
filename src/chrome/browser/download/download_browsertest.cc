@@ -5,8 +5,13 @@
 #include "chrome/browser/download/download_browsertest.h"
 
 #include <stdint.h>
+
+#include <memory>
+#include <set>
 #include <sstream>
+#include <string>
 #include <utility>
+#include <vector>
 
 #include "base/bind.h"
 #include "base/bind_helpers.h"
@@ -62,19 +67,19 @@
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
-#include "chrome/common/safe_browsing/csd.pb.h"
 #include "chrome/common/safe_browsing/download_file_types.pb.h"
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/generated_resources.h"
 #include "chrome/test/base/in_process_browser_test.h"
 #include "chrome/test/base/ui_test_utils.h"
-#include "components/history/content/browser/download_constants_utils.h"
+#include "components/history/content/browser/download_conversions.h"
 #include "components/history/core/browser/download_constants.h"
 #include "components/history/core/browser/download_row.h"
 #include "components/history/core/browser/history_service.h"
 #include "components/infobars/core/confirm_infobar_delegate.h"
 #include "components/infobars/core/infobar.h"
 #include "components/prefs/pref_service.h"
+#include "components/safe_browsing/csd.pb.h"
 #include "components/safe_browsing_db/safe_browsing_prefs.h"
 #include "content/public/browser/download_danger_type.h"
 #include "content/public/browser/download_interrupt_reasons.h"
@@ -98,7 +103,6 @@
 #include "content/public/test/test_navigation_observer.h"
 #include "extensions/browser/extension_dialog_auto_confirm.h"
 #include "extensions/browser/extension_system.h"
-#include "extensions/common/feature_switch.h"
 #include "net/base/filename_util.h"
 #include "net/dns/mock_host_resolver.h"
 #include "net/test/embedded_test_server/embedded_test_server.h"
@@ -123,7 +127,6 @@ using content::DownloadManager;
 using content::DownloadUrlParameters;
 using content::WebContents;
 using extensions::Extension;
-using extensions::FeatureSwitch;
 using net::URLRequestMockHTTPJob;
 
 namespace {
@@ -483,12 +486,12 @@ class DownloadTest : public InProcessBrowserTest {
   }
 
   // Location of the file source (the place from which it is downloaded).
-  base::FilePath OriginFile(base::FilePath file) {
+  base::FilePath OriginFile(const base::FilePath& file) {
     return test_dir_.Append(file);
   }
 
   // Location of the file destination (place to which it is downloaded).
-  base::FilePath DestinationFile(Browser* browser, base::FilePath file) {
+  base::FilePath DestinationFile(Browser* browser, const base::FilePath& file) {
     return GetDownloadDirectory(browser).Append(file.BaseName());
   }
 
@@ -1085,7 +1088,9 @@ class FakeSafeBrowsingService
     : public safe_browsing::TestSafeBrowsingService,
       public safe_browsing::ServicesDelegate::ServicesCreator {
  public:
-  FakeSafeBrowsingService() {
+  FakeSafeBrowsingService()
+      : TestSafeBrowsingService(
+            safe_browsing::V4FeatureList::V4UsageStatus::V4_DISABLED) {
     services_delegate_ =
         safe_browsing::ServicesDelegate::CreateForTest(this, this);
   }
@@ -1112,6 +1117,7 @@ class FakeSafeBrowsingService
     return nullptr;
   }
 
+ private:
   DISALLOW_COPY_AND_ASSIGN(FakeSafeBrowsingService);
 };
 
@@ -1357,7 +1363,7 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, DownloadResourceThrottleCancels) {
       g_browser_process->download_request_limiter()->GetDownloadState(
           web_contents, web_contents, true);
   ASSERT_TRUE(tab_download_state);
-  tab_download_state->set_download_status(
+  tab_download_state->SetDownloadStatusAndNotify(
       DownloadRequestLimiter::DOWNLOADS_NOT_ALLOWED);
 
   // Try to start the download via Javascript and wait for the corresponding
@@ -2009,8 +2015,8 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, AutoOpen) {
 // Download an extension. Expect a dangerous download warning.
 // Deny the download.
 IN_PROC_BROWSER_TEST_F(DownloadTest, CrxDenyInstall) {
-  FeatureSwitch::ScopedOverride enable_easy_off_store_install(
-      FeatureSwitch::easy_off_store_install(), true);
+  std::unique_ptr<base::AutoReset<bool>> allow_offstore_install =
+      download_crx_util::OverrideOffstoreInstallAllowedForTesting(true);
 
   GURL extension_url(URLRequestMockHTTPJob::GetMockUrl(kGoodCrxPath));
 
@@ -2034,8 +2040,8 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, CrxDenyInstall) {
 // Download an extension.  Expect a dangerous download warning.
 // Allow the download, deny the install.
 IN_PROC_BROWSER_TEST_F(DownloadTest, CrxInstallDenysPermissions) {
-  FeatureSwitch::ScopedOverride enable_easy_off_store_install(
-      FeatureSwitch::easy_off_store_install(), true);
+  std::unique_ptr<base::AutoReset<bool>> allow_offstore_install =
+      download_crx_util::OverrideOffstoreInstallAllowedForTesting(true);
   extensions::ScopedTestDialogAutoConfirm auto_confirm_install_prompt(
       extensions::ScopedTestDialogAutoConfirm::CANCEL);
 
@@ -2067,8 +2073,8 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, CrxInstallDenysPermissions) {
 // Download an extension.  Expect a dangerous download warning.
 // Allow the download, and the install.
 IN_PROC_BROWSER_TEST_F(DownloadTest, CrxInstallAcceptPermissions) {
-  FeatureSwitch::ScopedOverride enable_easy_off_store_install(
-      FeatureSwitch::easy_off_store_install(), true);
+  std::unique_ptr<base::AutoReset<bool>> allow_offstore_install =
+      download_crx_util::OverrideOffstoreInstallAllowedForTesting(true);
 
   GURL extension_url(URLRequestMockHTTPJob::GetMockUrl(kGoodCrxPath));
 
@@ -2127,8 +2133,8 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, CrxInvalid) {
 
 // Install a large (100kb) theme.
 IN_PROC_BROWSER_TEST_F(DownloadTest, CrxLargeTheme) {
-  FeatureSwitch::ScopedOverride enable_easy_off_store_install(
-      FeatureSwitch::easy_off_store_install(), true);
+  std::unique_ptr<base::AutoReset<bool>> allow_offstore_install =
+      download_crx_util::OverrideOffstoreInstallAllowedForTesting(true);
 
   GURL extension_url(URLRequestMockHTTPJob::GetMockUrl(kLargeThemePath));
 
@@ -2208,6 +2214,7 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, DownloadUrlToPath) {
       DownloadUrlParameters::CreateForWebContentsMainFrame(
           web_contents, url));
   params->set_file_path(target_file_full_path);
+  params->set_transient(true);
   DownloadManagerForBrowser(browser())->DownloadUrl(std::move(params));
   observer->WaitForFinished();
   EXPECT_EQ(1u, observer->NumDownloadsSeenInState(DownloadItem::COMPLETE));
@@ -2225,6 +2232,7 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, DownloadUrlToPath) {
   ASSERT_EQ(1u, downloads.size());
   content::DownloadUpdatedObserver(
       downloads[0], base::Bind(&WasAutoOpened)).WaitForEvent();
+  ASSERT_TRUE(downloads[0]->IsTransient());
 }
 
 IN_PROC_BROWSER_TEST_F(DownloadTest, SavePageNonHTMLViaGet) {
@@ -2268,7 +2276,7 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, SavePageNonHTMLViaGet) {
           DownloadManagerForBrowser(browser()), 1,
           content::DownloadTestObserver::ON_DANGEROUS_DOWNLOAD_FAIL));
   content::ContextMenuParams context_menu_params;
-  context_menu_params.media_type = blink::WebContextMenuData::MediaTypeImage;
+  context_menu_params.media_type = blink::WebContextMenuData::kMediaTypeImage;
   context_menu_params.src_url = url;
   context_menu_params.page_url = url;
   TestRenderViewContextMenu menu(
@@ -2366,7 +2374,7 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, SavePageNonHTMLViaPost) {
           DownloadManagerForBrowser(browser()), 1,
           content::DownloadTestObserver::ON_DANGEROUS_DOWNLOAD_FAIL));
   content::ContextMenuParams context_menu_params;
-  context_menu_params.media_type = blink::WebContextMenuData::MediaTypeImage;
+  context_menu_params.media_type = blink::WebContextMenuData::kMediaTypeImage;
   context_menu_params.src_url = jpeg_url;
   context_menu_params.page_url = jpeg_url;
   TestRenderViewContextMenu menu(web_contents->GetMainFrame(),
@@ -2626,15 +2634,14 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, LoadURLExternallyReferrerPolicy) {
   // Click on the link with the alt key pressed. This will download the link
   // target.
   WebContents* tab = browser()->tab_strip_model()->GetActiveWebContents();
-  blink::WebMouseEvent mouse_event(blink::WebInputEvent::MouseDown,
-                                   blink::WebInputEvent::AltKey,
-                                   blink::WebInputEvent::TimeStampForTesting);
-  mouse_event.button = blink::WebMouseEvent::Button::Left;
-  mouse_event.x = 15;
-  mouse_event.y = 15;
-  mouse_event.clickCount = 1;
+  blink::WebMouseEvent mouse_event(blink::WebInputEvent::kMouseDown,
+                                   blink::WebInputEvent::kAltKey,
+                                   blink::WebInputEvent::kTimeStampForTesting);
+  mouse_event.button = blink::WebMouseEvent::Button::kLeft;
+  mouse_event.SetPositionInWidget(15, 15);
+  mouse_event.click_count = 1;
   tab->GetRenderViewHost()->GetWidget()->ForwardMouseEvent(mouse_event);
-  mouse_event.setType(blink::WebInputEvent::MouseUp);
+  mouse_event.SetType(blink::WebInputEvent::kMouseUp);
   tab->GetRenderViewHost()->GetWidget()->ForwardMouseEvent(mouse_event);
 
   waiter->WaitForFinished();
@@ -2683,15 +2690,14 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, SaveLinkAsReferrerPolicyOrigin) {
       IDC_CONTENT_CONTEXT_SAVELINKAS);
 
   WebContents* tab = browser()->tab_strip_model()->GetActiveWebContents();
-  blink::WebMouseEvent mouse_event(blink::WebInputEvent::MouseDown,
-                                   blink::WebInputEvent::NoModifiers,
-                                   blink::WebInputEvent::TimeStampForTesting);
-  mouse_event.button = blink::WebMouseEvent::Button::Right;
-  mouse_event.x = 15;
-  mouse_event.y = 15;
-  mouse_event.clickCount = 1;
+  blink::WebMouseEvent mouse_event(blink::WebInputEvent::kMouseDown,
+                                   blink::WebInputEvent::kNoModifiers,
+                                   blink::WebInputEvent::kTimeStampForTesting);
+  mouse_event.button = blink::WebMouseEvent::Button::kRight;
+  mouse_event.SetPositionInWidget(15, 15);
+  mouse_event.click_count = 1;
   tab->GetRenderViewHost()->GetWidget()->ForwardMouseEvent(mouse_event);
-  mouse_event.setType(blink::WebInputEvent::MouseUp);
+  mouse_event.SetType(blink::WebInputEvent::kMouseUp);
   tab->GetRenderViewHost()->GetWidget()->ForwardMouseEvent(mouse_event);
 
   waiter->WaitForFinished();
@@ -2733,7 +2739,7 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, SaveImageAsReferrerPolicyDefault) {
           DownloadManagerForBrowser(browser()), 1,
           content::DownloadTestObserver::ON_DANGEROUS_DOWNLOAD_FAIL));
   content::ContextMenuParams context_menu_params;
-  context_menu_params.media_type = blink::WebContextMenuData::MediaTypeImage;
+  context_menu_params.media_type = blink::WebContextMenuData::kMediaTypeImage;
   context_menu_params.page_url = url;
   context_menu_params.src_url = img_url;
   TestRenderViewContextMenu menu(
@@ -2788,15 +2794,14 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, DownloadCrossDomainReferrerPolicy) {
   // Click on the link with the alt key pressed. This will download the link
   // target.
   WebContents* tab = browser()->tab_strip_model()->GetActiveWebContents();
-  blink::WebMouseEvent mouse_event(blink::WebInputEvent::MouseDown,
-                                   blink::WebInputEvent::AltKey,
-                                   blink::WebInputEvent::TimeStampForTesting);
-  mouse_event.button = blink::WebMouseEvent::Button::Left;
-  mouse_event.x = 15;
-  mouse_event.y = 15;
-  mouse_event.clickCount = 1;
+  blink::WebMouseEvent mouse_event(blink::WebInputEvent::kMouseDown,
+                                   blink::WebInputEvent::kAltKey,
+                                   blink::WebInputEvent::kTimeStampForTesting);
+  mouse_event.button = blink::WebMouseEvent::Button::kLeft;
+  mouse_event.SetPositionInWidget(15, 15);
+  mouse_event.click_count = 1;
   tab->GetRenderViewHost()->GetWidget()->ForwardMouseEvent(mouse_event);
-  mouse_event.setType(blink::WebInputEvent::MouseUp);
+  mouse_event.SetType(blink::WebInputEvent::kMouseUp);
   tab->GetRenderViewHost()->GetWidget()->ForwardMouseEvent(mouse_event);
 
   waiter->WaitForFinished();
@@ -2951,22 +2956,24 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, MAYBE_DownloadTest_CrazyFilenames) {
   };
 
   std::vector<DownloadItem*> download_items;
-  base::FilePath origin(FILE_PATH_LITERAL("origin"));
-  ASSERT_TRUE(base::CreateDirectory(DestinationFile(browser(), origin)));
+  base::FilePath origin_directory =
+      GetDownloadDirectory(browser()).Append(FILE_PATH_LITERAL("origin"));
+  ASSERT_TRUE(base::CreateDirectory(origin_directory));
 
   for (size_t index = 0; index < arraysize(kCrazyFilenames); ++index) {
+    SCOPED_TRACE(testing::Message() << "Index " << index);
     base::string16 crazy16;
     std::string crazy8;
     const wchar_t* crazy_w = kCrazyFilenames[index];
     ASSERT_TRUE(base::WideToUTF8(crazy_w, wcslen(crazy_w), &crazy8));
     ASSERT_TRUE(base::WideToUTF16(crazy_w, wcslen(crazy_w), &crazy16));
-    base::FilePath file_path(DestinationFile(browser(), origin.Append(
+    base::FilePath file_path(origin_directory.Append(
 #if defined(OS_WIN)
-            crazy16
+        crazy16
 #elif defined(OS_POSIX)
-            crazy8
+        crazy8
 #endif
-        )));
+        ));
 
     // Create the file.
     EXPECT_EQ(static_cast<int>(crazy8.size()),
@@ -3043,8 +3050,10 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, DownloadTest_PauseResumeCancel) {
 #endif
 IN_PROC_BROWSER_TEST_F(DownloadTest, MAYBE_DownloadTest_PercentComplete) {
   // Write a huge file.
-  base::FilePath file_path(DestinationFile(
-      browser(), base::FilePath(FILE_PATH_LITERAL("DownloadTest_BigZip.zip"))));
+  base::FilePath file_path(
+      GetDownloadDirectory(browser()).AppendASCII("source").AppendASCII(
+          "DownloadTest_BigZip.zip"));
+  ASSERT_TRUE(CreateDirectory(file_path.DirName()));
   base::File file(file_path, base::File::FLAG_CREATE | base::File::FLAG_WRITE);
   ASSERT_TRUE(file.IsValid());
   int64_t size = 1 << 25;
@@ -3425,9 +3434,7 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, FeedbackServiceDiscardDownload) {
       sb_service->download_protection_service();
   download_protection_service->feedback_service()->MaybeStorePingsForDownload(
       safe_browsing::DownloadProtectionService::UNCOMMON,
-      downloads[0],
-      ping_request,
-      ping_response);
+      true /* upload_requested */, downloads[0], ping_request, ping_response);
   ASSERT_TRUE(safe_browsing::DownloadFeedbackService::IsEnabledForDownload(
       *(downloads[0])));
 
@@ -3451,6 +3458,10 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, FeedbackServiceKeepDownload) {
       interruption_observer(new content::DownloadTestObserverInterrupted(
           DownloadManagerForBrowser(browser()), 1,
           content::DownloadTestObserver::ON_DANGEROUS_DOWNLOAD_QUIT));
+  std::unique_ptr<content::DownloadTestObserver> completion_observer(
+      new content::DownloadTestObserverTerminal(
+          DownloadManagerForBrowser(browser()), 1,
+          content::DownloadTestObserver::ON_DANGEROUS_DOWNLOAD_IGNORE));
   ui_test_utils::NavigateToURLWithDisposition(
       browser(), GURL(download_url), WindowOpenDisposition::NEW_BACKGROUND_TAB,
       ui_test_utils::BROWSER_TEST_NONE);
@@ -3478,20 +3489,21 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, FeedbackServiceKeepDownload) {
   safe_browsing::DownloadProtectionService* download_protection_service =
       sb_service->download_protection_service();
   download_protection_service->feedback_service()->MaybeStorePingsForDownload(
-      safe_browsing::DownloadProtectionService::UNCOMMON, downloads[0],
-      ping_request, ping_response);
+      safe_browsing::DownloadProtectionService::UNCOMMON,
+      true /* upload_requested */, downloads[0], ping_request, ping_response);
   ASSERT_TRUE(safe_browsing::DownloadFeedbackService::IsEnabledForDownload(
       *(downloads[0])));
 
   // Begin feedback and check that file is still there.
   download_protection_service->feedback_service()->BeginFeedbackForDownload(
       downloads[0], DownloadCommands::KEEP);
+  completion_observer->WaitForFinished();
 
   std::vector<DownloadItem*> updated_downloads;
   GetDownloads(browser(), &updated_downloads);
   ASSERT_EQ(std::size_t(1), updated_downloads.size());
   ASSERT_FALSE(updated_downloads[0]->IsDangerous());
-  ASSERT_TRUE(PathExists(updated_downloads[0]->GetFullPath()));
+  ASSERT_TRUE(PathExists(updated_downloads[0]->GetTargetFilePath()));
   updated_downloads[0]->Cancel(true);
 }
 
@@ -3790,8 +3802,8 @@ IN_PROC_BROWSER_TEST_F(DownloadTest, AutoOpenClosesShelf) {
 }
 
 IN_PROC_BROWSER_TEST_F(DownloadTest, CrxDenyInstallClosesShelf) {
-  FeatureSwitch::ScopedOverride enable_easy_off_store_install(
-      FeatureSwitch::easy_off_store_install(), true);
+  std::unique_ptr<base::AutoReset<bool>> allow_offstore_install =
+      download_crx_util::OverrideOffstoreInstallAllowedForTesting(true);
 
   GURL extension_url(URLRequestMockHTTPJob::GetMockUrl(kGoodCrxPath));
 

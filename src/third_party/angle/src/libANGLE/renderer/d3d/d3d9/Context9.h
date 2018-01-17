@@ -104,7 +104,7 @@ class Context9 : public ContextImpl
     void popGroupMarker() override;
 
     // State sync with dirty bits.
-    void syncState(const gl::State &state, const gl::State::DirtyBits &dirtyBits) override;
+    void syncState(const gl::State::DirtyBits &dirtyBits) override;
 
     // Disjoint timer queries
     GLint getGPUDisjoint() override;
@@ -118,6 +118,8 @@ class Context9 : public ContextImpl
     const gl::TextureCapsMap &getNativeTextureCaps() const override;
     const gl::Extensions &getNativeExtensions() const override;
     const gl::Limitations &getNativeLimitations() const override;
+
+    gl::Error dispatchCompute(GLuint numGroupsX, GLuint numGroupsY, GLuint numGroupsZ) override;
 
   private:
     Renderer9 *mRenderer;

@@ -113,7 +113,7 @@ Polymer({
   },
 
   updateCanSave_: function() {
-    var inputs = this.$.dialog.querySelectorAll('.address-column');
+    var inputs = this.$.dialog.querySelectorAll('.address-column, select');
 
     for (var i = 0; i < inputs.length; ++i) {
       if (inputs[i].value) {
@@ -164,6 +164,10 @@ Polymer({
    * @private
    */
   onSaveButtonTap_: function() {
+    // The Enter key can call this function even if the button is disabled.
+    if (!this.canSave_)
+      return;
+
     // Set a default country if none is set.
     if (!this.address.countryCode)
       this.address.countryCode = this.countries_[0].countryCode;

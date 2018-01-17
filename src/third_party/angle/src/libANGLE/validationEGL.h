@@ -49,6 +49,8 @@ Error ValidateCreatePbufferSurface(Display *display, Config *config, const Attri
 Error ValidateCreatePbufferFromClientBuffer(Display *display, EGLenum buftype, EGLClientBuffer buffer,
                                             Config *config, const AttributeMap& attributes);
 
+Error ValidateMakeCurrent(Display *display, EGLSurface draw, EGLSurface read, gl::Context *context);
+
 Error ValidateCreateImageKHR(const Display *display,
                              gl::Context *context,
                              EGLenum target,
@@ -95,6 +97,12 @@ Error ValidateStreamPostD3DTextureNV12ANGLE(const Display *display,
                                             const Stream *stream,
                                             void *texture,
                                             const AttributeMap &attribs);
+
+Error ValidateGetSyncValuesCHROMIUM(const Display *display,
+                                    const Surface *surface,
+                                    const EGLuint64KHR *ust,
+                                    const EGLuint64KHR *msc,
+                                    const EGLuint64KHR *sbc);
 
 Error ValidateSwapBuffersWithDamageEXT(const Display *display,
                                        const Surface *surface,

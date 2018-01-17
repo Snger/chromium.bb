@@ -2,7 +2,7 @@
 // Use of this source code is governed by a BSD-style license that can be
 // found in the LICENSE file.
 /**
- * @implements {SDK.TargetManager.Observer}
+ * @implements {SDK.SDKModelObserver<!SDK.RuntimeModel>}
  * @unrestricted
  */
 Console.ConsoleContextSelector = class {
@@ -16,7 +16,6 @@ Console.ConsoleContextSelector = class {
      */
     this._optionByExecutionContext = new Map();
 
-    SDK.targetManager.observeTargets(this);
     SDK.targetManager.addModelListener(
         SDK.RuntimeModel, SDK.RuntimeModel.Events.ExecutionContextCreated, this._onExecutionContextCreated, this);
     SDK.targetManager.addModelListener(
@@ -26,6 +25,7 @@ Console.ConsoleContextSelector = class {
 
     this._selectElement.addEventListener('change', this._executionContextChanged.bind(this), false);
     UI.context.addFlavorChangeListener(SDK.ExecutionContext, this._executionContextChangedExternally, this);
+    SDK.targetManager.observeModels(SDK.RuntimeModel, this);
   }
 
   /**
@@ -33,21 +33,39 @@ Console.ConsoleContextSelector = class {
    * @return {string}
    */
   _titleFor(executionContext) {
-    var result;
-    if (executionContext.isDefault) {
-      if (executionContext.frameId) {
-        var resourceTreeModel = SDK.ResourceTreeModel.fromTarget(executionContext.target());
-        var frame = resourceTreeModel && resourceTreeModel.frameForId(executionContext.frameId);
-        result = frame ? frame.displayName() : executionContext.label();
-      } else {
-        result = executionContext.target().decorateLabel(executionContext.label());
+    var target = executionContext.target();
+    var depth = 0;
+    var label = executionContext.label() ? target.decorateLabel(executionContext.label()) : '';
+    if (!executionContext.isDefault)
+      depth++;
+    if (executionContext.frameId) {
+      var resourceTreeModel = target.model(SDK.ResourceTreeModel);
+      var frame = resourceTreeModel && resourceTreeModel.frameForId(executionContext.frameId);
+      if (frame) {
+        label = label || frame.displayName();
+        while (frame.parentFrame) {
+          depth++;
+          frame = frame.parentFrame;
+        }
       }
-    } else {
-      result = '\u00a0\u00a0\u00a0\u00a0' + (executionContext.label() || executionContext.origin);
+    }
+    label = label || executionContext.origin;
+    var targetDepth = 0;
+    while (target.parentTarget()) {
+      if (target.parentTarget().hasJSCapability()) {
+        targetDepth++;
+      } else {
+        // Special casing service workers to be top-level.
+        targetDepth = 0;
+        break;
+      }
+      target = target.parentTarget();
     }
 
+    depth += targetDepth;
+    var prefix = new Array(4 * depth + 1).join('\u00a0');
     var maxLength = 50;
-    return result.trimMiddle(maxLength);
+    return (prefix + label).trimMiddle(maxLength);
   }
 
   /**
@@ -152,7 +170,7 @@ Console.ConsoleContextSelector = class {
   _isTopContext(executionContext) {
     if (!executionContext || !executionContext.isDefault)
       return false;
-    var resourceTreeModel = SDK.ResourceTreeModel.fromTarget(executionContext.target());
+    var resourceTreeModel = executionContext.target().model(SDK.ResourceTreeModel);
     var frame = executionContext.frameId && resourceTreeModel && resourceTreeModel.frameForId(executionContext.frameId);
     if (!frame)
       return false;
@@ -173,20 +191,20 @@ Console.ConsoleContextSelector = class {
 
   /**
    * @override
-   * @param {!SDK.Target} target
+   * @param {!SDK.RuntimeModel} runtimeModel
    */
-  targetAdded(target) {
-    target.runtimeModel.executionContexts().forEach(this._executionContextCreated, this);
+  modelAdded(runtimeModel) {
+    runtimeModel.executionContexts().forEach(this._executionContextCreated, this);
   }
 
   /**
    * @override
-   * @param {!SDK.Target} target
+   * @param {!SDK.RuntimeModel} runtimeModel
    */
-  targetRemoved(target) {
+  modelRemoved(runtimeModel) {
     var executionContexts = this._optionByExecutionContext.keysArray();
     for (var i = 0; i < executionContexts.length; ++i) {
-      if (executionContexts[i].target() === target)
+      if (executionContexts[i].runtimeModel === runtimeModel)
         this._executionContextDestroyed(executionContexts[i]);
     }
   }

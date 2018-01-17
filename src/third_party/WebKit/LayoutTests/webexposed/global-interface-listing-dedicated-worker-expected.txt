@@ -5,6 +5,24 @@ On success, you will see a series of "PASS" messages, followed by "TEST COMPLETE
 
 Starting worker: resources/global-interface-listing.js
 [Worker] [INTERFACES]
+[Worker] interface BackgroundFetchFetch
+[Worker]     attribute @@toStringTag
+[Worker]     getter request
+[Worker]     method constructor
+[Worker] interface BackgroundFetchManager
+[Worker]     attribute @@toStringTag
+[Worker]     method constructor
+[Worker]     method fetch
+[Worker]     method get
+[Worker]     method getTags
+[Worker] interface BackgroundFetchRegistration
+[Worker]     attribute @@toStringTag
+[Worker]     getter icons
+[Worker]     getter tag
+[Worker]     getter title
+[Worker]     getter totalDownloadSize
+[Worker]     method abort
+[Worker]     method constructor
 [Worker] interface BarcodeDetector
 [Worker]     attribute @@toStringTag
 [Worker]     method constructor
@@ -228,6 +246,62 @@ Starting worker: resources/global-interface-listing.js
 [Worker]     method toString
 [Worker]     method transformPoint
 [Worker]     method translate
+[Worker] interface DOMPoint : DOMPointReadOnly
+[Worker]     attribute @@toStringTag
+[Worker]     getter w
+[Worker]     getter x
+[Worker]     getter y
+[Worker]     getter z
+[Worker]     method constructor
+[Worker]     setter w
+[Worker]     setter x
+[Worker]     setter y
+[Worker]     setter z
+[Worker] interface DOMPointReadOnly
+[Worker]     static method fromPoint
+[Worker]     attribute @@toStringTag
+[Worker]     getter w
+[Worker]     getter x
+[Worker]     getter y
+[Worker]     getter z
+[Worker]     method constructor
+[Worker]     method matrixTransform
+[Worker]     method toJSON
+[Worker] interface DOMQuad
+[Worker]     static method fromQuad
+[Worker]     static method fromRect
+[Worker]     attribute @@toStringTag
+[Worker]     getter p1
+[Worker]     getter p2
+[Worker]     getter p3
+[Worker]     getter p4
+[Worker]     method constructor
+[Worker]     method getBounds
+[Worker]     method toJSON
+[Worker] interface DOMRect : DOMRectReadOnly
+[Worker]     attribute @@toStringTag
+[Worker]     getter height
+[Worker]     getter width
+[Worker]     getter x
+[Worker]     getter y
+[Worker]     method constructor
+[Worker]     setter height
+[Worker]     setter width
+[Worker]     setter x
+[Worker]     setter y
+[Worker] interface DOMRectReadOnly
+[Worker]     static method fromRect
+[Worker]     attribute @@toStringTag
+[Worker]     getter bottom
+[Worker]     getter height
+[Worker]     getter left
+[Worker]     getter right
+[Worker]     getter top
+[Worker]     getter width
+[Worker]     getter x
+[Worker]     getter y
+[Worker]     method constructor
+[Worker]     method toJSON
 [Worker] interface DOMStringList
 [Worker]     attribute @@toStringTag
 [Worker]     getter length
@@ -361,13 +435,6 @@ Starting worker: resources/global-interface-listing.js
 [Worker]     method readAsBinaryString
 [Worker]     method readAsDataURL
 [Worker]     method readAsText
-[Worker] interface Float32ImageData
-[Worker]     attribute @@toStringTag
-[Worker]     getter colorSpace
-[Worker]     getter data
-[Worker]     getter height
-[Worker]     getter width
-[Worker]     method constructor
 [Worker] interface FormData
 [Worker]     attribute @@toStringTag
 [Worker]     method @@iterator
@@ -548,12 +615,13 @@ Starting worker: resources/global-interface-listing.js
 [Worker]     method constructor
 [Worker] interface ImageData
 [Worker]     attribute @@toStringTag
-[Worker]     getter colorSpace
 [Worker]     getter data
+[Worker]     getter dataUnion
 [Worker]     getter height
 [Worker]     getter width
 [Worker]     method constructor
 [Worker]     method createImageData
+[Worker]     method getColorSettings
 [Worker] interface MessageChannel
 [Worker]     attribute @@toStringTag
 [Worker]     getter port1
@@ -577,6 +645,13 @@ Starting worker: resources/global-interface-listing.js
 [Worker]     method postMessage
 [Worker]     method start
 [Worker]     setter onmessage
+[Worker] interface NavigationPreloadManager
+[Worker]     attribute @@toStringTag
+[Worker]     method constructor
+[Worker]     method disable
+[Worker]     method enable
+[Worker]     method getState
+[Worker]     method setHeaderValue
 [Worker] interface NetworkInformation : EventTarget
 [Worker]     attribute @@toStringTag
 [Worker]     getter downlinkMax
@@ -629,6 +704,7 @@ Starting worker: resources/global-interface-listing.js
 [Worker]     attribute @@toStringTag
 [Worker]     getter canvas
 [Worker]     getter fillStyle
+[Worker]     getter filter
 [Worker]     getter globalAlpha
 [Worker]     getter globalCompositeOperation
 [Worker]     getter imageSmoothingEnabled
@@ -681,6 +757,7 @@ Starting worker: resources/global-interface-listing.js
 [Worker]     method transform
 [Worker]     method translate
 [Worker]     setter fillStyle
+[Worker]     setter filter
 [Worker]     setter globalAlpha
 [Worker]     setter globalCompositeOperation
 [Worker]     setter imageSmoothingEnabled
@@ -743,10 +820,13 @@ Starting worker: resources/global-interface-listing.js
 [Worker]     method cancel
 [Worker]     method constructor
 [Worker]     method getReader
+[Worker]     method pipeThrough
+[Worker]     method pipeTo
 [Worker]     method tee
 [Worker] interface Request
 [Worker]     attribute @@toStringTag
 [Worker]     getter bodyUsed
+[Worker]     getter cache
 [Worker]     getter credentials
 [Worker]     getter headers
 [Worker]     getter integrity
@@ -784,9 +864,11 @@ Starting worker: resources/global-interface-listing.js
 [Worker] interface ServiceWorkerRegistration : EventTarget
 [Worker]     attribute @@toStringTag
 [Worker]     getter active
+[Worker]     getter backgroundFetch
 [Worker]     getter installing
+[Worker]     getter navigationPreload
 [Worker]     getter onupdatefound
-[Worker]     getter paymentAppManager
+[Worker]     getter paymentManager
 [Worker]     getter pushManager
 [Worker]     getter scope
 [Worker]     getter sync
@@ -2143,6 +2225,7 @@ Starting worker: resources/global-interface-listing.js
 [Worker]     getter onerror
 [Worker]     getter onrejectionhandled
 [Worker]     getter onunhandledrejection
+[Worker]     getter origin
 [Worker]     getter performance
 [Worker]     getter self
 [Worker]     method atob
@@ -2158,6 +2241,7 @@ Starting worker: resources/global-interface-listing.js
 [Worker]     setter onerror
 [Worker]     setter onrejectionhandled
 [Worker]     setter onunhandledrejection
+[Worker]     setter origin
 [Worker] interface WorkerLocation
 [Worker]     attribute @@toStringTag
 [Worker]     getter hash

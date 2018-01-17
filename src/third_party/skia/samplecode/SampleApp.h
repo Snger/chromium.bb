@@ -22,6 +22,10 @@
 
 #include "SkPipe.h"
 
+#if SK_SUPPORT_GPU
+#include "GrContextOptions.h"
+#endif
+
 class GrContext;
 class GrRenderTarget;
 
@@ -70,9 +74,15 @@ public:
      */
     class DeviceManager : public SkRefCnt {
     public:
+        struct BackendOptions {
+#if SK_SUPPORT_GPU
+            GrContextOptions   fGrContextOptions;
+            int                fMSAASampleCount;
+            bool               fDeepColor;
+#endif
+        };
 
-
-        virtual void setUpBackend(SampleWindow* win, int msaaSampleCount, bool deepColor) = 0;
+        virtual void setUpBackend(SampleWindow* win, const BackendOptions&) = 0;
 
         virtual void tearDownBackend(SampleWindow* win) = 0;
 
@@ -104,7 +114,7 @@ public:
     };
 
     SampleWindow(void* hwnd, int argc, char** argv, DeviceManager*);
-    virtual ~SampleWindow();
+    ~SampleWindow() override;
 
     sk_sp<SkSurface> makeSurface() override {
         sk_sp<SkSurface> surface;
@@ -145,6 +155,9 @@ public:
 
     DeviceType getDeviceType() const { return fDeviceType; }
     int getColorConfigIndex() const { return fColorConfigIndex; }
+
+    int getThreads() const { return fThreads; }
+    void setThreads(int threads) { fThreads = threads; }
 
 protected:
     void onDraw(SkCanvas* canvas) override;
@@ -219,8 +232,8 @@ private:
     int fFilterQualityIndex;
     unsigned   fFlipAxis;
 
-    int fMSAASampleCount;
-    bool fDeepColor;
+    DeviceManager::BackendOptions fBackendOptions;
+
     int fColorConfigIndex;
 
     SkScalar fZoomCenterX, fZoomCenterY;
@@ -229,6 +242,8 @@ private:
     SkOSMenu* fAppMenu; // We pass ownership to SkWindow, when we call addMenu
     //Stores slide specific settings
     SkOSMenu* fSlideMenu; // We pass ownership to SkWindow, when we call addMenu
+
+    int fThreads = 0;
 
     void loadView(SkView*);
     void updateTitle();

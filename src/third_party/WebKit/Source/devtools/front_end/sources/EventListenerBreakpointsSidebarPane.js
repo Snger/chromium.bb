@@ -25,6 +25,8 @@ Sources.EventListenerBreakpointsSidebarPane = class extends UI.VBox {
     this._createCategory(
         Common.UIString('Animation'), ['requestAnimationFrame', 'cancelAnimationFrame', 'animationFrameFired'], true);
     this._createCategory(
+        Common.UIString('Canvas'), ['canvasContextCreated', 'webglErrorFired', 'webglWarningFired'], true);
+    this._createCategory(
         Common.UIString('Clipboard'), ['copy', 'cut', 'paste', 'beforecopy', 'beforecut', 'beforepaste']);
     this._createCategory(
         Common.UIString('Control'),
@@ -35,6 +37,8 @@ Sources.EventListenerBreakpointsSidebarPane = class extends UI.VBox {
       'DOMNodeInsertedIntoDocument', 'DOMNodeRemoved', 'DOMNodeRemovedFromDocument', 'DOMSubtreeModified',
       'DOMContentLoaded'
     ]);
+    this._createCategory(
+        Common.UIString('Geolocation'), ['Geolocation.getCurrentPosition', 'Geolocation.watchPosition'], true);
     this._createCategory(Common.UIString('Drag / drop'), ['dragenter', 'dragover', 'dragleave', 'drop']);
     this._createCategory(Common.UIString('Keyboard'), ['keydown', 'keyup', 'keypress', 'input']);
     this._createCategory(
@@ -52,16 +56,19 @@ Sources.EventListenerBreakpointsSidebarPane = class extends UI.VBox {
       'auxclick', 'click', 'dblclick', 'mousedown', 'mouseup', 'mouseover', 'mousemove', 'mouseout', 'mouseenter',
       'mouseleave', 'mousewheel', 'wheel', 'contextmenu'
     ]);
-    this._createCategory(Common.UIString('Parse'), ['setInnerHTML', 'document.write'], true);
+    this._createCategory(Common.UIString('Notification'), ['Notification.requestPermission'], true);
+    this._createCategory(Common.UIString('Parse'), ['setInnerHTML', 'Document.write'], true);
     this._createCategory(Common.UIString('Pointer'), [
       'pointerover', 'pointerout', 'pointerenter', 'pointerleave', 'pointerdown', 'pointerup', 'pointermove',
       'pointercancel', 'gotpointercapture', 'lostpointercapture'
     ]);
     this._createCategory(Common.UIString('Script'), ['scriptFirstStatement', 'scriptBlockedByCSP'], true);
-    this._createCategory(Common.UIString('Timer'), ['setTimer', 'clearTimer', 'timerFired'], true);
+    this._createCategory(
+        Common.UIString('Timer'),
+        ['setTimeout', 'clearTimeout', 'setInterval', 'clearInterval', 'setTimeout.callback', 'setInterval.callback'],
+        true);
     this._createCategory(Common.UIString('Touch'), ['touchstart', 'touchmove', 'touchend', 'touchcancel']);
-    this._createCategory(Common.UIString('WebGL'), ['webglErrorFired', 'webglWarningFired'], true);
-    this._createCategory(Common.UIString('Window'), ['close'], true);
+    this._createCategory(Common.UIString('Window'), ['DOMWindow.close'], true);
     this._createCategory(
         Common.UIString('XHR'),
         ['readystatechange', 'load', 'loadstart', 'loadend', 'abort', 'error', 'progress', 'timeout'], false,
@@ -81,17 +88,22 @@ Sources.EventListenerBreakpointsSidebarPane = class extends UI.VBox {
   static eventNameForUI(eventName, auxData) {
     if (!Sources.EventListenerBreakpointsSidebarPane._eventNamesForUI) {
       Sources.EventListenerBreakpointsSidebarPane._eventNamesForUI = {
-        'instrumentation:setTimer': Common.UIString('Set Timer'),
-        'instrumentation:clearTimer': Common.UIString('Clear Timer'),
-        'instrumentation:timerFired': Common.UIString('Timer Fired'),
+        'instrumentation:setTimeout.callback': Common.UIString('setTimeout fired'),
+        'instrumentation:setInterval.callback': Common.UIString('setInterval fired'),
         'instrumentation:scriptFirstStatement': Common.UIString('Script First Statement'),
         'instrumentation:scriptBlockedByCSP': Common.UIString('Script Blocked by Content Security Policy'),
         'instrumentation:requestAnimationFrame': Common.UIString('Request Animation Frame'),
         'instrumentation:cancelAnimationFrame': Common.UIString('Cancel Animation Frame'),
-        'instrumentation:animationFrameFired': Common.UIString('Animation Frame Fired'),
+        'instrumentation:requestAnimationFrame.callback': Common.UIString('Animation Frame Fired'),
         'instrumentation:webglErrorFired': Common.UIString('WebGL Error Fired'),
         'instrumentation:webglWarningFired': Common.UIString('WebGL Warning Fired'),
-        'instrumentation:setInnerHTML': Common.UIString('Set innerHTML'),
+        'instrumentation:Element.setInnerHTML': Common.UIString('Set innerHTML'),
+        'instrumentation:canvasContextCreated': Common.UIString('Create canvas context'),
+        'instrumentation:Geolocation.getCurrentPosition': 'getCurrentPosition',
+        'instrumentation:Geolocation.watchPosition': 'watchPosition',
+        'instrumentation:Notification.requestPermission': 'requestPermission',
+        'instrumentation:DOMWindow.close': 'window.close',
+        'instrumentation:Document.write': 'document.write',
       };
     }
     if (auxData) {
@@ -130,7 +142,7 @@ Sources.EventListenerBreakpointsSidebarPane = class extends UI.VBox {
    * @param {!Array.<string>=} targetNames
    */
   _createCategory(name, eventNames, isInstrumentationEvent, targetNames) {
-    var labelNode = UI.createCheckboxLabel(name);
+    var labelNode = UI.CheckboxLabel.create(name);
 
     var categoryItem = {};
     categoryItem.element = new UI.TreeElement(labelNode);
@@ -152,7 +164,7 @@ Sources.EventListenerBreakpointsSidebarPane = class extends UI.VBox {
       var breakpointItem = {};
       var title = Sources.EventListenerBreakpointsSidebarPane.eventNameForUI(eventName);
 
-      labelNode = UI.createCheckboxLabel(title);
+      labelNode = UI.CheckboxLabel.create(title);
       labelNode.classList.add('source-code');
 
       breakpointItem.element = new UI.TreeElement(labelNode);
@@ -173,7 +185,7 @@ Sources.EventListenerBreakpointsSidebarPane = class extends UI.VBox {
 
   _update() {
     var target = UI.context.flavor(SDK.Target);
-    var debuggerModel = SDK.DebuggerModel.fromTarget(target);
+    var debuggerModel = target ? target.model(SDK.DebuggerModel) : null;
     var details = debuggerModel ? debuggerModel.debuggerPausedDetails() : null;
 
     if (!details || details.reason !== SDK.DebuggerModel.BreakReason.EventListener) {

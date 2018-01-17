@@ -55,8 +55,8 @@ void CPDF_ContentParser::Start(CPDF_Page* pPage) {
   }
   if (CPDF_Stream* pStream = pContent->AsStream()) {
     m_nStreams = 0;
-    m_pSingleStream = pdfium::MakeUnique<CPDF_StreamAcc>();
-    m_pSingleStream->LoadAllData(pStream, false);
+    m_pSingleStream = pdfium::MakeRetain<CPDF_StreamAcc>(pStream);
+    m_pSingleStream->LoadAllData(false);
   } else if (CPDF_Array* pArray = pContent->AsArray()) {
     m_nStreams = pArray->GetCount();
     if (m_nStreams)
@@ -90,10 +90,12 @@ void CPDF_ContentParser::Start(CPDF_Form* pForm,
     ClipPath.Transform(&form_matrix);
     if (pParentMatrix)
       ClipPath.Transform(pParentMatrix);
-    form_bbox.Transform(&form_matrix);
+
+    form_matrix.TransformRect(form_bbox);
     if (pParentMatrix)
-      form_bbox.Transform(pParentMatrix);
+      pParentMatrix->TransformRect(form_bbox);
   }
+
   CPDF_Dictionary* pResources = pForm->m_pFormDict->GetDictFor("Resources");
   m_pParser = pdfium::MakeUnique<CPDF_StreamContentParser>(
       pForm->m_pDocument, pForm->m_pPageResources, pForm->m_pResources,
@@ -112,8 +114,8 @@ void CPDF_ContentParser::Start(CPDF_Form* pForm,
     pState->SetSoftMask(nullptr);
   }
   m_nStreams = 0;
-  m_pSingleStream = pdfium::MakeUnique<CPDF_StreamAcc>();
-  m_pSingleStream->LoadAllData(pForm->m_pFormStream, false);
+  m_pSingleStream = pdfium::MakeRetain<CPDF_StreamAcc>(pForm->m_pFormStream);
+  m_pSingleStream->LoadAllData(false);
   m_pData = (uint8_t*)m_pSingleStream->GetData();
   m_Size = m_pSingleStream->GetSize();
   m_Status = ToBeContinued;
@@ -140,7 +142,7 @@ void CPDF_ContentParser::Continue(IFX_Pause* pPause) {
           m_pData = FX_Alloc(uint8_t, m_Size);
           uint32_t pos = 0;
           for (const auto& stream : m_StreamArray) {
-            FXSYS_memcpy(m_pData + pos, stream->GetData(), stream->GetSize());
+            memcpy(m_pData + pos, stream->GetData(), stream->GetSize());
             pos += stream->GetSize();
             m_pData[pos++] = ' ';
           }
@@ -154,10 +156,11 @@ void CPDF_ContentParser::Continue(IFX_Pause* pPause) {
       } else {
         CPDF_Array* pContent =
             m_pObjectHolder->m_pFormDict->GetArrayFor("Contents");
-        m_StreamArray[m_CurrentOffset] = pdfium::MakeUnique<CPDF_StreamAcc>();
         CPDF_Stream* pStreamObj = ToStream(
             pContent ? pContent->GetDirectObjectAt(m_CurrentOffset) : nullptr);
-        m_StreamArray[m_CurrentOffset]->LoadAllData(pStreamObj, false);
+        m_StreamArray[m_CurrentOffset] =
+            pdfium::MakeRetain<CPDF_StreamAcc>(pStreamObj);
+        m_StreamArray[m_CurrentOffset]->LoadAllData(false);
         m_CurrentOffset++;
       }
     }
@@ -201,8 +204,10 @@ void CPDF_ContentParser::Continue(IFX_Pause* pPause) {
         CPDF_Path ClipPath = pObj->m_ClipPath.GetPath(0);
         if (!ClipPath.IsRect() || pObj->IsShading())
           continue;
-        CFX_FloatRect old_rect(ClipPath.GetPointX(0), ClipPath.GetPointY(0),
-                               ClipPath.GetPointX(2), ClipPath.GetPointY(2));
+
+        CFX_PointF point0 = ClipPath.GetPoint(0);
+        CFX_PointF point2 = ClipPath.GetPoint(2);
+        CFX_FloatRect old_rect(point0.x, point0.y, point2.x, point2.y);
         CFX_FloatRect obj_rect(pObj->m_Left, pObj->m_Bottom, pObj->m_Right,
                                pObj->m_Top);
         if (old_rect.Contains(obj_rect))

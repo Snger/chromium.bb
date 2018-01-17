@@ -2,16 +2,14 @@
 <html>
   <head>
     <title>Test Basic IIRFilterNode Properties</title>
-    <script src="../../resources/js-test.js"></script>
+    <script src="../../resources/testharness.js"></script>
+    <script src="../../resources/testharnessreport.js"></script> 
     <script src="../resources/audit-util.js"></script>
     <script src="../resources/audio-testing.js"></script>
   </head>
 
   <body>
     <script>
-      description("Test Basic IIRFilterNode Properties");
-      window.jsTestIsAsync = true;
-
       var sampleRate = 48000;
       var testFrames = 100;
 
@@ -27,7 +25,9 @@
       });
 
       audit.defineTask("existence", function (done) {
-        shouldBeDefined("context.createIIRFilter");
+        Should("context.createIIRFilter exists",
+          context.createIIRFilter != undefined)
+          .beEqualTo(true);
         done();
       });
 
@@ -44,10 +44,8 @@
         success = Should("channelCountMode", f.channelCountMode).beEqualTo("max") && success;
         success = Should("channelInterpretation", f.channelInterpretation).beEqualTo("speakers") && success;
 
-        if (success)
-          testPassed("All basic IIRFilter parameters are correct.\n");
-        else
-          testFailed("Some basic IIRFilter parameter was not correct.\n");
+        Should("Basic IRRFilter parameters", success)
+          .summarize("were all correct", "were not all correct");
         done();
       });
 
@@ -121,22 +119,21 @@
         success = Should("createIIRFilter([1], [1, NaN, Infinity])", function () {
           // Feedback coefficients must be finite.
           context.createIIRFilter([1], [1, Infinity, NaN]);
-        }).throw("InvalidStateError") && success;
+        }).throw("TypeError") && success;
 
         success = Should("createIIRFilter([1, NaN, Infinity], [1])", function () {
           // Feedforward coefficients must be finite.
           context.createIIRFilter([1, Infinity, NaN], [1]);
-        }).throw("InvalidStateError") && success;
+        }).throw("TypeError") && success;
 
         success = Should("createIIRFilter([1, 'abc', []], [1])", function () {
           // Test that random junk in the array is converted to NaN.
           context.createIIRFilter([1, "abc", []], [1]);
-        }).throw("InvalidStateError") && success;
+        }).throw("TypeError") && success;
 
-        if (success)
-          testPassed("All exceptions for createIIRFilter were correctly thrown.\n");
-        else
-          testFailed("Some exceptions for createIIRFilter were not thrown as expected.\n");
+        Should("Exceptions for createIIRFilter", success)
+          .summarize("were all correctly thrown",
+                     "were not all correctly thrown");
         done();
       });
 
@@ -191,20 +188,33 @@
               30));
           }).notThrow() && success;
 
-        if (success)
-          testPassed("getFrequencyResponse exceptions handled correctly.\n");
-        else
-          testFailed("getFrequencyResponse exceptions not handled correctly.\n");
+        if (window.SharedArrayBuffer) {
+          var shared_view = new Float32Array(new SharedArrayBuffer(4));
+          var nonshared_view = new Float32Array(1);
 
-        done();
-      });
-      audit.defineTask("finish", function (done) {
-        finishJSTest();
+          success = Should(
+              "getFrequencyResponse(shared_view, nonshared_view, nonshared_view)",
+              function () {
+                f.getFrequencyResponse(shared_view, nonshared_view, nonshared_view);
+            }).throw("TypeError") && success;
+          success = Should(
+              "getFrequencyResponse(nonshared_view, shared_view, nonshared_view)",
+              function () {
+                f.getFrequencyResponse(nonshared_view, shared_view, nonshared_view);
+            }).throw("TypeError") && success;
+          success = Should(
+              "getFrequencyResponse(nonshared_view, nonshared_view, shared_view)",
+              function () {
+                f.getFrequencyResponse(nonshared_view, nonshared_view, shared_view);
+            }).throw("TypeError") && success;
+        }
+
+        Should("getFrequencyResponse exceptions handled", success)
+          .summarize("correctly", "incorrectly");
         done();
       });
 
       audit.runTasks();
-      successfullyParsed = true;
     </script>
   </body>
 </html>

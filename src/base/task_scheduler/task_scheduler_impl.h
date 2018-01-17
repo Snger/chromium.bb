@@ -5,8 +5,6 @@
 #ifndef BASE_TASK_SCHEDULER_TASK_SCHEDULER_IMPL_H_
 #define BASE_TASK_SCHEDULER_TASK_SCHEDULER_IMPL_H_
 
-#include <stddef.h>
-
 #include <memory>
 #include <vector>
 
@@ -21,6 +19,7 @@
 #include "base/task_scheduler/task_scheduler.h"
 #include "base/task_scheduler/task_traits.h"
 #include "base/threading/thread.h"
+#include "build/build_config.h"
 
 namespace base {
 
@@ -30,29 +29,40 @@ class SchedulerWorkerPoolParams;
 namespace internal {
 
 class DelayedTaskManager;
+class SchedulerSingleThreadTaskRunnerManager;
 class TaskTracker;
 
 // Default TaskScheduler implementation. This class is thread-safe.
 class BASE_EXPORT TaskSchedulerImpl : public TaskScheduler {
  public:
   // Creates and returns an initialized TaskSchedulerImpl. CHECKs on failure.
+  // |name| is used to label threads and histograms. It should identify the
+  // component that creates the TaskScheduler. |init_params| contains params to
+  // initialize worker pools.
+  //
+  // Note: The names and priority hints in |init_params| are ignored.
+  // https://crbug.com/690706
+  static std::unique_ptr<TaskSchedulerImpl> Create(
+      const std::string& name,
+      const TaskScheduler::InitParams& init_params);
+
+  // Creates and returns an initialized TaskSchedulerImpl. CHECKs on failure.
   // |worker_pool_params_vector| describes the worker pools to create.
   // |worker_pool_index_for_traits_callback| returns the index in |worker_pools|
   // of the worker pool in which a task with given traits should run.
+  //
+  // Deprecated. https://crbug.com/690706
   static std::unique_ptr<TaskSchedulerImpl> Create(
       const std::vector<SchedulerWorkerPoolParams>& worker_pool_params_vector,
       const WorkerPoolIndexForTraitsCallback&
           worker_pool_index_for_traits_callback);
 
-  // Destroying a TaskSchedulerImpl is not allowed in production; it is always
-  // leaked. In tests, it can only be destroyed after JoinForTesting() has
-  // returned.
   ~TaskSchedulerImpl() override;
 
   // TaskScheduler:
   void PostDelayedTaskWithTraits(const tracked_objects::Location& from_here,
                                  const TaskTraits& traits,
-                                 const Closure& task,
+                                 OnceClosure task,
                                  TimeDelta delay) override;
   scoped_refptr<TaskRunner> CreateTaskRunnerWithTraits(
       const TaskTraits& traits) override;
@@ -60,13 +70,16 @@ class BASE_EXPORT TaskSchedulerImpl : public TaskScheduler {
       const TaskTraits& traits) override;
   scoped_refptr<SingleThreadTaskRunner> CreateSingleThreadTaskRunnerWithTraits(
       const TaskTraits& traits) override;
+#if defined(OS_WIN)
+  scoped_refptr<SingleThreadTaskRunner> CreateCOMSTATaskRunnerWithTraits(
+      const TaskTraits& traits) override;
+#endif  // defined(OS_WIN)
   std::vector<const HistogramBase*> GetHistograms() const override;
+  int GetMaxConcurrentTasksWithTraitsDeprecated(
+      const TaskTraits& traits) const override;
   void Shutdown() override;
   void FlushForTesting() override;
-
-  // Joins all threads. Tasks that are already running are allowed to complete
-  // their execution. This can only be called once.
-  void JoinForTesting();
+  void JoinForTesting() override;
 
  private:
   explicit TaskSchedulerImpl(const WorkerPoolIndexForTraitsCallback&
@@ -76,7 +89,8 @@ class BASE_EXPORT TaskSchedulerImpl : public TaskScheduler {
       const std::vector<SchedulerWorkerPoolParams>& worker_pool_params_vector);
 
   // Returns the worker pool that runs Tasks with |traits|.
-  SchedulerWorkerPool* GetWorkerPoolForTraits(const TaskTraits& traits);
+  SchedulerWorkerPoolImpl* GetWorkerPoolForTraits(
+      const TaskTraits& traits) const;
 
   // Callback invoked when a non-single-thread |sequence| isn't empty after a
   // worker pops a Task from it.
@@ -85,6 +99,8 @@ class BASE_EXPORT TaskSchedulerImpl : public TaskScheduler {
   Thread service_thread_;
   std::unique_ptr<TaskTracker> task_tracker_;
   std::unique_ptr<DelayedTaskManager> delayed_task_manager_;
+  std::unique_ptr<SchedulerSingleThreadTaskRunnerManager>
+      single_thread_task_runner_manager_;
   const WorkerPoolIndexForTraitsCallback worker_pool_index_for_traits_callback_;
   std::vector<std::unique_ptr<SchedulerWorkerPoolImpl>> worker_pools_;
 

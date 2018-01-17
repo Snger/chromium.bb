@@ -11,6 +11,7 @@
 #include <utility>
 
 #include "webrtc/base/ignore_wundef.h"
+#include "webrtc/base/protobuf_utils.h"
 #include "webrtc/modules/audio_coding/audio_network_adaptor/controller_manager.h"
 #include "webrtc/modules/audio_coding/audio_network_adaptor/mock/mock_controller.h"
 #include "webrtc/system_wrappers/include/clock.h"
@@ -270,17 +271,19 @@ constexpr size_t kIntialChannelsToEncode = 1;
 constexpr bool kInitialDtxEnabled = true;
 constexpr bool kInitialFecEnabled = true;
 constexpr int kInitialFrameLengthMs = 60;
+constexpr int kMinBitrateBps = 6000;
 
 ControllerManagerStates CreateControllerManager(
-    const std::string& config_string) {
+    const ProtoString& config_string) {
   ControllerManagerStates states;
   states.simulated_clock.reset(new SimulatedClock(kClockInitialTime));
   constexpr size_t kNumEncoderChannels = 2;
   const std::vector<int> encoder_frame_lengths_ms = {20, 60};
   states.controller_manager = ControllerManagerImpl::Create(
       config_string, kNumEncoderChannels, encoder_frame_lengths_ms,
-      kIntialChannelsToEncode, kInitialFrameLengthMs, kInitialBitrateBps,
-      kInitialFecEnabled, kInitialDtxEnabled, states.simulated_clock.get());
+      kMinBitrateBps, kIntialChannelsToEncode, kInitialFrameLengthMs,
+      kInitialBitrateBps, kInitialFecEnabled, kInitialDtxEnabled,
+      states.simulated_clock.get());
   return states;
 }
 
@@ -297,16 +300,15 @@ void CheckControllersOrder(const std::vector<Controller*>& controllers,
   ASSERT_EQ(expected_types.size(), controllers.size());
 
   // We also check that the controllers follow the initial settings.
-  AudioNetworkAdaptor::EncoderRuntimeConfig encoder_config;
-
-  // We do not check the internal logic of controllers. We only check that
-  // when no network metrics are known, controllers provide the initial values.
-  Controller::NetworkMetrics metrics;
+  AudioEncoderRuntimeConfig encoder_config;
 
   for (size_t i = 0; i < controllers.size(); ++i) {
-    AudioNetworkAdaptor::EncoderRuntimeConfig encoder_config;
+    AudioEncoderRuntimeConfig encoder_config;
     // We check the order of |controllers| by judging their decisions.
-    controllers[i]->MakeDecision(metrics, &encoder_config);
+    controllers[i]->MakeDecision(&encoder_config);
+
+    // Since controllers are not provided with network metrics, they give the
+    // initial values.
     switch (expected_types[i]) {
       case ControllerType::FEC:
         EXPECT_EQ(rtc::Optional<bool>(kInitialFecEnabled),
@@ -344,7 +346,7 @@ TEST(ControllerManagerTest, CreateFromConfigStringAndCheckDefaultOrder) {
   AddFrameLengthControllerConfig(&config);
   AddBitrateControllerConfig(&config);
 
-  std::string config_string;
+  ProtoString config_string;
   config.SerializeToString(&config_string);
 
   auto states = CreateControllerManager(config_string);
@@ -375,7 +377,7 @@ TEST(ControllerManagerTest, CreateFromConfigStringAndCheckReordering) {
 
   AddBitrateControllerConfig(&config);
 
-  std::string config_string;
+  ProtoString config_string;
   config.SerializeToString(&config_string);
 
   auto states = CreateControllerManager(config_string);

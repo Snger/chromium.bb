@@ -54,7 +54,7 @@ bool GenerateWidgetAP(CPDF_Document* pDoc,
   if (sFontName.IsEmpty())
     return false;
 
-  FX_FLOAT fFontSize = FX_atof(syntax.GetWord());
+  float fFontSize = FX_atof(syntax.GetWord());
   CPVT_Color crText = CPVT_Color::ParseColor(DA);
   CPDF_Dictionary* pDRDict = pFormDict->GetDictFor("DR");
   if (!pDRDict)
@@ -109,7 +109,7 @@ bool GenerateWidgetAP(CPDF_Document* pDoc,
   }
 
   BorderStyle nBorderStyle = BorderStyle::SOLID;
-  FX_FLOAT fBorderWidth = 1;
+  float fBorderWidth = 1;
   CPVT_Dash dsBorder(3, 0, 0);
   CPVT_Color crLeftTop, crRightBottom;
   if (CPDF_Dictionary* pBSDict = pAnnotDict->GetDictFor("BS")) {
@@ -246,10 +246,10 @@ bool GenerateWidgetAP(CPDF_Document* pDoc,
       vt.SetText(swValue);
       vt.RearrangeAll();
       CFX_FloatRect rcContent = vt.GetContentRect();
-      CFX_FloatPoint ptOffset;
+      CFX_PointF ptOffset;
       if (!bMultiLine) {
         ptOffset =
-            CFX_FloatPoint(0.0f, (rcContent.Height() - rcBody.Height()) / 2.0f);
+            CFX_PointF(0.0f, (rcContent.Height() - rcBody.Height()) / 2.0f);
       }
       CFX_ByteString sBody = CPVT_GenerateAP::GenerateEditAP(
           &map, vt.GetIterator(), ptOffset, !bCharArray, subWord);
@@ -296,8 +296,8 @@ bool GenerateWidgetAP(CPDF_Document* pDoc,
       vt.SetText(swValue);
       vt.RearrangeAll();
       CFX_FloatRect rcContent = vt.GetContentRect();
-      CFX_FloatPoint ptOffset =
-          CFX_FloatPoint(0.0f, (rcContent.Height() - rcEdit.Height()) / 2.0f);
+      CFX_PointF ptOffset =
+          CFX_PointF(0.0f, (rcContent.Height() - rcEdit.Height()) / 2.0f);
       CFX_ByteString sEdit = CPVT_GenerateAP::GenerateEditAP(
           &map, vt.GetIterator(), ptOffset, true, 0);
       if (sEdit.GetLength() > 0) {
@@ -328,9 +328,8 @@ bool GenerateWidgetAP(CPDF_Document* pDoc,
         if (sButtonBorder.GetLength() > 0)
           sAppStream << "q\n" << sButtonBorder << "Q\n";
 
-        CFX_FloatPoint ptCenter =
-            CFX_FloatPoint((rcButton.left + rcButton.right) / 2,
-                           (rcButton.top + rcButton.bottom) / 2);
+        CFX_PointF ptCenter = CFX_PointF((rcButton.left + rcButton.right) / 2,
+                                         (rcButton.top + rcButton.bottom) / 2);
         if (IsFloatBigger(rcButton.Width(), 6) &&
             IsFloatBigger(rcButton.Height(), 6)) {
           sAppStream << "q\n"
@@ -354,7 +353,7 @@ bool GenerateWidgetAP(CPDF_Document* pDoc,
       int32_t nTop = pTi ? pTi->GetInteger() : 0;
       CFX_ByteTextBuf sBody;
       if (pOpts) {
-        FX_FLOAT fy = rcBody.top;
+        float fy = rcBody.top;
         for (size_t i = nTop, sz = pOpts->GetCount(); i < sz; i++) {
           if (IsFloatSmaller(fy, rcBody.bottom))
             break;
@@ -385,7 +384,7 @@ bool GenerateWidgetAP(CPDF_Document* pDoc,
             vt.Initialize();
             vt.SetText(swItem);
             vt.RearrangeAll();
-            FX_FLOAT fItemHeight = vt.GetContentRect().Height();
+            float fItemHeight = vt.GetContentRect().Height();
             if (bSelected) {
               CFX_FloatRect rcItem = CFX_FloatRect(
                   rcBody.left, fy - fItemHeight, rcBody.right, fy);
@@ -402,7 +401,7 @@ bool GenerateWidgetAP(CPDF_Document* pDoc,
                            CPVT_Color(CPVT_Color::kGray, 1),
                            PaintOperation::FILL)
                     << CPVT_GenerateAP::GenerateEditAP(&map, vt.GetIterator(),
-                                                       CFX_FloatPoint(0.0f, fy),
+                                                       CFX_PointF(0.0f, fy),
                                                        true, 0)
                     << "ET\n";
             } else {
@@ -410,7 +409,7 @@ bool GenerateWidgetAP(CPDF_Document* pDoc,
                     << CPVT_GenerateAP::GenerateColorAP(crText,
                                                         PaintOperation::FILL)
                     << CPVT_GenerateAP::GenerateEditAP(&map, vt.GetIterator(),
-                                                       CFX_FloatPoint(0.0f, fy),
+                                                       CFX_PointF(0.0f, fy),
                                                        true, 0)
                     << "ET\n";
             }
@@ -464,7 +463,7 @@ CFX_ByteString GetColorStringWithDefault(CPDF_Array* pColor,
   return CPVT_GenerateAP::GenerateColorAP(crDefaultColor, nOperation);
 }
 
-FX_FLOAT GetBorderWidth(const CPDF_Dictionary& pAnnotDict) {
+float GetBorderWidth(const CPDF_Dictionary& pAnnotDict) {
   if (CPDF_Dictionary* pBorderStyleDict = pAnnotDict.GetDictFor("BS")) {
     if (pBorderStyleDict->KeyExist("W"))
       return pBorderStyleDict->GetNumberFor("W");
@@ -529,7 +528,7 @@ CFX_ByteString GetPopupContentsString(CPDF_Document* pDoc,
   vt.Initialize();
   vt.SetText(swValue);
   vt.RearrangeAll();
-  CFX_FloatPoint ptOffset(3.0f, -3.0f);
+  CFX_PointF ptOffset(3.0f, -3.0f);
   CFX_ByteString sContent = CPVT_GenerateAP::GenerateEditAP(
       &map, vt.GetIterator(), ptOffset, false, 0);
 
@@ -553,7 +552,7 @@ std::unique_ptr<CPDF_Dictionary> GenerateExtGStateDict(
       pdfium::MakeUnique<CPDF_Dictionary>(pAnnotDict.GetByteStringPool());
   pGSDict->SetNewFor<CPDF_String>("Type", "ExtGState", false);
 
-  FX_FLOAT fOpacity =
+  float fOpacity =
       pAnnotDict.KeyExist("CA") ? pAnnotDict.GetNumberFor("CA") : 1;
   pGSDict->SetNewFor<CPDF_Number>("CA", fOpacity);
   pGSDict->SetNewFor<CPDF_Number>("ca", fOpacity);
@@ -631,11 +630,11 @@ CFX_ByteString GenerateTextSymbolAP(const CFX_FloatRect& rect) {
   sAppStream << CPVT_GenerateAP::GenerateColorAP(
       CPVT_Color(CPVT_Color::kRGB, 0, 0, 0), PaintOperation::STROKE);
 
-  const FX_FLOAT fBorderWidth = 1;
+  const float fBorderWidth = 1;
   sAppStream << fBorderWidth << " w\n";
 
-  const FX_FLOAT fHalfWidth = fBorderWidth / 2;
-  const FX_FLOAT fTipDelta = 4;
+  const float fHalfWidth = fBorderWidth / 2;
+  const float fTipDelta = 4;
 
   CFX_FloatRect outerRect1 = rect;
   outerRect1.Deflate(fHalfWidth, fHalfWidth);
@@ -645,7 +644,7 @@ CFX_ByteString GenerateTextSymbolAP(const CFX_FloatRect& rect) {
   outerRect2.left += fTipDelta;
   outerRect2.right = outerRect2.left + fTipDelta;
   outerRect2.top = outerRect2.bottom - fTipDelta;
-  FX_FLOAT outerRect2Middle = (outerRect2.left + outerRect2.right) / 2;
+  float outerRect2Middle = (outerRect2.left + outerRect2.right) / 2;
 
   // Draw outer boxes.
   sAppStream << outerRect1.left << " " << outerRect1.bottom << " m\n"
@@ -659,8 +658,8 @@ CFX_ByteString GenerateTextSymbolAP(const CFX_FloatRect& rect) {
 
   // Draw inner lines.
   CFX_FloatRect lineRect = outerRect1;
-  const FX_FLOAT fXDelta = 2;
-  const FX_FLOAT fYDelta = (lineRect.top - lineRect.bottom) / 4;
+  const float fXDelta = 2;
+  const float fYDelta = (lineRect.top - lineRect.bottom) / 4;
 
   lineRect.left += fXDelta;
   lineRect.right -= fXDelta;
@@ -745,7 +744,7 @@ bool CPVT_GenerateAP::GenerateCircleAP(CPDF_Document* pDoc,
                                           CPVT_Color(CPVT_Color::kRGB, 0, 0, 0),
                                           PaintOperation::STROKE);
 
-  FX_FLOAT fBorderWidth = GetBorderWidth(*pAnnotDict);
+  float fBorderWidth = GetBorderWidth(*pAnnotDict);
   bool bIsStrokeRect = fBorderWidth > 0;
 
   if (bIsStrokeRect) {
@@ -763,15 +762,15 @@ bool CPVT_GenerateAP::GenerateCircleAP(CPDF_Document* pDoc,
     rect.Deflate(fBorderWidth / 2, fBorderWidth / 2);
   }
 
-  const FX_FLOAT fMiddleX = (rect.left + rect.right) / 2;
-  const FX_FLOAT fMiddleY = (rect.top + rect.bottom) / 2;
+  const float fMiddleX = (rect.left + rect.right) / 2;
+  const float fMiddleY = (rect.top + rect.bottom) / 2;
 
   // |fL| is precalculated approximate value of 4 * tan((3.14 / 2) / 4) / 3,
   // where |fL| * radius is a good approximation of control points for
   // arc with 90 degrees.
-  const FX_FLOAT fL = 0.5523f;
-  const FX_FLOAT fDeltaX = fL * rect.Width() / 2.0;
-  const FX_FLOAT fDeltaY = fL * rect.Height() / 2.0;
+  const float fL = 0.5523f;
+  const float fDeltaX = fL * rect.Width() / 2.0;
+  const float fDeltaY = fL * rect.Height() / 2.0;
 
   // Starting point
   sAppStream << fMiddleX << " " << rect.top << " m\n";
@@ -834,7 +833,7 @@ bool CPVT_GenerateAP::GenerateHighlightAP(CPDF_Document* pDoc,
 
 bool CPVT_GenerateAP::GenerateInkAP(CPDF_Document* pDoc,
                                     CPDF_Dictionary* pAnnotDict) {
-  FX_FLOAT fBorderWidth = GetBorderWidth(*pAnnotDict);
+  float fBorderWidth = GetBorderWidth(*pAnnotDict);
   bool bIsStroke = fBorderWidth > 0;
 
   if (!bIsStroke)
@@ -893,7 +892,7 @@ bool CPVT_GenerateAP::GenerateTextAP(CPDF_Document* pDoc,
   sAppStream << "/" << sExtGSDictName << " gs ";
 
   CFX_FloatRect rect = pAnnotDict->GetRectFor("Rect");
-  const FX_FLOAT fNoteLength = 20;
+  const float fNoteLength = 20;
   CFX_FloatRect noteRect(rect.left, rect.bottom, rect.left + fNoteLength,
                          rect.bottom + fNoteLength);
   pAnnotDict->SetRectFor("Rect", noteRect);
@@ -922,7 +921,7 @@ bool CPVT_GenerateAP::GenerateUnderlineAP(CPDF_Document* pDoc,
   CFX_FloatRect rect = CPDF_Annot::RectFromQuadPoints(pAnnotDict);
   rect.Normalize();
 
-  FX_FLOAT fLineWidth = 1.0;
+  float fLineWidth = 1.0;
   sAppStream << fLineWidth << " w " << rect.left << " "
              << rect.bottom + fLineWidth << " m " << rect.right << " "
              << rect.bottom + fLineWidth << " l S\n";
@@ -947,7 +946,7 @@ bool CPVT_GenerateAP::GeneratePopupAP(CPDF_Document* pDoc,
   sAppStream << GenerateColorAP(CPVT_Color(CPVT_Color::kRGB, 0, 0, 0),
                                 PaintOperation::STROKE);
 
-  const FX_FLOAT fBorderWidth = 1;
+  const float fBorderWidth = 1;
   sAppStream << fBorderWidth << " w\n";
 
   CFX_FloatRect rect = pAnnotDict->GetRectFor("Rect");
@@ -989,7 +988,7 @@ bool CPVT_GenerateAP::GenerateSquareAP(CPDF_Document* pDoc,
                                           CPVT_Color(CPVT_Color::kRGB, 0, 0, 0),
                                           PaintOperation::STROKE);
 
-  FX_FLOAT fBorderWidth = GetBorderWidth(*pAnnotDict);
+  float fBorderWidth = GetBorderWidth(*pAnnotDict);
   bool bIsStrokeRect = fBorderWidth > 0;
 
   if (bIsStrokeRect) {
@@ -1035,16 +1034,16 @@ bool CPVT_GenerateAP::GenerateSquigglyAP(CPDF_Document* pDoc,
   CFX_FloatRect rect = CPDF_Annot::RectFromQuadPoints(pAnnotDict);
   rect.Normalize();
 
-  FX_FLOAT fLineWidth = 1.0;
+  float fLineWidth = 1.0;
   sAppStream << fLineWidth << " w ";
 
-  const FX_FLOAT fDelta = 2.0;
-  const FX_FLOAT fTop = rect.bottom + fDelta;
-  const FX_FLOAT fBottom = rect.bottom;
+  const float fDelta = 2.0;
+  const float fTop = rect.bottom + fDelta;
+  const float fBottom = rect.bottom;
 
   sAppStream << rect.left << " " << fTop << " m ";
 
-  FX_FLOAT fX = rect.left + fDelta;
+  float fX = rect.left + fDelta;
   bool isUpwards = false;
 
   while (fX < rect.right) {
@@ -1054,7 +1053,7 @@ bool CPVT_GenerateAP::GenerateSquigglyAP(CPDF_Document* pDoc,
     isUpwards = !isUpwards;
   }
 
-  FX_FLOAT fRemainder = rect.right - (fX - fDelta);
+  float fRemainder = rect.right - (fX - fDelta);
   if (isUpwards)
     sAppStream << rect.right << " " << fBottom + fRemainder << " l ";
   else
@@ -1084,8 +1083,8 @@ bool CPVT_GenerateAP::GenerateStrikeOutAP(CPDF_Document* pDoc,
   CFX_FloatRect rect = CPDF_Annot::RectFromQuadPoints(pAnnotDict);
   rect.Normalize();
 
-  FX_FLOAT fLineWidth = 1.0;
-  FX_FLOAT fY = (rect.top + rect.bottom) / 2;
+  float fLineWidth = 1.0;
+  float fY = (rect.top + rect.bottom) / 2;
   sAppStream << fLineWidth << " w " << rect.left << " " << fY << " m "
              << rect.right << " " << fY << " l S\n";
 
@@ -1102,14 +1101,14 @@ bool CPVT_GenerateAP::GenerateStrikeOutAP(CPDF_Document* pDoc,
 CFX_ByteString CPVT_GenerateAP::GenerateEditAP(
     IPVT_FontMap* pFontMap,
     CPDF_VariableText::Iterator* pIterator,
-    const CFX_FloatPoint& ptOffset,
+    const CFX_PointF& ptOffset,
     bool bContinuous,
     uint16_t SubWord) {
   CFX_ByteTextBuf sEditStream;
   CFX_ByteTextBuf sLineStream;
   CFX_ByteTextBuf sWords;
-  CFX_FloatPoint ptOld;
-  CFX_FloatPoint ptNew;
+  CFX_PointF ptOld;
+  CFX_PointF ptNew;
   int32_t nCurFontIndex = -1;
   CPVT_WordPlace oldplace;
 
@@ -1126,13 +1125,13 @@ CFX_ByteString CPVT_GenerateAP::GenerateEditAP(
         }
         CPVT_Word word;
         if (pIterator->GetWord(word)) {
-          ptNew = CFX_FloatPoint(word.ptWord.x + ptOffset.x,
-                                 word.ptWord.y + ptOffset.y);
+          ptNew = CFX_PointF(word.ptWord.x + ptOffset.x,
+                             word.ptWord.y + ptOffset.y);
         } else {
           CPVT_Line line;
           pIterator->GetLine(line);
-          ptNew = CFX_FloatPoint(line.ptLine.x + ptOffset.x,
-                                 line.ptLine.y + ptOffset.y);
+          ptNew = CFX_PointF(line.ptLine.x + ptOffset.x,
+                             line.ptLine.y + ptOffset.y);
         }
         if (ptNew != ptOld) {
           sLineStream << ptNew.x - ptOld.x << " " << ptNew.y - ptOld.y
@@ -1157,8 +1156,8 @@ CFX_ByteString CPVT_GenerateAP::GenerateEditAP(
     } else {
       CPVT_Word word;
       if (pIterator->GetWord(word)) {
-        ptNew = CFX_FloatPoint(word.ptWord.x + ptOffset.x,
-                               word.ptWord.y + ptOffset.y);
+        ptNew =
+            CFX_PointF(word.ptWord.x + ptOffset.x, word.ptWord.y + ptOffset.y);
         if (ptNew != ptOld) {
           sEditStream << ptNew.x - ptOld.x << " " << ptNew.y - ptOld.y
                       << " Td\n";
@@ -1185,7 +1184,7 @@ CFX_ByteString CPVT_GenerateAP::GenerateEditAP(
 // Static.
 CFX_ByteString CPVT_GenerateAP::GenerateBorderAP(
     const CFX_FloatRect& rect,
-    FX_FLOAT fWidth,
+    float fWidth,
     const CPVT_Color& color,
     const CPVT_Color& crLeftTop,
     const CPVT_Color& crRightBottom,
@@ -1193,12 +1192,12 @@ CFX_ByteString CPVT_GenerateAP::GenerateBorderAP(
     const CPVT_Dash& dash) {
   CFX_ByteTextBuf sAppStream;
   CFX_ByteString sColor;
-  FX_FLOAT fLeft = rect.left;
-  FX_FLOAT fRight = rect.right;
-  FX_FLOAT fTop = rect.top;
-  FX_FLOAT fBottom = rect.bottom;
+  float fLeft = rect.left;
+  float fRight = rect.right;
+  float fTop = rect.top;
+  float fBottom = rect.bottom;
   if (fWidth > 0.0f) {
-    FX_FLOAT fHalfWidth = fWidth / 2.0f;
+    float fHalfWidth = fWidth / 2.0f;
     switch (nStyle) {
       default:
       case BorderStyle::SOLID:
@@ -1339,7 +1338,7 @@ CFX_ByteString CPVT_GenerateAP::GetPDFWordString(IPVT_FontMap* pFontMap,
     } else {
       uint32_t dwCharCode = pPDFFont->CharCodeFromUnicode(Word);
       if (dwCharCode != CPDF_Font::kInvalidCharCode)
-        pPDFFont->AppendChar(sWord, dwCharCode);
+        pPDFFont->AppendChar(&sWord, dwCharCode);
     }
   }
   return sWord;
@@ -1356,7 +1355,7 @@ CFX_ByteString CPVT_GenerateAP::GetWordRenderString(
 // Static.
 CFX_ByteString CPVT_GenerateAP::GetFontSetString(IPVT_FontMap* pFontMap,
                                                  int32_t nFontIndex,
-                                                 FX_FLOAT fFontSize) {
+                                                 float fFontSize) {
   CFX_ByteTextBuf sRet;
   if (pFontMap) {
     CFX_ByteString sFontAlias = pFontMap->GetPDFFontAlias(nFontIndex);

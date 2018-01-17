@@ -188,7 +188,8 @@ bool ValidateES3TexImageParametersBase(Context *context,
             return false;
         }
 
-        if (!ValidCompressedImageSize(context, actualInternalFormat, width, height))
+        if (!ValidCompressedImageSize(context, actualInternalFormat, xoffset, yoffset, width,
+                                      height))
         {
             context->handleError(Error(GL_INVALID_OPERATION));
             return false;
@@ -625,13 +626,13 @@ bool ValidateES3CopyTexImageParametersBase(ValidationContext *context,
     gl::Framebuffer *framebuffer = state.getReadFramebuffer();
     GLuint readFramebufferID     = framebuffer->id();
 
-    if (framebuffer->checkStatus(context->getContextState()) != GL_FRAMEBUFFER_COMPLETE)
+    if (framebuffer->checkStatus(context) != GL_FRAMEBUFFER_COMPLETE)
     {
         context->handleError(Error(GL_INVALID_FRAMEBUFFER_OPERATION));
         return false;
     }
 
-    if (readFramebufferID != 0 && framebuffer->getSamples(context->getContextState()) != 0)
+    if (readFramebufferID != 0 && framebuffer->getSamples(context) != 0)
     {
         context->handleError(Error(GL_INVALID_OPERATION));
         return false;
@@ -989,42 +990,6 @@ bool ValidateFramebufferTextureLayer(Context *context,
     return true;
 }
 
-bool ValidateES3RenderbufferStorageParameters(gl::Context *context,
-                                              GLenum target,
-                                              GLsizei samples,
-                                              GLenum internalformat,
-                                              GLsizei width,
-                                              GLsizei height)
-{
-    if (!ValidateRenderbufferStorageParametersBase(context, target, samples, internalformat, width,
-                                                   height))
-    {
-        return false;
-    }
-
-    // The ES3 spec(section 4.4.2) states that the internal format must be sized and not an integer
-    // format if samples is greater than zero.
-    const gl::InternalFormat &formatInfo = gl::GetInternalFormatInfo(internalformat);
-    if ((formatInfo.componentType == GL_UNSIGNED_INT || formatInfo.componentType == GL_INT) &&
-        samples > 0)
-    {
-        context->handleError(Error(GL_INVALID_OPERATION));
-        return false;
-    }
-
-    // The behavior is different than the ANGLE version, which would generate a GL_OUT_OF_MEMORY.
-    const TextureCaps &formatCaps = context->getTextureCaps().get(internalformat);
-    if (static_cast<GLuint>(samples) > formatCaps.getMaxSamples())
-    {
-        context->handleError(
-            Error(GL_INVALID_OPERATION,
-                  "Samples must not be greater than maximum supported value for the format."));
-        return false;
-    }
-
-    return true;
-}
-
 bool ValidateInvalidateFramebuffer(Context *context,
                                    GLenum target,
                                    GLsizei numAttachments,
@@ -1065,8 +1030,7 @@ bool ValidateClearBuffer(ValidationContext *context)
         return false;
     }
 
-    if (context->getGLState().getDrawFramebuffer()->checkStatus(context->getContextState()) !=
-        GL_FRAMEBUFFER_COMPLETE)
+    if (context->getGLState().getDrawFramebuffer()->checkStatus(context) != GL_FRAMEBUFFER_COMPLETE)
     {
         context->handleError(Error(GL_INVALID_FRAMEBUFFER_OPERATION));
         return false;
@@ -1265,6 +1229,156 @@ bool ValidateIsVertexArray(Context *context)
     return true;
 }
 
+static bool ValidateBindBufferCommon(Context *context,
+                                     GLenum target,
+                                     GLuint index,
+                                     GLuint buffer,
+                                     GLintptr offset,
+                                     GLsizeiptr size)
+{
+    if (context->getClientMajorVersion() < 3)
+    {
+        context->handleError(Error(GL_INVALID_OPERATION));
+        return false;
+    }
+
+    if (buffer != 0 && offset < 0)
+    {
+        context->handleError(Error(GL_INVALID_VALUE, "buffer is non-zero and offset is negative."));
+        return false;
+    }
+
+    if (!context->getGLState().isBindGeneratesResourceEnabled() &&
+        !context->isBufferGenerated(buffer))
+    {
+        context->handleError(Error(GL_INVALID_OPERATION, "Buffer was not generated."));
+        return false;
+    }
+
+    const Caps &caps = context->getCaps();
+    switch (target)
+    {
+        case GL_TRANSFORM_FEEDBACK_BUFFER:
+        {
+            if (index >= caps.maxTransformFeedbackSeparateAttributes)
+            {
+                context->handleError(Error(GL_INVALID_VALUE,
+                                           "index is greater than or equal to the number of "
+                                           "TRANSFORM_FEEDBACK_BUFFER indexed binding points."));
+                return false;
+            }
+            if (buffer != 0 && ((offset % 4) != 0 || (size % 4) != 0))
+            {
+                context->handleError(
+                    Error(GL_INVALID_VALUE, "offset and size must be multiple of 4."));
+                return false;
+            }
+
+            TransformFeedback *curTransformFeedback =
+                context->getGLState().getCurrentTransformFeedback();
+            if (curTransformFeedback && curTransformFeedback->isActive())
+            {
+                context->handleError(Error(GL_INVALID_OPERATION,
+                                           "target is TRANSFORM_FEEDBACK_BUFFER and transform "
+                                           "feedback is currently active."));
+                return false;
+            }
+            break;
+        }
+        case GL_UNIFORM_BUFFER:
+        {
+            if (index >= caps.maxUniformBufferBindings)
+            {
+                context->handleError(Error(GL_INVALID_VALUE,
+                                           "index is greater than or equal to the number of "
+                                           "UNIFORM_BUFFER indexed binding points."));
+                return false;
+            }
+
+            if (buffer != 0 && (offset % caps.uniformBufferOffsetAlignment) != 0)
+            {
+                context->handleError(
+                    Error(GL_INVALID_VALUE,
+                          "offset must be multiple of value of UNIFORM_BUFFER_OFFSET_ALIGNMENT."));
+                return false;
+            }
+            break;
+        }
+        case GL_ATOMIC_COUNTER_BUFFER:
+        {
+            if (context->getClientVersion() < ES_3_1)
+            {
+                context->handleError(Error(
+                    GL_INVALID_ENUM, "ATOMIC_COUNTER_BUFFER is not supported before GLES 3.1"));
+                return false;
+            }
+            if (index >= caps.maxAtomicCounterBufferBindings)
+            {
+                context->handleError(Error(GL_INVALID_VALUE,
+                                           "index is greater than or equal to the number of "
+                                           "ATOMIC_COUNTER_BUFFER indexed binding points."));
+                return false;
+            }
+            if (buffer != 0 && (offset % 4) != 0)
+            {
+                context->handleError(Error(GL_INVALID_VALUE, "offset must be a multiple of 4."));
+                return false;
+            }
+            break;
+        }
+        case GL_SHADER_STORAGE_BUFFER:
+        {
+            if (context->getClientVersion() < ES_3_1)
+            {
+                context->handleError(
+                    Error(GL_INVALID_ENUM, "SHADER_STORAGE_BUFFER is not supported in GLES3."));
+                return false;
+            }
+            if (index >= caps.maxShaderStorageBufferBindings)
+            {
+                context->handleError(Error(GL_INVALID_VALUE,
+                                           "index is greater than or equal to the number of "
+                                           "SHADER_STORAGE_BUFFER indexed binding points."));
+                return false;
+            }
+            if (buffer != 0 && (offset % caps.shaderStorageBufferOffsetAlignment) != 0)
+            {
+                context->handleError(Error(
+                    GL_INVALID_VALUE,
+                    "offset must be multiple of value of SHADER_STORAGE_BUFFER_OFFSET_ALIGNMENT."));
+                return false;
+            }
+            break;
+        }
+        default:
+            context->handleError(Error(GL_INVALID_ENUM, "the target is not supported."));
+            return false;
+    }
+
+    return true;
+}
+
+bool ValidateBindBufferBase(Context *context, GLenum target, GLuint index, GLuint buffer)
+{
+    return ValidateBindBufferCommon(context, target, index, buffer, 0, 0);
+}
+
+bool ValidateBindBufferRange(Context *context,
+                             GLenum target,
+                             GLuint index,
+                             GLuint buffer,
+                             GLintptr offset,
+                             GLsizeiptr size)
+{
+    if (buffer != 0 && size <= 0)
+    {
+        context->handleError(
+            Error(GL_INVALID_VALUE, "buffer is non-zero and size is less than or equal to zero."));
+        return false;
+    }
+    return ValidateBindBufferCommon(context, target, index, buffer, offset, size);
+}
+
 bool ValidateProgramBinary(Context *context,
                            GLuint program,
                            GLenum binaryFormat,
@@ -1320,6 +1434,22 @@ bool ValidateProgramParameteri(Context *context, GLuint program, GLenum pname, G
             }
             break;
 
+        case GL_PROGRAM_SEPARABLE:
+            if (context->getClientVersion() < ES_3_1)
+            {
+                context->handleError(
+                    Error(GL_INVALID_ENUM, "PROGRAM_SEPARABLE is not supported before GLES 3.1"));
+                return false;
+            }
+
+            if (value != GL_FALSE && value != GL_TRUE)
+            {
+                context->handleError(Error(
+                    GL_INVALID_VALUE, "Invalid value, expected GL_FALSE or GL_TRUE: %i", value));
+                return false;
+            }
+            break;
+
         default:
             context->handleError(Error(GL_INVALID_ENUM, "Invalid pname: 0x%X", pname));
             return false;
@@ -1364,6 +1494,15 @@ bool ValidateClearBufferiv(ValidationContext *context,
                 context->handleError(Error(GL_INVALID_VALUE));
                 return false;
             }
+            if (context->getExtensions().webglCompatibility)
+            {
+                constexpr GLenum validComponentTypes[] = {GL_INT};
+                if (ValidateWebGLFramebufferAttachmentClearType(
+                        context, drawbuffer, validComponentTypes, ArraySize(validComponentTypes)))
+                {
+                    return false;
+                }
+            }
             break;
 
         case GL_STENCIL:
@@ -1396,6 +1535,15 @@ bool ValidateClearBufferuiv(ValidationContext *context,
                 context->handleError(Error(GL_INVALID_VALUE));
                 return false;
             }
+            if (context->getExtensions().webglCompatibility)
+            {
+                constexpr GLenum validComponentTypes[] = {GL_UNSIGNED_INT};
+                if (ValidateWebGLFramebufferAttachmentClearType(
+                        context, drawbuffer, validComponentTypes, ArraySize(validComponentTypes)))
+                {
+                    return false;
+                }
+            }
             break;
 
         default:
@@ -1419,6 +1567,16 @@ bool ValidateClearBufferfv(ValidationContext *context,
             {
                 context->handleError(Error(GL_INVALID_VALUE));
                 return false;
+            }
+            if (context->getExtensions().webglCompatibility)
+            {
+                constexpr GLenum validComponentTypes[] = {GL_FLOAT, GL_UNSIGNED_NORMALIZED,
+                                                          GL_SIGNED_NORMALIZED};
+                if (ValidateWebGLFramebufferAttachmentClearType(
+                        context, drawbuffer, validComponentTypes, ArraySize(validComponentTypes)))
+                {
+                    return false;
+                }
             }
             break;
 
@@ -1620,6 +1778,12 @@ bool ValidateCompressedTexSubImage3D(Context *context,
     }
 
     const InternalFormat &formatInfo = GetInternalFormatInfo(format);
+    if (!formatInfo.compressed)
+    {
+        context->handleError(Error(GL_INVALID_ENUM, "Not a valid compressed texture format"));
+        return false;
+    }
+
     auto blockSizeOrErr =
         formatInfo.computeCompressedImageSize(GL_UNSIGNED_BYTE, gl::Extents(width, height, depth));
     if (blockSizeOrErr.isError())
@@ -1863,11 +2027,70 @@ bool ValidateIndexedStateQuery(ValidationContext *context,
                 return false;
             }
             break;
+
         case GL_MAX_COMPUTE_WORK_GROUP_SIZE:
         case GL_MAX_COMPUTE_WORK_GROUP_COUNT:
             if (index >= 3u)
             {
                 context->handleError(Error(GL_INVALID_VALUE));
+                return false;
+            }
+            break;
+
+        case GL_ATOMIC_COUNTER_BUFFER_START:
+        case GL_ATOMIC_COUNTER_BUFFER_SIZE:
+        case GL_ATOMIC_COUNTER_BUFFER_BINDING:
+            if (context->getClientVersion() < ES_3_1)
+            {
+                context->handleError(
+                    Error(GL_INVALID_ENUM,
+                          "Atomic Counter buffers are not supported in this version of GL"));
+                return false;
+            }
+            if (index >= caps.maxAtomicCounterBufferBindings)
+            {
+                context->handleError(
+                    Error(GL_INVALID_VALUE,
+                          "index is outside the valid range for GL_ATOMIC_COUNTER_BUFFER_BINDING"));
+                return false;
+            }
+            break;
+
+        case GL_SHADER_STORAGE_BUFFER_START:
+        case GL_SHADER_STORAGE_BUFFER_SIZE:
+        case GL_SHADER_STORAGE_BUFFER_BINDING:
+            if (context->getClientVersion() < ES_3_1)
+            {
+                context->handleError(
+                    Error(GL_INVALID_ENUM,
+                          "Shader storage buffers are not supported in this version of GL"));
+                return false;
+            }
+            if (index >= caps.maxShaderStorageBufferBindings)
+            {
+                context->handleError(
+                    Error(GL_INVALID_VALUE,
+                          "index is outside the valid range for GL_SHADER_STORAGE_BUFFER_BINDING"));
+                return false;
+            }
+            break;
+
+        case GL_VERTEX_BINDING_BUFFER:
+        case GL_VERTEX_BINDING_DIVISOR:
+        case GL_VERTEX_BINDING_OFFSET:
+        case GL_VERTEX_BINDING_STRIDE:
+            if (context->getClientVersion() < ES_3_1)
+            {
+                context->handleError(
+                    Error(GL_INVALID_ENUM,
+                          "Vertex Attrib Bindings are not supported in this version of GL"));
+                return false;
+            }
+            if (index >= caps.maxVertexAttribBindings)
+            {
+                context->handleError(
+                    Error(GL_INVALID_VALUE,
+                          "bindingindex must be smaller than MAX_VERTEX_ATTRIB_BINDINGS."));
                 return false;
             }
             break;
@@ -2093,6 +2316,161 @@ bool ValidateGetStringi(Context *context, GLenum name, GLuint index)
 
         default:
             context->handleError(Error(GL_INVALID_ENUM, "Invalid name."));
+            return false;
+    }
+
+    return true;
+}
+
+bool ValidateRenderbufferStorageMultisample(ValidationContext *context,
+                                            GLenum target,
+                                            GLsizei samples,
+                                            GLenum internalformat,
+                                            GLsizei width,
+                                            GLsizei height)
+{
+    if (context->getClientMajorVersion() < 3)
+    {
+        context->handleError(Error(GL_INVALID_OPERATION));
+        return false;
+    }
+
+    if (!ValidateRenderbufferStorageParametersBase(context, target, samples, internalformat, width,
+                                                   height))
+    {
+        return false;
+    }
+
+    // The ES3 spec(section 4.4.2) states that the internal format must be sized and not an integer
+    // format if samples is greater than zero.
+    const gl::InternalFormat &formatInfo = gl::GetInternalFormatInfo(internalformat);
+    if ((formatInfo.componentType == GL_UNSIGNED_INT || formatInfo.componentType == GL_INT) &&
+        samples > 0)
+    {
+        context->handleError(Error(GL_INVALID_OPERATION));
+        return false;
+    }
+
+    // The behavior is different than the ANGLE version, which would generate a GL_OUT_OF_MEMORY.
+    const TextureCaps &formatCaps = context->getTextureCaps().get(internalformat);
+    if (static_cast<GLuint>(samples) > formatCaps.getMaxSamples())
+    {
+        context->handleError(
+            Error(GL_INVALID_OPERATION,
+                  "Samples must not be greater than maximum supported value for the format."));
+        return false;
+    }
+
+    return true;
+}
+
+bool ValidateVertexAttribIPointer(ValidationContext *context,
+                                  GLuint index,
+                                  GLint size,
+                                  GLenum type,
+                                  GLsizei stride,
+                                  const GLvoid *pointer)
+{
+    if (context->getClientMajorVersion() < 3)
+    {
+        context->handleError(
+            Error(GL_INVALID_OPERATION, "VertexAttribIPointer requires OpenGL ES 3.0 or higher."));
+        return false;
+    }
+
+    if (!ValidateVertexFormatBase(context, index, size, type, true))
+    {
+        return false;
+    }
+
+    if (stride < 0)
+    {
+        context->handleError(Error(GL_INVALID_VALUE, "stride cannot be negative."));
+        return false;
+    }
+
+    const Caps &caps = context->getCaps();
+    if (context->getClientVersion() >= ES_3_1)
+    {
+        if (stride > caps.maxVertexAttribStride)
+        {
+            context->handleError(
+                Error(GL_INVALID_VALUE, "stride cannot be greater than MAX_VERTEX_ATTRIB_STRIDE."));
+            return false;
+        }
+
+        // [OpenGL ES 3.1] Section 10.3.1 page 245:
+        // glVertexAttribBinding is part of the equivalent code of VertexAttribIPointer, so its
+        // validation should be inherited.
+        if (index >= caps.maxVertexAttribBindings)
+        {
+            context->handleError(
+                Error(GL_INVALID_VALUE, "index must be smaller than MAX_VERTEX_ATTRIB_BINDINGS."));
+            return false;
+        }
+    }
+
+    // [OpenGL ES 3.0.2] Section 2.8 page 24:
+    // An INVALID_OPERATION error is generated when a non-zero vertex array object
+    // is bound, zero is bound to the ARRAY_BUFFER buffer object binding point,
+    // and the pointer argument is not NULL.
+    if (context->getGLState().getVertexArrayId() != 0 &&
+        context->getGLState().getArrayBufferId() == 0 && pointer != nullptr)
+    {
+        context->handleError(
+            Error(GL_INVALID_OPERATION,
+                  "Client data cannot be used with a non-default vertex array object."));
+        return false;
+    }
+
+    if (context->getExtensions().webglCompatibility)
+    {
+        if (!ValidateWebGLVertexAttribPointer(context, type, false, stride, pointer, true))
+        {
+            return false;
+        }
+    }
+
+    return true;
+}
+
+bool ValidateGetSynciv(Context *context,
+                       GLsync sync,
+                       GLenum pname,
+                       GLsizei bufSize,
+                       GLsizei *length,
+                       GLint *values)
+{
+    if (context->getClientMajorVersion() < 3)
+    {
+        context->handleError(
+            Error(GL_INVALID_OPERATION, "GetSynciv requires OpenGL ES 3.0 or higher."));
+        return false;
+    }
+
+    if (bufSize < 0)
+    {
+        context->handleError(Error(GL_INVALID_VALUE, "bufSize cannot be negative."));
+        return false;
+    }
+
+    FenceSync *fenceSync = context->getFenceSync(sync);
+    if (!fenceSync)
+    {
+        context->handleError(Error(GL_INVALID_VALUE, "Invalid sync object."));
+        return false;
+    }
+
+    switch (pname)
+    {
+        case GL_OBJECT_TYPE:
+        case GL_SYNC_CONDITION:
+        case GL_SYNC_FLAGS:
+        case GL_SYNC_STATUS:
+            break;
+
+        default:
+            context->handleError(Error(GL_INVALID_ENUM, "Invalid pname."));
             return false;
     }
 

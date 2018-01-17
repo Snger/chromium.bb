@@ -68,9 +68,7 @@ ContentRendererClient::OverrideCreateMIDIAccessor(
   return nullptr;
 }
 
-blink::WebAudioDevice*
-ContentRendererClient::OverrideCreateAudioDevice(
-    double sample_rate) {
+blink::WebAudioDevice* ContentRendererClient::OverrideCreateAudioDevice() {
   return nullptr;
 }
 
@@ -171,6 +169,22 @@ bool ContentRendererClient::AllowPepperMediaStreamAPI(const GURL& url) {
 void ContentRendererClient::AddSupportedKeySystems(
     std::vector<std::unique_ptr<media::KeySystemProperties>>* key_systems) {}
 
+bool ContentRendererClient::IsKeySystemsUpdateNeeded() {
+  return false;
+}
+
+bool ContentRendererClient::IsSupportedAudioConfig(
+    const media::AudioConfig& config) {
+  // Defer to media's default support.
+  return ::media::IsSupportedAudioConfig(config);
+}
+
+bool ContentRendererClient::IsSupportedVideoConfig(
+    const media::VideoConfig& config) {
+  // Defer to media's default support.
+  return ::media::IsSupportedVideoConfig(config);
+}
+
 std::unique_ptr<MediaStreamRendererFactory>
 ContentRendererClient::CreateMediaStreamRendererFactory() {
   return nullptr;
@@ -222,6 +236,15 @@ bool ContentRendererClient::ShouldEnforceWebRTCRoutingPreferences() {
 
 GURL ContentRendererClient::OverrideFlashEmbedWithHTML(const GURL& url) {
   return GURL();
+}
+
+std::unique_ptr<base::TaskScheduler::InitParams>
+ContentRendererClient::GetTaskSchedulerInitParams() {
+  return nullptr;
+}
+
+bool ContentRendererClient::AllowMediaSuspend() {
+  return true;
 }
 
 }  // namespace content

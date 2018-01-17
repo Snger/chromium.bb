@@ -14,7 +14,6 @@ found in the LICENSE file.
  * @fileoverview Parses i2c driver events in the Linux event trace format.
  */
 tr.exportTo('tr.e.importer.linux_perf', function() {
-
   var ColorScheme = tr.b.ColorScheme;
   var Parser = tr.e.importer.linux_perf.Parser;
 
@@ -52,8 +51,7 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
      */
     i2cWriteEvent: function(eventName, cpuNumber, pid, ts, eventBase) {
       var event = i2cWriteReplyRE.exec(eventBase.details);
-      if (!event)
-        return false;
+      if (!event) return false;
 
       var adapterNumber = parseInt(event[1]);
       var messageNumber = event[2];
@@ -81,8 +79,7 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
 
     i2cReadEvent: function(eventName, cpuNumber, pid, ts, eventBase) {
       var event = i2cReadRE.exec(eventBase.details);
-      if (!event)
-        return false;
+      if (!event) return false;
 
       var adapterNumber = parseInt(event[1]);
       var messageNumber = event[2];
@@ -108,8 +105,7 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
 
     i2cReplyEvent: function(eventName, cpuNumber, pid, ts, eventBase) {
       var event = i2cWriteReplyRE.exec(eventBase.details);
-      if (!event)
-        return false;
+      if (!event) return false;
 
       var adapterNumber = parseInt(event[1]);
       var messageNumber = event[2];
@@ -137,8 +133,7 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
 
     i2cResultEvent: function(eventName, cpuNumber, pid, ts, eventBase) {
       var event = i2cResultRE.exec(eventBase.details);
-      if (!event)
-        return false;
+      if (!event) return false;
 
       var adapterNumber = parseInt(event[1]);
       var numMessages = event[2];
@@ -163,14 +158,14 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
   };
 
   function pushLastSliceIfNeeded(thread, id, currentTs) {
-      if (thread.lastEntryTs !== undefined) {
-        var duration = currentTs - thread.lastEntryTs;
-        var slice = new tr.model.ThreadSlice(
+    if (thread.lastEntryTs !== undefined) {
+      var duration = currentTs - thread.lastEntryTs;
+      var slice = new tr.model.ThreadSlice(
             '', thread.lastEntryTitle,
             ColorScheme.getColorIdForGeneralPurposeString(id),
             thread.lastEntryTs, thread.lastEntryArgs, duration);
-        thread.thread.sliceGroup.pushSlice(slice);
-      }
+      thread.thread.sliceGroup.pushSlice(slice);
+    }
   }
 
   Parser.register(I2cParser);

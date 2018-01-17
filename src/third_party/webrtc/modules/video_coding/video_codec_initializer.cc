@@ -15,8 +15,8 @@
 #include "webrtc/common_video/include/video_bitrate_allocator.h"
 #include "webrtc/common_types.h"
 #include "webrtc/modules/video_coding/codecs/vp8/screenshare_layers.h"
+#include "webrtc/modules/video_coding/codecs/vp8/simulcast_rate_allocator.h"
 #include "webrtc/modules/video_coding/codecs/vp8/temporal_layers.h"
-#include "webrtc/modules/video_coding/utility/simulcast_rate_allocator.h"
 #include "webrtc/modules/video_coding/utility/default_video_bitrate_allocator.h"
 #include "webrtc/system_wrappers/include/clock.h"
 
@@ -103,7 +103,7 @@ VideoCodec VideoCodecInitializer::VideoEncoderConfigToVideoCodec(
       break;
     case VideoEncoderConfig::ContentType::kScreen:
       video_codec.mode = kScreensharing;
-      if (streams.size() >= 1 &&
+      if (!streams.empty() &&
           streams[0].temporal_layer_thresholds_bps.size() == 1) {
         video_codec.targetBitrate =
             streams[0].temporal_layer_thresholds_bps[0] / 1000;

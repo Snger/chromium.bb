@@ -7,15 +7,17 @@
 #ifndef CORE_FPDFDOC_CSECTION_H_
 #define CORE_FPDFDOC_CSECTION_H_
 
-#include "core/fpdfdoc/clines.h"
+#include <memory>
+#include <vector>
+
+#include "core/fpdfdoc/cline.h"
 #include "core/fpdfdoc/cpvt_sectioninfo.h"
 #include "core/fpdfdoc/ctypeset.h"
 #include "core/fxcrt/fx_coordinates.h"
 #include "core/fxcrt/fx_system.h"
 
 class CPDF_VariableText;
-
-struct CPVT_LineInfo;
+class CPVT_LineInfo;
 struct CPVT_WordLine;
 struct CPVT_WordPlace;
 
@@ -25,8 +27,6 @@ class CSection final {
   ~CSection();
 
   void ResetAll();
-  void ResetLineArray();
-  void ResetWordArray();
   void ResetLinePlace();
   CPVT_WordPlace AddWord(const CPVT_WordPlace& place,
                          const CPVT_WordInfo& wordinfo);
@@ -34,22 +34,21 @@ class CSection final {
   void ClearWords(const CPVT_WordRange& PlaceRange);
   void ClearWord(const CPVT_WordPlace& place);
   CPVT_FloatRect Rearrange();
-  CFX_SizeF GetSectionSize(FX_FLOAT fFontSize);
+  CFX_SizeF GetSectionSize(float fFontSize);
   CPVT_WordPlace GetBeginWordPlace() const;
   CPVT_WordPlace GetEndWordPlace() const;
   CPVT_WordPlace GetPrevWordPlace(const CPVT_WordPlace& place) const;
   CPVT_WordPlace GetNextWordPlace(const CPVT_WordPlace& place) const;
   void UpdateWordPlace(CPVT_WordPlace& place) const;
-  CPVT_WordPlace SearchWordPlace(const CFX_FloatPoint& point) const;
-  CPVT_WordPlace SearchWordPlace(FX_FLOAT fx,
+  CPVT_WordPlace SearchWordPlace(const CFX_PointF& point) const;
+  CPVT_WordPlace SearchWordPlace(float fx,
                                  const CPVT_WordPlace& lineplace) const;
-  CPVT_WordPlace SearchWordPlace(FX_FLOAT fx,
-                                 const CPVT_WordRange& range) const;
+  CPVT_WordPlace SearchWordPlace(float fx, const CPVT_WordRange& range) const;
 
   CPVT_WordPlace SecPlace;
   CPVT_SectionInfo m_SecInfo;
-  CLines m_LineArray;
-  CPVT_ArrayTemplate<CPVT_WordInfo*> m_WordArray;
+  std::vector<std::unique_ptr<CLine>> m_LineArray;
+  std::vector<std::unique_ptr<CPVT_WordInfo>> m_WordArray;
 
  private:
   friend class CTypeset;

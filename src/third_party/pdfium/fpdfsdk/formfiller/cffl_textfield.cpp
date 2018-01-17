@@ -114,9 +114,8 @@ bool CFFL_TextField::OnChar(CPDFSDK_Annot* pAnnot,
         CPDFSDK_PageView* pPageView = GetCurPageView(true);
         ASSERT(pPageView);
         m_bValid = !m_bValid;
-        CFX_FloatRect rcAnnot = pAnnot->GetRect();
-        m_pFormFillEnv->Invalidate(pAnnot->GetUnderlyingPage(), rcAnnot.left,
-                                   rcAnnot.top, rcAnnot.right, rcAnnot.bottom);
+        m_pFormFillEnv->Invalidate(pAnnot->GetUnderlyingPage(),
+                                   pAnnot->GetRect().ToFxRect());
 
         if (m_bValid) {
           if (CPWL_Wnd* pWnd = GetPDFWindow(pPageView, true))
@@ -272,16 +271,16 @@ bool CFFL_TextField::IsFieldFull(CPDFSDK_PageView* pPageView) {
 
 void CFFL_TextField::OnSetFocus(CPWL_Wnd* pWnd) {
   ASSERT(m_pFormFillEnv);
-  if (pWnd->GetClassName() == PWL_CLASSNAME_EDIT) {
-    CPWL_Edit* pEdit = (CPWL_Edit*)pWnd;
-    pEdit->SetCharSet(FXFONT_GB2312_CHARSET);
-    pEdit->SetCodePage(936);
+  if (pWnd->GetClassName() != PWL_CLASSNAME_EDIT)
+    return;
 
-    pEdit->SetReadyToInput();
-    CFX_WideString wsText = pEdit->GetText();
-    int nCharacters = wsText.GetLength();
-    CFX_ByteString bsUTFText = wsText.UTF16LE_Encode();
-    unsigned short* pBuffer = (unsigned short*)bsUTFText.c_str();
-    m_pFormFillEnv->OnSetFieldInputFocus(pBuffer, nCharacters, true);
-  }
+  CPWL_Edit* pEdit = (CPWL_Edit*)pWnd;
+  pEdit->SetCharSet(FXFONT_GB2312_CHARSET);
+  pEdit->SetReadyToInput();
+
+  CFX_WideString wsText = pEdit->GetText();
+  int nCharacters = wsText.GetLength();
+  CFX_ByteString bsUTFText = wsText.UTF16LE_Encode();
+  auto* pBuffer = reinterpret_cast<const unsigned short*>(bsUTFText.c_str());
+  m_pFormFillEnv->OnSetFieldInputFocus(pBuffer, nCharacters, true);
 }

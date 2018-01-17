@@ -16,32 +16,31 @@
 namespace blink {
 
 class FaceDetectorOptions;
-class LocalFrame;
 
 class MODULES_EXPORT FaceDetector final : public ShapeDetector,
                                           public ScriptWrappable {
   DEFINE_WRAPPERTYPEINFO();
 
  public:
-  static FaceDetector* create(Document&, const FaceDetectorOptions&);
+  static FaceDetector* Create(const FaceDetectorOptions&);
 
   DECLARE_VIRTUAL_TRACE();
 
  private:
-  FaceDetector(LocalFrame&, const FaceDetectorOptions&);
+  explicit FaceDetector(const FaceDetectorOptions&);
   ~FaceDetector() override = default;
 
-  ScriptPromise doDetect(ScriptPromiseResolver*,
+  ScriptPromise DoDetect(ScriptPromiseResolver*,
                          mojo::ScopedSharedBufferHandle,
-                         int imageWidth,
-                         int imageHeight) override;
-  void onDetectFaces(ScriptPromiseResolver*,
+                         int image_width,
+                         int image_height) override;
+  void OnDetectFaces(ScriptPromiseResolver*,
                      shape_detection::mojom::blink::FaceDetectionResultPtr);
-  void onFaceServiceConnectionError();
+  void OnFaceServiceConnectionError();
 
-  shape_detection::mojom::blink::FaceDetectionPtr m_faceService;
+  shape_detection::mojom::blink::FaceDetectionPtr face_service_;
 
-  HeapHashSet<Member<ScriptPromiseResolver>> m_faceServiceRequests;
+  HeapHashSet<Member<ScriptPromiseResolver>> face_service_requests_;
 };
 
 }  // namespace blink

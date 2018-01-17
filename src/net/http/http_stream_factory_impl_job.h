@@ -119,9 +119,6 @@ class HttpStreamFactoryImpl::Job {
         const base::WeakPtr<SpdySession>& spdy_session,
         bool direct) = 0;
 
-    // Invoked when the orphaned |job| finishes.
-    virtual void OnOrphanedJobComplete(const Job* job) = 0;
-
     // Invoked when the |job| finishes pre-connecting sockets.
     virtual void OnPreconnectsComplete(Job* job) = 0;
 
@@ -148,7 +145,7 @@ class HttpStreamFactoryImpl::Job {
     // Remove session from the SpdySessionRequestMap.
     virtual void RemoveRequestFromSpdySessionRequestMapForJob(Job* job) = 0;
 
-    virtual const NetLogWithSource* GetNetLog(Job* job) const = 0;
+    virtual const NetLogWithSource* GetNetLog() const = 0;
 
     virtual WebSocketHandshakeStreamBase::CreateHelper*
     websocket_handshake_stream_create_helper() = 0;
@@ -170,6 +167,7 @@ class HttpStreamFactoryImpl::Job {
       const SSLConfig& proxy_ssl_config,
       HostPortPair destination,
       GURL origin_url,
+      bool enable_ip_based_pooling,
       NetLog* net_log);
 
   // Constructor for the alternative Job. The Job is owned by |delegate|, hence
@@ -191,6 +189,7 @@ class HttpStreamFactoryImpl::Job {
       GURL origin_url,
       AlternativeService alternative_service,
       const ProxyServer& alternative_proxy_server,
+      bool enable_ip_based_pooling,
       NetLog* net_log);
   virtual ~Job();
 
@@ -202,7 +201,7 @@ class HttpStreamFactoryImpl::Job {
   // appropriate ClientSocketPool.
   int Preconnect(int num_streams);
 
-  int RestartTunnelWithProxyAuth(const AuthCredentials& credentials);
+  int RestartTunnelWithProxyAuth();
   LoadState GetLoadState() const;
 
   // Tells |this| that |delegate_| has determined it still needs to continue
@@ -229,6 +228,9 @@ class HttpStreamFactoryImpl::Job {
   std::unique_ptr<BidirectionalStreamImpl> ReleaseBidirectionalStream() {
     return std::move(bidirectional_stream_impl_);
   }
+
+  // Returns the estimated memory usage in bytes.
+  size_t EstimateMemoryUsage() const;
 
   bool is_waiting() const { return next_state_ == STATE_WAIT_COMPLETE; }
   const SSLConfig& server_ssl_config() const;
@@ -389,6 +391,7 @@ class HttpStreamFactoryImpl::Job {
   static int OnHostResolution(SpdySessionPool* spdy_session_pool,
                               const SpdySessionKey& spdy_session_key,
                               const GURL& origin_url,
+                              bool enable_ip_based_pooling,
                               const AddressList& addresses,
                               const NetLogWithSource& net_log);
 
@@ -421,13 +424,17 @@ class HttpStreamFactoryImpl::Job {
   // request.
   const ProxyServer alternative_proxy_server_;
 
+  // Enable pooling to a SpdySession with matching IP and certificate
+  // even if the SpdySessionKey is different.
+  const bool enable_ip_based_pooling_;
+
   // Unowned. |this| job is owned by |delegate_|.
   Delegate* delegate_;
 
   const JobType job_type_;
 
-  // True if handling a HTTPS request, or using SPDY with SSL
-  bool using_ssl_;
+  // True if handling a HTTPS request.
+  const bool using_ssl_;
 
   // True if this network transaction is using SPDY instead of HTTP.
   bool using_spdy_;
@@ -438,12 +445,6 @@ class HttpStreamFactoryImpl::Job {
 
   // True if this job used an existing QUIC session.
   bool using_existing_quic_session_;
-
-  // Force quic for a specific port.
-  int force_quic_port_;
-
-  scoped_refptr<HttpAuthController>
-      auth_controllers_[HttpAuth::AUTH_NUM_TARGETS];
 
   // True when the tunnel is in the process of being established - we can't
   // read from the socket until the tunnel is done.
@@ -472,6 +473,8 @@ class HttpStreamFactoryImpl::Job {
   // Only used if |new_spdy_session_| is non-NULL.
   bool spdy_session_direct_;
 
+  base::TimeTicks job_stream_ready_start_time_;
+
   // Type of stream that is requested.
   HttpStreamRequest::StreamType stream_type_;
 
@@ -497,6 +500,7 @@ class HttpStreamFactoryImpl::JobFactory {
       HostPortPair destination,
       GURL origin_url,
       AlternativeService alternative_service,
+      bool enable_ip_based_pooling,
       NetLog* net_log) = 0;
 
   // Creates an alternative proxy server Job.
@@ -511,6 +515,7 @@ class HttpStreamFactoryImpl::JobFactory {
       HostPortPair destination,
       GURL origin_url,
       const ProxyServer& alternative_proxy_server,
+      bool enable_ip_based_pooling,
       NetLog* net_log) = 0;
 
   // Creates a non-alternative Job.
@@ -524,6 +529,7 @@ class HttpStreamFactoryImpl::JobFactory {
       const SSLConfig& proxy_ssl_config,
       HostPortPair destination,
       GURL origin_url,
+      bool enable_ip_based_pooling,
       NetLog* net_log) = 0;
 };
 

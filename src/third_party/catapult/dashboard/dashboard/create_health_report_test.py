@@ -20,8 +20,20 @@ _SAMPLE_TABLE_CONFIG = {
     'tableName': 'my_sample_config',
     'tableBots': 'ChromiumPerf/win\nChromiumPerf/linux',
     'tableTests': 'my_test_suite/my_test\nmy_test_suite/my_other_test',
-    'tableLayout': '{ "system_health.memory_mobile/foreground/ashmem":'
-                   '["Foreground", "Ashmem"]}',
+    'tableLayout': '{"my_test_suite/my_test": ["Foreground", '
+                   '"Pretty Name 1"], "my_test_suite/my_other_test": '
+                   '["Foreground", "Pretty Name 2"]}',
+    'override': '0',
+}
+
+_ALT_SAMPLE_TABLE_CONFIG = {
+    'tableName': 'my_other_config',
+    'tableBots': 'ChromiumPerf/win\nChromiumPerf/linux',
+    'tableTests': 'my_test_suite/my_test\nmy_test_suite/my_other_test',
+    'tableLayout': '{"my_test_suite/my_test": ["Foreground", '
+                   '"Pretty Name 1"], "my_test_suite/my_other_test": '
+                   '["Foreground", "Pretty Name 2"]}',
+    'override': '0',
 }
 
 class CreateHealthReportTest(testing_common.TestCase):
@@ -42,27 +54,30 @@ class CreateHealthReportTest(testing_common.TestCase):
 
   def _AddInternalBotsToDataStore(self):
     """Adds sample bot/master pairs."""
-    master_key = ndb.Key('Master', 'ChromiumPerf')
-    graph_data.Bot(
-        id='win', parent=master_key, internal_only=True).put()
-    graph_data.Bot(
-        id='linux', parent=master_key, internal_only=True).put()
+    self._AddTests()
+    bots = graph_data.Bot.query().fetch()
+    for bot in bots:
+      bot.internal_only = True
+      bot.put()
 
   def _AddMixedBotsToDataStore(self):
     """Adds sample bot/master pairs."""
-    master_key = ndb.Key('Master', 'ChromiumPerf')
-    graph_data.Bot(
-        id='win', parent=master_key, internal_only=False).put()
-    graph_data.Bot(
-        id='linux', parent=master_key, internal_only=True).put()
+    self._AddTests()
+    bots = graph_data.Bot.query().fetch()
+    bots[1].internal_only = True
+    bots[1].put()
 
   def _AddPublicBotsToDataStore(self):
     """Adds sample bot/master pairs."""
-    master_key = ndb.Key('Master', 'ChromiumPerf')
-    graph_data.Bot(
-        id='win', parent=master_key, internal_only=False).put()
-    graph_data.Bot(
-        id='linux', parent=master_key, internal_only=False).put()
+    self._AddTests()
+
+  def _AddTests(self):
+    testing_common.AddTests(['ChromiumPerf'], ['win', 'linux'], {
+        'my_test_suite': {
+            'my_test': {},
+            'my_other_test': {},
+        }
+    })
 
   def testPost_NoXSRFToken_Returns403Error(self):
     self.testapp.post('/create_health_report', {
@@ -107,12 +122,14 @@ class CreateHealthReportTest(testing_common.TestCase):
     bots = [win_bot, linux_bot]
     self.assertEqual(bots, table_entity.bots)
     self.assertEqual(
-        '{ "system_health.memory_mobile/foreground/ashmem":'
-        '["Foreground", "Ashmem"]}', table_entity.table_layout)
+        '{"my_test_suite/my_test": ["Foreground", "Pretty Name 1"], '
+        '"my_test_suite/my_other_test": ["Foreground", "Pretty Name 2"]}',
+        table_entity.table_layout)
 
   def testPost_EmptyForm(self):
     response = self.testapp.post('/create_health_report', {
         'xsrf_token': xsrf.GenerateToken(users.get_current_user()),
+        'override': 0,
         })
     self.assertIn('Please fill out the form entirely.', response)
     query = table_config.TableConfig.query()
@@ -134,9 +151,10 @@ class CreateHealthReportTest(testing_common.TestCase):
     response = self.testapp.post('/create_health_report', {
         'tableName': 'myName',
         'tableBots': 'garbage/moarGarbage',
-        'tableTests': 'someTests',
-        'tableLayout': '{A layout}',
+        'tableTests': 'my_test_suite/my_test',
+        'tableLayout': '{"Alayout":"isHere"}',
         'xsrf_token': xsrf.GenerateToken(users.get_current_user()),
+        'override': 0,
         })
     self.assertIn('Invalid Master/Bot: garbage/moarGarbage', response)
     query = table_config.TableConfig.query()
@@ -166,11 +184,100 @@ class CreateHealthReportTest(testing_common.TestCase):
     response = self.testapp.post('/create_health_report', {
         'tableName': 'myName',
         'tableBots': 'ChromiumPerf/linux',
-        'tableTests': 'someTests',
+        'tableTests': 'my_test_suite/my_test',
         'tableLayout': 'garbage',
         'xsrf_token': xsrf.GenerateToken(users.get_current_user()),
+        'override': 0,
         })
     self.assertIn('Invalid JSON for table layout', response)
     query = table_config.TableConfig.query()
     table_values = query.fetch()
     self.assertEqual(len(table_values), 0)
+
+  def testPost_InvalidTests(self):
+    self._AddInternalBotsToDataStore()
+    _SAMPLE_TABLE_CONFIG['xsrf_token'] = xsrf.GenerateToken(
+        users.get_current_user())
+    response = self.testapp.post('/create_health_report', {
+        'tableName': 'myName',
+        'tableBots': 'ChromiumPerf/linux',
+        'tableTests': 'someTests',
+        'tableLayout': '{"Alayout":"isHere"}',
+        'xsrf_token': xsrf.GenerateToken(users.get_current_user()),
+        'override': 0,
+        })
+    self.assertIn('someTests is not a valid test.', response)
+    query = table_config.TableConfig.query()
+    table_values = query.fetch()
+    self.assertEqual(len(table_values), 0)
+
+  def testPost_GetTableConfigList(self):
+    self._AddInternalBotsToDataStore()
+    _SAMPLE_TABLE_CONFIG['xsrf_token'] = xsrf.GenerateToken(
+        users.get_current_user())
+    _ALT_SAMPLE_TABLE_CONFIG['xsrf_token'] = xsrf.GenerateToken(
+        users.get_current_user())
+    self.testapp.post('/create_health_report',
+                      _SAMPLE_TABLE_CONFIG)
+    self.testapp.post('/create_health_report',
+                      _ALT_SAMPLE_TABLE_CONFIG)
+
+    response = self.testapp.post('/create_health_report', {
+        'getTableConfigList': True,
+        })
+    return_list = self.GetJsonValue(response, 'table_config_list')
+    query = table_config.TableConfig.query()
+    all_configs = query.fetch(keys_only=True)
+    for config in all_configs:
+      self.assertIn(config.id(), return_list)
+
+  def testPost_GetTableConfigDetailsForEdit(self):
+    self._AddInternalBotsToDataStore()
+    _SAMPLE_TABLE_CONFIG['xsrf_token'] = xsrf.GenerateToken(
+        users.get_current_user())
+    self.testapp.post('/create_health_report',
+                      _SAMPLE_TABLE_CONFIG)
+
+    response = self.testapp.post('/create_health_report', {
+        'getTableConfigDetails': 'my_sample_config',
+        })
+    # Similar to the valid data test, ensure everything is correct.
+    self.assertIn('my_sample_config', response)
+    table_entity = ndb.Key('TableConfig', 'my_sample_config').get()
+    self.assertTrue(table_entity.internal_only)
+    self.assertEqual('internal@chromium.org', table_entity.username)
+    self.assertEqual(
+        ['my_test_suite/my_test', 'my_test_suite/my_other_test'],
+        table_entity.tests)
+    master_key = ndb.Key('Master', 'ChromiumPerf')
+    win_bot = graph_data.Bot(
+        id='win', parent=master_key, internal_only=False).key
+    linux_bot = graph_data.Bot(
+        id='linux', parent=master_key, internal_only=False).key
+    bots = [win_bot, linux_bot]
+    self.assertEqual(bots, table_entity.bots)
+    self.assertEqual(
+        '{"my_test_suite/my_test": ["Foreground", "Pretty Name 1"], '
+        '"my_test_suite/my_other_test": ["Foreground", "Pretty Name 2"]}',
+        table_entity.table_layout)
+
+  def testPost_TwoPostsSameNameAsEdit(self):
+    self._AddInternalBotsToDataStore()
+    _SAMPLE_TABLE_CONFIG['xsrf_token'] = xsrf.GenerateToken(
+        users.get_current_user())
+    self.testapp.post('/create_health_report',
+                      _SAMPLE_TABLE_CONFIG)
+    _SAMPLE_TABLE_CONFIG['override'] = 1
+    _SAMPLE_TABLE_CONFIG['tableLayout'] = (
+        '{"my_test_suite/my_test": ["Foreground", "New Name 1"], '
+        '"my_test_suite/my_other_test": ["Foreground", "New Name 2"]}')
+    response = self.testapp.post('/create_health_report',
+                                 _SAMPLE_TABLE_CONFIG)
+    self.assertIn('my_sample_config', response)
+    self.assertNotIn('already exists.', response)
+    table_entity = ndb.Key('TableConfig', 'my_sample_config').get()
+    self.assertIn('my_test_suite/my_test": ["Foreground", "New Name 1"]',
+                  table_entity.table_layout)
+    self.assertIn('my_test_suite/my_other_test": ["Foreground", "New Name 2"]',
+                  table_entity.table_layout)
+

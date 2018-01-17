@@ -5,8 +5,7 @@
 #ifndef NET_QUIC_CORE_QUIC_SPDY_SESSION_H_
 #define NET_QUIC_CORE_QUIC_SPDY_SESSION_H_
 
-#include <stddef.h>
-
+#include <cstddef>
 #include <memory>
 
 #include "base/macros.h"
@@ -15,6 +14,7 @@
 #include "net/quic/core/quic_session.h"
 #include "net/quic/core/quic_spdy_stream.h"
 #include "net/quic/platform/api/quic_export.h"
+#include "net/quic/platform/api/quic_string_piece.h"
 
 namespace net {
 
@@ -159,6 +159,9 @@ class QUIC_EXPORT_PRIVATE QuicSpdySession : public QuicSession {
     spdy_framer_.set_max_decode_buffer_size_bytes(max_decode_buffer_size_bytes);
   }
 
+  void set_max_uncompressed_header_bytes(
+      size_t set_max_uncompressed_header_bytes);
+
  protected:
   // Override CreateIncomingDynamicStream() and CreateOutgoingDynamicStream()
   // with QuicSpdyStream return type to make sure that all data streams are
@@ -198,9 +201,6 @@ class QUIC_EXPORT_PRIVATE QuicSpdySession : public QuicSession {
   // server side.
   void UpdateEnableServerPush(bool value);
 
-  void set_max_uncompressed_header_bytes(
-      size_t set_max_uncompressed_header_bytes);
-
   bool IsConnected() { return connection()->connected(); }
 
  private:
@@ -236,7 +236,7 @@ class QUIC_EXPORT_PRIVATE QuicSpdySession : public QuicSession {
   // Helper for |WritevStreamData()|.
   void WriteDataFrame(
       QuicStreamId stream_id,
-      base::StringPiece data,
+      QuicStringPiece data,
       bool fin,
       QuicReferenceCountedPointer<QuicAckListenerInterface> ack_listener);
 

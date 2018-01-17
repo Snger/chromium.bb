@@ -15,7 +15,6 @@ found in the LICENSE file.
 'use strict';
 
 tr.b.unittest.testSuite(function() {
-
   function instantiateManyFrames() {
     var model = new tr.Model();
     var numFrames = 200;
@@ -26,8 +25,9 @@ tr.b.unittest.testSuite(function() {
     var vsyncTimestamps = [];
     for (var i = 0; i < numFrames; i++) {
       vsyncTimestamps.push(i * samplesPerFrame);
-      for (var j = 0; j < samplesPerFrame; j++)
+      for (var j = 0; j < samplesPerFrame; j++) {
         series.addPowerSample(vsyncTimestamps[i] + j, j);
+      }
     }
     var samples = series.samples;
 
@@ -38,7 +38,7 @@ tr.b.unittest.testSuite(function() {
   }
 
   timedPerfTest('frame_power_usage_chart', instantiateManyFrames, {
-      iterations: 1
-    });
+    iterations: 1
+  });
 });
 </script>

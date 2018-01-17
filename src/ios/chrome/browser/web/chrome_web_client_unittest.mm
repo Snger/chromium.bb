@@ -30,7 +30,7 @@ TEST_F(ChromeWebClientTest, UserAgent) {
 
   // Check if the pieces of the user agent string come in the correct order.
   ChromeWebClient web_client;
-  std::string buffer = web_client.GetUserAgent(false);
+  std::string buffer = web_client.GetUserAgent(web::UserAgentType::MOBILE);
 
   pieces = base::SplitStringUsingSubstr(
       buffer, "Mozilla/5.0 (", base::TRIM_WHITESPACE, base::SPLIT_WANT_ALL);
@@ -76,12 +76,12 @@ TEST_F(ChromeWebClientTest, WKWebViewEarlyPageScript) {
   web::ExecuteJavaScript(web_view, @"__gCrWeb = {};");
 
   web::ScopedTestingWebClient web_client(base::MakeUnique<ChromeWebClient>());
-  NSString* script = web_client.Get()->GetEarlyPageScript();
+  NSString* script = web_client.Get()->GetEarlyPageScript(&browser_state);
   web::ExecuteJavaScript(web_view, script);
   EXPECT_NSEQ(@"object",
               web::ExecuteJavaScript(web_view, @"typeof __gCrWeb.print"));
-  EXPECT_NSEQ(@"undefined", web::ExecuteJavaScript(
-                                web_view, @"typeof __gCrWeb.windowOpenFix"));
+  EXPECT_NSEQ(@"function", web::ExecuteJavaScript(
+                               web_view, @"typeof window.PaymentRequest"));
 }
 
 }  // namespace

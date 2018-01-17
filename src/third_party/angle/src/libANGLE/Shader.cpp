@@ -83,7 +83,7 @@ ShaderState::~ShaderState()
 {
 }
 
-Shader::Shader(ResourceManager *manager,
+Shader::Shader(ShaderProgramManager *manager,
                rx::GLImplFactory *implFactory,
                const gl::Limitations &rendererLimitations,
                GLenum type,
@@ -252,6 +252,7 @@ void Shader::compile(const Context *context)
     // Add default options to WebGL shaders to prevent unexpected behavior during compilation.
     if (context->getExtensions().webglCompatibility)
     {
+        compileOptions |= SH_INIT_GL_POSITION;
         compileOptions |= SH_LIMIT_CALL_STACK_DEPTH;
         compileOptions |= SH_LIMIT_EXPRESSION_COMPLEXITY;
         compileOptions |= SH_ENFORCE_PACKING_RESTRICTIONS;
@@ -281,7 +282,7 @@ void Shader::compile(const Context *context)
     if (!result)
     {
         mInfoLog = sh::GetInfoLog(compilerHandle);
-        TRACE("\n%s", mInfoLog.c_str());
+        WARN() << std::endl << mInfoLog;
         mCompiled = false;
         return;
     }
@@ -295,15 +296,14 @@ void Shader::compile(const Context *context)
     shaderStream << "// GLSL\n";
     shaderStream << "//\n";
 
-    size_t curPos = 0;
-    while (curPos != std::string::npos)
+    std::istringstream inputSourceStream(mState.mSource);
+    std::string line;
+    while (std::getline(inputSourceStream, line))
     {
-        size_t nextLine = mState.mSource.find("\n", curPos);
-        size_t len      = (nextLine == std::string::npos) ? std::string::npos : (nextLine - curPos + 1);
+        // Remove null characters from the source line
+        line.erase(std::remove(line.begin(), line.end(), '\0'), line.end());
 
-        shaderStream << "// " << mState.mSource.substr(curPos, len);
-
-        curPos = (nextLine == std::string::npos) ? std::string::npos : (nextLine + 1);
+        shaderStream << "// " << line;
     }
     shaderStream << "\n\n";
     shaderStream << mState.mTranslatedSource;
@@ -351,13 +351,13 @@ void Shader::addRef()
     mRefCount++;
 }
 
-void Shader::release()
+void Shader::release(const Context *context)
 {
     mRefCount--;
 
     if (mRefCount == 0 && mDeleteStatus)
     {
-        mResourceManager->deleteShader(mHandle);
+        mResourceManager->deleteShader(context, mHandle);
     }
 }
 

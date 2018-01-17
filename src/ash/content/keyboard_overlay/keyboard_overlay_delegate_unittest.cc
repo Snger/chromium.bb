@@ -4,8 +4,8 @@
 
 #include "ash/content/keyboard_overlay/keyboard_overlay_delegate.h"
 
-#include "ash/common/shelf/wm_shelf.h"
 #include "ash/public/cpp/shelf_types.h"
+#include "ash/shelf/wm_shelf.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
 #include "base/strings/utf_string_conversions.h"
@@ -32,9 +32,6 @@ class KeyboardOverlayDelegateTest
 
 // Verifies we can show and close the widget for the overlay dialog.
 TEST_P(KeyboardOverlayDelegateTest, ShowAndClose) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("500x400,300x200");
   GetPrimaryShelf()->SetAlignment(shelf_alignment());
   KeyboardOverlayDelegate delegate(base::ASCIIToUTF16("Title"),

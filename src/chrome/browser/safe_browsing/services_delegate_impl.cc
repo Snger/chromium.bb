@@ -13,6 +13,7 @@
 #include "chrome/common/chrome_switches.h"
 #include "components/safe_browsing_db/v4_local_database_manager.h"
 #include "content/public/browser/browser_thread.h"
+#include "services/preferences/public/interfaces/tracked_preference_validation_delegate.mojom.h"
 
 namespace safe_browsing {
 
@@ -64,13 +65,15 @@ ServicesDelegateImpl::v4_local_database_manager() const {
   return v4_local_database_manager_;
 }
 
-void ServicesDelegateImpl::Initialize() {
+void ServicesDelegateImpl::Initialize(bool v4_enabled) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
 
-  v4_local_database_manager_ = V4LocalDatabaseManager::Create(
-      SafeBrowsingService::GetBaseFilename(),
-      base::Bind(&ServicesDelegateImpl::GetEstimatedExtendedReportingLevel,
-                 base::Unretained(this)));
+  if (v4_enabled) {
+    v4_local_database_manager_ = V4LocalDatabaseManager::Create(
+        SafeBrowsingService::GetBaseFilename(),
+        base::Bind(&ServicesDelegateImpl::GetEstimatedExtendedReportingLevel,
+                   base::Unretained(this)));
+  }
 
   download_service_.reset(
       (services_creator_ &&
@@ -118,7 +121,7 @@ void ServicesDelegateImpl::ProcessResourceRequest(
     resource_request_detector_->ProcessResourceRequest(request);
 }
 
-std::unique_ptr<TrackedPreferenceValidationDelegate>
+std::unique_ptr<prefs::mojom::TrackedPreferenceValidationDelegate>
 ServicesDelegateImpl::CreatePreferenceValidationDelegate(Profile* profile) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   return incident_service_->CreatePreferenceValidationDelegate(profile);
@@ -128,13 +131,6 @@ void ServicesDelegateImpl::RegisterDelayedAnalysisCallback(
     const DelayedAnalysisCallback& callback) {
   DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
   incident_service_->RegisterDelayedAnalysisCallback(callback);
-}
-
-void ServicesDelegateImpl::RegisterExtendedReportingOnlyDelayedAnalysisCallback(
-    const DelayedAnalysisCallback& callback) {
-  DCHECK_CURRENTLY_ON(content::BrowserThread::UI);
-  incident_service_->RegisterExtendedReportingOnlyDelayedAnalysisCallback(
-      callback);
 }
 
 void ServicesDelegateImpl::AddDownloadManager(

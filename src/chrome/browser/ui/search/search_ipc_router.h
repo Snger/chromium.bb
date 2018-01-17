@@ -14,7 +14,8 @@
 #include "chrome/common/instant.mojom.h"
 #include "chrome/common/search/instant_types.h"
 #include "chrome/common/search/ntp_logging_events.h"
-#include "components/ntp_tiles/ntp_tile_source.h"
+#include "components/ntp_tiles/tile_source.h"
+#include "components/ntp_tiles/tile_visual_type.h"
 #include "components/omnibox/common/omnibox_focus_state.h"
 #include "content/public/browser/web_contents_binding_set.h"
 #include "content/public/browser/web_contents_observer.h"
@@ -62,12 +63,14 @@ class SearchIPCRouter : public content::WebContentsObserver,
     // Called to log an impression from a given provider on the New Tab Page.
     virtual void OnLogMostVisitedImpression(
         int position,
-        ntp_tiles::NTPTileSource tile_source) = 0;
+        ntp_tiles::TileSource tile_source,
+        ntp_tiles::TileVisualType tile_type) = 0;
 
     // Called to log a navigation from a given provider on the New Tab Page.
     virtual void OnLogMostVisitedNavigation(
         int position,
-        ntp_tiles::NTPTileSource tile_source) = 0;
+        ntp_tiles::TileSource tile_source,
+        ntp_tiles::TileVisualType tile_type) = 0;
 
     // Called when the page wants to paste the |text| (or the clipboard contents
     // if the |text| is empty) into the omnibox.
@@ -175,20 +178,20 @@ class SearchIPCRouter : public content::WebContentsObserver,
   void InstantSupportDetermined(int page_seq_no,
                                 bool supports_instant) override;
   void FocusOmnibox(int page_id, OmniboxFocusState state) override;
-  void SearchBoxDeleteMostVisitedItem(int page_seq_no,
-                                      const GURL& url) override;
-  void SearchBoxUndoMostVisitedDeletion(int page_seq_no,
-                                        const GURL& url) override;
-  void SearchBoxUndoAllMostVisitedDeletions(int page_seq_no) override;
+  void DeleteMostVisitedItem(int page_seq_no, const GURL& url) override;
+  void UndoMostVisitedDeletion(int page_seq_no, const GURL& url) override;
+  void UndoAllMostVisitedDeletions(int page_seq_no) override;
   void LogEvent(int page_seq_no,
                 NTPLoggingEventType event,
                 base::TimeDelta time) override;
   void LogMostVisitedImpression(int page_seq_no,
                                 int position,
-                                ntp_tiles::NTPTileSource tile_source) override;
+                                ntp_tiles::TileSource tile_source,
+                                ntp_tiles::TileVisualType tile_type) override;
   void LogMostVisitedNavigation(int page_seq_no,
                                 int position,
-                                ntp_tiles::NTPTileSource tile_source) override;
+                                ntp_tiles::TileSource tile_source,
+                                ntp_tiles::TileVisualType tile_type) override;
   void PasteAndOpenDropdown(int page_seq_no,
                             const base::string16& text) override;
   void ChromeIdentityCheck(int page_seq_no,
@@ -239,7 +242,10 @@ class SearchIPCRouter : public content::WebContentsObserver,
   // Set to true, when the tab corresponding to |this| instance is active.
   bool is_active_tab_;
 
-  content::WebContentsFrameBindingSet<chrome::mojom::Instant> bindings_;
+  // Binding for the connected main frame. We only allow one frame to connect at
+  // the moment, but this could be extended to a map of connected frames, if
+  // desired.
+  mojo::AssociatedBinding<chrome::mojom::Instant> binding_;
 
   std::unique_ptr<SearchBoxClientFactory> search_box_client_factory_;
 

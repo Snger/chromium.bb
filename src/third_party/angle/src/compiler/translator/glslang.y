@@ -76,6 +76,7 @@ using namespace sh;
         union {
             TIntermNode *intermNode;
             TIntermNodePair nodePair;
+            TIntermFunctionCallOrMethod callOrMethodPair;
             TIntermTyped *intermTypedNode;
             TIntermAggregate *intermAggregate;
             TIntermBlock *intermBlock;
@@ -177,9 +178,11 @@ extern void yyerror(YYLTYPE* yylloc, TParseContext* context, void *scanner, cons
 %token <lex> USAMPLER2D USAMPLER3D USAMPLERCUBE USAMPLER2DARRAY
 %token <lex> SAMPLER2DMS ISAMPLER2DMS USAMPLER2DMS
 %token <lex> SAMPLER3D SAMPLER3DRECT SAMPLER2DSHADOW SAMPLERCUBESHADOW SAMPLER2DARRAYSHADOW
+%token <lex> SAMPLEREXTERNAL2DY2YEXT
 %token <lex> IMAGE2D IIMAGE2D UIMAGE2D IMAGE3D IIMAGE3D UIMAGE3D IMAGE2DARRAY IIMAGE2DARRAY UIMAGE2DARRAY
 %token <lex> IMAGECUBE IIMAGECUBE UIMAGECUBE
 %token <lex> LAYOUT
+%token <lex> YUVCSCSTANDARDEXT YUVCSCSTANDARDEXTCONSTANT
 
 %token <lex> IDENTIFIER TYPE_NAME FLOATCONSTANT INTCONSTANT UINTCONSTANT BOOLCONSTANT
 %token <lex> FIELD_SELECTION
@@ -279,6 +282,14 @@ primary_expression
         unionArray->setBConst($1.b);
         $$ = context->intermediate.addConstantUnion(unionArray, TType(EbtBool, EbpUndefined, EvqConst), @1);
     }
+    | YUVCSCSTANDARDEXTCONSTANT {
+        if (!context->isExtensionEnabled("GL_EXT_YUV_target")) {
+           context->error(@1, "unsupported value", $1.string->c_str());
+        }
+        TConstantUnion *unionArray = new TConstantUnion[1];
+        unionArray->setYuvCscStandardEXTConst(getYuvCscStandardEXT($1.string->c_str()));
+        $$ = context->intermediate.addConstantUnion(unionArray, TType(EbtYuvCscStandardEXT, EbpUndefined, EvqConst), @1);
+    }
     | LEFT_PAREN expression RIGHT_PAREN {
         $$ = $2;
     }
@@ -314,24 +325,19 @@ integer_expression
 
 function_call
     : function_call_or_method {
-        bool fatalError = false;
-        $$ = context->addFunctionCallOrMethod($1.function, $1.nodePair.node1, $1.nodePair.node2, @1, &fatalError);
-        if (fatalError)
-        {
-            YYERROR;
-        }
+        $$ = context->addFunctionCallOrMethod($1.function, $1.callOrMethodPair.arguments, $1.callOrMethodPair.thisNode, @1);
     }
     ;
 
 function_call_or_method
     : function_call_generic {
         $$ = $1;
-        $$.nodePair.node2 = nullptr;
+        $$.callOrMethodPair.thisNode = nullptr;
     }
     | postfix_expression DOT function_call_generic {
         ES3_OR_NEWER("", @3, "methods");
         $$ = $3;
-        $$.nodePair.node2 = $1;
+        $$.callOrMethodPair.thisNode = $1;
     }
     ;
 
@@ -347,26 +353,23 @@ function_call_generic
 function_call_header_no_parameters
     : function_call_header VOID_TYPE {
         $$.function = $1;
-        $$.nodePair.node1 = nullptr;
+        $$.callOrMethodPair.arguments = context->createEmptyArgumentsList();
     }
     | function_call_header {
         $$.function = $1;
-        $$.nodePair.node1 = nullptr;
+        $$.callOrMethodPair.arguments = context->createEmptyArgumentsList();
     }
     ;
 
 function_call_header_with_parameters
     : function_call_header assignment_expression {
-        const TType *type = new TType($2->getType());
-        $1->addParameter(TConstParameter(type));
+        $$.callOrMethodPair.arguments = context->createEmptyArgumentsList();
         $$.function = $1;
-        $$.nodePair.node1 = TIntermediate::MakeAggregate($2, @2);
+        $$.callOrMethodPair.arguments->push_back($2);
     }
     | function_call_header_with_parameters COMMA assignment_expression {
-        const TType *type = new TType($3->getType());
-        $1.function->addParameter(TConstParameter(type));
         $$.function = $1.function;
-        $$.nodePair.node1 = context->intermediate.growAggregate($1.intermNode, $3, @2);
+        $$.callOrMethodPair.arguments->push_back($3);
     }
     ;
 
@@ -1137,6 +1140,12 @@ type_specifier_nonarray
         $$.initialize(EbtFloat, @1);
         $$.setMatrix(4, 3);
     }
+    | YUVCSCSTANDARDEXT {
+        if (!context->isExtensionEnabled("GL_EXT_YUV_target")) {
+            context->error(@1, "unsupported type", "yuvCscStandardEXT");
+        }
+        $$.initialize(EbtYuvCscStandardEXT, @1);
+    }
     | SAMPLER2D {
         $$.initialize(EbtSampler2D, @1);
     }
@@ -1197,6 +1206,12 @@ type_specifier_nonarray
             context->error(@1, "unsupported type", "samplerExternalOES");
         }
         $$.initialize(EbtSamplerExternalOES, @1);
+    }
+    | SAMPLEREXTERNAL2DY2YEXT {
+        if (!context->isExtensionEnabled("GL_EXT_YUV_target")) {
+            context->error(@1, "unsupported type", "__samplerExternal2DY2YEXT");
+        }
+        $$.initialize(EbtSamplerExternal2DY2YEXT, @1);
     }
     | SAMPLER2DRECT {
         if (!context->supportsExtension("GL_ARB_texture_rectangle")) {

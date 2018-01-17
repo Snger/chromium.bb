@@ -1,4 +1,11 @@
-#!/usr/bin/env perl
+#! /usr/bin/env perl
+# Copyright 2012-2016 The OpenSSL Project Authors. All Rights Reserved.
+#
+# Licensed under the OpenSSL license (the "License").  You may not use
+# this file except in compliance with the License.  You can obtain a copy
+# in the file LICENSE in the source distribution or at
+# https://www.openssl.org/source/license.html
+
 
 # ====================================================================
 # Written by Andy Polyakov <appro@openssl.org> for the OpenSSL
@@ -84,7 +91,7 @@ my @s=@_[12..15];
 
 sub InBasisChange {
 # input in  lsb > [b0, b1, b2, b3, b4, b5, b6, b7] < msb
-# output in lsb > [b6, b5, b0, b3, b7, b1, b4, b2] < msb 
+# output in lsb > [b6, b5, b0, b3, b7, b1, b4, b2] < msb
 my @b=@_[0..7];
 $code.=<<___;
 	veor	@b[2], @b[2], @b[1]
@@ -731,6 +738,7 @@ $code.=<<___;
 .thumb
 #else
 .code   32
+# undef __thumb2__
 #endif
 
 .type	_bsaes_decrypt8,%function
@@ -1357,7 +1365,7 @@ bsaes_cbc_encrypt:
 	vmov	@XMM[4],@XMM[15]		@ just in case ensure that IV
 	vmov	@XMM[5],@XMM[0]			@ and input are preserved
 	bl	AES_decrypt
-	vld1.8	{@XMM[0]}, [$fp,:64]		@ load result
+	vld1.8	{@XMM[0]}, [$fp]		@ load result
 	veor	@XMM[0], @XMM[0], @XMM[4]	@ ^= IV
 	vmov	@XMM[15], @XMM[5]		@ @XMM[5] holds input
 	vst1.8	{@XMM[0]}, [$rounds]		@ write output

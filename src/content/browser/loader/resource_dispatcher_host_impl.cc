@@ -32,6 +32,7 @@
 #include "base/stl_util.h"
 #include "base/strings/string_util.h"
 #include "base/third_party/dynamic_annotations/dynamic_annotations.h"
+#include "base/threading/thread_task_runner_handle.h"
 #include "base/timer/timer.h"
 #include "content/browser/appcache/appcache_interceptor.h"
 #include "content/browser/appcache/appcache_navigation_handle_core.h"
@@ -39,12 +40,8 @@
 #include "content/browser/bad_message.h"
 #include "content/browser/blob_storage/chrome_blob_storage_context.h"
 #include "content/browser/child_process_security_policy_impl.h"
-#include "content/browser/frame_host/frame_tree.h"
-#include "content/browser/frame_host/navigation_handle_impl.h"
 #include "content/browser/frame_host/navigation_request_info.h"
-#include "content/browser/frame_host/navigator.h"
 #include "content/browser/loader/async_resource_handler.h"
-#include "content/browser/loader/async_revalidation_manager.h"
 #include "content/browser/loader/detachable_resource_handler.h"
 #include "content/browser/loader/intercepting_resource_handler.h"
 #include "content/browser/loader/loader_delegate.h"
@@ -53,6 +50,7 @@
 #include "content/browser/loader/navigation_resource_handler.h"
 #include "content/browser/loader/navigation_resource_throttle.h"
 #include "content/browser/loader/navigation_url_loader_impl_core.h"
+#include "content/browser/loader/null_resource_controller.h"
 #include "content/browser/loader/power_save_block_resource_throttle.h"
 #include "content/browser/loader/redirect_to_file_resource_handler.h"
 #include "content/browser/loader/resource_loader.h"
@@ -73,13 +71,11 @@
 #include "content/browser/streams/stream.h"
 #include "content/browser/streams/stream_context.h"
 #include "content/browser/streams/stream_registry.h"
-#include "content/common/navigation_params.h"
 #include "content/common/net/url_request_service_worker_data.h"
 #include "content/common/resource_messages.h"
 #include "content/common/resource_request.h"
 #include "content/common/resource_request_body_impl.h"
 #include "content/common/resource_request_completion_status.h"
-#include "content/common/site_isolation_policy.h"
 #include "content/common/view_messages.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/global_request_id.h"
@@ -106,6 +102,7 @@
 #include "net/http/http_request_headers.h"
 #include "net/http/http_response_headers.h"
 #include "net/http/http_response_info.h"
+#include "net/log/net_log_with_source.h"
 #include "net/ssl/client_cert_store.h"
 #include "net/ssl/ssl_cert_request_info.h"
 #include "net/url_request/url_request.h"
@@ -233,7 +230,7 @@ void AbortRequestBeforeItStarts(
     IPC::Sender* sender,
     const SyncLoadResultCallback& sync_result_handler,
     int request_id,
-    mojom::URLLoaderClientAssociatedPtr url_loader_client) {
+    mojom::URLLoaderClientPtr url_loader_client) {
   if (sync_result_handler) {
     SyncLoadResult result;
     result.error_code = net::ERR_ABORTED;
@@ -295,24 +292,6 @@ void AttachRequestBodyBlobDataHandles(
   }
 }
 
-// PlzNavigate
-// This method is called in the UI thread to send the timestamp of a resource
-// request to the respective Navigator (for an UMA histogram).
-void LogResourceRequestTimeOnUI(
-    base::TimeTicks timestamp,
-    int render_process_id,
-    int render_frame_id,
-    const GURL& url) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  RenderFrameHostImpl* host =
-      RenderFrameHostImpl::FromID(render_process_id, render_frame_id);
-  if (host != nullptr) {
-    DCHECK(host->frame_tree_node()->IsMainFrame());
-    host->frame_tree_node()->navigator()->LogResourceRequestTime(
-        timestamp, url);
-  }
-}
-
 // Returns the PreviewsState after requesting it from the delegate. The
 // PreviewsState is a bitmask of potentially several Previews optimizations.
 PreviewsState GetPreviewsState(PreviewsState previews_state,
@@ -324,65 +303,6 @@ PreviewsState GetPreviewsState(PreviewsState previews_state,
   if (previews_state == PREVIEWS_UNSPECIFIED && delegate && is_main_frame)
     return delegate->GetPreviewsState(request, resource_context);
   return previews_state;
-}
-
-// The following functions simplify code paths where the UI thread notifies the
-// ResourceDispatcherHostImpl of information pertaining to loading behavior of
-// frame hosts.
-void NotifyForRouteOnIO(
-    base::Callback<void(ResourceDispatcherHostImpl*,
-                        const GlobalFrameRoutingId&)> frame_callback,
-    const GlobalFrameRoutingId& global_routing_id) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
-  ResourceDispatcherHostImpl* rdh = ResourceDispatcherHostImpl::Get();
-  if (rdh)
-    frame_callback.Run(rdh, global_routing_id);
-}
-
-void NotifyForRouteFromUI(
-    const GlobalFrameRoutingId& global_routing_id,
-    base::Callback<void(ResourceDispatcherHostImpl*,
-                        const GlobalFrameRoutingId&)> frame_callback) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  BrowserThread::PostTask(
-      BrowserThread::IO, FROM_HERE,
-      base::Bind(&NotifyForRouteOnIO, frame_callback, global_routing_id));
-}
-
-void NotifyForRouteSetOnIO(
-    base::Callback<void(ResourceDispatcherHostImpl*,
-                        const GlobalFrameRoutingId&)> frame_callback,
-    std::unique_ptr<std::set<GlobalFrameRoutingId>> routing_ids) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
-  for (const auto& routing_id : *routing_ids)
-    NotifyForRouteOnIO(frame_callback, routing_id);
-}
-
-void NotifyForEachFrameFromUI(
-    RenderFrameHost* root_frame_host,
-    base::Callback<void(ResourceDispatcherHostImpl*,
-                        const GlobalFrameRoutingId&)> frame_callback) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  FrameTree* frame_tree = static_cast<RenderFrameHostImpl*>(root_frame_host)
-                              ->frame_tree_node()
-                              ->frame_tree();
-  DCHECK_EQ(root_frame_host, frame_tree->GetMainFrame());
-  std::unique_ptr<std::set<GlobalFrameRoutingId>> routing_ids(
-      new std::set<GlobalFrameRoutingId>());
-  for (FrameTreeNode* node : frame_tree->Nodes()) {
-    RenderFrameHostImpl* frame_host = node->current_frame_host();
-    RenderFrameHostImpl* pending_frame_host =
-        IsBrowserSideNavigationEnabled()
-            ? node->render_manager()->speculative_frame_host()
-            : node->render_manager()->pending_frame_host();
-    if (frame_host)
-      routing_ids->insert(frame_host->GetGlobalFrameRoutingId());
-    if (pending_frame_host)
-      routing_ids->insert(pending_frame_host->GetGlobalFrameRoutingId());
-  }
-  BrowserThread::PostTask(BrowserThread::IO, FROM_HERE,
-                          base::Bind(&NotifyForRouteSetOnIO, frame_callback,
-                                     base::Passed(std::move(routing_ids))));
 }
 
 // Sends back the result of a synchronous loading result to the renderer through
@@ -420,7 +340,8 @@ ResourceDispatcherHost* ResourceDispatcherHost::Get() {
 }
 
 ResourceDispatcherHostImpl::ResourceDispatcherHostImpl(
-    CreateDownloadHandlerIntercept download_handler_intercept)
+    CreateDownloadHandlerIntercept download_handler_intercept,
+    const scoped_refptr<base::SingleThreadTaskRunner>& io_thread_runner)
     : request_id_(-1),
       is_shutdown_(false),
       num_in_flight_requests_(0),
@@ -432,8 +353,10 @@ ResourceDispatcherHostImpl::ResourceDispatcherHostImpl(
       delegate_(nullptr),
       loader_delegate_(nullptr),
       allow_cross_origin_auth_prompt_(false),
-      create_download_handler_intercept_(download_handler_intercept) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+      create_download_handler_intercept_(download_handler_intercept),
+      main_thread_task_runner_(base::ThreadTaskRunnerHandle::Get()),
+      io_thread_task_runner_(io_thread_runner) {
+  DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
   DCHECK(!g_resource_dispatcher_host);
   g_resource_dispatcher_host = this;
 
@@ -441,74 +364,29 @@ ResourceDispatcherHostImpl::ResourceDispatcherHostImpl(
       &last_user_gesture_time_,
       "We don't care about the precise value, see http://crbug.com/92889");
 
-  BrowserThread::PostTask(BrowserThread::IO,
-                          FROM_HERE,
-                          base::Bind(&ResourceDispatcherHostImpl::OnInit,
-                                     base::Unretained(this)));
+  io_thread_task_runner_->PostTask(
+      FROM_HERE,
+      base::Bind(&ResourceDispatcherHostImpl::OnInit, base::Unretained(this)));
 
   update_load_states_timer_.reset(new base::RepeatingTimer());
-
-  // stale-while-revalidate currently doesn't work with browser-side navigation.
-  // Only enable stale-while-revalidate if browser navigation is not enabled.
-  //
-  // TODO(ricea): Make stale-while-revalidate and browser-side navigation work
-  // together. Or disable stale-while-revalidate completely before browser-side
-  // navigation becomes the default. crbug.com/561610
-  if (!IsBrowserSideNavigationEnabled() &&
-      base::FeatureList::IsEnabled(features::kStaleWhileRevalidate)) {
-    async_revalidation_manager_.reset(new AsyncRevalidationManager);
-  }
 }
 
+// The default ctor is only used by unittests. It is reasonable to assume that
+// the main thread and the IO thread are the same for unittests.
 ResourceDispatcherHostImpl::ResourceDispatcherHostImpl()
-    : ResourceDispatcherHostImpl(CreateDownloadHandlerIntercept()) {}
+    : ResourceDispatcherHostImpl(CreateDownloadHandlerIntercept(),
+                                 base::ThreadTaskRunnerHandle::Get()) {}
 
 ResourceDispatcherHostImpl::~ResourceDispatcherHostImpl() {
   DCHECK(outstanding_requests_stats_map_.empty());
   DCHECK(g_resource_dispatcher_host);
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
   g_resource_dispatcher_host = NULL;
 }
 
 // static
 ResourceDispatcherHostImpl* ResourceDispatcherHostImpl::Get() {
   return g_resource_dispatcher_host;
-}
-
-// static
-void ResourceDispatcherHostImpl::ResumeBlockedRequestsForRouteFromUI(
-    const GlobalFrameRoutingId& global_routing_id) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  NotifyForRouteFromUI(
-      global_routing_id,
-      base::Bind(&ResourceDispatcherHostImpl::ResumeBlockedRequestsForRoute));
-}
-
-// static
-void ResourceDispatcherHostImpl::BlockRequestsForFrameFromUI(
-    RenderFrameHost* root_frame_host) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  NotifyForEachFrameFromUI(
-      root_frame_host,
-      base::Bind(&ResourceDispatcherHostImpl::BlockRequestsForRoute));
-}
-
-// static
-void ResourceDispatcherHostImpl::ResumeBlockedRequestsForFrameFromUI(
-    RenderFrameHost* root_frame_host) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  NotifyForEachFrameFromUI(
-      root_frame_host,
-      base::Bind(&ResourceDispatcherHostImpl::ResumeBlockedRequestsForRoute));
-}
-
-// static
-void ResourceDispatcherHostImpl::CancelBlockedRequestsForFrameFromUI(
-    RenderFrameHostImpl* root_frame_host) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  NotifyForEachFrameFromUI(
-      root_frame_host,
-      base::Bind(&ResourceDispatcherHostImpl::CancelBlockedRequestsForRoute));
 }
 
 void ResourceDispatcherHostImpl::SetDelegate(
@@ -522,7 +400,7 @@ void ResourceDispatcherHostImpl::SetAllowCrossOriginAuthPrompt(bool value) {
 
 void ResourceDispatcherHostImpl::CancelRequestsForContext(
     ResourceContext* context) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  DCHECK(io_thread_task_runner_->BelongsToCurrentThread());
   DCHECK(context);
 
   // Note that request cancellation has side effects. Therefore, we gather all
@@ -584,18 +462,13 @@ void ResourceDispatcherHostImpl::CancelRequestsForContext(
         (loader->GetRequestInfo()->detachable_handler() &&
          loader->GetRequestInfo()->detachable_handler()->is_detached()) ||
         loader->GetRequestInfo()->requester_info()->IsBrowserSideNavigation() ||
-        loader->is_transferring());
+        loader->is_transferring() ||
+        loader->GetRequestInfo()->GetResourceType() ==
+            RESOURCE_TYPE_SERVICE_WORKER);
   }
 #endif
 
   loaders_to_cancel.clear();
-
-  if (async_revalidation_manager_) {
-    // Cancelling async revalidations should not result in the creation of new
-    // requests. Do it before the CHECKs to ensure this does not happen.
-    async_revalidation_manager_->CancelAsyncRevalidationsForResourceContext(
-        context);
-  }
 }
 
 void ResourceDispatcherHostImpl::ClearLoginDelegateForRequest(
@@ -625,12 +498,17 @@ void ResourceDispatcherHostImpl::RegisterInterceptor(
   http_header_interceptor_map_[http_header] = interceptor_info;
 }
 
+void ResourceDispatcherHostImpl::ReprioritizeRequest(
+    net::URLRequest* request,
+    net::RequestPriority priority) {
+  scheduler_->ReprioritizeRequest(request, priority);
+}
+
 void ResourceDispatcherHostImpl::Shutdown() {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  BrowserThread::PostTask(BrowserThread::IO,
-                          FROM_HERE,
-                          base::Bind(&ResourceDispatcherHostImpl::OnShutdown,
-                                     base::Unretained(this)));
+  DCHECK(main_thread_task_runner_->BelongsToCurrentThread());
+  io_thread_task_runner_->PostTask(
+      FROM_HERE, base::Bind(&ResourceDispatcherHostImpl::OnShutdown,
+                            base::Unretained(this)));
 }
 
 std::unique_ptr<ResourceHandler>
@@ -712,7 +590,7 @@ bool ResourceDispatcherHostImpl::HandleExternalProtocol(ResourceLoader* loader,
 
   const net::URLRequestJobFactory* job_factory =
       info->GetContext()->GetRequestContext()->job_factory();
-  if (job_factory->IsHandledURL(url))
+  if (!url.is_valid() || job_factory->IsHandledProtocol(url.scheme()))
     return false;
 
   return delegate_->HandleExternalProtocol(url, info);
@@ -738,28 +616,6 @@ void ResourceDispatcherHostImpl::DidReceiveRedirect(
         new_url, loader->request(), info->GetContext(), response);
   }
 
-  net::URLRequest* request = loader->request();
-  if (request->response_info().async_revalidation_required) {
-    // Async revalidation is only supported for the first redirect leg.
-    DCHECK_EQ(request->url_chain().size(), 1u);
-    DCHECK(async_revalidation_manager_);
-
-    async_revalidation_manager_->BeginAsyncRevalidation(request,
-                                                        scheduler_.get());
-  }
-
-  // Remove the LOAD_SUPPORT_ASYNC_REVALIDATION flag if it is present.
-  // It is difficult to create a URLRequest with the correct flags and headers
-  // for redirect legs other than the first one. Since stale-while-revalidate in
-  // combination with redirects isn't needed for experimental use, punt on it
-  // for now.
-  // TODO(ricea): Fix this before launching the feature.
-  if (request->load_flags() & net::LOAD_SUPPORT_ASYNC_REVALIDATION) {
-    int new_load_flags =
-        request->load_flags() & ~net::LOAD_SUPPORT_ASYNC_REVALIDATION;
-    request->SetLoadFlags(new_load_flags);
-  }
-
   // Don't notify WebContents observers for requests known to be
   // downloads; they aren't really associated with the Webcontents.
   // Note that not all downloads are known before content sniffing.
@@ -767,6 +623,7 @@ void ResourceDispatcherHostImpl::DidReceiveRedirect(
     return;
 
   // Notify the observers on the UI thread.
+  net::URLRequest* request = loader->request();
   std::unique_ptr<ResourceRedirectDetails> detail(new ResourceRedirectDetails(
       loader->request(),
       !!request->ssl_info().cert,
@@ -775,7 +632,9 @@ void ResourceDispatcherHostImpl::DidReceiveRedirect(
       info->GetWebContentsGetterForRequest(), std::move(detail));
 }
 
-void ResourceDispatcherHostImpl::DidReceiveResponse(ResourceLoader* loader) {
+void ResourceDispatcherHostImpl::DidReceiveResponse(
+    ResourceLoader* loader,
+    ResourceResponse* response) {
   ResourceRequestInfoImpl* info = loader->GetRequestInfo();
   net::URLRequest* request = loader->request();
   if (request->was_fetched_via_proxy() &&
@@ -785,17 +644,10 @@ void ResourceDispatcherHostImpl::DidReceiveResponse(ResourceLoader* loader) {
         info->GetChildID(), info->GetRouteID());
   }
 
-  if (request->response_info().async_revalidation_required) {
-    DCHECK(async_revalidation_manager_);
-    async_revalidation_manager_->BeginAsyncRevalidation(request,
-                                                        scheduler_.get());
-  }
-
   ProcessRequestForLinkHeaders(request);
 
-  int render_process_id, render_frame_host;
-  if (!info->GetAssociatedRenderFrame(&render_process_id, &render_frame_host))
-    return;
+  if (delegate_)
+    delegate_->OnResponseStarted(request, info->GetContext(), response);
 
   // Don't notify WebContents observers for requests known to be
   // downloads; they aren't really associated with the Webcontents.
@@ -940,7 +792,7 @@ void ResourceDispatcherHostImpl::OnInit() {
 }
 
 void ResourceDispatcherHostImpl::OnShutdown() {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  DCHECK(io_thread_task_runner_->BelongsToCurrentThread());
 
   is_shutdown_ = true;
   pending_loaders_.clear();
@@ -971,7 +823,7 @@ void ResourceDispatcherHostImpl::OnShutdown() {
 bool ResourceDispatcherHostImpl::OnMessageReceived(
     const IPC::Message& message,
     ResourceRequesterInfo* requester_info) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  DCHECK(io_thread_task_runner_->BelongsToCurrentThread());
 
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP_WITH_PARAM(ResourceDispatcherHostImpl, message,
@@ -1025,7 +877,7 @@ void ResourceDispatcherHostImpl::OnRequestResourceInternal(
     int request_id,
     const ResourceRequest& request_data,
     mojom::URLLoaderAssociatedRequest mojo_request,
-    mojom::URLLoaderClientAssociatedPtr url_loader_client) {
+    mojom::URLLoaderClientPtr url_loader_client) {
   DCHECK(requester_info->IsRenderer() || requester_info->IsNavigationPreload());
   // TODO(pkasting): Remove ScopedTracker below once crbug.com/477117 is fixed.
   tracked_objects::ScopedTracker tracking_profile(
@@ -1037,12 +889,11 @@ void ResourceDispatcherHostImpl::OnRequestResourceInternal(
   // instead.
   if (request_data.resource_type == RESOURCE_TYPE_MAIN_FRAME &&
       request_data.transferred_request_request_id == -1 &&
-      !IsBrowserSideNavigationEnabled()) {
-    BrowserThread::PostTask(
-        BrowserThread::UI, FROM_HERE,
-        base::Bind(&LogResourceRequestTimeOnUI, TimeTicks::Now(),
-                   requester_info->child_id(), request_data.render_frame_id,
-                   request_data.url));
+      !IsBrowserSideNavigationEnabled() && loader_delegate_) {
+    loader_delegate_->LogResourceRequestTime(TimeTicks::Now(),
+                                             requester_info->child_id(),
+                                             request_data.render_frame_id,
+                                             request_data.url);
   }
   BeginRequest(requester_info, request_id, request_data,
                SyncLoadResultCallback(), routing_id, std::move(mojo_request),
@@ -1090,7 +941,7 @@ void ResourceDispatcherHostImpl::UpdateRequestForTransfer(
     const ResourceRequest& request_data,
     LoaderMap::iterator iter,
     mojom::URLLoaderAssociatedRequest mojo_request,
-    mojom::URLLoaderClientAssociatedPtr url_loader_client) {
+    mojom::URLLoaderClientPtr url_loader_client) {
   DCHECK(requester_info->IsRenderer());
   int child_id = requester_info->child_id();
   ResourceRequestInfoImpl* info = iter->second->GetRequestInfo();
@@ -1173,7 +1024,7 @@ void ResourceDispatcherHostImpl::CompleteTransfer(
     const ResourceRequest& request_data,
     int route_id,
     mojom::URLLoaderAssociatedRequest mojo_request,
-    mojom::URLLoaderClientAssociatedPtr url_loader_client) {
+    mojom::URLLoaderClientPtr url_loader_client) {
   DCHECK(requester_info->IsRenderer());
   // Caller should ensure that |request_data| is associated with a transfer.
   DCHECK(request_data.transferred_request_child_id != -1 ||
@@ -1228,7 +1079,7 @@ void ResourceDispatcherHostImpl::BeginRequest(
     const SyncLoadResultCallback& sync_result_handler,  // only valid for sync
     int route_id,
     mojom::URLLoaderAssociatedRequest mojo_request,
-    mojom::URLLoaderClientAssociatedPtr url_loader_client) {
+    mojom::URLLoaderClientPtr url_loader_client) {
   DCHECK(requester_info->IsRenderer() || requester_info->IsNavigationPreload());
   int child_id = requester_info->child_id();
 
@@ -1328,7 +1179,8 @@ void ResourceDispatcherHostImpl::BeginRequest(
   }
   ContinuePendingBeginRequest(
       requester_info, request_id, request_data, sync_result_handler, route_id,
-      headers, std::move(mojo_request), std::move(url_loader_client), true, 0);
+      headers, std::move(mojo_request), std::move(url_loader_client),
+      HeaderInterceptorResult::CONTINUE);
 }
 
 void ResourceDispatcherHostImpl::ContinuePendingBeginRequest(
@@ -1339,14 +1191,15 @@ void ResourceDispatcherHostImpl::ContinuePendingBeginRequest(
     int route_id,
     const net::HttpRequestHeaders& headers,
     mojom::URLLoaderAssociatedRequest mojo_request,
-    mojom::URLLoaderClientAssociatedPtr url_loader_client,
-    bool continue_request,
-    int error_code) {
+    mojom::URLLoaderClientPtr url_loader_client,
+    HeaderInterceptorResult interceptor_result) {
   DCHECK(requester_info->IsRenderer() || requester_info->IsNavigationPreload());
-  if (!continue_request) {
-    if (requester_info->IsRenderer()) {
+  if (interceptor_result != HeaderInterceptorResult::CONTINUE) {
+    if (requester_info->IsRenderer() &&
+        interceptor_result == HeaderInterceptorResult::KILL) {
       // TODO(ananta): Find a way to specify the right error code here. Passing
-      // in a non-content error code is not safe.
+      // in a non-content error code is not safe, but future header interceptors
+      // might say to kill for reasons other than illegal origins.
       bad_message::ReceivedBadMessage(requester_info->filter(),
                                       bad_message::RDH_ILLEGAL_ORIGIN);
     }
@@ -1380,6 +1233,15 @@ void ResourceDispatcherHostImpl::ContinuePendingBeginRequest(
       is_navigation_stream_request ? request_data.resource_body_stream_url
                                    : request_data.url,
       request_data.priority, nullptr);
+
+  // Log that this request is a service worker navigation preload request here,
+  // since navigation preload machinery has no access to netlog.
+  // TODO(falken): Figure out how mojom::URLLoaderClient can
+  // access the request's netlog.
+  if (requester_info->IsNavigationPreload()) {
+    new_request->net_log().AddEvent(
+        net::NetLogEventType::SERVICE_WORKER_NAVIGATION_PRELOAD_REQUEST);
+  }
 
   // PlzNavigate: Always set the method to GET when gaining access to the
   // stream that contains the response body of a navigation. Otherwise the data
@@ -1456,7 +1318,12 @@ void ResourceDispatcherHostImpl::ContinuePendingBeginRequest(
   ChildProcessSecurityPolicyImpl* policy =
       ChildProcessSecurityPolicyImpl::GetInstance();
   bool report_raw_headers = request_data.report_raw_headers;
-  if (report_raw_headers && !policy->CanReadRawCookies(child_id)) {
+  if (report_raw_headers && !policy->CanReadRawCookies(child_id) &&
+      !requester_info->IsNavigationPreload()) {
+    // For navigation preload, the child_id is -1 so CanReadRawCookies would
+    // return false. But |report_raw_headers| of the navigation preload request
+    // was copied from the original request, so this check has already been
+    // carried out.
     // TODO: crbug.com/523063 can we call bad_message::ReceivedBadMessage here?
     VLOG(1) << "Denied unauthorized request for raw headers";
     report_raw_headers = false;
@@ -1481,13 +1348,6 @@ void ResourceDispatcherHostImpl::ContinuePendingBeginRequest(
     do_not_prompt_for_login = true;
     load_flags |= net::LOAD_DO_NOT_USE_EMBEDDED_IDENTITY;
   }
-
-  bool support_async_revalidation =
-      !is_sync_load && async_revalidation_manager_ &&
-      AsyncRevalidationManager::QualifiesForAsyncRevalidation(request_data);
-
-  if (support_async_revalidation)
-    load_flags |= net::LOAD_SUPPORT_ASYNC_REVALIDATION;
 
   // Sync loads should have maximum priority and should be the only
   // requets that have the ignore limits flag set.
@@ -1517,7 +1377,6 @@ void ResourceDispatcherHostImpl::ContinuePendingBeginRequest(
       GetPreviewsState(request_data.previews_state, delegate_, *new_request,
                        resource_context,
                        request_data.resource_type == RESOURCE_TYPE_MAIN_FRAME),
-      support_async_revalidation ? request_data.headers : std::string(),
       request_data.request_body, request_data.initiated_in_secure_context);
   // Request takes ownership.
   extra_info->AssociateWithRequest(new_request.get());
@@ -1533,12 +1392,12 @@ void ResourceDispatcherHostImpl::ContinuePendingBeginRequest(
 
   // Initialize the service worker handler for the request. We don't use
   // ServiceWorker for synchronous loads to avoid renderer deadlocks.
-  const SkipServiceWorker should_skip_service_worker =
-      is_sync_load ? SkipServiceWorker::ALL : request_data.skip_service_worker;
+  const ServiceWorkerMode service_worker_mode =
+      is_sync_load ? ServiceWorkerMode::NONE : request_data.service_worker_mode;
   ServiceWorkerRequestHandler::InitializeHandler(
       new_request.get(), requester_info->service_worker_context(), blob_context,
       child_id, request_data.service_worker_provider_id,
-      should_skip_service_worker != SkipServiceWorker::NONE,
+      service_worker_mode != ServiceWorkerMode::ALL,
       request_data.fetch_request_mode, request_data.fetch_credentials_mode,
       request_data.fetch_redirect_mode, request_data.resource_type,
       request_data.fetch_request_context_type, request_data.fetch_frame_type,
@@ -1546,12 +1405,11 @@ void ResourceDispatcherHostImpl::ContinuePendingBeginRequest(
 
   ForeignFetchRequestHandler::InitializeHandler(
       new_request.get(), requester_info->service_worker_context(), blob_context,
-      child_id, request_data.service_worker_provider_id,
-      should_skip_service_worker, request_data.fetch_request_mode,
-      request_data.fetch_credentials_mode, request_data.fetch_redirect_mode,
-      request_data.resource_type, request_data.fetch_request_context_type,
-      request_data.fetch_frame_type, request_data.request_body,
-      request_data.initiated_in_secure_context);
+      child_id, request_data.service_worker_provider_id, service_worker_mode,
+      request_data.fetch_request_mode, request_data.fetch_credentials_mode,
+      request_data.fetch_redirect_mode, request_data.resource_type,
+      request_data.fetch_request_context_type, request_data.fetch_frame_type,
+      request_data.request_body, request_data.initiated_in_secure_context);
 
   // Have the appcache associate its extra info with the request.
   AppCacheInterceptor::SetExtraRequestInfo(
@@ -1578,7 +1436,7 @@ ResourceDispatcherHostImpl::CreateResourceHandler(
     int child_id,
     ResourceContext* resource_context,
     mojom::URLLoaderAssociatedRequest mojo_request,
-    mojom::URLLoaderClientAssociatedPtr url_loader_client) {
+    mojom::URLLoaderClientPtr url_loader_client) {
   DCHECK(requester_info->IsRenderer() || requester_info->IsNavigationPreload());
   // TODO(pkasting): Remove ScopedTracker below once crbug.com/456331 is fixed.
   tracked_objects::ScopedTracker tracking_profile(
@@ -1602,7 +1460,8 @@ ResourceDispatcherHostImpl::CreateResourceHandler(
     if (mojo_request.is_pending()) {
       handler.reset(new MojoAsyncResourceHandler(request, this,
                                                  std::move(mojo_request),
-                                                 std::move(url_loader_client)));
+                                                 std::move(url_loader_client),
+                                                 request_data.resource_type));
     } else {
       handler.reset(new AsyncResourceHandler(request, this));
     }
@@ -1687,8 +1546,7 @@ ResourceDispatcherHostImpl::AddStandardHandlers(
   if (request->has_upload()) {
     // Block power save while uploading data.
     throttles.push_back(base::MakeUnique<PowerSaveBlockResourceThrottle>(
-        request->url().host(),
-        BrowserThread::GetTaskRunnerForThread(BrowserThread::UI),
+        request->url().host(), main_thread_task_runner_,
         BrowserThread::GetTaskRunnerForThread(BrowserThread::FILE)));
   }
 
@@ -1826,12 +1684,11 @@ ResourceRequestInfoImpl* ResourceDispatcherHostImpl::CreateRequestInfo(
       false,     // enable_load_timing
       false,     // enable_upload_progress
       false,     // do_not_prompt_for_login
-      blink::WebReferrerPolicyDefault, blink::WebPageVisibilityStateVisible,
+      blink::kWebReferrerPolicyDefault, blink::kWebPageVisibilityStateVisible,
       context,
       false,           // report_raw_headers
       true,            // is_async
       previews_state,  // previews_state
-      std::string(),   // original_headers
       nullptr,         // body
       false);          // initiated_in_secure_context
 }
@@ -2078,6 +1935,7 @@ void ResourceDispatcherHostImpl::FinishedWithResourcesForRequest(
 
 void ResourceDispatcherHostImpl::BeginNavigationRequest(
     ResourceContext* resource_context,
+    net::URLRequestContext* request_context,
     const NavigationRequestInfo& info,
     std::unique_ptr<NavigationUIData> navigation_ui_data,
     NavigationURLLoaderImplCore* loader,
@@ -2097,8 +1955,9 @@ void ResourceDispatcherHostImpl::BeginNavigationRequest(
   ChildProcessSecurityPolicyImpl* policy =
       ChildProcessSecurityPolicyImpl::GetInstance();
   bool is_external_protocol =
-      !resource_context->GetRequestContext()->job_factory()->IsHandledURL(
-          info.common_params.url);
+      info.common_params.url.is_valid() &&
+      !resource_context->GetRequestContext()->job_factory()->IsHandledProtocol(
+          info.common_params.url.scheme());
   bool non_web_url_in_guest =
       info.is_for_guests_only &&
       !policy->IsWebSafeScheme(info.common_params.url.scheme()) &&
@@ -2116,9 +1975,6 @@ void ResourceDispatcherHostImpl::BeginNavigationRequest(
     loader->NotifyRequestFailed(false, net::ERR_ABORTED);
     return;
   }
-
-  const net::URLRequestContext* request_context =
-      resource_context->GetRequestContext();
 
   int load_flags = info.begin_params.load_flags;
   load_flags |= net::LOAD_VERIFY_EV_CERT;
@@ -2200,12 +2056,6 @@ void ResourceDispatcherHostImpl::BeginNavigationRequest(
       true,  // is_async
       GetPreviewsState(info.common_params.previews_state, delegate_,
                        *new_request, resource_context, info.is_main_frame),
-      // The original_headers field is for stale-while-revalidate but the
-      // feature doesn't work with PlzNavigate, so it's just a placeholder
-      // here.
-      // TODO(ricea): Make the feature work with stale-while-revalidate
-      // and clean this up.
-      std::string(),  // original_headers
       info.common_params.post_data,
       // TODO(mek): Currently initiated_in_secure_context is only used for
       // subresource requests, so it doesn't matter what value it gets here.
@@ -2259,11 +2109,6 @@ void ResourceDispatcherHostImpl::BeginNavigationRequest(
   BeginRequestInternal(std::move(new_request), std::move(handler));
 }
 
-void ResourceDispatcherHostImpl::EnableStaleWhileRevalidateForTesting() {
-  if (!async_revalidation_manager_)
-    async_revalidation_manager_.reset(new AsyncRevalidationManager);
-}
-
 void ResourceDispatcherHostImpl::SetLoaderDelegate(
     LoaderDelegate* loader_delegate) {
   loader_delegate_ = loader_delegate;
@@ -2280,7 +2125,7 @@ void ResourceDispatcherHostImpl::OnRequestResourceWithMojo(
     int request_id,
     const ResourceRequest& request,
     mojom::URLLoaderAssociatedRequest mojo_request,
-    mojom::URLLoaderClientAssociatedPtr url_loader_client) {
+    mojom::URLLoaderClientPtr url_loader_client) {
   OnRequestResourceInternal(requester_info, routing_id, request_id, request,
                             std::move(mojo_request),
                             std::move(url_loader_client));
@@ -2339,12 +2184,14 @@ void ResourceDispatcherHostImpl::BeginRequestInternal(
     // status -- it has no effect beyond this, since the request hasn't started.
     request->CancelWithError(net::ERR_INSUFFICIENT_RESOURCES);
 
-    bool defer = false;
-    handler->OnResponseCompleted(request->status(), &defer);
-    if (defer) {
-      // TODO(darin): The handler is not ready for us to kill the request. Oops!
-      NOTREACHED();
-    }
+    bool was_resumed = false;
+    // TODO(mmenke): Get rid of NullResourceController and do something more
+    // reasonable.
+    handler->OnResponseCompleted(
+        request->status(),
+        base::MakeUnique<NullResourceController>(&was_resumed));
+    // TODO(darin): The handler is not ready for us to kill the request. Oops!
+    DCHECK(was_resumed);
 
     IncrementOutstandingRequestsMemory(-1, *info);
 
@@ -2376,7 +2223,7 @@ void ResourceDispatcherHostImpl::InitializeURLRequest(
     int render_frame_routing_id,
     PreviewsState previews_state,
     ResourceContext* context) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  DCHECK(io_thread_task_runner_->BelongsToCurrentThread());
   DCHECK(!request->is_pending());
 
   Referrer::SetReferrerForRequest(request, referrer);
@@ -2395,7 +2242,7 @@ void ResourceDispatcherHostImpl::BeginURLRequest(
     bool is_content_initiated,
     bool do_not_prompt_for_login,
     ResourceContext* context) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  DCHECK(io_thread_task_runner_->BelongsToCurrentThread());
   DCHECK(!request->is_pending());
 
   ResourceRequestInfoImpl* info =
@@ -2427,7 +2274,7 @@ void ResourceDispatcherHostImpl::BeginURLRequest(
 }
 
 int ResourceDispatcherHostImpl::MakeRequestID() {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  DCHECK(io_thread_task_runner_->BelongsToCurrentThread());
   return --request_id_;
 }
 
@@ -2501,7 +2348,8 @@ bool ResourceDispatcherHostImpl::LoadInfoIsMoreInteresting(const LoadInfo& a,
 // static
 void ResourceDispatcherHostImpl::UpdateLoadStateOnUI(
     LoaderDelegate* loader_delegate, std::unique_ptr<LoadInfoList> infos) {
-  DCHECK_CURRENTLY_ON(BrowserThread::UI);
+  DCHECK(Get()->main_thread_task_runner_->BelongsToCurrentThread());
+
   std::unique_ptr<LoadInfoMap> info_map =
       PickMoreInterestingLoadInfos(std::move(infos));
   for (const auto& load_info: *info_map) {
@@ -2568,16 +2416,14 @@ void ResourceDispatcherHostImpl::UpdateLoadInfo() {
   // their render frame routing IDs yet (which is what we have for subresource
   // requests), we must go to the UI thread and compare the requests using their
   // WebContents.
-  BrowserThread::PostTask(
-        BrowserThread::UI,
-        FROM_HERE,
-        base::Bind(UpdateLoadStateOnUI,
-                   loader_delegate_, base::Passed(&infos)));
+  main_thread_task_runner_->PostTask(
+      FROM_HERE,
+      base::Bind(UpdateLoadStateOnUI, loader_delegate_, base::Passed(&infos)));
 }
 
 void ResourceDispatcherHostImpl::BlockRequestsForRoute(
     const GlobalFrameRoutingId& global_routing_id) {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  DCHECK(io_thread_task_runner_->BelongsToCurrentThread());
   DCHECK(blocked_loaders_map_.find(global_routing_id) ==
          blocked_loaders_map_.end())
       << "BlockRequestsForRoute called  multiple time for the same RFH";
@@ -2652,7 +2498,7 @@ bool ResourceDispatcherHostImpl::IsTransferredNavigation(
 
 ResourceLoader* ResourceDispatcherHostImpl::GetLoader(
     const GlobalRequestID& id) const {
-  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  DCHECK(io_thread_task_runner_->BelongsToCurrentThread());
 
   LoaderMap::const_iterator i = pending_loaders_.find(id);
   if (i == pending_loaders_.end())

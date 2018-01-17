@@ -9,11 +9,8 @@
 
 #include "third_party/WebKit/public/platform/WebGestureEvent.h"
 #include "third_party/WebKit/public/platform/WebInputEvent.h"
+#include "third_party/WebKit/public/platform/WebTouchEvent.h"
 #include "ui/events/gesture_detection/motion_event.h"
-
-namespace blink {
-class WebTouchEvent;
-}
 
 namespace gfx {
 class PointF;
@@ -89,13 +86,13 @@ int WebEventModifiersToEventFlags(int modifiers);
 blink::WebInputEvent::Modifiers DomCodeToWebInputEventModifiers(
     ui::DomCode code);
 
-bool IsGestureScollOrPinch(blink::WebInputEvent::Type);
+bool IsGestureScrollOrFlingOrPinch(blink::WebInputEvent::Type);
 
 bool IsContinuousGestureEvent(blink::WebInputEvent::Type);
 
 inline const blink::WebGestureEvent& ToWebGestureEvent(
     const blink::WebInputEvent& event) {
-  DCHECK(IsGestureScollOrPinch(event.type()));
+  DCHECK(blink::WebInputEvent::IsGestureEventType(event.GetType()));
   return static_cast<const blink::WebGestureEvent&>(event);
 }
 

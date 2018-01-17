@@ -39,11 +39,13 @@ class OSExchangeDataProviderMusTest
   // Overridden from PlatformTest:
   void SetUp() override {
     PlatformTest::SetUp();
+    old_factory_ = ui::OSExchangeDataProviderFactory::TakeFactory();
     ui::OSExchangeDataProviderFactory::SetFactory(this);
   }
 
   void TearDown() override {
-    ui::OSExchangeDataProviderFactory::SetFactory(nullptr);
+    ui::OSExchangeDataProviderFactory::TakeFactory();
+    ui::OSExchangeDataProviderFactory::SetFactory(old_factory_);
     PlatformTest::TearDown();
   }
 
@@ -53,6 +55,7 @@ class OSExchangeDataProviderMusTest
   }
 
  private:
+  ui::OSExchangeDataProviderFactory::Factory* old_factory_ = nullptr;
   base::MessageLoopForUI message_loop_;
 };
 
@@ -190,7 +193,6 @@ TEST_F(OSExchangeDataProviderMusTest, TestPickledData) {
   EXPECT_EQ(2, value);
 }
 
-#if defined(USE_AURA)
 TEST_F(OSExchangeDataProviderMusTest, TestHTML) {
   OSExchangeData data;
   GURL url("http://www.google.com/");
@@ -206,6 +208,5 @@ TEST_F(OSExchangeDataProviderMusTest, TestHTML) {
   EXPECT_TRUE(copy.GetHtml(&read_html, &url));
   EXPECT_EQ(html, read_html);
 }
-#endif
 
 }  // namespace aura

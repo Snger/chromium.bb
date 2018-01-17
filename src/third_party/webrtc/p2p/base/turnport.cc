@@ -12,16 +12,16 @@
 
 #include <functional>
 
-#include "webrtc/p2p/base/common.h"
-#include "webrtc/p2p/base/stun.h"
 #include "webrtc/base/asyncpacketsocket.h"
 #include "webrtc/base/byteorder.h"
 #include "webrtc/base/checks.h"
-#include "webrtc/base/common.h"
 #include "webrtc/base/logging.h"
 #include "webrtc/base/nethelpers.h"
+#include "webrtc/base/ptr_util.h"
 #include "webrtc/base/socketaddress.h"
 #include "webrtc/base/stringencode.h"
+#include "webrtc/p2p/base/common.h"
+#include "webrtc/p2p/base/stun.h"
 
 namespace cricket {
 
@@ -746,7 +746,7 @@ void TurnPort::OnAllocateSuccess(const rtc::SocketAddress& address,
              ProtoToString(server_address_.proto),  // The first hop protocol.
              "",  // TCP canddiate type, empty for turn candidates.
              RELAY_PORT_TYPE, GetRelayPreference(server_address_.proto),
-             server_priority_, true);
+             server_priority_, ReconstructedServerUrl(), true);
 }
 
 void TurnPort::OnAllocateError() {
@@ -928,14 +928,15 @@ void TurnPort::SendRequest(StunRequest* req, int delay) {
 
 void TurnPort::AddRequestAuthInfo(StunMessage* msg) {
   // If we've gotten the necessary data from the server, add it to our request.
-  VERIFY(!hash_.empty());
-  VERIFY(msg->AddAttribute(new StunByteStringAttribute(
-      STUN_ATTR_USERNAME, credentials_.username)));
-  VERIFY(msg->AddAttribute(new StunByteStringAttribute(
-      STUN_ATTR_REALM, realm_)));
-  VERIFY(msg->AddAttribute(new StunByteStringAttribute(
-      STUN_ATTR_NONCE, nonce_)));
-  VERIFY(msg->AddMessageIntegrity(hash()));
+  RTC_DCHECK(!hash_.empty());
+  msg->AddAttribute(rtc::MakeUnique<StunByteStringAttribute>(
+      STUN_ATTR_USERNAME, credentials_.username));
+  msg->AddAttribute(
+      rtc::MakeUnique<StunByteStringAttribute>(STUN_ATTR_REALM, realm_));
+  msg->AddAttribute(
+      rtc::MakeUnique<StunByteStringAttribute>(STUN_ATTR_NONCE, nonce_));
+  const bool success = msg->AddMessageIntegrity(hash());
+  RTC_DCHECK(success);
 }
 
 int TurnPort::Send(const void* data, size_t len,
@@ -944,8 +945,9 @@ int TurnPort::Send(const void* data, size_t len,
 }
 
 void TurnPort::UpdateHash() {
-  VERIFY(ComputeStunCredentialHash(credentials_.username, realm_,
-                                   credentials_.password, &hash_));
+  const bool success = ComputeStunCredentialHash(credentials_.username, realm_,
+                                                 credentials_.password, &hash_);
+  RTC_DCHECK(success);
 }
 
 bool TurnPort::UpdateNonce(StunMessage* response) {
@@ -1072,6 +1074,34 @@ bool TurnPort::SetEntryChannelId(const rtc::SocketAddress& address,
   return true;
 }
 
+std::string TurnPort::ReconstructedServerUrl() {
+  // draft-petithuguenin-behave-turn-uris-01
+  // turnURI       = scheme ":" turn-host [ ":" turn-port ]
+  //                 [ "?transport=" transport ]
+  // scheme        = "turn" / "turns"
+  // transport     = "udp" / "tcp" / transport-ext
+  // transport-ext = 1*unreserved
+  // turn-host     = IP-literal / IPv4address / reg-name
+  // turn-port     = *DIGIT
+  std::string scheme = "turn";
+  std::string transport = "tcp";
+  switch (server_address_.proto) {
+    case PROTO_SSLTCP:
+    case PROTO_TLS:
+      scheme = "turns";
+      break;
+    case PROTO_UDP:
+      transport = "udp";
+      break;
+    case PROTO_TCP:
+      break;
+  }
+  std::ostringstream url;
+  url << scheme << ":" << server_address_.address.ipaddr().ToString() << ":"
+      << server_address_.address.port() << "?transport=" << transport;
+  return url.str();
+}
+
 TurnAllocateRequest::TurnAllocateRequest(TurnPort* port)
     : StunRequest(new TurnMessage()),
       port_(port) {
@@ -1080,10 +1110,10 @@ TurnAllocateRequest::TurnAllocateRequest(TurnPort* port)
 void TurnAllocateRequest::Prepare(StunMessage* request) {
   // Create the request as indicated in RFC 5766, Section 6.1.
   request->SetType(TURN_ALLOCATE_REQUEST);
-  StunUInt32Attribute* transport_attr = StunAttribute::CreateUInt32(
-      STUN_ATTR_REQUESTED_TRANSPORT);
+  auto transport_attr =
+      StunAttribute::CreateUInt32(STUN_ATTR_REQUESTED_TRANSPORT);
   transport_attr->SetValue(IPPROTO_UDP << 24);
-  VERIFY(request->AddAttribute(transport_attr));
+  request->AddAttribute(std::move(transport_attr));
   if (!port_->hash().empty()) {
     port_->AddRequestAuthInfo(request);
   }
@@ -1166,7 +1196,7 @@ void TurnAllocateRequest::OnErrorResponse(StunMessage* response) {
 
 void TurnAllocateRequest::OnTimeout() {
   LOG_J(LS_WARNING, port_) << "TURN allocate request "
-                           << rtc::hex_encode(id()) << " timout";
+                           << rtc::hex_encode(id()) << " timeout";
   port_->OnAllocateRequestTimeout();
 }
 
@@ -1257,8 +1287,8 @@ void TurnRefreshRequest::Prepare(StunMessage* request) {
   // No attributes need to be included.
   request->SetType(TURN_REFRESH_REQUEST);
   if (lifetime_ > -1) {
-    VERIFY(request->AddAttribute(new StunUInt32Attribute(
-        STUN_ATTR_LIFETIME, lifetime_)));
+    request->AddAttribute(
+        rtc::MakeUnique<StunUInt32Attribute>(STUN_ATTR_LIFETIME, lifetime_));
   }
 
   port_->AddRequestAuthInfo(request);
@@ -1327,8 +1357,8 @@ TurnCreatePermissionRequest::TurnCreatePermissionRequest(
 void TurnCreatePermissionRequest::Prepare(StunMessage* request) {
   // Create the request as indicated in RFC5766, Section 9.1.
   request->SetType(TURN_CREATE_PERMISSION_REQUEST);
-  VERIFY(request->AddAttribute(new StunXorAddressAttribute(
-      STUN_ATTR_XOR_PEER_ADDRESS, ext_addr_)));
+  request->AddAttribute(rtc::MakeUnique<StunXorAddressAttribute>(
+      STUN_ATTR_XOR_PEER_ADDRESS, ext_addr_));
   port_->AddRequestAuthInfo(request);
 }
 
@@ -1388,10 +1418,10 @@ TurnChannelBindRequest::TurnChannelBindRequest(
 void TurnChannelBindRequest::Prepare(StunMessage* request) {
   // Create the request as indicated in RFC5766, Section 11.1.
   request->SetType(TURN_CHANNEL_BIND_REQUEST);
-  VERIFY(request->AddAttribute(new StunUInt32Attribute(
-      STUN_ATTR_CHANNEL_NUMBER, channel_id_ << 16)));
-  VERIFY(request->AddAttribute(new StunXorAddressAttribute(
-      STUN_ATTR_XOR_PEER_ADDRESS, ext_addr_)));
+  request->AddAttribute(rtc::MakeUnique<StunUInt32Attribute>(
+      STUN_ATTR_CHANNEL_NUMBER, channel_id_ << 16));
+  request->AddAttribute(rtc::MakeUnique<StunXorAddressAttribute>(
+      STUN_ATTR_XOR_PEER_ADDRESS, ext_addr_));
   port_->AddRequestAuthInfo(request);
 }
 
@@ -1472,11 +1502,12 @@ int TurnEntry::Send(const void* data, size_t size, bool payload,
     msg.SetType(TURN_SEND_INDICATION);
     msg.SetTransactionID(
         rtc::CreateRandomString(kStunTransactionIdLength));
-    VERIFY(msg.AddAttribute(new StunXorAddressAttribute(
-        STUN_ATTR_XOR_PEER_ADDRESS, ext_addr_)));
-    VERIFY(msg.AddAttribute(new StunByteStringAttribute(
-        STUN_ATTR_DATA, data, size)));
-    VERIFY(msg.Write(&buf));
+    msg.AddAttribute(rtc::MakeUnique<StunXorAddressAttribute>(
+        STUN_ATTR_XOR_PEER_ADDRESS, ext_addr_));
+    msg.AddAttribute(
+        rtc::MakeUnique<StunByteStringAttribute>(STUN_ATTR_DATA, data, size));
+    const bool success = msg.Write(&buf);
+    RTC_DCHECK(success);
 
     // If we're sending real data, request a channel bind that we can use later.
     if (state_ == STATE_UNBOUND && payload) {

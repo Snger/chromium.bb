@@ -41,7 +41,7 @@ class CFWL_ListBox : public CFWL_Widget {
   // CFWL_Widget
   FWL_Type GetClassID() const override;
   void Update() override;
-  FWL_WidgetHit HitTest(FX_FLOAT fx, FX_FLOAT fy) override;
+  FWL_WidgetHit HitTest(const CFX_PointF& point) override;
   void DrawWidget(CFX_Graphics* pGraphics, const CFX_Matrix* pMatrix) override;
   void SetThemeProvider(IFWL_ThemeProvider* pThemeProvider) override;
   void OnProcessMessage(CFWL_Message* pMessage) override;
@@ -63,13 +63,13 @@ class CFWL_ListBox : public CFWL_Widget {
   int32_t GetSelIndex(int32_t nIndex);
   void SetSelItem(CFWL_ListItem* hItem, bool bSelect);
 
-  FX_FLOAT GetItemHeight() const { return m_fItemHeight; }
-  FX_FLOAT CalcItemHeight();
+  float GetItemHeight() const { return m_fItemHeight; }
+  float CalcItemHeight();
 
  protected:
   CFWL_ListItem* GetListItem(CFWL_ListItem* hItem, uint32_t dwKeyCode);
   void SetSelection(CFWL_ListItem* hStart, CFWL_ListItem* hEnd, bool bSelected);
-  CFWL_ListItem* GetItemAtPoint(FX_FLOAT fx, FX_FLOAT fy);
+  CFWL_ListItem* GetItemAtPoint(const CFX_PointF& point);
   bool ScrollToVisible(CFWL_ListItem* hItem);
   void InitVerticalScrollBar();
   void InitHorizontalScrollBar();
@@ -101,11 +101,11 @@ class CFWL_ListBox : public CFWL_Widget {
   CFX_SizeF CalcSize(bool bAutoSize);
   void UpdateItemSize(CFWL_ListItem* hItem,
                       CFX_SizeF& size,
-                      FX_FLOAT fWidth,
-                      FX_FLOAT fHeight,
+                      float fWidth,
+                      float fHeight,
                       bool bAutoSize) const;
-  FX_FLOAT GetMaxTextWidth();
-  FX_FLOAT GetScrollWidth();
+  float GetMaxTextWidth();
+  float GetScrollWidth();
 
   void OnFocusChanged(CFWL_Message* pMsg, bool bSet);
   void OnLButtonDown(CFWL_MessageMouse* pMsg);
@@ -115,7 +115,7 @@ class CFWL_ListBox : public CFWL_Widget {
   void OnVK(CFWL_ListItem* hItem, bool bShift, bool bCtrl);
   bool OnScroll(CFWL_ScrollBar* pScrollBar,
                 CFWL_EventScroll::Code dwCode,
-                FX_FLOAT fPos);
+                float fPos);
 
   CFX_RectF m_rtClient;
   CFX_RectF m_rtStatic;
@@ -125,8 +125,8 @@ class CFWL_ListBox : public CFWL_Widget {
   uint32_t m_dwTTOStyles;
   int32_t m_iTTOAligns;
   CFWL_ListItem* m_hAnchor;
-  FX_FLOAT m_fItemHeight;
-  FX_FLOAT m_fScorllBarWidth;
+  float m_fItemHeight;
+  float m_fScorllBarWidth;
   bool m_bLButtonDown;
   IFWL_ThemeProvider* m_pScrollBarTP;
   std::vector<std::unique_ptr<CFWL_ListItem>> m_ItemArray;

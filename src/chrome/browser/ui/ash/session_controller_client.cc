@@ -8,20 +8,24 @@
 #include <utility>
 
 #include "ash/public/cpp/session_types.h"
+#include "ash/public/interfaces/constants.mojom.h"
 #include "base/bind.h"
 #include "base/logging.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/threading/thread_task_runner_handle.h"
+#include "chrome/browser/chrome_notification_types.h"
 #include "chrome/browser/chromeos/login/users/multi_profile_user_controller.h"
 #include "chrome/browser/chromeos/profiles/profile_helper.h"
 #include "chrome/browser/profiles/profile.h"
-#include "chrome/browser/ui/ash/ash_util.h"
 #include "chrome/browser/ui/ash/multi_user/user_switch_util.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/grit/theme_resources.h"
 #include "chromeos/dbus/dbus_thread_manager.h"
 #include "chromeos/dbus/session_manager_client.h"
+#include "components/prefs/pref_change_registrar.h"
 #include "components/prefs/pref_service.h"
 #include "components/session_manager/core/session_manager.h"
+#include "content/public/browser/notification_service.h"
 #include "content/public/common/service_manager_connection.h"
 #include "content/public/common/service_names.mojom.h"
 #include "services/service_manager/public/cpp/connector.h"
@@ -62,12 +66,10 @@ ash::mojom::UserSessionPtr UserToUserSession(const User& user) {
   session->display_name = base::UTF16ToUTF8(user.display_name());
   session->display_email = user.display_email();
 
-  // TODO(xiyuan): Support multiple scale factor.
-  session->avatar = *user.GetImage().bitmap();
+  session->avatar = user.GetImage();
   if (session->avatar.isNull()) {
-    session->avatar = *ResourceBundle::GetSharedInstance()
-                           .GetImageSkiaNamed(IDR_PROFILE_PICTURE_LOADING)
-                           ->bitmap();
+    session->avatar = *ResourceBundle::GetSharedInstance().GetImageSkiaNamed(
+        IDR_PROFILE_PICTURE_LOADING);
   }
 
   return session;
@@ -79,18 +81,25 @@ void DoSwitchUser(const AccountId& account_id) {
 
 }  // namespace
 
-SessionControllerClient::SessionControllerClient() : binding_(this) {
+SessionControllerClient::SessionControllerClient()
+    : binding_(this), weak_ptr_factory_(this) {
   SessionManager::Get()->AddObserver(this);
   UserManager::Get()->AddSessionStateObserver(this);
   UserManager::Get()->AddObserver(this);
 
-  ConnectToSessionControllerAndSetClient();
-  SendSessionInfoIfChanged();
-  // User sessions and their order will be sent via UserSessionStateObserver
-  // even for crash-n-restart.
+  registrar_.Add(this, chrome::NOTIFICATION_LOGIN_USER_PROFILE_PREPARED,
+                 content::NotificationService::AllSources());
 
   DCHECK(!g_instance);
   g_instance = this;
+}
+
+void SessionControllerClient::Init() {
+  ConnectToSessionController();
+  session_controller_->SetClient(binding_.CreateInterfacePtrAndBind());
+  SendSessionInfoIfChanged();
+  // User sessions and their order will be sent via UserSessionStateObserver
+  // even for crash-n-restart.
 }
 
 SessionControllerClient::~SessionControllerClient() {
@@ -102,6 +111,16 @@ SessionControllerClient::~SessionControllerClient() {
   UserManager::Get()->RemoveSessionStateObserver(this);
 }
 
+// static
+SessionControllerClient* SessionControllerClient::Get() {
+  return g_instance;
+}
+
+void SessionControllerClient::RunUnlockAnimation(
+    base::Closure animation_finished_callback) {
+  session_controller_->RunUnlockAnimation(animation_finished_callback);
+}
+
 void SessionControllerClient::RequestLockScreen() {
   DoLockScreen();
 }
@@ -110,8 +129,9 @@ void SessionControllerClient::SwitchActiveUser(const AccountId& account_id) {
   DoSwitchActiveUser(account_id);
 }
 
-void SessionControllerClient::CycleActiveUser(bool next_user) {
-  DoCycleActiveUser(next_user);
+void SessionControllerClient::CycleActiveUser(
+    ash::CycleUserDirection direction) {
+  DoCycleActiveUser(direction);
 }
 
 void SessionControllerClient::ActiveUserChanged(const User* active_user) {
@@ -131,6 +151,10 @@ void SessionControllerClient::ActiveUserChanged(const User* active_user) {
 void SessionControllerClient::UserAddedToSession(const User* added_user) {
   SendSessionInfoIfChanged();
   SendUserSession(*added_user);
+}
+
+void SessionControllerClient::UserChangedChildStatus(User* user) {
+  SendUserSession(*user);
 }
 
 void SessionControllerClient::OnUserImageChanged(
@@ -170,7 +194,7 @@ ash::AddUserSessionPolicy SessionControllerClient::GetAddUserSessionPolicy() {
   }
 
   if (UserManager::Get()->GetLoggedInUsers().size() >=
-      SessionManager::Get()->GetMaximumNumberOfUserSessions())
+      session_manager::kMaxmiumNumberOfUserSessions)
     return ash::AddUserSessionPolicy::ERROR_MAXIMUM_USERS_REACHED;
 
   return ash::AddUserSessionPolicy::ALLOWED;
@@ -190,10 +214,6 @@ void SessionControllerClient::DoLockScreen() {
 // static
 void SessionControllerClient::DoSwitchActiveUser(const AccountId& account_id) {
   // Disallow switching to an already active user since that might crash.
-  // Also check that we got a user id and not an email address.
-  DCHECK_EQ(
-      account_id.GetUserEmail(),
-      gaia::CanonicalizeEmail(gaia::SanitizeEmail(account_id.GetUserEmail())));
   if (account_id == UserManager::Get()->GetActiveUser()->GetAccountId())
     return;
 
@@ -201,7 +221,8 @@ void SessionControllerClient::DoSwitchActiveUser(const AccountId& account_id) {
 }
 
 // static
-void SessionControllerClient::DoCycleActiveUser(bool next_user) {
+void SessionControllerClient::DoCycleActiveUser(
+    ash::CycleUserDirection direction) {
   const UserList& logged_in_users = UserManager::Get()->GetLoggedInUsers();
   if (logged_in_users.size() <= 1)
     return;
@@ -220,15 +241,18 @@ void SessionControllerClient::DoCycleActiveUser(bool next_user) {
 
   // Get the user's email to select, wrapping to the start/end of the list if
   // necessary.
-  if (next_user) {
+  if (direction == ash::CycleUserDirection::NEXT) {
     if (++it == logged_in_users.end())
       account_id = (*logged_in_users.begin())->GetAccountId();
     else
       account_id = (*it)->GetAccountId();
-  } else {
+  } else if (direction == ash::CycleUserDirection::PREVIOUS) {
     if (it == logged_in_users.begin())
       it = logged_in_users.end();
     account_id = (*(--it))->GetAccountId();
+  } else {
+    NOTREACHED() << "Invalid direction=" << static_cast<int>(direction);
+    return;
   }
 
   DoSwitchActiveUser(account_id);
@@ -243,10 +267,47 @@ void SessionControllerClient::OnSessionStateChanged() {
   SendSessionInfoIfChanged();
 }
 
-void SessionControllerClient::ConnectToSessionControllerAndSetClient() {
+void SessionControllerClient::Observe(
+    int type,
+    const content::NotificationSource& source,
+    const content::NotificationDetails& details) {
+  switch (type) {
+    case chrome::NOTIFICATION_LOGIN_USER_PROFILE_PREPARED: {
+      Profile* profile = content::Details<Profile>(details).ptr();
+      OnLoginUserProfilePrepared(profile);
+      break;
+    }
+    default:
+      NOTREACHED() << "Unexpected notification " << type;
+      break;
+  }
+}
+
+void SessionControllerClient::OnLoginUserProfilePrepared(Profile* profile) {
+  const User* user = chromeos::ProfileHelper::Get()->GetUserByProfile(profile);
+  DCHECK(user);
+
+  base::Closure session_info_changed_closure =
+      base::Bind(&SessionControllerClient::SendSessionInfoIfChanged,
+                 weak_ptr_factory_.GetWeakPtr());
+  std::unique_ptr<PrefChangeRegistrar> pref_change_registrar =
+      base::MakeUnique<PrefChangeRegistrar>();
+  pref_change_registrar->Init(profile->GetPrefs());
+  pref_change_registrar->Add(prefs::kAllowScreenLock,
+                             session_info_changed_closure);
+  pref_change_registrar->Add(prefs::kEnableAutoScreenLock,
+                             session_info_changed_closure);
+  pref_change_registrars_.push_back(std::move(pref_change_registrar));
+}
+
+void SessionControllerClient::ConnectToSessionController() {
+  // Tests may bind to their own SessionController.
+  if (session_controller_)
+    return;
+
   content::ServiceManagerConnection::GetForProcess()
       ->GetConnector()
-      ->BindInterface(ash_util::GetAshServiceName(), &session_controller_);
+      ->BindInterface(ash::mojom::kServiceName, &session_controller_);
 
   // Set as |session_controller_|'s client.
   session_controller_->SetClient(binding_.CreateInterfacePtrAndBind());
@@ -256,7 +317,6 @@ void SessionControllerClient::SendSessionInfoIfChanged() {
   SessionManager* const session_manager = SessionManager::Get();
 
   ash::mojom::SessionInfoPtr info = ash::mojom::SessionInfo::New();
-  info->max_users = session_manager->GetMaximumNumberOfUserSessions();
   info->can_lock_screen = CanLockScreen();
   info->should_lock_screen_automatically = ShouldLockScreenAutomatically();
   info->add_user_session_policy = GetAddUserSessionPolicy();

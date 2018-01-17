@@ -28,6 +28,12 @@ void ResetTransform(FT_Face face) {
 
 }  // namespace
 
+FXTEXT_GLYPHPOS::FXTEXT_GLYPHPOS() : m_pGlyph(nullptr) {}
+
+FXTEXT_GLYPHPOS::FXTEXT_GLYPHPOS(const FXTEXT_GLYPHPOS&) = default;
+
+FXTEXT_GLYPHPOS::~FXTEXT_GLYPHPOS(){};
+
 ScopedFontTransform::ScopedFontTransform(FT_Face face, FXFT_Matrix* matrix)
     : m_Face(face) {
   FXFT_Set_Transform(m_Face, matrix, 0);
@@ -39,8 +45,8 @@ ScopedFontTransform::~ScopedFontTransform() {
 
 FX_RECT FXGE_GetGlyphsBBox(const std::vector<FXTEXT_GLYPHPOS>& glyphs,
                            int anti_alias,
-                           FX_FLOAT retinaScaleX,
-                           FX_FLOAT retinaScaleY) {
+                           float retinaScaleX,
+                           float retinaScaleY) {
   FX_RECT rect(0, 0, 0, 0);
   bool bStarted = false;
   for (const FXTEXT_GLYPHPOS& glyph : glyphs) {
@@ -48,12 +54,12 @@ FX_RECT FXGE_GetGlyphsBBox(const std::vector<FXTEXT_GLYPHPOS>& glyphs,
     if (!pGlyph)
       continue;
 
-    FX_SAFE_INT32 char_left = glyph.m_OriginX;
+    FX_SAFE_INT32 char_left = glyph.m_Origin.x;
     char_left += pGlyph->m_Left;
     if (!char_left.IsValid())
       continue;
 
-    FX_SAFE_INT32 char_width = pGlyph->m_Bitmap.GetWidth();
+    FX_SAFE_INT32 char_width = pGlyph->m_pBitmap->GetWidth();
     char_width /= retinaScaleX;
     if (anti_alias == FXFT_RENDER_MODE_LCD)
       char_width /= 3;
@@ -64,12 +70,12 @@ FX_RECT FXGE_GetGlyphsBBox(const std::vector<FXTEXT_GLYPHPOS>& glyphs,
     if (!char_right.IsValid())
       continue;
 
-    FX_SAFE_INT32 char_top = glyph.m_OriginY;
+    FX_SAFE_INT32 char_top = glyph.m_Origin.y;
     char_top -= pGlyph->m_Top;
     if (!char_top.IsValid())
       continue;
 
-    FX_SAFE_INT32 char_height = pGlyph->m_Bitmap.GetHeight();
+    FX_SAFE_INT32 char_height = pGlyph->m_pBitmap->GetHeight();
     char_height /= retinaScaleY;
     if (!char_height.IsValid())
       continue;
@@ -79,10 +85,14 @@ FX_RECT FXGE_GetGlyphsBBox(const std::vector<FXTEXT_GLYPHPOS>& glyphs,
       continue;
 
     if (bStarted) {
-      rect.left = std::min(rect.left, char_left.ValueOrDie());
-      rect.right = std::max(rect.right, char_right.ValueOrDie());
-      rect.top = std::min(rect.top, char_top.ValueOrDie());
-      rect.bottom = std::max(rect.bottom, char_bottom.ValueOrDie());
+      rect.left = pdfium::base::ValueOrDieForType<int32_t>(
+          pdfium::base::CheckMin(rect.left, char_left));
+      rect.right = pdfium::base::ValueOrDieForType<int32_t>(
+          pdfium::base::CheckMax(rect.right, char_right));
+      rect.top = pdfium::base::ValueOrDieForType<int32_t>(
+          pdfium::base::CheckMin(rect.top, char_top));
+      rect.bottom = pdfium::base::ValueOrDieForType<int32_t>(
+          pdfium::base::CheckMax(rect.bottom, char_bottom));
       continue;
     }
 

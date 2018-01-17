@@ -7,7 +7,6 @@ package org.chromium.base;
 import android.annotation.TargetApi;
 import android.app.Activity;
 import android.app.ActivityManager;
-import android.app.Notification;
 import android.app.PendingIntent;
 import android.content.ContentResolver;
 import android.content.Context;
@@ -34,11 +33,9 @@ import android.view.ViewGroup.MarginLayoutParams;
 import android.view.Window;
 import android.view.WindowManager;
 import android.view.inputmethod.InputMethodSubtype;
-import android.widget.RemoteViews;
 import android.widget.TextView;
 
 import java.io.File;
-import java.lang.reflect.Method;
 
 /**
  * Utility class to use new APIs that were added after ICS (API level 14).
@@ -575,22 +572,13 @@ public class ApiCompatibilityUtils {
      * @param context The Android context, used to retrieve the UserManager system service.
      * @return Whether the device is running in demo mode.
      */
+    @SuppressWarnings("NewApi")
     public static boolean isDemoUser(Context context) {
-        // UserManager#isDemoUser() is only available in Android versions greater than N.
-        if (!BuildInfo.isGreaterThanN()) return false;
+        // UserManager#isDemoUser() is only available in Android NMR1+.
+        if (Build.VERSION.SDK_INT < Build.VERSION_CODES.N_MR1) return false;
 
-        try {
-            UserManager userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
-            Method isDemoUserMethod = UserManager.class.getMethod("isDemoUser");
-            boolean isDemoUser = (boolean) isDemoUserMethod.invoke(userManager);
-            return isDemoUser;
-        } catch (RuntimeException e) {
-            // Ignore to avoid crashing on startup.
-        } catch (Exception e) {
-            // Ignore.
-        }
-
-        return false;
+        UserManager userManager = (UserManager) context.getSystemService(Context.USER_SERVICE);
+        return userManager.isDemoUser();
     }
 
     /**
@@ -604,34 +592,6 @@ public class ApiCompatibilityUtils {
             // just swallow the exception and treat it as the permission is denied.
             // crbug.com/639099
             return PackageManager.PERMISSION_DENIED;
-        }
-    }
-
-    /**
-     * @see android.app.Notification.Builder#setContent(RemoteViews)
-     */
-    @SuppressWarnings("deprecation")
-    public static void setContentViewForNotificationBuilder(
-            Notification.Builder builder, RemoteViews views) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            builder.setCustomContentView(views);
-        } else {
-            builder.setContent(views);
-        }
-    }
-
-    /**
-     * @see android.app.Notification#bigContentView
-     */
-    @SuppressWarnings("deprecation")
-    public static Notification notificationWithBigContentView(
-            Notification.Builder builder, RemoteViews view) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.N) {
-            return builder.setCustomBigContentView(view).build();
-        } else {
-            Notification notification = builder.build();
-            notification.bigContentView = view;
-            return notification;
         }
     }
 
@@ -651,13 +611,24 @@ public class ApiCompatibilityUtils {
      * Get a URI for |file| which has the image capture. This function assumes that path of |file|
      * is based on the result of UiUtils.getDirectoryForImageCapture().
      *
-     * @param context The application context.
      * @param file image capture file.
      * @return URI for |file|.
      */
-    public static Uri getUriForImageCaptureFile(Context context, File file) {
+    public static Uri getUriForImageCaptureFile(File file) {
         return Build.VERSION.SDK_INT >= Build.VERSION_CODES.JELLY_BEAN_MR2
-                ? ContentUriUtils.getContentUriFromFile(context, file)
+                ? ContentUriUtils.getContentUriFromFile(file)
+                : Uri.fromFile(file);
+    }
+
+    /**
+     * Get the URI for a downloaded file.
+     *
+     * @param file A downloaded file.
+     * @return URI for |file|.
+     */
+    public static Uri getUriForDownloadedFile(File file) {
+        return Build.VERSION.SDK_INT > Build.VERSION_CODES.M
+                ? FileUtils.getUriForFile(file)
                 : Uri.fromFile(file);
     }
 
@@ -674,5 +645,14 @@ public class ApiCompatibilityUtils {
 
             window.setFeatureInt(featureNumber, featureValue);
         }
+    }
+
+    /**
+     *  Null-safe equivalent of {@code a.equals(b)}.
+     *
+     *  @see Objects#equals(Object, Object)
+     */
+    public static boolean objectEquals(Object a, Object b) {
+        return (a == null) ? (b == null) : a.equals(b);
     }
 }

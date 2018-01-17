@@ -4,8 +4,10 @@
 
 #include <memory>
 
+#include "base/memory/ptr_util.h"
 #include "base/run_loop.h"
 #import "base/test/ios/wait_util.h"
+#include "base/threading/thread_task_runner_handle.h"
 #import "ios/web/public/navigation_manager.h"
 #include "ios/web/public/web_ui_ios_data_source.h"
 #include "ios/web/public/webui/web_ui_ios_controller.h"
@@ -113,12 +115,12 @@ class TestWebUIControllerFactory : public WebUIIOSControllerFactory {
       : ui_handler_(ui_handler) {}
 
   // WebUIIOSControllerFactory overrides.
-  WebUIIOSController* CreateWebUIIOSControllerForURL(
+  std::unique_ptr<WebUIIOSController> CreateWebUIIOSControllerForURL(
       WebUIIOS* web_ui,
       const GURL& url) const override {
     DCHECK_EQ(url.scheme(), kTestWebUIScheme);
     DCHECK_EQ(url.host(), kTestWebUIURLHost);
-    return new TestUI(web_ui, ui_handler_);
+    return base::MakeUnique<TestUI>(web_ui, ui_handler_);
   }
 
  private:
@@ -130,10 +132,10 @@ class TestWebUIControllerFactory : public WebUIIOSControllerFactory {
 // A test fixture for verifying mojo comminication for WebUI.
 class WebUIMojoTest : public WebIntTest {
  protected:
-  WebUIMojoTest()
-      : web_state_(new WebStateImpl(GetBrowserState())),
-        ui_handler_(new TestUIHandler()) {
-    web_state_->GetNavigationManagerImpl().InitializeSession(nil, nil, NO, 0);
+  WebUIMojoTest() : ui_handler_(new TestUIHandler()) {
+    web::WebState::CreateParams params(GetBrowserState());
+    web_state_ = base::MakeUnique<web::WebStateImpl>(params);
+    web_state_->GetNavigationManagerImpl().InitializeSession();
     WebUIIOSControllerFactory::RegisterFactory(
         new TestWebUIControllerFactory(ui_handler_.get()));
   }
@@ -160,7 +162,16 @@ TEST_F(WebUIMojoTest, MessageExchange) {
 
   // Wait until |TestUIHandler| receives "ack" message from WebUI page.
   base::test::ios::WaitUntilCondition(^{
-    base::RunLoop().RunUntilIdle();
+    // Flush any pending tasks. Don't RunUntilIdle() because
+    // RunUntilIdle() is incompatible with mojo::SimpleWatcher's
+    // automatic arming behavior, which Mojo JS still depends upon.
+    //
+    // TODO(crbug.com/701875): Introduce the full watcher API to JS and get rid
+    // of this hack.
+    base::RunLoop loop;
+    base::ThreadTaskRunnerHandle::Get()->PostTask(FROM_HERE,
+                                                  loop.QuitClosure());
+    loop.Run();
     return test_ui_handler()->IsFinReceived();
   });
 }

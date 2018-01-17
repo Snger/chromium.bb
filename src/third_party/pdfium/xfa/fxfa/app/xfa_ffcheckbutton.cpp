@@ -12,17 +12,14 @@
 #include "xfa/fwl/cfwl_widgetmgr.h"
 #include "xfa/fxfa/app/xfa_ffexclgroup.h"
 #include "xfa/fxfa/app/xfa_fffield.h"
-#include "xfa/fxfa/xfa_ffapp.h"
-#include "xfa/fxfa/xfa_ffdoc.h"
-#include "xfa/fxfa/xfa_ffdocview.h"
-#include "xfa/fxfa/xfa_ffpageview.h"
-#include "xfa/fxfa/xfa_ffwidget.h"
+#include "xfa/fxfa/cxfa_ffapp.h"
+#include "xfa/fxfa/cxfa_ffdoc.h"
+#include "xfa/fxfa/cxfa_ffdocview.h"
+#include "xfa/fxfa/cxfa_ffpageview.h"
+#include "xfa/fxfa/cxfa_ffwidget.h"
 
-CXFA_FFCheckButton::CXFA_FFCheckButton(CXFA_FFPageView* pPageView,
-                                       CXFA_WidgetAcc* pDataAcc)
-    : CXFA_FFField(pPageView, pDataAcc), m_pOldDelegate(nullptr) {
-  m_rtCheckBox.Set(0, 0, 0, 0);
-}
+CXFA_FFCheckButton::CXFA_FFCheckButton(CXFA_WidgetAcc* pDataAcc)
+    : CXFA_FFField(pDataAcc), m_pOldDelegate(nullptr) {}
 
 CXFA_FFCheckButton::~CXFA_FFCheckButton() {}
 
@@ -52,7 +49,7 @@ void CXFA_FFCheckButton::UpdateWidgetProperty() {
   if (!m_pNormalWidget) {
     return;
   }
-  FX_FLOAT fSize = m_pDataAcc->GetCheckButtonSize();
+  float fSize = m_pDataAcc->GetCheckButtonSize();
   pCheckBox->SetBoxSize(fSize);
   uint32_t dwStyleEx = FWL_STYLEEXT_CKB_SignShapeCross;
   int32_t iCheckMark = m_pDataAcc->GetCheckButtonMark();
@@ -89,19 +86,17 @@ void CXFA_FFCheckButton::UpdateWidgetProperty() {
 }
 bool CXFA_FFCheckButton::PerformLayout() {
   CXFA_FFWidget::PerformLayout();
-  FX_FLOAT fCheckSize = m_pDataAcc->GetCheckButtonSize();
+  float fCheckSize = m_pDataAcc->GetCheckButtonSize();
   CXFA_Margin mgWidget = m_pDataAcc->GetMargin();
-  CFX_RectF rtWidget;
-  GetRectWithoutRotate(rtWidget);
+  CFX_RectF rtWidget = GetRectWithoutRotate();
   if (mgWidget) {
     XFA_RectWidthoutMargin(rtWidget, mgWidget);
   }
   int32_t iCapPlacement = -1;
-  FX_FLOAT fCapReserve = 0;
+  float fCapReserve = 0;
   CXFA_Caption caption = m_pDataAcc->GetCaption();
   if (caption && caption.GetPresence()) {
-    m_rtCaption.Set(rtWidget.left, rtWidget.top, rtWidget.width,
-                    rtWidget.height);
+    m_rtCaption = rtWidget;
     iCapPlacement = caption.GetPlacementType();
     fCapReserve = caption.GetReserve();
     if (fCapReserve <= 0) {
@@ -194,8 +189,8 @@ void CXFA_FFCheckButton::CapLeftRightPlacement(CXFA_Margin mgCap) {
 void CXFA_FFCheckButton::AddUIMargin(int32_t iCapPlacement) {
   CFX_RectF rtUIMargin = m_pDataAcc->GetUIMargin();
   m_rtUI.top -= rtUIMargin.top / 2 - rtUIMargin.height / 2;
-  FX_FLOAT fLeftAddRight = rtUIMargin.left + rtUIMargin.width;
-  FX_FLOAT fTopAddBottom = rtUIMargin.top + rtUIMargin.height;
+  float fLeftAddRight = rtUIMargin.left + rtUIMargin.width;
+  float fTopAddBottom = rtUIMargin.top + rtUIMargin.height;
   if (m_rtUI.width < fLeftAddRight) {
     if (iCapPlacement == XFA_ATTRIBUTEENUM_Right ||
         iCapPlacement == XFA_ATTRIBUTEENUM_Left) {
@@ -216,14 +211,13 @@ void CXFA_FFCheckButton::AddUIMargin(int32_t iCapPlacement) {
 void CXFA_FFCheckButton::RenderWidget(CFX_Graphics* pGS,
                                       CFX_Matrix* pMatrix,
                                       uint32_t dwStatus) {
-  if (!IsMatchVisibleStatus(dwStatus)) {
+  if (!IsMatchVisibleStatus(dwStatus))
     return;
-  }
-  CFX_Matrix mtRotate;
-  GetRotateMatrix(mtRotate);
-  if (pMatrix) {
+
+  CFX_Matrix mtRotate = GetRotateMatrix();
+  if (pMatrix)
     mtRotate.Concat(*pMatrix);
-  }
+
   CXFA_FFWidget::RenderWidget(pGS, &mtRotate, dwStatus);
   CXFA_Border borderUI = m_pDataAcc->GetUIBorder();
   DrawBorder(pGS, borderUI, m_rtUI, &mtRotate,
@@ -233,14 +227,12 @@ void CXFA_FFCheckButton::RenderWidget(CFX_Graphics* pGS,
   RenderCaption(pGS, &mtRotate);
   DrawHighlight(pGS, &mtRotate, dwStatus,
                 m_pDataAcc->GetCheckButtonShape() == XFA_ATTRIBUTEENUM_Round);
-  CFX_Matrix mt;
-  mt.Set(1, 0, 0, 1, m_rtCheckBox.left, m_rtCheckBox.top);
+  CFX_Matrix mt(1, 0, 0, 1, m_rtCheckBox.left, m_rtCheckBox.top);
   mt.Concat(mtRotate);
   GetApp()->GetWidgetMgrDelegate()->OnDrawWidget(m_pNormalWidget, pGS, &mt);
 }
 bool CXFA_FFCheckButton::OnLButtonUp(uint32_t dwFlags,
-                                     FX_FLOAT fx,
-                                     FX_FLOAT fy) {
+                                     const CFX_PointF& point) {
   if (!m_pNormalWidget || !IsButtonDown())
     return false;
 
@@ -248,9 +240,7 @@ bool CXFA_FFCheckButton::OnLButtonUp(uint32_t dwFlags,
   CFWL_MessageMouse ms(nullptr, m_pNormalWidget);
   ms.m_dwCmd = FWL_MouseCommand::LeftButtonUp;
   ms.m_dwFlags = dwFlags;
-  ms.m_fx = fx;
-  ms.m_fy = fy;
-  FWLToClient(ms.m_fx, ms.m_fy);
+  ms.m_pos = FWLToClient(point);
   TranslateFWLMessage(&ms);
   return true;
 }

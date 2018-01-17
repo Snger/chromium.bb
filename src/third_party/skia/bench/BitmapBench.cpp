@@ -44,10 +44,8 @@ static void convertToIndex666(const SkBitmap& src, SkBitmap* dst, SkAlphaType aT
             }
         }
     }
-    SkColorTable* ctable = new SkColorTable(storage, 216);
     dst->allocPixels(SkImageInfo::Make(src.width(), src.height(), kIndex_8_SkColorType, aType),
-                     nullptr, ctable);
-    ctable->unref();
+                     SkColorTable::Make(storage, 216));
 
     SkAutoLockPixels alps(src);
     SkAutoLockPixels alpd(*dst);
@@ -226,7 +224,7 @@ protected:
     }
 
     void onDraw(int loops, SkCanvas* canvas) override {
-        SkISize dim = canvas->getDeviceSize();
+        SkISize dim = canvas->getBaseLayerSize();
         if (fFlags & kScale_Flag) {
             const SkScalar x = SkIntToScalar(dim.fWidth) / 2;
             const SkScalar y = SkIntToScalar(dim.fHeight) / 2;

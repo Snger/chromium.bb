@@ -61,11 +61,11 @@ tr.b.unittest.testSuite(function() {
     var objects = p1000.objects;
     objects.idWasCreated('0x1000', 'tr.e.cc', 'LayerTreeHostImpl', 10);
     objects.addSnapshot('0x1000', 'tr.e.cc', 'LayerTreeHostImpl', 10,
-                        'snapshot-1');
+        'snapshot-1');
     objects.addSnapshot('0x1000', 'tr.e.cc', 'LayerTreeHostImpl', 25,
-                        'snapshot-2');
+        'snapshot-2');
     objects.addSnapshot('0x1000', 'tr.e.cc', 'LayerTreeHostImpl', 40,
-                        'snapshot-3');
+        'snapshot-3');
     objects.idWasDeleted('0x1000', 'tr.e.cc', 'LayerTreeHostImpl', 45);
     model.updateCategories_();
 
@@ -93,8 +93,8 @@ tr.b.unittest.testSuite(function() {
   };
 
   var modelsEquivalent = function(lhs, rhs) {
-    if (lhs.length !== rhs.length)
-      return false;
+    if (lhs.length !== rhs.length) return false;
+
     return lhs.every(function(lhsItem, index) {
       var rhsItem = rhs[index];
       return rhsItem.regexpText === lhsItem.regexpText &&
@@ -154,7 +154,7 @@ tr.b.unittest.testSuite(function() {
     var filterTask = sc.addAllEventsMatchingFilterToSelectionAsTask(
         filter, selection);
     Task.RunSynchronously(filterTask);
-    assert.equal(selection.length, 1);
+    assert.strictEqual(selection.length, 1);
   });
 });
 </script>

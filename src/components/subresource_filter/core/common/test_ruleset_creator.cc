@@ -4,6 +4,8 @@
 
 #include "components/subresource_filter/core/common/test_ruleset_creator.h"
 
+#include <string>
+
 #include "base/files/file_util.h"
 #include "base/logging.h"
 #include "base/strings/string_number_conversions.h"
@@ -21,6 +23,15 @@ namespace {
 // The methods below assume that char and uint8_t are interchangeable.
 static_assert(CHAR_BIT == 8, "Assumed char was 8 bits.");
 
+void WriteRulesetContents(const std::vector<uint8_t>& contents,
+                          base::FilePath path) {
+  int ruleset_size_as_int = base::checked_cast<int>(contents.size());
+  int num_bytes_written =
+      base::WriteFile(path, reinterpret_cast<const char*>(contents.data()),
+                      ruleset_size_as_int);
+  ASSERT_EQ(ruleset_size_as_int, num_bytes_written);
+}
+
 std::vector<uint8_t> SerializeUnindexedRulesetWithMultipleRules(
     const std::vector<proto::UrlRule>& rules) {
   std::string ruleset_contents;
@@ -30,13 +41,8 @@ std::vector<uint8_t> SerializeUnindexedRulesetWithMultipleRules(
     ruleset_writer.AddUrlRule(rule);
   ruleset_writer.Finish();
 
-  auto data = reinterpret_cast<const uint8_t*>(ruleset_contents.data());
+  auto* data = reinterpret_cast<const uint8_t*>(ruleset_contents.data());
   return std::vector<uint8_t>(data, data + ruleset_contents.size());
-}
-
-std::vector<uint8_t> SerializeUnindexedRulesetWithSingleRule(
-    const proto::UrlRule& rule) {
-  return SerializeUnindexedRulesetWithMultipleRules({rule});
 }
 
 std::vector<uint8_t> SerializeIndexedRulesetWithMultipleRules(
@@ -65,6 +71,33 @@ base::File TestRuleset::Open(const TestRuleset& ruleset) {
   return file;
 }
 
+// static
+void TestRuleset::CorruptByTruncating(const TestRuleset& ruleset,
+                                      size_t tail_size) {
+  ASSERT_GT(tail_size, 0u);
+  ASSERT_FALSE(ruleset.contents.empty());
+  std::vector<uint8_t> new_contents = ruleset.contents;
+
+  const size_t new_size =
+      tail_size < new_contents.size() ? new_contents.size() - tail_size : 0;
+  new_contents.resize(new_size);
+  WriteRulesetContents(new_contents, ruleset.path);
+}
+
+// static
+void TestRuleset::CorruptByFilling(const TestRuleset& ruleset,
+                                   size_t from,
+                                   size_t to,
+                                   uint8_t fill_with) {
+  ASSERT_LT(from, to);
+  ASSERT_LE(to, ruleset.contents.size());
+
+  std::vector<uint8_t> new_contents = ruleset.contents;
+  for (size_t i = from; i < to; ++i)
+    new_contents[i] = fill_with;
+  WriteRulesetContents(new_contents, ruleset.path);
+}
+
 // TestRulesetPair -------------------------------------------------------------
 
 TestRulesetPair::TestRulesetPair() = default;
@@ -88,9 +121,23 @@ void TestRulesetCreator::CreateUnindexedRulesetToDisallowURLsWithPathSuffix(
     TestRuleset* test_unindexed_ruleset) {
   DCHECK(test_unindexed_ruleset);
   proto::UrlRule suffix_rule = CreateSuffixRule(suffix);
-  ASSERT_NO_FATAL_FAILURE(CreateTestRulesetFromContents(
-      SerializeUnindexedRulesetWithSingleRule(suffix_rule),
-      test_unindexed_ruleset));
+  ASSERT_NO_FATAL_FAILURE(
+      CreateUnindexedRulesetWithRules({suffix_rule}, test_unindexed_ruleset));
+}
+
+void TestRulesetCreator::CreateRulesetToDisallowURLsWithManySuffixes(
+    base::StringPiece suffix,
+    int num_of_suffixes,
+    TestRulesetPair* test_ruleset_pair) {
+  DCHECK(test_ruleset_pair);
+
+  std::vector<proto::UrlRule> rules;
+  for (int i = 0; i < num_of_suffixes; ++i) {
+    std::string current_suffix =
+        suffix.as_string() + '_' + base::IntToString(i);
+    rules.push_back(CreateSuffixRule(current_suffix));
+  }
+  CreateRulesetWithRules(rules, test_ruleset_pair);
 }
 
 void TestRulesetCreator::CreateRulesetWithRules(
@@ -102,6 +149,14 @@ void TestRulesetCreator::CreateRulesetWithRules(
   ASSERT_NO_FATAL_FAILURE(CreateTestRulesetFromContents(
       SerializeIndexedRulesetWithMultipleRules(rules),
       &test_ruleset_pair->indexed));
+}
+
+void TestRulesetCreator::CreateUnindexedRulesetWithRules(
+    const std::vector<proto::UrlRule>& rules,
+    TestRuleset* test_unindexed_ruleset) {
+  ASSERT_NO_FATAL_FAILURE(CreateTestRulesetFromContents(
+      SerializeUnindexedRulesetWithMultipleRules(rules),
+      test_unindexed_ruleset));
 }
 
 void TestRulesetCreator::GetUniqueTemporaryPath(base::FilePath* path) {
@@ -119,11 +174,7 @@ void TestRulesetCreator::CreateTestRulesetFromContents(
 
   ruleset->contents = std::move(ruleset_contents);
   ASSERT_NO_FATAL_FAILURE(GetUniqueTemporaryPath(&ruleset->path));
-  int ruleset_size_as_int = base::checked_cast<int>(ruleset->contents.size());
-  int num_bytes_written = base::WriteFile(
-      ruleset->path, reinterpret_cast<const char*>(ruleset->contents.data()),
-      ruleset_size_as_int);
-  ASSERT_EQ(ruleset_size_as_int, num_bytes_written);
+  WriteRulesetContents(ruleset->contents, ruleset->path);
 }
 
 }  // namespace testing

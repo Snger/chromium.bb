@@ -225,7 +225,7 @@ void UsbChooserDialogAndroid::OpenUrl(const std::string& url) {
 
 bool UsbChooserDialogAndroid::DisplayDevice(
     scoped_refptr<UsbDevice> device) const {
-  if (!device::UsbDeviceFilter::MatchesAny(device, filters_))
+  if (!device::UsbDeviceFilter::MatchesAny(*device, filters_))
     return false;
 
   // On Android it is not possible to read the WebUSB descriptors until Chrome
@@ -236,7 +236,8 @@ bool UsbChooserDialogAndroid::DisplayDevice(
 
   return device::FindInWebUsbAllowedOrigins(
       device->webusb_allowed_origins(),
-      render_frame_host_->GetLastCommittedURL().GetOrigin());
+      render_frame_host_->GetLastCommittedURL().GetOrigin(), base::nullopt,
+      base::nullopt);
 }
 
 // static

@@ -28,6 +28,29 @@ const vk::Format &GetVkFormatFromConfig(const egl::Config &config)
     return vk::Format::Get(GL_BGRA8_EXT);
 }
 
+VkPresentModeKHR GetDesiredPresentMode(const std::vector<VkPresentModeKHR> &presentModes,
+                                       EGLint minSwapInterval,
+                                       EGLint maxSwapInterval)
+{
+    ASSERT(!presentModes.empty());
+
+    // Use FIFO mode for v-sync, since it throttles you to the display rate. Mailbox is more
+    // similar to triple-buffering. For now we hard-code Mailbox for perf tseting.
+    // TODO(jmadill): Properly select present mode and re-create display if changed.
+    VkPresentModeKHR bestChoice = VK_PRESENT_MODE_MAILBOX_KHR;
+
+    for (auto presentMode : presentModes)
+    {
+        if (presentMode == bestChoice)
+        {
+            return bestChoice;
+        }
+    }
+
+    ERR() << "Desired present mode not available. Falling back to " << presentModes[0];
+    return presentModes[0];
+}
+
 }  // namespace
 
 OffscreenSurfaceVk::OffscreenSurfaceVk(const egl::SurfaceState &surfaceState,
@@ -81,6 +104,14 @@ egl::Error OffscreenSurfaceVk::releaseTexImage(EGLint /*buffer*/)
     return egl::Error(EGL_SUCCESS);
 }
 
+egl::Error OffscreenSurfaceVk::getSyncValues(EGLuint64KHR * /*ust*/,
+                                             EGLuint64KHR * /*msc*/,
+                                             EGLuint64KHR * /*sbc*/)
+{
+    UNIMPLEMENTED();
+    return egl::Error(EGL_BAD_ACCESS);
+}
+
 void OffscreenSurfaceVk::setSwapInterval(EGLint /*interval*/)
 {
 }
@@ -121,29 +152,58 @@ WindowSurfaceVk::WindowSurfaceVk(const egl::SurfaceState &surfaceState,
       mNativeWindowType(window),
       mSurface(VK_NULL_HANDLE),
       mSwapchain(VK_NULL_HANDLE),
-      mDevice(VK_NULL_HANDLE),
-      mInstance(VK_NULL_HANDLE),
       mRenderTarget(),
       mCurrentSwapchainImageIndex(0)
 {
     mRenderTarget.extents.width  = static_cast<GLint>(width);
     mRenderTarget.extents.height = static_cast<GLint>(height);
     mRenderTarget.extents.depth  = 1;
+    mRenderTarget.resource       = this;
 }
 
 WindowSurfaceVk::~WindowSurfaceVk()
 {
-    mSwapchainImages.clear();
+    ASSERT(mSurface == VK_NULL_HANDLE);
+    ASSERT(mSwapchain == VK_NULL_HANDLE);
+}
+
+void WindowSurfaceVk::destroy(const DisplayImpl *displayImpl)
+{
+    const DisplayVk *displayVk = GetAs<DisplayVk>(displayImpl);
+    RendererVk *rendererVk     = displayVk->getRenderer();
+    VkDevice device            = rendererVk->getDevice();
+    VkInstance instance        = rendererVk->getInstance();
+
+    rendererVk->finish();
+
+    mImageAvailableSemaphore.destroy(device);
+    mRenderingCompleteSemaphore.destroy(device);
+
+    for (auto &imageView : mSwapchainImageViews)
+    {
+        imageView.destroy(device);
+    }
+
+    // Although we don't own the swapchain image handles, we need to keep our shutdown clean.
+    for (auto &image : mSwapchainImages)
+    {
+        image.reset();
+    }
+
+    for (auto &framebuffer : mSwapchainFramebuffers)
+    {
+        framebuffer.destroy(device);
+    }
 
     if (mSwapchain)
     {
-        vkDestroySwapchainKHR(mDevice, mSwapchain, nullptr);
+        vkDestroySwapchainKHR(device, mSwapchain, nullptr);
         mSwapchain = VK_NULL_HANDLE;
     }
 
     if (mSurface)
     {
-        vkDestroySurfaceKHR(mInstance, mSurface, nullptr);
+        vkDestroySurfaceKHR(instance, mSurface, nullptr);
         mSurface = VK_NULL_HANDLE;
     }
 }
@@ -156,11 +216,6 @@ egl::Error WindowSurfaceVk::initialize(const DisplayImpl *displayImpl)
 
 vk::Error WindowSurfaceVk::initializeImpl(RendererVk *renderer)
 {
-    // These are needed for resource deallocation.
-    // TODO(jmadill): Don't cache these.
-    mDevice   = renderer->getDevice();
-    mInstance = renderer->getInstance();
-
     // TODO(jmadill): Make this platform-specific.
     VkWin32SurfaceCreateInfoKHR createInfo;
 
@@ -216,23 +271,15 @@ vk::Error WindowSurfaceVk::initializeImpl(RendererVk *renderer)
     ANGLE_VK_TRY(vkGetPhysicalDeviceSurfacePresentModesKHR(physicalDevice, mSurface,
                                                            &presentModeCount, presentModes.data()));
 
-    // Use FIFO mode if available, since it throttles you to the display rate. Mailbox can lead
-    // to rendering frames which are never seen by the user, wasting power.
-    VkPresentModeKHR swapchainPresentMode = presentModes[0];
-    for (auto presentMode : presentModes)
-    {
-        if (presentMode == VK_PRESENT_MODE_FIFO_KHR)
-        {
-            swapchainPresentMode = VK_PRESENT_MODE_FIFO_KHR;
-            break;
-        }
+    // Select appropriate present mode based on vsync parameter.
+    // TODO(jmadill): More complete implementation, which allows for changing and more values.
+    const EGLint minSwapInterval = mState.config->minSwapInterval;
+    const EGLint maxSwapInterval = mState.config->maxSwapInterval;
+    ASSERT(minSwapInterval == 0 || minSwapInterval == 1);
+    ASSERT(maxSwapInterval == 0 || maxSwapInterval == 1);
 
-        // Fallback to immediate mode if FIFO is unavailable.
-        if (presentMode == VK_PRESENT_MODE_IMMEDIATE_KHR)
-        {
-            swapchainPresentMode = VK_PRESENT_MODE_IMMEDIATE_KHR;
-        }
-    }
+    VkPresentModeKHR swapchainPresentMode =
+        GetDesiredPresentMode(presentModes, minSwapInterval, maxSwapInterval);
 
     // Determine number of swapchain images. Aim for one more than the minimum.
     uint32_t minImageCount = surfaceCaps.minImageCount + 1;
@@ -312,7 +359,7 @@ vk::Error WindowSurfaceVk::initializeImpl(RendererVk *renderer)
 
     // CommandBuffer is a singleton in the Renderer.
     vk::CommandBuffer *commandBuffer = renderer->getCommandBuffer();
-    ANGLE_TRY(commandBuffer->begin());
+    ANGLE_TRY(commandBuffer->begin(device));
 
     VkClearColorValue transparentBlack;
     transparentBlack.float32[0] = 0.0f;
@@ -320,8 +367,13 @@ vk::Error WindowSurfaceVk::initializeImpl(RendererVk *renderer)
     transparentBlack.float32[2] = 0.0f;
     transparentBlack.float32[3] = 0.0f;
 
-    for (auto swapchainImage : swapchainImages)
+    mSwapchainImages.resize(imageCount);
+    mSwapchainImageViews.resize(imageCount);
+
+    for (uint32_t imageIndex = 0; imageIndex < imageCount; ++imageIndex)
     {
+        VkImage swapchainImage = swapchainImages[imageIndex];
+
         VkImageViewCreateInfo imageViewInfo;
         imageViewInfo.sType                           = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         imageViewInfo.pNext                           = nullptr;
@@ -340,22 +392,25 @@ vk::Error WindowSurfaceVk::initializeImpl(RendererVk *renderer)
         imageViewInfo.subresourceRange.layerCount     = 1;
 
         vk::Image image(swapchainImage);
-        vk::ImageView imageView(device);
-        ANGLE_TRY(imageView.init(imageViewInfo));
+        vk::ImageView imageView;
+        ANGLE_TRY(imageView.init(device, imageViewInfo));
 
         // Set transfer dest layout, and clear the image to black.
         image.changeLayoutTop(VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                               commandBuffer);
         commandBuffer->clearSingleColorImage(image, transparentBlack);
 
-        mSwapchainImages.push_back(std::move(image));
-        mSwapchainImageViews.push_back(std::move(imageView));
+        mSwapchainImages[imageIndex].retain(device, std::move(image));
+        mSwapchainImageViews[imageIndex].retain(device, std::move(imageView));
     }
 
     ANGLE_TRY(commandBuffer->end());
     ANGLE_TRY(renderer->submitAndFinishCommandBuffer(*commandBuffer));
 
-    // Start by getting the next available swapchain image.
+    ANGLE_TRY(mImageAvailableSemaphore.init(device));
+    ANGLE_TRY(mRenderingCompleteSemaphore.init(device));
+
+    // Get the first available swapchain iamge.
     ANGLE_TRY(nextSwapchainImage(renderer));
 
     return vk::NoError();
@@ -378,19 +433,20 @@ vk::Error WindowSurfaceVk::swapImpl(RendererVk *renderer)
 
     auto *image = &mSwapchainImages[mCurrentSwapchainImageIndex];
 
-    currentCB->begin();
+    currentCB->begin(renderer->getDevice());
     image->changeLayoutWithStages(VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PRESENT_SRC_KHR,
                                   VK_PIPELINE_STAGE_ALL_COMMANDS_BIT,
                                   VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, currentCB);
     currentCB->end();
 
-    ANGLE_TRY(renderer->waitThenFinishCommandBuffer(*currentCB, mPresentCompleteSemaphore));
+    ANGLE_TRY(renderer->submitCommandsWithSync(*currentCB, mImageAvailableSemaphore,
+                                               mRenderingCompleteSemaphore));
 
     VkPresentInfoKHR presentInfo;
     presentInfo.sType              = VK_STRUCTURE_TYPE_PRESENT_INFO_KHR;
     presentInfo.pNext              = nullptr;
-    presentInfo.waitSemaphoreCount = 0;
-    presentInfo.pWaitSemaphores    = nullptr;
+    presentInfo.waitSemaphoreCount = 1;
+    presentInfo.pWaitSemaphores    = mRenderingCompleteSemaphore.ptr();
     presentInfo.swapchainCount     = 1;
     presentInfo.pSwapchains        = &mSwapchain;
     presentInfo.pImageIndices      = &mCurrentSwapchainImageIndex;
@@ -398,7 +454,7 @@ vk::Error WindowSurfaceVk::swapImpl(RendererVk *renderer)
 
     ANGLE_VK_TRY(vkQueuePresentKHR(renderer->getQueue(), &presentInfo));
 
-    // Get the next available swapchain iamge.
+    // Get the next available swapchain image.
     ANGLE_TRY(nextSwapchainImage(renderer));
 
     return vk::NoError();
@@ -408,14 +464,9 @@ vk::Error WindowSurfaceVk::nextSwapchainImage(RendererVk *renderer)
 {
     VkDevice device = renderer->getDevice();
 
-    vk::Semaphore presentComplete(device);
-    ANGLE_TRY(presentComplete.init());
-
     ANGLE_VK_TRY(vkAcquireNextImageKHR(device, mSwapchain, std::numeric_limits<uint64_t>::max(),
-                                       presentComplete.getHandle(), VK_NULL_HANDLE,
+                                       mImageAvailableSemaphore.getHandle(), VK_NULL_HANDLE,
                                        &mCurrentSwapchainImageIndex));
-
-    mPresentCompleteSemaphore = std::move(presentComplete);
 
     // Update RenderTarget pointers.
     mRenderTarget.image     = &mSwapchainImages[mCurrentSwapchainImageIndex];
@@ -444,6 +495,14 @@ egl::Error WindowSurfaceVk::bindTexImage(gl::Texture *texture, EGLint buffer)
 egl::Error WindowSurfaceVk::releaseTexImage(EGLint buffer)
 {
     return egl::Error(EGL_SUCCESS);
+}
+
+egl::Error WindowSurfaceVk::getSyncValues(EGLuint64KHR * /*ust*/,
+                                          EGLuint64KHR * /*msc*/,
+                                          EGLuint64KHR * /*sbc*/)
+{
+    UNIMPLEMENTED();
+    return egl::Error(EGL_BAD_ACCESS);
 }
 
 void WindowSurfaceVk::setSwapInterval(EGLint interval)
@@ -503,15 +562,17 @@ gl::ErrorOrResult<vk::Framebuffer *> WindowSurfaceVk::getCurrentFramebuffer(
     framebufferInfo.height          = static_cast<uint32_t>(mRenderTarget.extents.height);
     framebufferInfo.layers          = 1;
 
-    for (const auto &imageView : mSwapchainImageViews)
+    mSwapchainFramebuffers.resize(mSwapchainImageViews.size());
+    for (size_t imageIndex = 0; imageIndex < mSwapchainFramebuffers.size(); ++imageIndex)
     {
+        const auto &imageView        = mSwapchainImageViews[imageIndex];
         VkImageView imageViewHandle  = imageView.getHandle();
         framebufferInfo.pAttachments = &imageViewHandle;
 
-        vk::Framebuffer framebuffer(device);
-        ANGLE_TRY(framebuffer.init(framebufferInfo));
+        vk::Framebuffer framebuffer;
+        ANGLE_TRY(framebuffer.init(device, framebufferInfo));
 
-        mSwapchainFramebuffers.push_back(std::move(framebuffer));
+        mSwapchainFramebuffers[imageIndex].retain(device, std::move(framebuffer));
     }
 
     // We should only initialize framebuffers on the first swap.

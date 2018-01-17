@@ -4,10 +4,9 @@
 
 import webapp2
 
-from google.appengine.api import taskqueue
-
 from dashboard.pinpoint.models import change
 from dashboard.pinpoint.models import job as job_module
+from dashboard.services import gitiles_service
 
 
 class NewHandler(webapp2.RequestHandler):
@@ -17,16 +16,23 @@ class NewHandler(webapp2.RequestHandler):
     # TODO(dtu): Read the parameters from the request object.
     # Not doing it for now because it's easier to run tests this way.
     configuration = 'Mac Pro 10.11 Perf'
-    test_suite = 'tab_switching.typical_25'
-    test = 'http://www.airbnb.com/'
-    metric = 'asdf'
-    commits = (('chromium/src', '653e80aeeaac895c6f9bfb6181655f15f29cb0be'),)
+    test_suite = 'speedometer'
+    test = None
+    metric = None
+    commits = (('chromium/src', '2c1f8ed028edcb44c954cb2a0625a8f278933481'),
+               ('chromium/src', '858ceafc7cf4f11a6549b8c1ace839a45d943d68'),)
 
     # Validate parameters.
     if metric and not test_suite:
       raise ValueError("Specified a metric but there's no test_suite to run.")
 
-    # TODO: Validate commit hashes.
+    # Validate commit hashes.
+    for repository, git_hash in commits:
+      try:
+        gitiles_service.CommitInfo(repository, git_hash)
+      except gitiles_service.NotFoundError:
+        raise ValueError('Could not find the commit with Gitiles: %s@%s' %
+                         (repository, git_hash))
 
     # Convert parameters to canonical internal representation.
 
@@ -40,16 +46,13 @@ class NewHandler(webapp2.RequestHandler):
 
     # Add changes.
     for repository, git_hash in commits:
-      base_commit = change.Dep(repository=repository, git_hash=git_hash)
-      job.AddChange(change.Change(base_commit=base_commit))
+      job.AddChange(change.Change(change.Dep(repository, git_hash)))
 
     # Put job into datastore.
     job_id = job.put().urlsafe()
 
     # Start job.
-    task = taskqueue.add(queue_name='job-queue', target='pinpoint',
-                         url='/run/' + job_id)
-    job.task = task.name
+    job.Start()
     job.put()
 
     # Show status page.

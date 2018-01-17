@@ -6,6 +6,7 @@
  */
 
 #include "gm.h"
+#include "sk_tool_utils.h"
 
 #include "SkBitmap.h"
 #include "SkGradientShader.h"
@@ -143,7 +144,7 @@ protected:
 
         SkPaint bgPaint;
         bgPaint.setAlpha(0x15);
-        SkISize size = canvas->getDeviceSize();
+        SkISize size = canvas->getBaseLayerSize();
         canvas->drawBitmapRect(fBmp, SkRect::MakeIWH(size.fWidth, size.fHeight), &bgPaint);
 
         constexpr char kTxt[] = "Clip Me!";

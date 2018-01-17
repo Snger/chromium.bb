@@ -11,15 +11,16 @@
 #include <queue>
 #include <string>
 
-#include "base/callback_forward.h"
 #include "base/command_line.h"
 #include "base/feature_list.h"
-#include "base/memory/ref_counted.h"
-#include "base/version.h"
+#include "base/process/launch.h"
+#include "base/process/process.h"
+#include "base/time/time.h"
 
 namespace base {
 class FilePath;
 class TaskRunner;
+class Version;
 }
 
 class Browser;
@@ -46,6 +47,15 @@ const int kDaysBetweenSwReporterRunsForPendingPrompt = 1;
 // The number of days to wait before sending out reporter logs.
 const int kDaysBetweenReporterLogsSent = 7;
 
+// When enabled, moves all user interaction with the Software Reporter and the
+// Chrome Cleanup tool to Chrome.
+extern const base::Feature kInBrowserCleanerUIFeature;
+
+// The switch to be passed to the Software Reporter process with the Mojo pipe
+// token for the IPC communication with Chrome.
+// TODO(crbug/709035) Move this to //components/chrome_cleaner.
+extern const char kChromeMojoPipeTokenSwitch[];
+
 // Parameters used to invoke the sw_reporter component.
 struct SwReporterInvocation {
   base::CommandLine command_line;
@@ -61,7 +71,6 @@ struct SwReporterInvocation {
   // supported.
   using Behaviours = uint32_t;
   enum : Behaviours {
-    BEHAVIOUR_LOG_TO_RAPPOR = 0x1,
     BEHAVIOUR_LOG_EXIT_CODE_TO_PREFS = 0x2,
     BEHAVIOUR_TRIGGER_PROMPT = 0x4,
     BEHAVIOUR_ALLOW_SEND_REPORTER_LOGS = 0x8,
@@ -95,12 +104,9 @@ using SwReporterQueue = std::queue<SwReporterInvocation>;
 // queue of SwReporters to execute as a single "run". When a new try is
 // scheduled the entire queue is executed.
 //
-// |version| is the version of the tool that will run. The task runners are
-// provided to allow tests to provide their own.
+// |version| is the version of the tool that will run.
 void RunSwReporters(const SwReporterQueue& invocations,
-                    const base::Version& version,
-                    scoped_refptr<base::TaskRunner> main_thread_task_runner,
-                    scoped_refptr<base::TaskRunner> blocking_task_runner);
+                    const base::Version& version);
 
 // Returns true iff Local State is successfully accessed and indicates the most
 // recent Reporter run terminated with an exit code indicating the presence of
@@ -119,17 +125,19 @@ class SwReporterTestingDelegate {
   virtual ~SwReporterTestingDelegate() {}
 
   // Test mock for launching the reporter.
-  virtual int LaunchReporter(const SwReporterInvocation& invocation) = 0;
+  virtual base::Process LaunchReporter(
+      const SwReporterInvocation& invocation,
+      const base::LaunchOptions& launch_options) = 0;
 
   // Test mock for showing the prompt.
   virtual void TriggerPrompt(Browser* browser,
                              const std::string& reporter_version) = 0;
 
-  // Callback to let the tests know the reporter is ready to launch.
-  virtual void NotifyLaunchReady() = 0;
+  // Returns the test's idea of the current time.
+  virtual base::Time Now() const = 0;
 
-  // Callback to let the tests know the reporter has finished running.
-  virtual void NotifyReporterDone() = 0;
+  // A task runner used to spawn the reporter process (which blocks).
+  virtual base::TaskRunner* BlockingTaskRunner() const = 0;
 };
 
 // Set a delegate for testing. The implementation will not take ownership of
@@ -137,6 +145,8 @@ class SwReporterTestingDelegate {
 // reset the delegate. If |delegate| is nullptr, any previous delegate is
 // cleared.
 void SetSwReporterTestingDelegate(SwReporterTestingDelegate* delegate);
+
+void DisplaySRTPromptForTesting(const base::FilePath& download_path);
 
 }  // namespace safe_browsing
 

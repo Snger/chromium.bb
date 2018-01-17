@@ -98,15 +98,15 @@ std::unique_ptr<base::DictionaryValue> SinksAndIdentityToValue(
     sink_val->SetString("id", sink.id());
     sink_val->SetString("name", sink.name());
     sink_val->SetInteger("iconType", sink.icon_type());
-    if (!sink.description().empty())
-      sink_val->SetString("description", sink.description());
+    if (sink.description())
+      sink_val->SetString("description", *sink.description());
 
     bool is_pseudo_sink =
         base::StartsWith(sink.id(), "pseudo:", base::CompareCase::SENSITIVE);
-    if (!user_domain.empty() && !sink.domain().empty()) {
-      std::string domain = sink.domain();
+    if (!user_domain.empty() && sink.domain() && !sink.domain()->empty()) {
+      std::string domain = *sink.domain();
       // Convert default domains to user domain
-      if (sink.domain() == "default") {
+      if (domain == "default") {
         domain = user_domain;
         if (domain == Profile::kNoHostedDomainFound) {
           // Default domain will be empty for non-dasher accounts.
@@ -282,13 +282,13 @@ void MediaRouterWebUIMessageHandler::OnCreateRouteResponseReceived(
     std::unique_ptr<base::DictionaryValue> route_value(RouteToValue(
         *route, false, media_router_ui_->GetRouteProviderExtensionId(),
         incognito_, current_cast_mode));
-    web_ui()->CallJavascriptFunctionUnsafe(
-        kOnCreateRouteResponseReceived, base::StringValue(sink_id),
-        *route_value, base::FundamentalValue(route->for_display()));
+    web_ui()->CallJavascriptFunctionUnsafe(kOnCreateRouteResponseReceived,
+                                           base::Value(sink_id), *route_value,
+                                           base::Value(route->for_display()));
   } else {
-    web_ui()->CallJavascriptFunctionUnsafe(
-        kOnCreateRouteResponseReceived, base::StringValue(sink_id),
-        *base::Value::CreateNullValue(), base::FundamentalValue(false));
+    web_ui()->CallJavascriptFunctionUnsafe(kOnCreateRouteResponseReceived,
+                                           base::Value(sink_id), base::Value(),
+                                           base::Value(false));
   }
 }
 
@@ -296,7 +296,7 @@ void MediaRouterWebUIMessageHandler::ReturnSearchResult(
     const std::string& sink_id) {
   DVLOG(2) << "ReturnSearchResult";
   web_ui()->CallJavascriptFunctionUnsafe(kReceiveSearchResult,
-                                         base::StringValue(sink_id));
+                                         base::Value(sink_id));
 }
 
 void MediaRouterWebUIMessageHandler::UpdateIssue(const Issue& issue) {
@@ -306,14 +306,12 @@ void MediaRouterWebUIMessageHandler::UpdateIssue(const Issue& issue) {
 
 void MediaRouterWebUIMessageHandler::ClearIssue() {
   DVLOG(2) << "ClearIssue";
-  web_ui()->CallJavascriptFunctionUnsafe(kSetIssue,
-                                         *base::Value::CreateNullValue());
+  web_ui()->CallJavascriptFunctionUnsafe(kSetIssue, base::Value());
 }
 
 void MediaRouterWebUIMessageHandler::UpdateMaxDialogHeight(int height) {
   DVLOG(2) << "UpdateMaxDialogHeight";
-  web_ui()->CallJavascriptFunctionUnsafe(kUpdateMaxHeight,
-                                         base::FundamentalValue(height));
+  web_ui()->CallJavascriptFunctionUnsafe(kUpdateMaxHeight, base::Value(height));
 }
 
 void MediaRouterWebUIMessageHandler::RegisterMessages() {

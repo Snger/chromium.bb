@@ -8,6 +8,7 @@
 #include "SkAutoMalloc.h"
 #include "SkCanvas.h"
 #include "SkGeometry.h"
+#include "SkNullCanvas.h"
 #include "SkPaint.h"
 #include "SkParse.h"
 #include "SkParsePath.h"
@@ -23,6 +24,7 @@
 #include "SkWriter32.h"
 #include "Test.h"
 #include <cmath>
+
 
 static void set_radii(SkVector radii[4], int index, float rad) {
     sk_bzero(radii, sizeof(SkVector) * 4);
@@ -195,7 +197,7 @@ static void test_fuzz_crbug_662780() {
             SkBits2Float(0x41000000), SkBits2Float(0x431e0000), SkBits2Float(0x3f3504f3));
     path.close();
     canvas->clipPath(path, true);
-    canvas->drawRectCoords(0, 0, 250, 250, paint);
+    canvas->drawRect(SkRect::MakeWH(250, 250), paint);
 }
 
 static void test_mask_overflow() {
@@ -1739,7 +1741,7 @@ static void test_conservativelyContains(skiatest::Reporter* reporter) {
 
     // A circle that bounds kBaseRect (with a significant amount of slop)
     SkScalar circleR = SkMaxScalar(kBaseRect.width(), kBaseRect.height());
-    circleR = SkScalarMul(circleR, 1.75f) / 2;
+    circleR *= 1.75f / 2;
     static const SkPoint kCircleC = {kBaseRect.centerX(), kBaseRect.centerY()};
 
     // round-rect radii
@@ -1918,6 +1920,18 @@ static void test_conservativelyContains(skiatest::Reporter* reporter) {
     path.moveTo(0, 0);
     path.lineTo(SkIntToScalar(100), 0);
     path.lineTo(0, SkIntToScalar(100));
+
+    REPORTER_ASSERT(reporter, path.conservativelyContainsRect(SkRect::MakeXYWH(SkIntToScalar(50), 0,
+                                                                               SkIntToScalar(10),
+                                                                               SkIntToScalar(10))));
+
+    // Same as above path and first test but with the extra moveTo making a degenerate sub-path
+    // following the non-empty sub-path. Verifies that this does not trigger assertions.
+    path.reset();
+    path.moveTo(0, 0);
+    path.lineTo(SkIntToScalar(100), 0);
+    path.lineTo(0, SkIntToScalar(100));
+    path.moveTo(100, 100);
 
     REPORTER_ASSERT(reporter, path.conservativelyContainsRect(SkRect::MakeXYWH(SkIntToScalar(50), 0,
                                                                                SkIntToScalar(10),
@@ -4303,7 +4317,7 @@ namespace {
 class ChangeListener : public SkPathRef::GenIDChangeListener {
 public:
     ChangeListener(bool *changed) : fChanged(changed) { *fChanged = false; }
-    virtual ~ChangeListener() {}
+    ~ChangeListener() override {}
     void onChange() override {
         *fChanged = true;
     }
@@ -4406,7 +4420,7 @@ static void test_fuzz_crbug_662952(skiatest::Reporter* reporter) {
     SkPaint paint;
     paint.setAntiAlias(true);
     surface->getCanvas()->clipPath(path, true);
-    surface->getCanvas()->drawRectCoords(0, 0, 100, 100, paint);
+    surface->getCanvas()->drawRect(SkRect::MakeWH(100, 100), paint);
 }
 
 static void test_path_crbugskia6003() {
@@ -4429,7 +4443,7 @@ static void test_path_crbugskia6003() {
     path.lineTo(SkBits2Float(0x4325e666), SkBits2Float(0x42a1999a));  // 165.9f, 80.8f
     path.close();
     canvas->clipPath(path, true);
-    canvas->drawRectCoords(0, 0, 500, 500, paint);
+    canvas->drawRect(SkRect::MakeWH(500, 500), paint);
 }
 
 static void test_fuzz_crbug_662730(skiatest::Reporter* reporter) {
@@ -4489,6 +4503,18 @@ DEF_TEST(PathInterp, reporter) {
     test_interp(reporter);
 }
 
+#include "SkSurface.h"
+DEF_TEST(PathBigCubic, reporter) {
+    SkPath path;
+    path.moveTo(SkBits2Float(0x00000000), SkBits2Float(0x00000000));  // 0, 0
+    path.moveTo(SkBits2Float(0x44000000), SkBits2Float(0x373938b8));  // 512, 1.10401e-05f
+    path.cubicTo(SkBits2Float(0x00000001), SkBits2Float(0xdf000052), SkBits2Float(0x00000100), SkBits2Float(0x00000000), SkBits2Float(0x00000100), SkBits2Float(0x00000000));  // 1.4013e-45f, -9.22346e+18f, 3.58732e-43f, 0, 3.58732e-43f, 0
+    path.moveTo(0, 512);
+
+    // this call should not assert
+    SkSurface::MakeRasterN32Premul(255, 255, nullptr)->getCanvas()->drawPath(path, SkPaint());
+}
+
 DEF_TEST(PathContains, reporter) {
     test_contains(reporter);
 }
@@ -4507,7 +4533,7 @@ DEF_TEST(Paths, reporter) {
     test_path_crbugskia6003();
     test_fuzz_crbug_668907();
 
-    SkTSize<SkScalar>::Make(3,4);
+    SkSize::Make(3, 4);
 
     SkPath  p, empty;
     SkRect  bounds, bounds2;
@@ -4661,4 +4687,91 @@ DEF_TEST(Paths, reporter) {
     test_skbug_3239(reporter);
     test_bounds_crbug_513799(reporter);
     test_fuzz_crbug_638223();
+}
+
+DEF_TEST(conservatively_contains_rect, reporter) {
+    SkPath path;
+
+    path.moveTo(SkBits2Float(0x44000000), SkBits2Float(0x373938b8));  // 512, 1.10401e-05f
+    // 1.4013e-45f, -9.22346e+18f, 3.58732e-43f, 0, 3.58732e-43f, 0
+    path.cubicTo(SkBits2Float(0x00000001), SkBits2Float(0xdf000052),
+                 SkBits2Float(0x00000100), SkBits2Float(0x00000000),
+                 SkBits2Float(0x00000100), SkBits2Float(0x00000000));
+    path.moveTo(0, 0);
+
+    // this guy should not assert
+    path.conservativelyContainsRect({ -211747, 12.1115f, -197893, 25.0321f });
+}
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+
+static void rand_path(SkPath* path, SkRandom& rand, SkPath::Verb verb, int n) {
+    for (int i = 0; i < n; ++i) {
+        switch (verb) {
+            case SkPath::kLine_Verb:
+                path->lineTo(rand.nextF()*100, rand.nextF()*100);
+                break;
+            case SkPath::kQuad_Verb:
+                path->quadTo(rand.nextF()*100, rand.nextF()*100,
+                             rand.nextF()*100, rand.nextF()*100);
+                break;
+            case SkPath::kConic_Verb:
+                path->conicTo(rand.nextF()*100, rand.nextF()*100,
+                              rand.nextF()*100, rand.nextF()*100, rand.nextF()*10);
+                break;
+            case SkPath::kCubic_Verb:
+                path->cubicTo(rand.nextF()*100, rand.nextF()*100,
+                              rand.nextF()*100, rand.nextF()*100,
+                              rand.nextF()*100, rand.nextF()*100);
+                break;
+            default:
+                SkASSERT(false);
+        }
+    }
+}
+
+#include "SkPathOps.h"
+DEF_TEST(path_tight_bounds, reporter) {
+    SkRandom rand;
+
+    const SkPath::Verb verbs[] = {
+        SkPath::kLine_Verb, SkPath::kQuad_Verb, SkPath::kConic_Verb, SkPath::kCubic_Verb,
+    };
+    for (int i = 0; i < 1000; ++i) {
+        for (int n = 1; n <= 10; n += 9) {
+            for (SkPath::Verb verb : verbs) {
+                SkPath path;
+                rand_path(&path, rand, verb, n);
+                SkRect bounds = path.getBounds();
+                SkRect tight = path.computeTightBounds();
+                REPORTER_ASSERT(reporter, bounds.contains(tight));
+                
+                SkRect tight2;
+                TightBounds(path, &tight2);
+                REPORTER_ASSERT(reporter, nearly_equal(tight, tight2));
+            }
+        }
+    }
+}
+
+DEF_TEST(skbug_6450, r) {
+    SkRect ri = { 0.18554693f, 195.26283f, 0.185784385f, 752.644409f };
+    SkVector rdi[4] = {
+        { 1.81159976e-09f, 7.58768801e-05f },
+        { 0.000118725002f, 0.000118725002f },
+        { 0.000118725002f, 0.000118725002f },
+        { 0.000118725002f, 0.486297607f }
+    };
+    SkRRect irr;
+    irr.setRectRadii(ri, rdi);
+    SkRect ro = { 9.18354821e-39f, 2.1710848e+9f, 2.16945843e+9f, 3.47808128e+9f };
+    SkVector rdo[4] = {
+        { 0, 0 },
+        { 0.0103298295f, 0.185887396f },
+        { 2.52999727e-29f, 169.001938f },
+        { 195.262741f, 195.161255f }
+    };
+    SkRRect orr;
+    orr.setRectRadii(ro, rdo);
+    SkMakeNullCanvas()->drawDRRect(orr, irr, SkPaint());
 }

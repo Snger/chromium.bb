@@ -8,7 +8,7 @@
 
 #include "libANGLE/renderer/gl/ProgramGL.h"
 
-#include "common/BitSetIterator.h"
+#include "common/bitset_utils.h"
 #include "common/angleutils.h"
 #include "common/debug.h"
 #include "common/string_utils.h"
@@ -111,7 +111,12 @@ void ProgramGL::setBinaryRetrievableHint(bool retrievable)
     }
 }
 
-LinkResult ProgramGL::link(const gl::ContextState &data,
+void ProgramGL::setSeparable(bool separable)
+{
+    mFunctions->programParameteri(mProgramID, GL_PROGRAM_SEPARABLE, separable ? GL_TRUE : GL_FALSE);
+}
+
+LinkResult ProgramGL::link(ContextImpl *contextImpl,
                            const gl::VaryingPacking &packing,
                            gl::InfoLog &infoLog)
 {
@@ -591,8 +596,6 @@ bool ProgramGL::checkLinkStatus(gl::InfoLog &infoLog)
         GLint infoLogLength = 0;
         mFunctions->getProgramiv(mProgramID, GL_INFO_LOG_LENGTH, &infoLogLength);
 
-        std::string warning;
-
         // Info log length includes the null terminator, so 1 means that the info log is an empty
         // string.
         if (infoLogLength > 1)
@@ -605,14 +608,12 @@ bool ProgramGL::checkLinkStatus(gl::InfoLog &infoLog)
 
             infoLog << buf.data();
 
-            warning = FormatString("Program link failed unexpectedly: %s", buf.data());
+            WARN() << "Program link failed unexpectedly: " << buf.data();
         }
         else
         {
-            warning = "Program link failed unexpectedly with no info log.";
+            WARN() << "Program link failed unexpectedly with no info log.";
         }
-        ANGLEPlatformCurrent()->logWarning(warning.c_str());
-        TRACE("\n%s", warning.c_str());
 
         // TODO, return GL_OUT_OF_MEMORY or just fail the link? This is an unexpected case
         return false;

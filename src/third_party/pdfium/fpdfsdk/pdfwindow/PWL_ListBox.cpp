@@ -22,12 +22,12 @@ CPWL_List_Notify::CPWL_List_Notify(CPWL_ListBox* pList) : m_pList(pList) {
 
 CPWL_List_Notify::~CPWL_List_Notify() {}
 
-void CPWL_List_Notify::IOnSetScrollInfoY(FX_FLOAT fPlateMin,
-                                         FX_FLOAT fPlateMax,
-                                         FX_FLOAT fContentMin,
-                                         FX_FLOAT fContentMax,
-                                         FX_FLOAT fSmallStep,
-                                         FX_FLOAT fBigStep) {
+void CPWL_List_Notify::IOnSetScrollInfoY(float fPlateMin,
+                                         float fPlateMax,
+                                         float fContentMin,
+                                         float fContentMax,
+                                         float fSmallStep,
+                                         float fBigStep) {
   PWL_SCROLL_INFO Info;
 
   Info.fPlateWidth = fPlateMax - fPlateMin;
@@ -54,7 +54,7 @@ void CPWL_List_Notify::IOnSetScrollInfoY(FX_FLOAT fPlateMin,
   }
 }
 
-void CPWL_List_Notify::IOnSetScrollPosY(FX_FLOAT fy) {
+void CPWL_List_Notify::IOnSetScrollPosY(float fy) {
   m_pList->OnNotify(m_pList, PNM_SETSCROLLPOS, SBT_VSCROLL, (intptr_t)&fy);
 }
 
@@ -106,7 +106,7 @@ void CPWL_ListBox::GetThisAppearanceStream(CFX_ByteTextBuf& sAppStream) {
     if (rcItem.bottom > rcPlate.top || rcItem.top < rcPlate.bottom)
       continue;
 
-    CFX_FloatPoint ptOffset(rcItem.left, (rcItem.top + rcItem.bottom) * 0.5f);
+    CFX_PointF ptOffset(rcItem.left, (rcItem.top + rcItem.bottom) * 0.5f);
     if (m_pList->IsItemSelected(i)) {
       sListItems << CPWL_Utils::GetRectFillAppStream(rcItem,
                                                      PWL_DEFAULT_SELBACKCOLOR)
@@ -158,7 +158,7 @@ void CPWL_ListBox::DrawThisAppearance(CFX_RenderDevice* pDevice,
     if (rcItem.bottom > rcPlate.top || rcItem.top < rcPlate.bottom)
       continue;
 
-    CFX_FloatPoint ptOffset(rcItem.left, (rcItem.top + rcItem.bottom) * 0.5f);
+    CFX_PointF ptOffset(rcItem.left, (rcItem.top + rcItem.bottom) * 0.5f);
     if (CFX_Edit* pEdit = m_pList->GetItemEdit(i)) {
       CFX_FloatRect rcContent = pEdit->GetContentRect();
       if (rcContent.Width() > rcClient.Width())
@@ -171,24 +171,21 @@ void CPWL_ListBox::DrawThisAppearance(CFX_RenderDevice* pDevice,
       CFX_SystemHandler* pSysHandler = GetSystemHandler();
       if (pSysHandler && pSysHandler->IsSelectionImplemented()) {
         CFX_Edit::DrawEdit(pDevice, pUser2Device, m_pList->GetItemEdit(i),
-                           CPWL_Utils::PWLColorToFXColor(GetTextColor()),
-                           CPWL_Utils::PWLColorToFXColor(GetTextStrokeColor()),
-                           rcList, ptOffset, nullptr, pSysHandler,
-                           m_pFormFiller);
+                           GetTextColor().ToFXColor(255), rcList, ptOffset,
+                           nullptr, pSysHandler, m_pFormFiller);
         pSysHandler->OutputSelectedRect(m_pFormFiller, rcItem);
       } else {
         CPWL_Utils::DrawFillRect(pDevice, pUser2Device, rcItem,
                                  ArgbEncode(255, 0, 51, 113));
         CFX_Edit::DrawEdit(pDevice, pUser2Device, m_pList->GetItemEdit(i),
-                           ArgbEncode(255, 255, 255, 255), 0, rcList, ptOffset,
+                           ArgbEncode(255, 255, 255, 255), rcList, ptOffset,
                            nullptr, pSysHandler, m_pFormFiller);
       }
     } else {
       CFX_SystemHandler* pSysHandler = GetSystemHandler();
       CFX_Edit::DrawEdit(pDevice, pUser2Device, m_pList->GetItemEdit(i),
-                         CPWL_Utils::PWLColorToFXColor(GetTextColor()),
-                         CPWL_Utils::PWLColorToFXColor(GetTextStrokeColor()),
-                         rcList, ptOffset, nullptr, pSysHandler, nullptr);
+                         GetTextColor().ToFXColor(255), rcList, ptOffset,
+                         nullptr, pSysHandler, nullptr);
     }
   }
 }
@@ -249,7 +246,7 @@ bool CPWL_ListBox::OnChar(uint16_t nChar, uint32_t nFlag) {
   return true;
 }
 
-bool CPWL_ListBox::OnLButtonDown(const CFX_FloatPoint& point, uint32_t nFlag) {
+bool CPWL_ListBox::OnLButtonDown(const CFX_PointF& point, uint32_t nFlag) {
   CPWL_Wnd::OnLButtonDown(point, nFlag);
 
   if (ClientHitTest(point)) {
@@ -263,7 +260,7 @@ bool CPWL_ListBox::OnLButtonDown(const CFX_FloatPoint& point, uint32_t nFlag) {
   return true;
 }
 
-bool CPWL_ListBox::OnLButtonUp(const CFX_FloatPoint& point, uint32_t nFlag) {
+bool CPWL_ListBox::OnLButtonUp(const CFX_PointF& point, uint32_t nFlag) {
   CPWL_Wnd::OnLButtonUp(point, nFlag);
 
   if (m_bMouseDown) {
@@ -281,7 +278,7 @@ void CPWL_ListBox::SetHoverSel(bool bHoverSel) {
   m_bHoverSel = bHoverSel;
 }
 
-bool CPWL_ListBox::OnMouseMove(const CFX_FloatPoint& point, uint32_t nFlag) {
+bool CPWL_ListBox::OnMouseMove(const CFX_PointF& point, uint32_t nFlag) {
   CPWL_Wnd::OnMouseMove(point, nFlag);
 
   if (m_bHoverSel && !IsCaptureMouse() && ClientHitTest(point))
@@ -298,7 +295,7 @@ void CPWL_ListBox::OnNotify(CPWL_Wnd* pWnd,
                             intptr_t lParam) {
   CPWL_Wnd::OnNotify(pWnd, msg, wParam, lParam);
 
-  FX_FLOAT fPos;
+  float fPos;
 
   switch (msg) {
     case PNM_SETSCROLLINFO:
@@ -320,10 +317,10 @@ void CPWL_ListBox::OnNotify(CPWL_Wnd* pWnd,
       }
       break;
     case PNM_SCROLLWINDOW:
-      fPos = *(FX_FLOAT*)lParam;
+      fPos = *(float*)lParam;
       switch (wParam) {
         case SBT_VSCROLL:
-          m_pList->SetScrollPos(CFX_FloatPoint(0, fPos));
+          m_pList->SetScrollPos(CFX_PointF(0, fPos));
           break;
       }
       break;
@@ -374,11 +371,11 @@ CFX_WideString CPWL_ListBox::GetText() const {
   return m_pList->GetText();
 }
 
-void CPWL_ListBox::SetFontSize(FX_FLOAT fFontSize) {
+void CPWL_ListBox::SetFontSize(float fFontSize) {
   m_pList->SetFontSize(fFontSize);
 }
 
-FX_FLOAT CPWL_ListBox::GetFontSize() const {
+float CPWL_ListBox::GetFontSize() const {
   return m_pList->GetFontSize();
 }
 
@@ -431,7 +428,7 @@ int32_t CPWL_ListBox::GetCount() const {
   return m_pList->GetCount();
 }
 
-int32_t CPWL_ListBox::FindNext(int32_t nIndex, FX_WCHAR nChar) const {
+int32_t CPWL_ListBox::FindNext(int32_t nIndex, wchar_t nChar) const {
   return m_pList->FindNext(nIndex, nChar);
 }
 
@@ -439,17 +436,17 @@ CFX_FloatRect CPWL_ListBox::GetContentRect() const {
   return m_pList->GetContentRect();
 }
 
-FX_FLOAT CPWL_ListBox::GetFirstHeight() const {
+float CPWL_ListBox::GetFirstHeight() const {
   return m_pList->GetFirstHeight();
 }
 
 CFX_FloatRect CPWL_ListBox::GetListRect() const {
   return CPWL_Utils::DeflateRect(
-      GetWindowRect(), (FX_FLOAT)(GetBorderWidth() + GetInnerBorderWidth()));
+      GetWindowRect(), (float)(GetBorderWidth() + GetInnerBorderWidth()));
 }
 
 bool CPWL_ListBox::OnMouseWheel(short zDelta,
-                                const CFX_FloatPoint& point,
+                                const CFX_PointF& point,
                                 uint32_t nFlag) {
   if (zDelta < 0)
     m_pList->OnVK_DOWN(IsSHIFTpressed(nFlag), IsCTRLpressed(nFlag));

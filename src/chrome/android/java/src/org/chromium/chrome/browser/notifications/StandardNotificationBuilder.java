@@ -23,7 +23,11 @@ public class StandardNotificationBuilder extends NotificationBuilderBase {
     public Notification build() {
         // Note: this is not a NotificationCompat builder so be mindful of the
         // API level of methods you call on the builder.
-        Notification.Builder builder = new Notification.Builder(mContext);
+        // TODO(crbug.com/697104) We should probably use a Compat builder.
+        ChromeNotificationBuilder builder =
+                NotificationBuilderFactory.createChromeNotificationBuilder(
+                        false /* preferCompat */, ChannelDefinitions.CHANNEL_ID_SITES);
+
         builder.setContentTitle(mTitle);
         builder.setContentText(mBody);
         builder.setSubText(mOrigin);
@@ -58,7 +62,7 @@ public class StandardNotificationBuilder extends NotificationBuilderBase {
         builder.setOnlyAlertOnce(!mRenotify);
         setGroupOnBuilder(builder, mOrigin);
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            // Notification.Builder.setPublicVersion was added in Android L.
+            // Public versions only supported since L, and createPublicNotification requires L+.
             builder.setPublicVersion(createPublicNotification(mContext));
         }
         return builder.build();

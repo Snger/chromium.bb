@@ -14,6 +14,7 @@
 #include "SkMask.h"
 #include "SkPaint.h"
 #include "SkStrokeRec.h"
+#include "SkVertices.h"
 
 class SkBitmap;
 class SkClipStack;
@@ -33,7 +34,7 @@ public:
 
     void    drawPaint(const SkPaint&) const;
     void    drawPoints(SkCanvas::PointMode, size_t count, const SkPoint[],
-                       const SkPaint&, bool forceUseDevice = false) const;
+                       const SkPaint&, SkBaseDevice*) const;
     void    drawRect(const SkRect& prePaintRect, const SkPaint&, const SkMatrix* paintMatrix,
                      const SkRect* postPaintRect) const;
     void    drawRect(const SkRect& rect, const SkPaint& paint) const {
@@ -64,11 +65,11 @@ public:
                        const SkPaint&) const;
     void    drawSprite(const SkBitmap&, int x, int y, const SkPaint&) const;
     void    drawText(const char text[], size_t byteLength, SkScalar x,
-                     SkScalar y, const SkPaint& paint) const;
+                     SkScalar y, const SkPaint& paint, const SkSurfaceProps*) const;
     void    drawPosText(const char text[], size_t byteLength,
                         const SkScalar pos[], int scalarsPerPosition,
-                        const SkPoint& offset, const SkPaint& paint) const;
-    void    drawVertices(SkCanvas::VertexMode mode, int count,
+                        const SkPoint& offset, const SkPaint&, const SkSurfaceProps*) const;
+    void    drawVertices(SkVertices::VertexMode mode, int count,
                          const SkPoint vertices[], const SkPoint textures[],
                          const SkColor colors[], SkBlendMode bmode,
                          const uint16_t indices[], int ptCount,
@@ -114,11 +115,11 @@ public:
                                     SkPoint* strokeSize);
 
     static bool ShouldDrawTextAsPaths(const SkPaint&, const SkMatrix&);
-    void        drawText_asPaths(const char text[], size_t byteLength,
-                                 SkScalar x, SkScalar y, const SkPaint&) const;
-    void        drawPosText_asPaths(const char text[], size_t byteLength,
-                                    const SkScalar pos[], int scalarsPerPosition,
-                                    const SkPoint& offset, const SkPaint&) const;
+    void        drawText_asPaths(const char text[], size_t byteLength, SkScalar x, SkScalar y,
+                                 const SkPaint&) const;
+    void        drawPosText_asPaths(const char text[], size_t byteLength, const SkScalar pos[],
+                                    int scalarsPerPosition, const SkPoint& offset,
+                                    const SkPaint&, const SkSurfaceProps*) const;
     static SkScalar ComputeResScaleForStroking(const SkMatrix& );
 private:
     void    drawDevMask(const SkMask& mask, const SkPaint&) const;
@@ -149,9 +150,6 @@ public:
     SkPixmap        fDst;
     const SkMatrix* fMatrix;        // required
     const SkRasterClip* fRC;        // required
-
-    const SkClipStack* fClipStack;  // optional, may be null
-    SkBaseDevice*   fDevice;        // optional, may be null
 
 #ifdef SK_DEBUG
     void validate() const;

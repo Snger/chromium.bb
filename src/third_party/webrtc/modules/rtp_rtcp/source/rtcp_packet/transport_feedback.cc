@@ -14,6 +14,7 @@
 
 #include "webrtc/base/checks.h"
 #include "webrtc/base/logging.h"
+#include "webrtc/base/trace_event.h"
 #include "webrtc/modules/include/module_common_types.h"
 #include "webrtc/modules/rtp_rtcp/source/byte_io.h"
 #include "webrtc/modules/rtp_rtcp/source/rtcp_packet/common_header.h"
@@ -366,6 +367,11 @@ bool TransportFeedback::AddReceivedPacket(uint16_t sequence_number,
   return true;
 }
 
+const std::vector<TransportFeedback::ReceivedPacket>&
+TransportFeedback::GetReceivedPackets() const {
+  return packets_;
+}
+
 uint16_t TransportFeedback::GetBaseSequence() const {
   return base_seq_no_;
 }
@@ -375,9 +381,9 @@ TransportFeedback::GetStatusVector() const {
   std::vector<TransportFeedback::StatusSymbol> symbols;
   uint16_t seq_no = GetBaseSequence();
   for (const auto& packet : packets_) {
-    for (; seq_no != packet.sequence_number; ++seq_no)
+    for (; seq_no != packet.sequence_number(); ++seq_no)
       symbols.push_back(StatusSymbol::kNotReceived);
-    if (packet.delta_ticks >= 0x00 && packet.delta_ticks <= 0xff) {
+    if (packet.delta_ticks() >= 0x00 && packet.delta_ticks() <= 0xff) {
       symbols.push_back(StatusSymbol::kReceivedSmallDelta);
     } else {
       symbols.push_back(StatusSymbol::kReceivedLargeDelta);
@@ -390,7 +396,7 @@ TransportFeedback::GetStatusVector() const {
 std::vector<int16_t> TransportFeedback::GetReceiveDeltas() const {
   std::vector<int16_t> deltas;
   for (const auto& packet : packets_)
-    deltas.push_back(packet.delta_ticks);
+    deltas.push_back(packet.delta_ticks());
   return deltas;
 }
 
@@ -401,7 +407,7 @@ int64_t TransportFeedback::GetBaseTimeUs() const {
 std::vector<int64_t> TransportFeedback::GetReceiveDeltasUs() const {
   std::vector<int64_t> us_deltas;
   for (const auto& packet : packets_)
-    us_deltas.push_back(packet.delta_ticks * kDeltaScaleFactor);
+    us_deltas.push_back(packet.delta_us());
   return us_deltas;
 }
 
@@ -409,6 +415,7 @@ std::vector<int64_t> TransportFeedback::GetReceiveDeltasUs() const {
 bool TransportFeedback::Parse(const CommonHeader& packet) {
   RTC_DCHECK_EQ(packet.type(), kPacketType);
   RTC_DCHECK_EQ(packet.fmt(), kFeedbackMessageType);
+  TRACE_EVENT0("webrtc", "TransportFeedback::Parse");
 
   if (packet.payload_size_bytes() < kMinPayloadSizeBytes) {
     LOG(LS_WARNING) << "Buffer too small (" << packet.payload_size_bytes()
@@ -534,18 +541,18 @@ bool TransportFeedback::IsConsistent() const {
         LOG(LS_ERROR) << "Failed to find delta for seq_no " << seq_no;
         return false;
       }
-      if (packet_it->sequence_number != seq_no) {
+      if (packet_it->sequence_number() != seq_no) {
         LOG(LS_ERROR) << "Expected to find delta for seq_no " << seq_no
-                      << ". Next delta is for " << packet_it->sequence_number;
+                      << ". Next delta is for " << packet_it->sequence_number();
         return false;
       }
       if (delta_size == 1 &&
-          (packet_it->delta_ticks < 0 || packet_it->delta_ticks > 0xff)) {
-        LOG(LS_ERROR) << "Delta " << packet_it->delta_ticks << " for seq_no "
+          (packet_it->delta_ticks() < 0 || packet_it->delta_ticks() > 0xff)) {
+        LOG(LS_ERROR) << "Delta " << packet_it->delta_ticks() << " for seq_no "
                       << seq_no << " doesn't fit into one byte";
         return false;
       }
-      timestamp_us += packet_it->delta_ticks * kDeltaScaleFactor;
+      timestamp_us += packet_it->delta_us();
       ++packet_it;
     }
     packet_size += delta_size;
@@ -553,7 +560,7 @@ bool TransportFeedback::IsConsistent() const {
   }
   if (packet_it != packets_.end()) {
     LOG(LS_ERROR) << "Unencoded delta for seq_no "
-                  << packet_it->sequence_number;
+                  << packet_it->sequence_number();
     return false;
   }
   if (timestamp_us != last_timestamp_us_) {
@@ -610,7 +617,7 @@ bool TransportFeedback::Create(uint8_t* packet,
   }
 
   for (const auto& received_packet : packets_) {
-    int16_t delta = received_packet.delta_ticks;
+    int16_t delta = received_packet.delta_ticks();
     if (delta >= 0 && delta <= 0xFF) {
       packet[(*position)++] = delta;
     } else {

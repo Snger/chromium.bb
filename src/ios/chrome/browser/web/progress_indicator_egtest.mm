@@ -12,17 +12,16 @@
 #include "ios/chrome/test/app/navigation_test_util.h"
 #include "ios/chrome/test/app/web_view_interaction_test_util.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
+#import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
 #import "ios/chrome/test/earl_grey/chrome_matchers.h"
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
-#include "ios/chrome/test/earl_grey/chrome_util.h"
-#import "ios/testing/earl_grey/disabled_test_macros.h"
 #import "ios/third_party/material_components_ios/src/components/ProgressView/src/MaterialProgressView.h"
 #import "ios/web/public/test/http_server.h"
 #import "ios/web/public/test/http_server_util.h"
 #include "ios/web/public/test/response_providers/html_response_provider.h"
 #include "url/gurl.h"
 
-using chrome_test_util::webViewContainingText;
+using chrome_test_util::WebViewContainingText;
 
 namespace {
 
@@ -45,12 +44,12 @@ const char kInfinitePendingPageURL[] = "http://infinite";
 const char kSimplePageURL[] = "http://simplepage";
 
 // Matcher for progress view.
-id<GREYMatcher> progressView() {
+id<GREYMatcher> ProgressView() {
   return grey_kindOfClass([MDCProgressView class]);
 }
 
 // Matcher for the progress view with |progress|.
-id<GREYMatcher> progressViewWithProgress(CGFloat progress) {
+id<GREYMatcher> ProgressViewWithProgress(CGFloat progress) {
   MatchesBlock matches = ^BOOL(UIView* view) {
     MDCProgressView* progressView = base::mac::ObjCCast<MDCProgressView>(view);
     return progressView && progressView.progress == progress;
@@ -150,15 +149,14 @@ class InfinitePendingResponseProvider : public HtmlResponseProvider {
   chrome_test_util::LoadUrl(infinitePendingURL);
 
   // Wait until the page is half loaded.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kPageText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kPageText)]
       assertWithMatcher:grey_notNil()];
 
   // Verify progress view visible and halfway progress.
-  [[EarlGrey selectElementWithMatcher:progressViewWithProgress(0.5)]
+  [[EarlGrey selectElementWithMatcher:ProgressViewWithProgress(0.5)]
       assertWithMatcher:grey_sufficientlyVisible()];
 
-  // Verify toolbar visible.
-  chrome_test_util::AssertToolbarVisible();
+  [ChromeEarlGreyUI waitForToolbarVisible:YES];
 }
 
 // Tests that the progress indicator is shown and has expected progress value
@@ -184,21 +182,20 @@ class InfinitePendingResponseProvider : public HtmlResponseProvider {
   // Load form first.
   [ChromeEarlGrey loadURL:formURL];
 
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kFormPageText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kFormPageText)]
       assertWithMatcher:grey_notNil()];
 
   chrome_test_util::SubmitWebViewFormWithId(kFormID);
 
   // Wait until the page is half loaded.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kPageText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kPageText)]
       assertWithMatcher:grey_notNil()];
 
   // Verify progress view visible and halfway progress.
-  [[EarlGrey selectElementWithMatcher:progressViewWithProgress(0.5)]
+  [[EarlGrey selectElementWithMatcher:ProgressViewWithProgress(0.5)]
       assertWithMatcher:grey_sufficientlyVisible()];
 
-  // Verify toolbar visible.
-  chrome_test_util::AssertToolbarVisible();
+  [ChromeEarlGreyUI waitForToolbarVisible:YES];
 }
 
 // Tests that the progress indicator disappears after form has been submitted.
@@ -218,17 +215,17 @@ class InfinitePendingResponseProvider : public HtmlResponseProvider {
 
   [ChromeEarlGrey loadURL:formURL];
 
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kFormPageText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kFormPageText)]
       assertWithMatcher:grey_notNil()];
 
   chrome_test_util::SubmitWebViewFormWithId(kFormID);
 
   // Verify the new page has been loaded.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kPageText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kPageText)]
       assertWithMatcher:grey_notNil()];
 
   // Verify progress view is not visible.
-  [[EarlGrey selectElementWithMatcher:progressView()]
+  [[EarlGrey selectElementWithMatcher:ProgressView()]
       assertWithMatcher:grey_notVisible()];
 }
 
@@ -248,7 +245,7 @@ class InfinitePendingResponseProvider : public HtmlResponseProvider {
   [ChromeEarlGrey loadURL:formURL];
 
   // Verify the form page has been loaded.
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kFormPageText)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kFormPageText)]
       assertWithMatcher:grey_notNil()];
 
   chrome_test_util::SubmitWebViewFormWithId(kFormID);

@@ -166,10 +166,9 @@ SendSideBweFeedback::SendSideBweFeedback(
     int flow_id,
     int64_t send_time_us,
     int64_t last_send_time_ms,
-    const std::vector<PacketInfo>& packet_feedback_vector)
+    const std::vector<PacketFeedback>& packet_feedback_vector)
     : FeedbackPacket(flow_id, send_time_us, last_send_time_ms),
-      packet_feedback_vector_(packet_feedback_vector) {
-}
+      packet_feedback_vector_(packet_feedback_vector) {}
 
 bool IsTimeSorted(const Packets& packets) {
   PacketsConstIt last_it = packets.begin();
@@ -225,9 +224,9 @@ RateCounterFilter::RateCounterFilter(PacketProcessorListener* listener,
       flow_id_(flow_id),
       name_(name),
       algorithm_name_(algorithm_name) {
-          // Only used when compiling with BWE test logging enabled.
-          RTC_UNUSED(flow_id_);
-      }
+  // Only used when compiling with BWE test logging enabled.
+  RTC_UNUSED(flow_id_);
+}
 
 RateCounterFilter::RateCounterFilter(PacketProcessorListener* listener,
                                      const FlowIds& flow_ids,
@@ -237,7 +236,6 @@ RateCounterFilter::RateCounterFilter(PacketProcessorListener* listener,
       packets_per_second_stats_(),
       kbps_stats_(),
       start_plotting_time_ms_(0),
-      flow_id_(0),
       name_(name),
       algorithm_name_(algorithm_name) {
   // TODO(terelius): Appending the flow IDs to the algorithm name is a hack to
@@ -277,6 +275,8 @@ Stats<double> RateCounterFilter::GetBitrateStats() const {
 }
 
 void RateCounterFilter::Plot(int64_t timestamp_ms) {
+  // TODO(stefan): Reorganize logging configuration to reduce amount
+  // of preprocessor conditionals in the code.
   uint32_t plot_kbps = 0;
   if (timestamp_ms >= start_plotting_time_ms_) {
     plot_kbps = rate_counter_.bits_per_second() / 1000.0;
@@ -290,7 +290,6 @@ void RateCounterFilter::Plot(int64_t timestamp_ms) {
                                              timestamp_ms, plot_kbps, flow_id_,
                                              algorithm_name_);
   }
-
   RTC_UNUSED(plot_kbps);
 }
 

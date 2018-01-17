@@ -15,28 +15,38 @@
 
 namespace gl
 {
-class ValidationContext;
+class BufferManager;
 class ContextState;
+class FenceSyncManager;
+class FramebufferManager;
+class PathManager;
+class RenderbufferManager;
+class SamplerManager;
+class ShaderProgramManager;
+class TextureManager;
+class ValidationContext;
 
 static constexpr Version ES_2_0 = Version(2, 0);
 static constexpr Version ES_3_0 = Version(3, 0);
 static constexpr Version ES_3_1 = Version(3, 1);
 
+using ContextID = uintptr_t;
+
 class ContextState final : public angle::NonCopyable
 {
   public:
-    ContextState(uintptr_t context,
+    ContextState(ContextID context,
+                 const ContextState *shareContextState,
+                 TextureManager *shareTextures,
                  const Version &clientVersion,
                  State *state,
                  const Caps &caps,
                  const TextureCapsMap &textureCaps,
                  const Extensions &extensions,
-                 const ResourceManager *resourceManager,
-                 const Limitations &limitations,
-                 const ResourceMap<Framebuffer> &framebufferMap);
+                 const Limitations &limitations);
     ~ContextState();
 
-    uintptr_t getContext() const { return mContext; }
+    ContextID getContextID() const { return mContext; }
     GLint getClientMajorVersion() const { return mClientVersion.major; }
     GLint getClientMinorVersion() const { return mClientVersion.minor; }
     const Version &getClientVersion() const { return mClientVersion; }
@@ -44,37 +54,47 @@ class ContextState final : public angle::NonCopyable
     const Caps &getCaps() const { return mCaps; }
     const TextureCapsMap &getTextureCaps() const { return mTextureCaps; }
     const Extensions &getExtensions() const { return mExtensions; }
-    const ResourceManager &getResourceManager() const { return *mResourceManager; }
     const Limitations &getLimitations() const { return mLimitations; }
 
     const TextureCaps &getTextureCap(GLenum internalFormat) const;
+
+    bool usingDisplayTextureShareGroup() const;
+
+    bool isWebGL1() const;
 
   private:
     friend class Context;
     friend class ValidationContext;
 
     Version mClientVersion;
-    uintptr_t mContext;
+    ContextID mContext;
     State *mState;
     const Caps &mCaps;
     const TextureCapsMap &mTextureCaps;
     const Extensions &mExtensions;
-    const ResourceManager *mResourceManager;
     const Limitations &mLimitations;
-    const ResourceMap<Framebuffer> &mFramebufferMap;
+
+    BufferManager *mBuffers;
+    ShaderProgramManager *mShaderPrograms;
+    TextureManager *mTextures;
+    RenderbufferManager *mRenderbuffers;
+    SamplerManager *mSamplers;
+    FenceSyncManager *mFenceSyncs;
+    PathManager *mPaths;
+    FramebufferManager *mFramebuffers;
 };
 
 class ValidationContext : angle::NonCopyable
 {
   public:
-    ValidationContext(const Version &clientVersion,
+    ValidationContext(const ValidationContext *shareContext,
+                      TextureManager *shareTextures,
+                      const Version &clientVersion,
                       State *state,
                       const Caps &caps,
                       const TextureCapsMap &textureCaps,
                       const Extensions &extensions,
-                      const ResourceManager *resourceManager,
                       const Limitations &limitations,
-                      const ResourceMap<Framebuffer> &framebufferMap,
                       bool skipValidation);
     virtual ~ValidationContext() {}
 
@@ -103,9 +123,17 @@ class ValidationContext : angle::NonCopyable
     bool isRenderbufferGenerated(GLuint renderbuffer) const;
     bool isFramebufferGenerated(GLuint framebuffer) const;
 
+    bool usingDisplayTextureShareGroup() const;
+
+    // Hack for the special WebGL 1 "DEPTH_STENCIL" internal format.
+    GLenum getConvertedRenderbufferFormat(GLenum internalformat) const;
+
+    bool isWebGL1() const { return mState.isWebGL1(); }
+
   protected:
     ContextState mState;
     bool mSkipValidation;
+    bool mDisplayTextureShareGroup;
 };
 }  // namespace gl
 

@@ -18,6 +18,7 @@
 #include "base/message_loop/message_loop.h"
 #include "base/metrics/field_trial.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/metrics/user_metrics.h"
 #include "base/stl_util.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
@@ -38,6 +39,7 @@
 #include "content/browser/gpu/gpu_process_host.h"
 #include "content/browser/host_zoom_map_impl.h"
 #include "content/browser/loader/resource_dispatcher_host_impl.h"
+#include "content/browser/renderer_host/input/timeout_monitor.h"
 #include "content/browser/renderer_host/render_process_host_impl.h"
 #include "content/browser/renderer_host/render_view_host_delegate.h"
 #include "content/browser/renderer_host/render_view_host_delegate_view.h"
@@ -66,7 +68,6 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_widget_host_iterator.h"
 #include "content/public/browser/storage_partition.h"
-#include "content/public/browser/user_metrics.h"
 #include "content/public/common/bindings_policy.h"
 #include "content/public/common/content_constants.h"
 #include "content/public/common/content_features.h"
@@ -85,11 +86,12 @@
 #include "ui/base/device_form_factor.h"
 #include "ui/base/touch/touch_device.h"
 #include "ui/base/ui_base_switches.h"
+#include "ui/display/display_switches.h"
 #include "ui/gfx/animation/animation.h"
 #include "ui/gfx/color_space.h"
 #include "ui/gfx/image/image_skia.h"
 #include "ui/gfx/native_widget_types.h"
-#include "ui/native_theme/native_theme_switches.h"
+#include "ui/native_theme/native_theme_features.h"
 #include "url/url_constants.h"
 
 #if defined(OS_WIN)
@@ -200,7 +202,6 @@ RenderViewHostImpl::RenderViewHostImpl(
       frames_ref_count_(0),
       delegate_(delegate),
       instance_(static_cast<SiteInstanceImpl*>(instance)),
-      enabled_bindings_(0),
       is_active_(!swapped_out),
       is_swapped_out_(swapped_out),
       main_frame_routing_id_(main_frame_routing_id),
@@ -230,6 +231,9 @@ RenderViewHostImpl::RenderViewHostImpl(
                    base::Unretained(ResourceDispatcherHostImpl::Get()),
                    GetProcess()->GetID(), GetRoutingID()));
   }
+
+  close_timeout_.reset(new TimeoutMonitor(base::Bind(
+      &RenderViewHostImpl::ClosePageTimeout, weak_factory_.GetWeakPtr())));
 }
 
 RenderViewHostImpl::~RenderViewHostImpl() {
@@ -278,8 +282,10 @@ bool RenderViewHostImpl::CreateRenderView(
   // https://crbug.com/575245.
   // TODO(creis): Remove this once we've found the cause.
   if (main_frame_routing_id_ != MSG_ROUTING_NONE &&
-      proxy_route_id != MSG_ROUTING_NONE)
+      proxy_route_id != MSG_ROUTING_NONE) {
+    NOTREACHED() << "Don't set both main_frame_routing_id_ and proxy_route_id";
     base::debug::DumpWithoutCrashing();
+  }
 
   GetWidget()->set_renderer_initialized(true);
 
@@ -313,16 +319,20 @@ bool RenderViewHostImpl::CreateRenderView(
   params->page_zoom_level = delegate_->GetPendingPageZoomLevel();
   params->image_decode_color_space = gfx::ICCProfile::FromBestMonitor();
 
+  // Pretend that HDR displays are sRGB so that we do not have inconsistent
+  // coloring.
+  // TODO(ccameron): Disable this once color correct rasterization is functional
+  // https://crbug.com/701942
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kEnableHDR)) {
+    gfx::ColorSpace::CreateSRGB().GetICCProfile(
+        &params->image_decode_color_space);
+  }
+
   GetWidget()->GetResizeParams(&params->initial_size);
   GetWidget()->SetInitialRenderSizeParams(params->initial_size);
 
   GetProcess()->GetRendererInterface()->CreateView(std::move(params));
 
-  // If it's enabled, tell the renderer to set up the Javascript bindings for
-  // sending messages back to the browser.
-  if (GetProcess()->IsForGuestsOnly())
-    DCHECK_EQ(0, enabled_bindings_);
-  Send(new ViewMsg_AllowBindings(GetRoutingID(), enabled_bindings_));
   // Let our delegate know that we created a RenderView.
   delegate_->RenderViewCreated(this);
 
@@ -442,8 +452,6 @@ WebPreferences RenderViewHostImpl::ComputeWebkitPrefs() {
           features::kCrossOriginMediaPlaybackRequiresUserGesture);
 #endif  // defined(OS_ANDROID)
 
-  prefs.device_supports_touch = ui::GetTouchScreensAvailability() ==
-                                ui::TouchScreensAvailability::ENABLED;
   const std::string touch_enabled_switch =
       command_line.HasSwitch(switches::kTouchEventFeatureDetection)
           ? command_line.GetSwitchValueASCII(
@@ -451,7 +459,8 @@ WebPreferences RenderViewHostImpl::ComputeWebkitPrefs() {
           : switches::kTouchEventFeatureDetectionAuto;
   prefs.touch_event_feature_detection_enabled =
       (touch_enabled_switch == switches::kTouchEventFeatureDetectionAuto)
-          ? prefs.device_supports_touch
+          ? (ui::GetTouchScreensAvailability() ==
+             ui::TouchScreensAvailability::ENABLED)
           : (touch_enabled_switch.empty() ||
              touch_enabled_switch ==
                  switches::kTouchEventFeatureDetectionEnabled);
@@ -498,15 +507,11 @@ WebPreferences RenderViewHostImpl::ComputeWebkitPrefs() {
       command_line.HasSwitch(switches::kMainFrameResizesAreOrientationChanges);
 
   prefs.color_correct_rendering_enabled =
-      command_line.HasSwitch(cc::switches::kEnableColorCorrectRendering) ||
-      command_line.HasSwitch(cc::switches::kEnableTrueColorRendering);
+      command_line.HasSwitch(cc::switches::kEnableColorCorrectRendering);
 
   prefs.color_correct_rendering_default_mode_enabled =
       command_line.HasSwitch(
           switches::kEnableColorCorrectRenderingDefaultMode);
-
-  prefs.true_color_rendering_enabled =
-      command_line.HasSwitch(cc::switches::kEnableTrueColorRendering);
 
   prefs.spatial_navigation_enabled = command_line.HasSwitch(
       switches::kEnableSpatialNavigation);
@@ -538,8 +543,19 @@ WebPreferences RenderViewHostImpl::ComputeWebkitPrefs() {
   if (delegate_ && delegate_->HideDownloadUI())
     prefs.hide_download_ui = true;
 
+  // `media_controls_enabled` is `true` by default.
+  if (delegate_ && delegate_->HasPersistentVideo())
+    prefs.media_controls_enabled = false;
+
   prefs.background_video_track_optimization_enabled =
       base::FeatureList::IsEnabled(media::kBackgroundVideoTrackOptimization);
+
+  // TODO(servolk, asvitkine): Query the value directly when it is available in
+  // the renderer process. See https://crbug.com/681160.
+  prefs.enable_instant_source_buffer_gc =
+      variations::GetVariationParamByFeatureAsBool(
+          media::kMemoryPressureBasedSourceBufferGC,
+          "enable_instant_source_buffer_gc", false);
 
   std::map<std::string, std::string> expensive_background_throttling_prefs;
   variations::GetVariationParamsByFeature(
@@ -561,10 +577,6 @@ WebPreferences RenderViewHostImpl::ComputeWebkitPrefs() {
 
 void RenderViewHostImpl::ClosePage() {
   is_waiting_for_close_ack_ = true;
-  GetWidget()->StartHangMonitorTimeout(
-      TimeDelta::FromMilliseconds(kUnloadTimeoutMS),
-      blink::WebInputEvent::Undefined,
-      RendererUnresponsiveType::RENDERER_UNRESPONSIVE_CLOSE_PAGE);
 
   bool is_javascript_dialog_showing = delegate_->IsJavaScriptDialogShowing();
 
@@ -572,10 +584,7 @@ void RenderViewHostImpl::ClosePage() {
   // close event because it is known unresponsive, waiting for the reply from
   // the dialog.
   if (IsRenderViewLive() && !is_javascript_dialog_showing) {
-    // Since we are sending an IPC message to the renderer, increase the event
-    // count to prevent the hang monitor timeout from being stopped by input
-    // event acknowledgments.
-    GetWidget()->increment_in_flight_event_count();
+    close_timeout_->Start(TimeDelta::FromMilliseconds(kUnloadTimeoutMS));
 
     // TODO(creis): Should this be moved to Shutdown?  It may not be called for
     // RenderViewHosts that have been swapped out.
@@ -593,7 +602,7 @@ void RenderViewHostImpl::ClosePage() {
 }
 
 void RenderViewHostImpl::ClosePageIgnoringUnloadEvents() {
-  GetWidget()->StopHangMonitorTimeout();
+  close_timeout_->Stop();
   is_waiting_for_close_ack_ = false;
 
   sudden_termination_allowed_ = true;
@@ -637,49 +646,13 @@ RenderFrameHost* RenderViewHostImpl::GetMainFrame() {
   return RenderFrameHost::FromID(GetProcess()->GetID(), main_frame_routing_id_);
 }
 
-void RenderViewHostImpl::AllowBindings(int bindings_flags) {
-  // Never grant any bindings to browser plugin guests.
-  if (GetProcess()->IsForGuestsOnly()) {
-    NOTREACHED() << "Never grant bindings to a guest process.";
-    return;
-  }
-
-  // Ensure we aren't granting WebUI bindings to a process that has already
-  // been used for non-privileged views.
-  if (bindings_flags & BINDINGS_POLICY_WEB_UI &&
-      GetProcess()->HasConnection() &&
-      !ChildProcessSecurityPolicyImpl::GetInstance()->HasWebUIBindings(
-          GetProcess()->GetID())) {
-    // This process has no bindings yet. Make sure it does not have more
-    // than this single active view.
-    // --single-process only has one renderer.
-    if (GetProcess()->GetActiveViewCount() > 1 &&
-        !base::CommandLine::ForCurrentProcess()->HasSwitch(
-            switches::kSingleProcess))
-      return;
-  }
-
-  if (bindings_flags & BINDINGS_POLICY_WEB_UI) {
-    ChildProcessSecurityPolicyImpl::GetInstance()->GrantWebUIBindings(
-        GetProcess()->GetID());
-  }
-
-  enabled_bindings_ |= bindings_flags;
-  if (GetWidget()->renderer_initialized())
-    Send(new ViewMsg_AllowBindings(GetRoutingID(), enabled_bindings_));
-}
-
-int RenderViewHostImpl::GetEnabledBindings() const {
-  return enabled_bindings_;
-}
-
 void RenderViewHostImpl::SetWebUIProperty(const std::string& name,
                                           const std::string& value) {
   // This is a sanity check before telling the renderer to enable the property.
   // It could lie and send the corresponding IPC messages anyway, but we will
   // not act on them if enabled_bindings_ doesn't agree. If we get here without
   // WebUI bindings, kill the renderer process.
-  if (enabled_bindings_ & BINDINGS_POLICY_WEB_UI) {
+  if (GetMainFrame()->GetEnabledBindings() & BINDINGS_POLICY_WEB_UI) {
     Send(new ViewMsg_SetWebUIProperty(GetRoutingID(), name, value));
   } else {
     RecordAction(
@@ -760,7 +733,6 @@ bool RenderViewHostImpl::OnMessageReceived(const IPC::Message& msg) {
     IPC_MESSAGE_HANDLER(ViewHostMsg_ShowWidget, OnShowWidget)
     IPC_MESSAGE_HANDLER(ViewHostMsg_ShowFullscreenWidget,
                         OnShowFullscreenWidget)
-    IPC_MESSAGE_HANDLER(ViewHostMsg_UpdateState, OnUpdateState)
     IPC_MESSAGE_HANDLER(ViewHostMsg_UpdateTargetURL, OnUpdateTargetURL)
     IPC_MESSAGE_HANDLER(ViewHostMsg_Close, OnClose)
     IPC_MESSAGE_HANDLER(ViewHostMsg_RequestMove, OnRequestMove)
@@ -824,20 +796,6 @@ void RenderViewHostImpl::OnRenderProcessGone(int status, int exit_code) {
   // decoupled.
 }
 
-void RenderViewHostImpl::OnUpdateState(const PageState& state) {
-  // Without this check, the renderer can trick the browser into using
-  // filenames it can't access in a future session restore.
-  auto* policy = ChildProcessSecurityPolicyImpl::GetInstance();
-  int child_id = GetProcess()->GetID();
-  if (!policy->CanReadAllFiles(child_id, state.GetReferencedFiles())) {
-    bad_message::ReceivedBadMessage(
-        GetProcess(), bad_message::RVH_CAN_ACCESS_FILES_OF_PAGE_STATE);
-    return;
-  }
-
-  delegate_->UpdateState(this, state);
-}
-
 void RenderViewHostImpl::OnUpdateTargetURL(const GURL& url) {
   if (is_active_)
     delegate_->UpdateTargetURL(this, url);
@@ -890,7 +848,6 @@ void RenderViewHostImpl::OnTakeFocus(bool reverse) {
 }
 
 void RenderViewHostImpl::OnClosePageACK() {
-  GetWidget()->decrement_in_flight_event_count();
   ClosePageIgnoringUnloadEvents();
 }
 
@@ -902,7 +859,7 @@ void RenderViewHostImpl::OnFocus() {
 
 void RenderViewHostImpl::RenderWidgetDidForwardMouseEvent(
     const blink::WebMouseEvent& mouse_event) {
-  if (mouse_event.type() == WebInputEvent::MouseWheel &&
+  if (mouse_event.GetType() == WebInputEvent::kMouseWheel &&
       GetWidget()->ignore_input_events()) {
     delegate_->OnIgnoredUIEvent();
   }
@@ -911,7 +868,7 @@ void RenderViewHostImpl::RenderWidgetDidForwardMouseEvent(
 bool RenderViewHostImpl::MayRenderWidgetForwardKeyboardEvent(
     const NativeWebKeyboardEvent& key_event) {
   if (GetWidget()->ignore_input_events()) {
-    if (key_event.type() == WebInputEvent::RawKeyDown)
+    if (key_event.GetType() == WebInputEvent::kRawKeyDown)
       delegate_->OnIgnoredUIEvent();
     return false;
   }
@@ -939,19 +896,6 @@ void RenderViewHostImpl::OnWebkitPreferencesChanged() {
   updating_web_preferences_ = true;
   UpdateWebkitPreferences(ComputeWebkitPrefs());
   updating_web_preferences_ = false;
-}
-
-void RenderViewHostImpl::ClearFocusedElement() {
-  // TODO(ekaramad): We should move this to WebContents instead
-  // (https://crbug.com/675975).
-  if (delegate_)
-    delegate_->ClearFocusedElement();
-}
-
-bool RenderViewHostImpl::IsFocusedElementEditable() {
-  // TODO(ekaramad): We should move this to WebContents instead
-  // (https://crbug.com/675975).
-  return delegate_ && delegate_->IsFocusedElementEditable();
 }
 
 void RenderViewHostImpl::DisableScrollbarsForThreshold(const gfx::Size& size) {
@@ -1007,6 +951,13 @@ void RenderViewHostImpl::PostRenderViewReady() {
 
 void RenderViewHostImpl::RenderViewReady() {
   delegate_->RenderViewReady(this);
+}
+
+void RenderViewHostImpl::ClosePageTimeout() {
+  if (delegate_->ShouldIgnoreUnresponsiveRenderer())
+    return;
+
+  ClosePageIgnoringUnloadEvents();
 }
 
 }  // namespace content

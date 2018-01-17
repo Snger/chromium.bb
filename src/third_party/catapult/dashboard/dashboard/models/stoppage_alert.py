@@ -61,6 +61,7 @@ class StoppageAlert(alert.Alert):
     return self.revision
 
 
+@ndb.synctasklet
 def GetStoppageAlert(test_path, revision):
   """Gets a StoppageAlert entity if it already exists.
 
@@ -72,8 +73,15 @@ def GetStoppageAlert(test_path, revision):
   Returns:
     A StoppageAlert entity or None.
   """
-  return ndb.Key(
-      'StoppageAlertParent', test_path, 'StoppageAlert', revision).get()
+  result = yield GetStoppageAlertAsync(test_path, revision)
+  raise ndb.Return(result)
+
+
+@ndb.tasklet
+def GetStoppageAlertAsync(test_path, revision):
+  result = yield ndb.Key(
+      'StoppageAlertParent', test_path, 'StoppageAlert', revision).get_async()
+  raise ndb.Return(result)
 
 
 def CreateStoppageAlert(test, row):
@@ -87,12 +95,17 @@ def CreateStoppageAlert(test, row):
     A new StoppageAlert entity which has not been put, or None,
     if we don't want to create a new StoppageAlert.
   """
+  display_start = display_end = None
+  if test.master_name == 'ClankInternal' and hasattr(row, 'r_commit_pos'):
+    display_start = display_end = row.r_commit_pos
   new_alert = StoppageAlert(
       parent=ndb.Key('StoppageAlertParent', test.test_path),
       id=row.revision,
       internal_only=test.internal_only,
       sheriff=test.sheriff,
-      last_row_timestamp=row.timestamp)
+      last_row_timestamp=row.timestamp,
+      display_start=display_start,
+      display_end=display_end)
   alert_group.GroupAlerts([new_alert], test.suite_name, 'StoppageAlert')
   grouped_alert_keys = StoppageAlert.query(
       StoppageAlert.group == new_alert.group).fetch(keys_only=True)

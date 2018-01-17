@@ -47,19 +47,10 @@ constexpr int kRepeatedProbeMinPercentage = 70;
 
 }  // namespace
 
-ProbeController::ProbeController(PacedSender* pacer, Clock* clock)
-    : pacer_(pacer),
-      clock_(clock),
-      network_state_(kNetworkUp),
-      state_(State::kInit),
-      min_bitrate_to_probe_further_bps_(kExponentialProbingDisabled),
-      time_last_probing_initiated_ms_(0),
-      estimated_bitrate_bps_(0),
-      start_bitrate_bps_(0),
-      max_bitrate_bps_(0),
-      last_alr_probing_time_(clock_->TimeInMilliseconds()),
-      enable_periodic_alr_probing_(false),
-      mid_call_probing_waiting_for_result_(false) {}
+ProbeController::ProbeController(PacedSender* pacer, const Clock* clock)
+    : pacer_(pacer), clock_(clock), enable_periodic_alr_probing_(false) {
+  Reset();
+}
 
 void ProbeController::SetBitrates(int64_t min_bitrate_bps,
                                   int64_t start_bitrate_bps,
@@ -164,7 +155,7 @@ void ProbeController::SetEstimatedBitrate(int64_t bitrate_bps) {
   // it ramps up from bitrate_bps.
   if (state_ == State::kProbingComplete &&
       pacer_->GetApplicationLimitedRegionStartTime() &&
-      bitrate_bps < estimated_bitrate_bps_ / 2 &&
+      bitrate_bps < 2 * estimated_bitrate_bps_ / 3 &&
       (now_ms - last_alr_probing_time_) > kAlrProbingIntervalMinMs) {
     LOG(LS_INFO) << "Detected big BW drop in ALR, start probe.";
     // Track how often we probe in response to BW drop in ALR.
@@ -184,6 +175,19 @@ void ProbeController::SetEstimatedBitrate(int64_t bitrate_bps) {
 void ProbeController::EnablePeriodicAlrProbing(bool enable) {
   rtc::CritScope cs(&critsect_);
   enable_periodic_alr_probing_ = enable;
+}
+
+void ProbeController::Reset() {
+  rtc::CritScope cs(&critsect_);
+  network_state_ = kNetworkUp;
+  state_ = State::kInit;
+  min_bitrate_to_probe_further_bps_ = kExponentialProbingDisabled;
+  time_last_probing_initiated_ms_ = 0;
+  estimated_bitrate_bps_ = 0;
+  start_bitrate_bps_ = 0;
+  max_bitrate_bps_ = 0;
+  last_alr_probing_time_ = clock_->TimeInMilliseconds();
+  mid_call_probing_waiting_for_result_ = false;
 }
 
 void ProbeController::Process() {
@@ -229,7 +233,7 @@ void ProbeController::InitiateProbing(
       bitrate = max_probe_bitrate_bps;
       probe_further = false;
     }
-    pacer_->CreateProbeCluster(rtc::checked_cast<int>(bitrate));
+    pacer_->CreateProbeCluster(rtc::dchecked_cast<int>(bitrate));
   }
   time_last_probing_initiated_ms_ = now_ms;
   if (probe_further) {

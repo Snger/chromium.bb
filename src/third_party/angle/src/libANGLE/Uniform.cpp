@@ -22,6 +22,8 @@ LinkedUniform::LinkedUniform(GLenum typeIn,
                              GLenum precisionIn,
                              const std::string &nameIn,
                              unsigned int arraySizeIn,
+                             const int bindingIn,
+                             const int locationIn,
                              const int blockIndexIn,
                              const sh::BlockMemberInfo &blockInfoIn)
     : blockIndex(blockIndexIn), blockInfo(blockInfoIn)
@@ -30,6 +32,8 @@ LinkedUniform::LinkedUniform(GLenum typeIn,
     precision = precisionIn;
     name      = nameIn;
     arraySize = arraySizeIn;
+    binding   = bindingIn;
+    location  = locationIn;
 }
 
 LinkedUniform::LinkedUniform(const sh::Uniform &uniform)
@@ -97,6 +101,11 @@ const uint8_t *LinkedUniform::data() const
 bool LinkedUniform::isSampler() const
 {
     return IsSamplerType(type);
+}
+
+bool LinkedUniform::isImage() const
+{
+    return IsImageType(type);
 }
 
 bool LinkedUniform::isField() const

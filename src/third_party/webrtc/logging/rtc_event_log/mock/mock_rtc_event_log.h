@@ -14,6 +14,7 @@
 #include <string>
 
 #include "webrtc/logging/rtc_event_log/rtc_event_log.h"
+#include "webrtc/modules/audio_coding/audio_network_adaptor/include/audio_network_adaptor.h"
 #include "webrtc/test/gmock.h"
 
 namespace webrtc {
@@ -46,6 +47,13 @@ class MockRtcEventLog : public RtcEventLog {
                     const uint8_t* header,
                     size_t packet_length));
 
+  MOCK_METHOD5(LogRtpHeader,
+               void(PacketDirection direction,
+                    MediaType media_type,
+                    const uint8_t* header,
+                    size_t packet_length,
+                    int probe_cluster_id));
+
   MOCK_METHOD4(LogRtcpPacket,
                void(PacketDirection direction,
                     MediaType media_type,
@@ -54,10 +62,23 @@ class MockRtcEventLog : public RtcEventLog {
 
   MOCK_METHOD1(LogAudioPlayout, void(uint32_t ssrc));
 
-  MOCK_METHOD3(LogBwePacketLossEvent,
-               void(int32_t bitrate,
+  MOCK_METHOD3(LogLossBasedBweUpdate,
+               void(int32_t bitrate_bps,
                     uint8_t fraction_loss,
                     int32_t total_packets));
+
+  MOCK_METHOD2(LogDelayBasedBweUpdate,
+               void(int32_t bitrate_bps, BandwidthUsage detector_state));
+
+  MOCK_METHOD1(LogAudioNetworkAdaptation,
+               void(const AudioEncoderRuntimeConfig& config));
+
+  MOCK_METHOD4(LogProbeClusterCreated,
+               void(int id, int bitrate_bps, int min_probes, int min_bytes));
+
+  MOCK_METHOD2(LogProbeResultSuccess, void(int id, int bitrate_bps));
+  MOCK_METHOD2(LogProbeResultFailure,
+               void(int id, ProbeFailureReason failure_reason));
 };
 
 }  // namespace webrtc

@@ -4,6 +4,10 @@
 
 #include "ui/app_list/presenter/app_list.h"
 
+#include <utility>
+
+#include "ui/app_list/presenter/app_list_delegate.h"
+
 namespace app_list {
 
 AppList::AppList() {}
@@ -33,6 +37,11 @@ void AppList::ToggleAppList(int64_t display_id) {
     presenter_->ToggleAppList(display_id);
 }
 
+void AppList::StartVoiceInteractionSession() {
+  if (presenter_)
+    presenter_->StartVoiceInteractionSession();
+}
+
 bool AppList::IsVisible() const {
   return visible_;
 }
@@ -49,8 +58,13 @@ void AppList::OnTargetVisibilityChanged(bool visible) {
   target_visible_ = visible;
 }
 
-void AppList::OnVisibilityChanged(bool visible) {
+void AppList::OnVisibilityChanged(bool visible, int64_t display_id) {
+  if (visible_ == visible)
+    return;
+
   visible_ = visible;
+  if (delegate_)
+    delegate_->OnAppListVisibilityChanged(visible, display_id);
 }
 
 }  // namespace app_list

@@ -5,7 +5,6 @@
 #include "base/trace_event/trace_event_argument.h"
 #include "cc/base/math_util.h"
 #include "cc/layers/layer.h"
-#include "cc/proto/gfx_conversions.h"
 #include "cc/trees/property_tree.h"
 #include "cc/trees/transform_node.h"
 #include "ui/gfx/geometry/point3_f.h"
@@ -109,9 +108,6 @@ void TransformNode::AsValueInto(base::trace_event::TracedValue* value) const {
   MathUtil::AddToTracedValue("pre_local", pre_local, value);
   MathUtil::AddToTracedValue("local", local, value);
   MathUtil::AddToTracedValue("post_local", post_local, value);
-  // TODO(sunxd): make frameviewer work without target_id
-  value->SetInteger("target_id", 0);
-  value->SetInteger("content_target_id", 0);
   value->SetInteger("source_node_id", source_node_id);
   value->SetInteger("sorting_context_id", sorting_context_id);
   MathUtil::AddToTracedValue("scroll_offset", scroll_offset, value);
@@ -119,7 +115,7 @@ void TransformNode::AsValueInto(base::trace_event::TracedValue* value) const {
 }
 
 TransformCachedNodeData::TransformCachedNodeData()
-    : target_id(-1), content_target_id(-1), is_showing_backface(false) {}
+    : is_showing_backface(false) {}
 
 TransformCachedNodeData::TransformCachedNodeData(
     const TransformCachedNodeData& other) = default;
@@ -129,8 +125,6 @@ TransformCachedNodeData::~TransformCachedNodeData() {}
 bool TransformCachedNodeData::operator==(
     const TransformCachedNodeData& other) const {
   return from_screen == other.from_screen && to_screen == other.to_screen &&
-         target_id == other.target_id &&
-         content_target_id == other.content_target_id &&
          is_showing_backface == other.is_showing_backface;
 }
 

@@ -7,7 +7,7 @@
 #include "xfa/fxfa/app/xfa_fwladapter.h"
 
 #include "xfa/fxfa/app/xfa_fffield.h"
-#include "xfa/fxfa/xfa_ffdoc.h"
+#include "xfa/fxfa/cxfa_ffdoc.h"
 
 CXFA_FWLAdapterWidgetMgr::CXFA_FWLAdapterWidgetMgr() {}
 
@@ -25,15 +25,13 @@ void CXFA_FWLAdapterWidgetMgr::RepaintWidget(CFWL_Widget* pWidget) {
 }
 
 bool CXFA_FWLAdapterWidgetMgr::GetPopupPos(CFWL_Widget* pWidget,
-                                           FX_FLOAT fMinHeight,
-                                           FX_FLOAT fMaxHeight,
+                                           float fMinHeight,
+                                           float fMaxHeight,
                                            const CFX_RectF& rtAnchor,
                                            CFX_RectF& rtPopup) {
   CXFA_FFWidget* pFFWidget = pWidget->GetLayoutItem();
-  CFX_Matrix mt;
-  pFFWidget->GetRotateMatrix(mt);
   CFX_RectF rtRotateAnchor(rtAnchor);
-  mt.TransformRect(rtRotateAnchor);
+  pFFWidget->GetRotateMatrix().TransformRect(rtRotateAnchor);
   pFFWidget->GetDoc()->GetDocEnvironment()->GetPopupPos(
       pFFWidget, fMinHeight, fMaxHeight, rtRotateAnchor, rtPopup);
   return true;

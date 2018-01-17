@@ -397,10 +397,11 @@ void ResourcePool::ScheduleEvictExpiredResourcesIn(
 
   evict_expired_resources_pending_ = true;
 
-  task_runner_->PostDelayedTask(FROM_HERE,
-                                base::Bind(&ResourcePool::EvictExpiredResources,
-                                           weak_ptr_factory_.GetWeakPtr()),
-                                time_from_now);
+  task_runner_->PostDelayedTask(
+      FROM_HERE,
+      base::BindOnce(&ResourcePool::EvictExpiredResources,
+                     weak_ptr_factory_.GetWeakPtr()),
+      time_from_now);
 }
 
 void ResourcePool::EvictExpiredResources() {
@@ -480,23 +481,9 @@ bool ResourcePool::OnMemoryDump(const base::trace_event::MemoryDumpArgs& args,
   return true;
 }
 
-void ResourcePool::OnMemoryStateChange(base::MemoryState state) {
-  switch (state) {
-    case base::MemoryState::NORMAL:
-      // TODO(tasak): go back to normal state.
-      break;
-    case base::MemoryState::THROTTLED:
-      // TODO(tasak): make the limits of this component's caches smaller to
-      // save memory usage.
-      break;
-    case base::MemoryState::SUSPENDED:
-      // Release all resources, regardless of how recently they were used.
-      EvictResourcesNotUsedSince(base::TimeTicks() + base::TimeDelta::Max());
-      break;
-    case base::MemoryState::UNKNOWN:
-      // NOT_REACHED.
-      break;
-  }
+void ResourcePool::OnPurgeMemory() {
+  // Release all resources, regardless of how recently they were used.
+  EvictResourcesNotUsedSince(base::TimeTicks() + base::TimeDelta::Max());
 }
 
 }  // namespace cc

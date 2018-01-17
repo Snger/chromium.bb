@@ -32,15 +32,32 @@
 #include "platform/scheduler/base/work_queue_sets.h"
 #include "testing/gmock/include/gmock/gmock.h"
 
+using testing::AnyNumber;
 using testing::Contains;
 using testing::ElementsAre;
 using testing::ElementsAreArray;
+using testing::Mock;
 using testing::Not;
 using testing::_;
 using blink::scheduler::internal::EnqueueOrder;
 
 namespace blink {
 namespace scheduler {
+
+class TaskQueueManagerForTest : public TaskQueueManager {
+ public:
+  TaskQueueManagerForTest(
+      scoped_refptr<TaskQueueManagerDelegate> delegate,
+      const char* tracing_category,
+      const char* disabled_by_default_tracing_category,
+      const char* disabled_by_default_verbose_tracing_category)
+      : TaskQueueManager(delegate,
+                         tracing_category,
+                         disabled_by_default_tracing_category,
+                         disabled_by_default_verbose_tracing_category) {}
+
+  using TaskQueueManager::NextTaskDelay;
+};
 
 class MessageLoopTaskRunner : public TaskQueueManagerDelegateForTest {
  public:
@@ -85,7 +102,7 @@ class TaskQueueManagerTest : public testing::Test {
         test_task_runner_.get(),
         base::MakeUnique<TestTimeSource>(now_src_.get()));
 
-    manager_ = base::MakeUnique<TaskQueueManager>(
+    manager_ = base::MakeUnique<TaskQueueManagerForTest>(
         main_task_runner_, "test.scheduler", "test.scheduler",
         "test.scheduler.debug");
 
@@ -106,7 +123,7 @@ class TaskQueueManagerTest : public testing::Test {
     message_loop_.reset(new base::MessageLoop());
     // A null clock triggers some assertions.
     now_src_->Advance(base::TimeDelta::FromMicroseconds(1000));
-    manager_ = base::MakeUnique<TaskQueueManager>(
+    manager_ = base::MakeUnique<TaskQueueManagerForTest>(
         MessageLoopTaskRunner::Create(
             base::WrapUnique(new TestTimeSource(now_src_.get()))),
         "test.scheduler", "test.scheduler", "test.scheduler.debug");
@@ -116,14 +133,41 @@ class TaskQueueManagerTest : public testing::Test {
           manager_->NewTaskQueue(TaskQueue::Spec(TaskQueue::QueueType::TEST)));
   }
 
-  void UpdateWorkQueues(LazyNow lazy_now) {
-    manager_->UpdateWorkQueues(&lazy_now);
+  void WakeUpReadyDelayedQueues(LazyNow lazy_now) {
+    manager_->WakeUpReadyDelayedQueues(&lazy_now);
   }
 
-  base::Optional<base::TimeDelta> ComputeDelayTillNextTask(LazyNow* lazy_now) {
-    // TODO(alexclarke): Remove this once the DoWork refactor lands.
-    manager_->UpdateWorkQueues(lazy_now);
-    return manager_->ComputeDelayTillNextTask(lazy_now);
+  using NextTaskDelay = TaskQueueManagerForTest::NextTaskDelay;
+
+  base::Optional<NextTaskDelay> ComputeDelayTillNextTask(LazyNow* lazy_now) {
+    base::AutoLock lock(manager_->any_thread_lock_);
+    return manager_->ComputeDelayTillNextTaskLocked(lazy_now);
+  }
+
+  void PostDoWorkContinuation(base::Optional<NextTaskDelay> next_delay,
+                              LazyNow* lazy_now) {
+    MoveableAutoLock lock(manager_->any_thread_lock_);
+    return manager_->PostDoWorkContinuationLocked(next_delay, lazy_now,
+                                                  std::move(lock));
+  }
+
+  int immediate_do_work_posted_count() const {
+    base::AutoLock lock(manager_->any_thread_lock_);
+    return manager_->any_thread().immediate_do_work_posted_count;
+  }
+
+  base::TimeTicks next_delayed_do_work_time() const {
+    return manager_->next_delayed_do_work_.run_time();
+  }
+
+  EnqueueOrder GetNextSequenceNumber() const {
+    return manager_->GetNextSequenceNumber();
+  }
+
+  void MaybeScheduleImmediateWorkLocked(
+      const tracked_objects::Location& from_here) {
+    MoveableAutoLock lock(manager_->any_thread_lock_);
+    manager_->MaybeScheduleImmediateWorkLocked(from_here, std::move(lock));
   }
 
   // Runs all immediate tasks until there is no more work to do and advances
@@ -150,7 +194,7 @@ class TaskQueueManagerTest : public testing::Test {
   std::unique_ptr<base::SimpleTestTickClock> now_src_;
   scoped_refptr<TaskQueueManagerDelegateForTest> main_task_runner_;
   scoped_refptr<cc::OrderedSimpleTaskRunner> test_task_runner_;
-  std::unique_ptr<TaskQueueManager> manager_;
+  std::unique_ptr<TaskQueueManagerForTest> manager_;
   std::vector<scoped_refptr<internal::TaskQueueImpl>> runners_;
   TestTaskTimeObserver test_task_time_observer_;
 };
@@ -179,7 +223,7 @@ TEST_F(TaskQueueManagerTest,
   TestCountUsesTimeSource* test_count_uses_time_source =
       new TestCountUsesTimeSource();
 
-  manager_ = base::MakeUnique<TaskQueueManager>(
+  manager_ = base::MakeUnique<TaskQueueManagerForTest>(
       MessageLoopTaskRunner::Create(
           base::WrapUnique(test_count_uses_time_source)),
       "test.scheduler", "test.scheduler", "test.scheduler.debug");
@@ -212,7 +256,7 @@ TEST_F(TaskQueueManagerTest, NowNotCalledForNestedTasks) {
   TestCountUsesTimeSource* test_count_uses_time_source =
       new TestCountUsesTimeSource();
 
-  manager_ = base::MakeUnique<TaskQueueManager>(
+  manager_ = base::MakeUnique<TaskQueueManagerForTest>(
       MessageLoopTaskRunner::Create(
           base::WrapUnique(test_count_uses_time_source)),
       "test.scheduler", "test.scheduler", "test.scheduler.debug");
@@ -322,7 +366,7 @@ TEST_F(TaskQueueManagerTest, NonNestableTaskDoesntExecuteInNestedLoop) {
   EXPECT_THAT(run_order, ElementsAre(1, 2, 4, 5, 3));
 }
 
-TEST_F(TaskQueueManagerTest, QueuePolling) {
+TEST_F(TaskQueueManagerTest, HasPendingImmediateWork_ImmediateTask) {
   Initialize(1u);
 
   std::vector<EnqueueOrder> run_order;
@@ -330,6 +374,38 @@ TEST_F(TaskQueueManagerTest, QueuePolling) {
   runners_[0]->PostTask(FROM_HERE, base::Bind(&TestTask, 1, &run_order));
   EXPECT_TRUE(runners_[0]->HasPendingImmediateWork());
 
+  // Move the task into the |immediate_work_queue|.
+  EXPECT_TRUE(runners_[0]->immediate_work_queue()->Empty());
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter =
+      runners_[0]->CreateQueueEnabledVoter();
+  voter->SetQueueEnabled(false);
+  test_task_runner_->RunUntilIdle();
+  EXPECT_FALSE(runners_[0]->immediate_work_queue()->Empty());
+  EXPECT_TRUE(runners_[0]->HasPendingImmediateWork());
+
+  // Run the task, making the queue empty.
+  voter->SetQueueEnabled(true);
+  test_task_runner_->RunUntilIdle();
+  EXPECT_FALSE(runners_[0]->HasPendingImmediateWork());
+}
+
+TEST_F(TaskQueueManagerTest, HasPendingImmediateWork_DelayedTask) {
+  Initialize(1u);
+
+  std::vector<EnqueueOrder> run_order;
+  base::TimeDelta delay(base::TimeDelta::FromMilliseconds(10));
+  runners_[0]->PostDelayedTask(FROM_HERE, base::Bind(&TestTask, 1, &run_order),
+                               delay);
+  EXPECT_FALSE(runners_[0]->HasPendingImmediateWork());
+  now_src_->Advance(delay);
+  EXPECT_TRUE(runners_[0]->HasPendingImmediateWork());
+
+  // Move the task into the |delayed_work_queue|.
+  WakeUpReadyDelayedQueues(LazyNow(now_src_.get()));
+  EXPECT_FALSE(runners_[0]->delayed_work_queue()->Empty());
+  EXPECT_TRUE(runners_[0]->HasPendingImmediateWork());
+
+  // Run the task, making the queue empty.
   test_task_runner_->RunUntilIdle();
   EXPECT_FALSE(runners_[0]->HasPendingImmediateWork());
 }
@@ -449,19 +525,19 @@ TEST_F(TaskQueueManagerTest, PostDelayedTask_SharesUnderlyingDelayedTasks) {
 
 class TestObject {
  public:
-  ~TestObject() { destructor_count_++; }
+  ~TestObject() { destructor_count__++; }
 
   void Run() { FAIL() << "TestObject::Run should not be called"; }
 
-  static int destructor_count_;
+  static int destructor_count__;
 };
 
-int TestObject::destructor_count_ = 0;
+int TestObject::destructor_count__ = 0;
 
 TEST_F(TaskQueueManagerTest, PendingDelayedTasksRemovedOnShutdown) {
   Initialize(1u);
 
-  TestObject::destructor_count_ = 0;
+  TestObject::destructor_count__ = 0;
 
   base::TimeDelta delay(base::TimeDelta::FromMilliseconds(10));
   runners_[0]->PostDelayedTask(
@@ -472,7 +548,7 @@ TEST_F(TaskQueueManagerTest, PendingDelayedTasksRemovedOnShutdown) {
 
   manager_.reset();
 
-  EXPECT_EQ(2, TestObject::destructor_count_);
+  EXPECT_EQ(2, TestObject::destructor_count__);
 }
 
 TEST_F(TaskQueueManagerTest, InsertAndRemoveFence) {
@@ -495,6 +571,34 @@ TEST_F(TaskQueueManagerTest, InsertAndRemoveFence) {
   EXPECT_THAT(run_order, ElementsAre(1));
 }
 
+TEST_F(TaskQueueManagerTest, RemovingFenceForDisabledQueueDoesNotPostDoWork) {
+  Initialize(1u);
+
+  std::vector<EnqueueOrder> run_order;
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter =
+      runners_[0]->CreateQueueEnabledVoter();
+  voter->SetQueueEnabled(false);
+  runners_[0]->InsertFence(TaskQueue::InsertFencePosition::NOW);
+  runners_[0]->PostTask(FROM_HERE, base::Bind(&TestTask, 1, &run_order));
+
+  runners_[0]->RemoveFence();
+  EXPECT_FALSE(test_task_runner_->HasPendingTasks());
+}
+
+TEST_F(TaskQueueManagerTest, EnablingFencedQueueDoesNotPostDoWork) {
+  Initialize(1u);
+
+  std::vector<EnqueueOrder> run_order;
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter =
+      runners_[0]->CreateQueueEnabledVoter();
+  voter->SetQueueEnabled(false);
+  runners_[0]->InsertFence(TaskQueue::InsertFencePosition::NOW);
+  runners_[0]->PostTask(FROM_HERE, base::Bind(&TestTask, 1, &run_order));
+
+  voter->SetQueueEnabled(true);
+  EXPECT_FALSE(test_task_runner_->HasPendingTasks());
+}
+
 TEST_F(TaskQueueManagerTest, DenyRunning_BeforePosting) {
   Initialize(1u);
 
@@ -503,6 +607,7 @@ TEST_F(TaskQueueManagerTest, DenyRunning_BeforePosting) {
       runners_[0]->CreateQueueEnabledVoter();
   voter->SetQueueEnabled(false);
   runners_[0]->PostTask(FROM_HERE, base::Bind(&TestTask, 1, &run_order));
+  EXPECT_FALSE(test_task_runner_->HasPendingTasks());
 
   test_task_runner_->RunUntilIdle();
   EXPECT_TRUE(run_order.empty());
@@ -519,6 +624,7 @@ TEST_F(TaskQueueManagerTest, DenyRunning_AfterPosting) {
   runners_[0]->PostTask(FROM_HERE, base::Bind(&TestTask, 1, &run_order));
   std::unique_ptr<TaskQueue::QueueEnabledVoter> voter =
       runners_[0]->CreateQueueEnabledVoter();
+  EXPECT_TRUE(test_task_runner_->HasPendingTasks());
   voter->SetQueueEnabled(false);
 
   test_task_runner_->RunUntilIdle();
@@ -623,6 +729,8 @@ TEST_F(TaskQueueManagerTest, MultipleFences) {
   EXPECT_THAT(run_order, ElementsAre(1, 2));
 
   runners_[0]->InsertFence(TaskQueue::InsertFencePosition::NOW);
+  // Subsequent tasks should be blocked.
+  runners_[0]->PostTask(FROM_HERE, base::Bind(&TestTask, 4, &run_order));
   test_task_runner_->RunUntilIdle();
   EXPECT_THAT(run_order, ElementsAre(1, 2, 3));
 }
@@ -684,6 +792,18 @@ TEST_F(TaskQueueManagerTest, BlockedByFence) {
 
   runners_[0]->RemoveFence();
   EXPECT_FALSE(runners_[0]->BlockedByFence());
+}
+
+TEST_F(TaskQueueManagerTest, BlockedByFence_BothTypesOfFence) {
+  Initialize(1u);
+
+  runners_[0]->PostTask(FROM_HERE, base::Bind(&NopTask));
+
+  runners_[0]->InsertFence(TaskQueue::InsertFencePosition::NOW);
+  EXPECT_FALSE(runners_[0]->BlockedByFence());
+
+  runners_[0]->InsertFence(TaskQueue::InsertFencePosition::BEGINNING_OF_TIME);
+  EXPECT_TRUE(runners_[0]->BlockedByFence());
 }
 
 void ReentrantTestTask(scoped_refptr<base::SingleThreadTaskRunner> runner,
@@ -1043,12 +1163,12 @@ TEST_F(TaskQueueManagerTest, HasPendingImmediateWork_DelayedTasks) {
 
   // Move time forwards until just before the delayed task should run.
   now_src_->Advance(base::TimeDelta::FromMilliseconds(10));
-  UpdateWorkQueues(LazyNow(now_src_.get()));
+  WakeUpReadyDelayedQueues(LazyNow(now_src_.get()));
   EXPECT_FALSE(runners_[0]->HasPendingImmediateWork());
 
   // Force the delayed task onto the work queue.
   now_src_->Advance(base::TimeDelta::FromMilliseconds(2));
-  UpdateWorkQueues(LazyNow(now_src_.get()));
+  WakeUpReadyDelayedQueues(LazyNow(now_src_.get()));
   EXPECT_TRUE(runners_[0]->HasPendingImmediateWork());
 
   test_task_runner_->RunUntilIdle();
@@ -1423,11 +1543,11 @@ TEST_F(TaskQueueManagerTest, UnregisterTaskQueueInNestedLoop) {
 TEST_F(TaskQueueManagerTest, TimeDomainsAreIndependant) {
   Initialize(2u);
 
-  base::TimeTicks start_time = manager_->delegate()->NowTicks();
+  base::TimeTicks start_time = manager_->Delegate()->NowTicks();
   std::unique_ptr<VirtualTimeDomain> domain_a(
-      new VirtualTimeDomain(nullptr, start_time));
+      new VirtualTimeDomain(start_time));
   std::unique_ptr<VirtualTimeDomain> domain_b(
-      new VirtualTimeDomain(nullptr, start_time));
+      new VirtualTimeDomain(start_time));
   manager_->RegisterTimeDomain(domain_a.get());
   manager_->RegisterTimeDomain(domain_b.get());
   runners_[0]->SetTimeDomain(domain_a.get());
@@ -1470,9 +1590,9 @@ TEST_F(TaskQueueManagerTest, TimeDomainsAreIndependant) {
 TEST_F(TaskQueueManagerTest, TimeDomainMigration) {
   Initialize(1u);
 
-  base::TimeTicks start_time = manager_->delegate()->NowTicks();
+  base::TimeTicks start_time = manager_->Delegate()->NowTicks();
   std::unique_ptr<VirtualTimeDomain> domain_a(
-      new VirtualTimeDomain(nullptr, start_time));
+      new VirtualTimeDomain(start_time));
   manager_->RegisterTimeDomain(domain_a.get());
   runners_[0]->SetTimeDomain(domain_a.get());
 
@@ -1492,7 +1612,7 @@ TEST_F(TaskQueueManagerTest, TimeDomainMigration) {
   EXPECT_THAT(run_order, ElementsAre(1, 2));
 
   std::unique_ptr<VirtualTimeDomain> domain_b(
-      new VirtualTimeDomain(nullptr, start_time));
+      new VirtualTimeDomain(start_time));
   manager_->RegisterTimeDomain(domain_b.get());
   runners_[0]->SetTimeDomain(domain_b.get());
 
@@ -1511,11 +1631,11 @@ TEST_F(TaskQueueManagerTest, TimeDomainMigration) {
 TEST_F(TaskQueueManagerTest, TimeDomainMigrationWithIncomingImmediateTasks) {
   Initialize(1u);
 
-  base::TimeTicks start_time = manager_->delegate()->NowTicks();
+  base::TimeTicks start_time = manager_->Delegate()->NowTicks();
   std::unique_ptr<VirtualTimeDomain> domain_a(
-      new VirtualTimeDomain(nullptr, start_time));
+      new VirtualTimeDomain(start_time));
   std::unique_ptr<VirtualTimeDomain> domain_b(
-      new VirtualTimeDomain(nullptr, start_time));
+      new VirtualTimeDomain(start_time));
   manager_->RegisterTimeDomain(domain_a.get());
   manager_->RegisterTimeDomain(domain_b.get());
 
@@ -1570,6 +1690,191 @@ TEST_F(TaskQueueManagerTest,
 }
 
 namespace {
+
+class MockTaskQueueObserver : public TaskQueue::Observer {
+ public:
+  ~MockTaskQueueObserver() override {}
+
+  MOCK_METHOD2(OnQueueNextWakeUpChanged, void(TaskQueue*, base::TimeTicks));
+};
+
+}  // namespace
+
+TEST_F(TaskQueueManagerTest, TaskQueueObserver_ImmediateTask) {
+  Initialize(1u);
+
+  MockTaskQueueObserver observer;
+  runners_[0]->SetObserver(&observer);
+
+  // We should get a notification when a task is posted on an empty queue.
+  EXPECT_CALL(observer,
+              OnQueueNextWakeUpChanged(runners_[0].get(), base::TimeTicks()));
+  runners_[0]->PostTask(FROM_HERE, base::Bind(&NopTask));
+  Mock::VerifyAndClearExpectations(&observer);
+
+  // But not subsequently.
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(_, _)).Times(0);
+  runners_[0]->PostTask(FROM_HERE, base::Bind(&NopTask));
+  Mock::VerifyAndClearExpectations(&observer);
+
+  // Unless the immediate work queue is emptied.
+  runners_[0]->ReloadImmediateWorkQueueIfEmpty();
+  EXPECT_CALL(observer,
+              OnQueueNextWakeUpChanged(runners_[0].get(), base::TimeTicks()));
+  runners_[0]->PostTask(FROM_HERE, base::Bind(&NopTask));
+
+  // Tidy up.
+  runners_[0]->UnregisterTaskQueue();
+}
+
+TEST_F(TaskQueueManagerTest, TaskQueueObserver_DelayedTask) {
+  Initialize(1u);
+
+  base::TimeTicks start_time = manager_->Delegate()->NowTicks();
+  base::TimeDelta delay10s(base::TimeDelta::FromSeconds(10));
+  base::TimeDelta delay100s(base::TimeDelta::FromSeconds(100));
+  base::TimeDelta delay1s(base::TimeDelta::FromSeconds(1));
+
+  MockTaskQueueObserver observer;
+  runners_[0]->SetObserver(&observer);
+
+  // We should get a notification when a delayed task is posted on an empty
+  // queue.
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(runners_[0].get(),
+                                                 start_time + delay10s));
+  runners_[0]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask), delay10s);
+  Mock::VerifyAndClearExpectations(&observer);
+
+  // We should not get a notification for a longer delay.
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(_, _)).Times(0);
+  runners_[0]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask), delay100s);
+  Mock::VerifyAndClearExpectations(&observer);
+
+  // We should get a notification for a shorter delay.
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(runners_[0].get(),
+                                                 start_time + delay1s));
+  runners_[0]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask), delay1s);
+  Mock::VerifyAndClearExpectations(&observer);
+
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter =
+      runners_[0]->CreateQueueEnabledVoter();
+  voter->SetQueueEnabled(false);
+
+  // When a queue has been enabled, we may get a notification if the
+  // TimeDomain's next scheduled wake-up has changed.
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(runners_[0].get(),
+                                                 start_time + delay1s));
+  voter->SetQueueEnabled(true);
+
+  // Tidy up.
+  runners_[0]->UnregisterTaskQueue();
+}
+
+TEST_F(TaskQueueManagerTest, TaskQueueObserver_DelayedTaskMultipleQueues) {
+  Initialize(2u);
+
+  MockTaskQueueObserver observer;
+  runners_[0]->SetObserver(&observer);
+  runners_[1]->SetObserver(&observer);
+
+  base::TimeTicks start_time = manager_->Delegate()->NowTicks();
+  base::TimeDelta delay1s(base::TimeDelta::FromSeconds(1));
+  base::TimeDelta delay10s(base::TimeDelta::FromSeconds(10));
+
+  EXPECT_CALL(observer,
+              OnQueueNextWakeUpChanged(runners_[0].get(), start_time + delay1s))
+      .Times(1);
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(runners_[1].get(),
+                                                 start_time + delay10s))
+      .Times(1);
+  runners_[0]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask), delay1s);
+  runners_[1]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask), delay10s);
+  testing::Mock::VerifyAndClearExpectations(&observer);
+
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter0 =
+      runners_[0]->CreateQueueEnabledVoter();
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter1 =
+      runners_[1]->CreateQueueEnabledVoter();
+
+  // Disabling a queue should not trigger a notification.
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(_, _)).Times(0);
+  voter0->SetQueueEnabled(false);
+  Mock::VerifyAndClearExpectations(&observer);
+
+  // Re-enabling it should should also trigger a notification.
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(runners_[0].get(),
+                                                 start_time + delay1s));
+  voter0->SetQueueEnabled(true);
+  Mock::VerifyAndClearExpectations(&observer);
+
+  // Disabling a queue should not trigger a notification.
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(_, _)).Times(0);
+  voter1->SetQueueEnabled(false);
+  Mock::VerifyAndClearExpectations(&observer);
+
+  // Re-enabling it should should trigger a notification.
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(runners_[1].get(),
+                                                 start_time + delay10s));
+  voter1->SetQueueEnabled(true);
+  Mock::VerifyAndClearExpectations(&observer);
+
+  // Tidy up.
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(_, _)).Times(AnyNumber());
+  runners_[0]->UnregisterTaskQueue();
+  runners_[1]->UnregisterTaskQueue();
+}
+
+class CancelableTask {
+ public:
+  explicit CancelableTask(base::TickClock* clock)
+      : clock_(clock), weak_factory_(this) {}
+
+  void RecordTimeTask(std::vector<base::TimeTicks>* run_times) {
+    run_times->push_back(clock_->NowTicks());
+  }
+
+  base::TickClock* clock_;
+  base::WeakPtrFactory<CancelableTask> weak_factory_;
+};
+
+TEST_F(TaskQueueManagerTest, TaskQueueObserver_SweepCanceledDelayedTasks) {
+  Initialize(1u);
+
+  MockTaskQueueObserver observer;
+  runners_[0]->SetObserver(&observer);
+
+  base::TimeTicks start_time = manager_->Delegate()->NowTicks();
+  base::TimeDelta delay1(base::TimeDelta::FromSeconds(5));
+  base::TimeDelta delay2(base::TimeDelta::FromSeconds(10));
+
+  EXPECT_CALL(observer,
+              OnQueueNextWakeUpChanged(runners_[0].get(), start_time + delay1))
+      .Times(1);
+
+  CancelableTask task1(now_src_.get());
+  CancelableTask task2(now_src_.get());
+  std::vector<base::TimeTicks> run_times;
+  runners_[0]->PostDelayedTask(
+      FROM_HERE,
+      base::Bind(&CancelableTask::RecordTimeTask,
+                 task1.weak_factory_.GetWeakPtr(), &run_times),
+      delay1);
+  runners_[0]->PostDelayedTask(
+      FROM_HERE,
+      base::Bind(&CancelableTask::RecordTimeTask,
+                 task2.weak_factory_.GetWeakPtr(), &run_times),
+      delay2);
+
+  task1.weak_factory_.InvalidateWeakPtrs();
+
+  // Sweeping away canceled delayed tasks should trigger a notification.
+  EXPECT_CALL(observer,
+              OnQueueNextWakeUpChanged(runners_[0].get(), start_time + delay2))
+      .Times(1);
+  manager_->SweepCanceledDelayedTasks();
+}
+
+namespace {
 void ChromiumRunloopInspectionTask(
     scoped_refptr<cc::OrderedSimpleTaskRunner> test_task_runner) {
   EXPECT_EQ(1u, test_task_runner->NumPendingTasks());
@@ -1619,7 +1924,7 @@ class QuadraticTask {
     now_src_->Advance(base::TimeDelta::FromMilliseconds(5));
   }
 
-  int count() const { return count_; }
+  int Count() const { return count_; }
 
  private:
   int count_;
@@ -1650,7 +1955,7 @@ class LinearTask {
     now_src_->Advance(base::TimeDelta::FromMilliseconds(5));
   }
 
-  int count() const { return count_; }
+  int Count() const { return count_; }
 
  private:
   int count_;
@@ -1661,7 +1966,7 @@ class LinearTask {
 };
 
 bool ShouldExit(QuadraticTask* quadratic_task, LinearTask* linear_task) {
-  return quadratic_task->count() == 1000 || linear_task->count() == 1000;
+  return quadratic_task->Count() == 1000 || linear_task->Count() == 1000;
 }
 
 }  // namespace
@@ -1685,8 +1990,8 @@ TEST_F(TaskQueueManagerTest,
   test_task_runner_->SetAutoAdvanceNowToPendingTasks(true);
   test_task_runner_->RunUntilIdle();
 
-  double ratio = static_cast<double>(linear_immediate_task.count()) /
-                 static_cast<double>(quadratic_delayed_task.count());
+  double ratio = static_cast<double>(linear_immediate_task.Count()) /
+                 static_cast<double>(quadratic_delayed_task.Count());
 
   EXPECT_GT(ratio, 0.333);
   EXPECT_LT(ratio, 1.1);
@@ -1711,8 +2016,8 @@ TEST_F(TaskQueueManagerTest, ImmediateWorkCanStarveDelayedTasks_SameQueue) {
   test_task_runner_->SetAutoAdvanceNowToPendingTasks(true);
   test_task_runner_->RunUntilIdle();
 
-  double ratio = static_cast<double>(linear_delayed_task.count()) /
-                 static_cast<double>(quadratic_immediate_task.count());
+  double ratio = static_cast<double>(linear_delayed_task.Count()) /
+                 static_cast<double>(quadratic_immediate_task.Count());
 
   // This is by design, we want to enforce a strict ordering in task execution
   // where by delayed tasks can not skip ahead of non-delayed work.
@@ -1739,8 +2044,8 @@ TEST_F(TaskQueueManagerTest,
   test_task_runner_->SetAutoAdvanceNowToPendingTasks(true);
   test_task_runner_->RunUntilIdle();
 
-  double ratio = static_cast<double>(linear_immediate_task.count()) /
-                 static_cast<double>(quadratic_delayed_task.count());
+  double ratio = static_cast<double>(linear_immediate_task.Count()) /
+                 static_cast<double>(quadratic_delayed_task.Count());
 
   EXPECT_GT(ratio, 0.333);
   EXPECT_LT(ratio, 1.1);
@@ -1766,8 +2071,8 @@ TEST_F(TaskQueueManagerTest,
   test_task_runner_->SetAutoAdvanceNowToPendingTasks(true);
   test_task_runner_->RunUntilIdle();
 
-  double ratio = static_cast<double>(linear_delayed_task.count()) /
-                 static_cast<double>(quadratic_immediate_task.count());
+  double ratio = static_cast<double>(linear_delayed_task.Count()) /
+                 static_cast<double>(quadratic_immediate_task.Count());
 
   // This is by design, we want to enforce a strict ordering in task execution
   // where by delayed tasks can not skip ahead of non-delayed work.
@@ -1923,23 +2228,10 @@ TEST_F(TaskQueueManagerTestWithTracing, BlameContextAttribution) {
   EXPECT_EQ(2u, events.size());
 }
 
-class CancelableTask {
- public:
-  explicit CancelableTask(base::TickClock* clock)
-      : clock_(clock), weak_factory_(this) {}
-
-  void RecordTimeTask(std::vector<base::TimeTicks>* run_times) {
-    run_times->push_back(clock_->NowTicks());
-  }
-
-  base::TickClock* clock_;
-  base::WeakPtrFactory<CancelableTask> weak_factory_;
-};
-
 TEST_F(TaskQueueManagerTest, NoWakeUpsForCanceledDelayedTasks) {
   Initialize(1u);
 
-  base::TimeTicks start_time = manager_->delegate()->NowTicks();
+  base::TimeTicks start_time = manager_->Delegate()->NowTicks();
 
   CancelableTask task1(now_src_.get());
   CancelableTask task2(now_src_.get());
@@ -1970,16 +2262,16 @@ TEST_F(TaskQueueManagerTest, NoWakeUpsForCanceledDelayedTasks) {
   task2.weak_factory_.InvalidateWeakPtrs();
   task3.weak_factory_.InvalidateWeakPtrs();
 
-  std::set<base::TimeTicks> wakeup_times;
+  std::set<base::TimeTicks> wake_up_times;
 
   RunUntilIdle(base::Bind(
-      [](std::set<base::TimeTicks>* wakeup_times,
+      [](std::set<base::TimeTicks>* wake_up_times,
          base::SimpleTestTickClock* clock) {
-        wakeup_times->insert(clock->NowTicks());
+        wake_up_times->insert(clock->NowTicks());
       },
-      &wakeup_times, now_src_.get()));
+      &wake_up_times, now_src_.get()));
 
-  EXPECT_THAT(wakeup_times,
+  EXPECT_THAT(wake_up_times,
               ElementsAre(start_time + delay1, start_time + delay4));
   EXPECT_THAT(run_times, ElementsAre(start_time + delay1, start_time + delay4));
 }
@@ -1987,7 +2279,7 @@ TEST_F(TaskQueueManagerTest, NoWakeUpsForCanceledDelayedTasks) {
 TEST_F(TaskQueueManagerTest, NoWakeUpsForCanceledDelayedTasksReversePostOrder) {
   Initialize(1u);
 
-  base::TimeTicks start_time = manager_->delegate()->NowTicks();
+  base::TimeTicks start_time = manager_->Delegate()->NowTicks();
 
   CancelableTask task1(now_src_.get());
   CancelableTask task2(now_src_.get());
@@ -2018,16 +2310,16 @@ TEST_F(TaskQueueManagerTest, NoWakeUpsForCanceledDelayedTasksReversePostOrder) {
   task2.weak_factory_.InvalidateWeakPtrs();
   task3.weak_factory_.InvalidateWeakPtrs();
 
-  std::set<base::TimeTicks> wakeup_times;
+  std::set<base::TimeTicks> wake_up_times;
 
   RunUntilIdle(base::Bind(
-      [](std::set<base::TimeTicks>* wakeup_times,
+      [](std::set<base::TimeTicks>* wake_up_times,
          base::SimpleTestTickClock* clock) {
-        wakeup_times->insert(clock->NowTicks());
+        wake_up_times->insert(clock->NowTicks());
       },
-      &wakeup_times, now_src_.get()));
+      &wake_up_times, now_src_.get()));
 
-  EXPECT_THAT(wakeup_times,
+  EXPECT_THAT(wake_up_times,
               ElementsAre(start_time + delay1, start_time + delay4));
   EXPECT_THAT(run_times, ElementsAre(start_time + delay1, start_time + delay4));
 }
@@ -2035,7 +2327,7 @@ TEST_F(TaskQueueManagerTest, NoWakeUpsForCanceledDelayedTasksReversePostOrder) {
 TEST_F(TaskQueueManagerTest, TimeDomainWakeUpOnlyCancelledIfAllUsesCancelled) {
   Initialize(1u);
 
-  base::TimeTicks start_time = manager_->delegate()->NowTicks();
+  base::TimeTicks start_time = manager_->Delegate()->NowTicks();
 
   CancelableTask task1(now_src_.get());
   CancelableTask task2(now_src_.get());
@@ -2063,7 +2355,7 @@ TEST_F(TaskQueueManagerTest, TimeDomainWakeUpOnlyCancelledIfAllUsesCancelled) {
                             task4.weak_factory_.GetWeakPtr(), &run_times),
       delay4);
 
-  // Post a non-canceled task with |delay3|. So we should still get a wakeup at
+  // Post a non-canceled task with |delay3|. So we should still get a wake-up at
   // |delay3| even though we cancel |task3|.
   runners_[0]->PostDelayedTask(FROM_HERE,
                                base::Bind(&CancelableTask::RecordTimeTask,
@@ -2074,16 +2366,16 @@ TEST_F(TaskQueueManagerTest, TimeDomainWakeUpOnlyCancelledIfAllUsesCancelled) {
   task3.weak_factory_.InvalidateWeakPtrs();
   task1.weak_factory_.InvalidateWeakPtrs();
 
-  std::set<base::TimeTicks> wakeup_times;
+  std::set<base::TimeTicks> wake_up_times;
 
   RunUntilIdle(base::Bind(
-      [](std::set<base::TimeTicks>* wakeup_times,
+      [](std::set<base::TimeTicks>* wake_up_times,
          base::SimpleTestTickClock* clock) {
-        wakeup_times->insert(clock->NowTicks());
+        wake_up_times->insert(clock->NowTicks());
       },
-      &wakeup_times, now_src_.get()));
+      &wake_up_times, now_src_.get()));
 
-  EXPECT_THAT(wakeup_times,
+  EXPECT_THAT(wake_up_times,
               ElementsAre(start_time + delay1, start_time + delay3,
                           start_time + delay4));
 
@@ -2204,14 +2496,16 @@ TEST_F(TaskQueueManagerTest, SweepCanceledDelayedTasks) {
 
   manager_->SweepCanceledDelayedTasks();
   EXPECT_EQ(2u, runners_[0]->GetNumberOfPendingTasks());
+
+  task1.weak_factory_.InvalidateWeakPtrs();
+  task4.weak_factory_.InvalidateWeakPtrs();
+
+  manager_->SweepCanceledDelayedTasks();
+  EXPECT_EQ(0u, runners_[0]->GetNumberOfPendingTasks());
 }
 
 TEST_F(TaskQueueManagerTest, ComputeDelayTillNextTask) {
   Initialize(2u);
-
-  std::unique_ptr<RealTimeDomain> domain2(new RealTimeDomain("test"));
-  manager_->RegisterTimeDomain(domain2.get());
-  runners_[1]->SetTimeDomain(domain2.get());
 
   LazyNow lazy_now(now_src_.get());
   EXPECT_FALSE(static_cast<bool>(ComputeDelayTillNextTask(&lazy_now)));
@@ -2220,30 +2514,38 @@ TEST_F(TaskQueueManagerTest, ComputeDelayTillNextTask) {
                                base::TimeDelta::FromSeconds(10));
 
   EXPECT_EQ(base::TimeDelta::FromSeconds(10),
-            ComputeDelayTillNextTask(&lazy_now).value());
+            ComputeDelayTillNextTask(&lazy_now)->Delay());
 
   runners_[1]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask),
                                base::TimeDelta::FromSeconds(15));
 
   EXPECT_EQ(base::TimeDelta::FromSeconds(10),
-            ComputeDelayTillNextTask(&lazy_now).value());
+            ComputeDelayTillNextTask(&lazy_now)->Delay());
 
   runners_[1]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask),
                                base::TimeDelta::FromSeconds(5));
 
   EXPECT_EQ(base::TimeDelta::FromSeconds(5),
-            ComputeDelayTillNextTask(&lazy_now).value());
+            ComputeDelayTillNextTask(&lazy_now)->Delay());
 
   runners_[0]->PostTask(FROM_HERE, base::Bind(&NopTask));
 
-  EXPECT_EQ(base::TimeDelta(), ComputeDelayTillNextTask(&lazy_now).value());
-
-  // Tidy up.
-  runners_[1]->UnregisterTaskQueue();
-  manager_->UnregisterTimeDomain(domain2.get());
+  EXPECT_EQ(base::TimeDelta(), ComputeDelayTillNextTask(&lazy_now)->Delay());
 }
 
-TEST_F(TaskQueueManagerTest, ComputeDelayTillNextTask_TaskBlocked) {
+TEST_F(TaskQueueManagerTest, ComputeDelayTillNextTask_Disabled) {
+  Initialize(1u);
+
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter =
+      runners_[0]->CreateQueueEnabledVoter();
+  voter->SetQueueEnabled(false);
+  runners_[0]->PostTask(FROM_HERE, base::Bind(&NopTask));
+
+  LazyNow lazy_now(now_src_.get());
+  EXPECT_FALSE(ComputeDelayTillNextTask(&lazy_now));
+}
+
+TEST_F(TaskQueueManagerTest, ComputeDelayTillNextTask_Fence) {
   Initialize(1u);
 
   runners_[0]->InsertFence(TaskQueue::InsertFencePosition::NOW);
@@ -2251,6 +2553,375 @@ TEST_F(TaskQueueManagerTest, ComputeDelayTillNextTask_TaskBlocked) {
 
   LazyNow lazy_now(now_src_.get());
   EXPECT_FALSE(ComputeDelayTillNextTask(&lazy_now));
+}
+
+TEST_F(TaskQueueManagerTest, ComputeDelayTillNextTask_FenceUnblocking) {
+  Initialize(1u);
+
+  runners_[0]->InsertFence(TaskQueue::InsertFencePosition::NOW);
+  runners_[0]->PostTask(FROM_HERE, base::Bind(&NopTask));
+  runners_[0]->InsertFence(TaskQueue::InsertFencePosition::NOW);
+
+  LazyNow lazy_now(now_src_.get());
+  EXPECT_EQ(base::TimeDelta(), ComputeDelayTillNextTask(&lazy_now)->Delay());
+}
+
+TEST_F(TaskQueueManagerTest, ComputeDelayTillNextTask_DelayedTaskReady) {
+  Initialize(1u);
+
+  runners_[0]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask),
+                               base::TimeDelta::FromSeconds(1));
+
+  now_src_->Advance(base::TimeDelta::FromSeconds(10));
+
+  LazyNow lazy_now(now_src_.get());
+  EXPECT_EQ(base::TimeDelta(), ComputeDelayTillNextTask(&lazy_now)->Delay());
+}
+
+TEST_F(TaskQueueManagerTest, PostDoWorkContinuation_NoMoreWork) {
+  Initialize(1u);
+
+  LazyNow lazy_now(now_src_.get());
+  PostDoWorkContinuation(base::Optional<NextTaskDelay>(), &lazy_now);
+
+  EXPECT_EQ(0u, test_task_runner_->NumPendingTasks());
+  EXPECT_EQ(0, immediate_do_work_posted_count());
+  EXPECT_TRUE(next_delayed_do_work_time().is_null());
+}
+
+TEST_F(TaskQueueManagerTest, PostDoWorkContinuation_ImmediateWork) {
+  Initialize(1u);
+
+  LazyNow lazy_now(now_src_.get());
+  PostDoWorkContinuation(NextTaskDelay(), &lazy_now);
+
+  EXPECT_EQ(1u, test_task_runner_->NumPendingTasks());
+  EXPECT_EQ(base::TimeDelta(), test_task_runner_->DelayToNextTaskTime());
+  EXPECT_EQ(1, immediate_do_work_posted_count());
+  EXPECT_TRUE(next_delayed_do_work_time().is_null());
+}
+
+TEST_F(TaskQueueManagerTest, PostDoWorkContinuation_DelayedWorkInThePast) {
+  Initialize(1u);
+
+  LazyNow lazy_now(now_src_.get());
+  // Note this isn't supposed to happen in practice.
+  PostDoWorkContinuation(
+      NextTaskDelay(base::TimeDelta::FromSeconds(-1),
+                    runners_[0]->GetTimeDomain(),
+                    NextTaskDelay::AllowAnyDelayForTesting()),
+      &lazy_now);
+
+  EXPECT_EQ(1u, test_task_runner_->NumPendingTasks());
+  EXPECT_EQ(base::TimeDelta(), test_task_runner_->DelayToNextTaskTime());
+  EXPECT_EQ(1, immediate_do_work_posted_count());
+  EXPECT_TRUE(next_delayed_do_work_time().is_null());
+}
+
+TEST_F(TaskQueueManagerTest, PostDoWorkContinuation_DelayedWork) {
+  Initialize(1u);
+
+  LazyNow lazy_now(now_src_.get());
+  PostDoWorkContinuation(NextTaskDelay(base::TimeDelta::FromSeconds(1),
+                                       runners_[0]->GetTimeDomain()),
+                         &lazy_now);
+
+  EXPECT_EQ(1u, test_task_runner_->NumPendingTasks());
+  EXPECT_EQ(base::TimeDelta::FromSeconds(1),
+            test_task_runner_->DelayToNextTaskTime());
+  EXPECT_EQ(0, immediate_do_work_posted_count());
+  EXPECT_EQ(lazy_now.Now() + base::TimeDelta::FromSeconds(1),
+            next_delayed_do_work_time());
+}
+
+TEST_F(TaskQueueManagerTest,
+       PostDoWorkContinuation_DelayedWorkButImmediateDoWorkAlreadyPosted) {
+  Initialize(1u);
+
+  MaybeScheduleImmediateWorkLocked(FROM_HERE);
+  EXPECT_EQ(1u, test_task_runner_->NumPendingTasks());
+  EXPECT_EQ(base::TimeDelta(), test_task_runner_->DelayToNextTaskTime());
+  EXPECT_EQ(1, immediate_do_work_posted_count());
+
+  LazyNow lazy_now(now_src_.get());
+  PostDoWorkContinuation(NextTaskDelay(base::TimeDelta::FromSeconds(1),
+                                       runners_[0]->GetTimeDomain()),
+                         &lazy_now);
+
+  // Test that a delayed task didn't get posted.
+  EXPECT_EQ(1u, test_task_runner_->NumPendingTasks());
+  EXPECT_EQ(base::TimeDelta(), test_task_runner_->DelayToNextTaskTime());
+  EXPECT_EQ(1, immediate_do_work_posted_count());
+  EXPECT_TRUE(next_delayed_do_work_time().is_null());
+}
+
+TEST_F(TaskQueueManagerTest, PostDoWorkContinuation_DelayedWorkTimeChanges) {
+  Initialize(1u);
+
+  LazyNow lazy_now(now_src_.get());
+  PostDoWorkContinuation(NextTaskDelay(base::TimeDelta::FromSeconds(1),
+                                       runners_[0]->GetTimeDomain()),
+                         &lazy_now);
+
+  EXPECT_TRUE(test_task_runner_->HasPendingTasks());
+  EXPECT_EQ(0, immediate_do_work_posted_count());
+  EXPECT_EQ(base::TimeDelta::FromSeconds(1),
+            test_task_runner_->DelayToNextTaskTime());
+  EXPECT_EQ(lazy_now.Now() + base::TimeDelta::FromSeconds(1),
+            next_delayed_do_work_time());
+
+  PostDoWorkContinuation(NextTaskDelay(base::TimeDelta::FromSeconds(10),
+                                       runners_[0]->GetTimeDomain()),
+                         &lazy_now);
+
+  // This should have resulted in the previous task getting canceled and a new
+  // one getting posted.
+  EXPECT_EQ(2u, test_task_runner_->NumPendingTasks());
+  test_task_runner_->RemoveCancelledTasks();
+  EXPECT_EQ(1u, test_task_runner_->NumPendingTasks());
+  EXPECT_EQ(base::TimeDelta::FromSeconds(10),
+            test_task_runner_->DelayToNextTaskTime());
+  EXPECT_EQ(0, immediate_do_work_posted_count());
+  EXPECT_EQ(lazy_now.Now() + base::TimeDelta::FromSeconds(10),
+            next_delayed_do_work_time());
+}
+
+TEST_F(TaskQueueManagerTest,
+       PostDoWorkContinuation_ImmediateWorkButDelayedDoWorkPending) {
+  Initialize(1u);
+
+  LazyNow lazy_now(now_src_.get());
+  PostDoWorkContinuation(NextTaskDelay(base::TimeDelta::FromSeconds(1),
+                                       runners_[0]->GetTimeDomain()),
+                         &lazy_now);
+
+  now_src_->Advance(base::TimeDelta::FromSeconds(1));
+  lazy_now = LazyNow(now_src_.get());
+  PostDoWorkContinuation(NextTaskDelay(), &lazy_now);
+
+  // Because the delayed DoWork was pending we don't expect an immediate DoWork
+  // to get posted.
+  EXPECT_EQ(1u, test_task_runner_->NumPendingTasks());
+  EXPECT_EQ(base::TimeDelta(), test_task_runner_->DelayToNextTaskTime());
+  EXPECT_EQ(0, immediate_do_work_posted_count());
+  EXPECT_EQ(lazy_now.Now(), next_delayed_do_work_time());
+}
+
+namespace {
+void MessageLoopTaskWithDelayedQuit(
+    base::MessageLoop* message_loop,
+    base::SimpleTestTickClock* now_src,
+    scoped_refptr<internal::TaskQueueImpl> task_queue) {
+  base::MessageLoop::ScopedNestableTaskAllower allow(message_loop);
+  base::RunLoop run_loop;
+  task_queue->PostDelayedTask(FROM_HERE, run_loop.QuitClosure(),
+                              base::TimeDelta::FromMilliseconds(100));
+  now_src->Advance(base::TimeDelta::FromMilliseconds(200));
+  run_loop.Run();
+}
+}  // namespace
+
+TEST_F(TaskQueueManagerTest, DelayedTaskRunsInNestedMessageLoop) {
+  InitializeWithRealMessageLoop(1u);
+  base::RunLoop run_loop;
+  runners_[0]->PostTask(
+      FROM_HERE,
+      base::Bind(&MessageLoopTaskWithDelayedQuit, message_loop_.get(),
+                 now_src_.get(), base::RetainedRef(runners_[0])));
+  run_loop.RunUntilIdle();
+}
+
+namespace {
+void MessageLoopTaskWithImmediateQuit(
+    base::MessageLoop* message_loop,
+    base::Closure non_nested_quit_closure,
+    scoped_refptr<internal::TaskQueueImpl> task_queue) {
+  base::MessageLoop::ScopedNestableTaskAllower allow(message_loop);
+
+  base::RunLoop run_loop;
+  // Needed because entering the nested message loop causes a DoWork to get
+  // posted.
+  task_queue->PostTask(FROM_HERE, base::Bind(&NopTask));
+  task_queue->PostTask(FROM_HERE, run_loop.QuitClosure());
+  run_loop.Run();
+  non_nested_quit_closure.Run();
+}
+}  // namespace
+
+TEST_F(TaskQueueManagerTest,
+       DelayedNestedMessageLoopDoesntPreventTasksRunning) {
+  InitializeWithRealMessageLoop(1u);
+  base::RunLoop run_loop;
+  runners_[0]->PostDelayedTask(
+      FROM_HERE,
+      base::Bind(&MessageLoopTaskWithImmediateQuit, message_loop_.get(),
+                 run_loop.QuitClosure(), base::RetainedRef(runners_[0])),
+      base::TimeDelta::FromMilliseconds(100));
+
+  now_src_->Advance(base::TimeDelta::FromMilliseconds(200));
+  run_loop.Run();
+}
+
+TEST_F(TaskQueueManagerTest, CouldTaskRun_DisableAndReenable) {
+  Initialize(1u);
+
+  EnqueueOrder enqueue_order = GetNextSequenceNumber();
+  EXPECT_TRUE(runners_[0]->CouldTaskRun(enqueue_order));
+
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter =
+      runners_[0]->CreateQueueEnabledVoter();
+  voter->SetQueueEnabled(false);
+  EXPECT_FALSE(runners_[0]->CouldTaskRun(enqueue_order));
+
+  voter->SetQueueEnabled(true);
+  EXPECT_TRUE(runners_[0]->CouldTaskRun(enqueue_order));
+}
+
+TEST_F(TaskQueueManagerTest, CouldTaskRun_Fence) {
+  Initialize(1u);
+
+  EnqueueOrder enqueue_order = GetNextSequenceNumber();
+  EXPECT_TRUE(runners_[0]->CouldTaskRun(enqueue_order));
+
+  runners_[0]->InsertFence(TaskQueue::InsertFencePosition::NOW);
+  EXPECT_TRUE(runners_[0]->CouldTaskRun(enqueue_order));
+
+  runners_[0]->InsertFence(TaskQueue::InsertFencePosition::BEGINNING_OF_TIME);
+  EXPECT_FALSE(runners_[0]->CouldTaskRun(enqueue_order));
+
+  runners_[0]->RemoveFence();
+  EXPECT_TRUE(runners_[0]->CouldTaskRun(enqueue_order));
+}
+
+TEST_F(TaskQueueManagerTest, CouldTaskRun_FenceBeforeThenAfter) {
+  Initialize(1u);
+
+  runners_[0]->InsertFence(TaskQueue::InsertFencePosition::NOW);
+
+  EnqueueOrder enqueue_order = GetNextSequenceNumber();
+  EXPECT_FALSE(runners_[0]->CouldTaskRun(enqueue_order));
+
+  runners_[0]->InsertFence(TaskQueue::InsertFencePosition::NOW);
+  EXPECT_TRUE(runners_[0]->CouldTaskRun(enqueue_order));
+}
+
+TEST_F(TaskQueueManagerTest, DelayedDoWorkNotPostedForDisabledQueue) {
+  Initialize(1u);
+
+  runners_[0]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask),
+                               base::TimeDelta::FromMilliseconds(1));
+  ASSERT_TRUE(test_task_runner_->HasPendingTasks());
+  EXPECT_EQ(base::TimeDelta::FromMilliseconds(1),
+            test_task_runner_->DelayToNextTaskTime());
+
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter =
+      runners_[0]->CreateQueueEnabledVoter();
+  voter->SetQueueEnabled(false);
+
+  EXPECT_TRUE(test_task_runner_->HasPendingTasks());
+  test_task_runner_->RemoveCancelledTasks();
+  EXPECT_FALSE(test_task_runner_->HasPendingTasks());
+
+  voter->SetQueueEnabled(true);
+  ASSERT_TRUE(test_task_runner_->HasPendingTasks());
+  EXPECT_EQ(base::TimeDelta::FromMilliseconds(1),
+            test_task_runner_->DelayToNextTaskTime());
+}
+
+TEST_F(TaskQueueManagerTest, DisablingQueuesChangesDelayTillNextDoWork) {
+  Initialize(3u);
+  runners_[0]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask),
+                               base::TimeDelta::FromMilliseconds(1));
+  runners_[1]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask),
+                               base::TimeDelta::FromMilliseconds(10));
+  runners_[2]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask),
+                               base::TimeDelta::FromMilliseconds(100));
+
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter0 =
+      runners_[0]->CreateQueueEnabledVoter();
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter1 =
+      runners_[1]->CreateQueueEnabledVoter();
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter2 =
+      runners_[2]->CreateQueueEnabledVoter();
+
+  ASSERT_TRUE(test_task_runner_->HasPendingTasks());
+  EXPECT_EQ(base::TimeDelta::FromMilliseconds(1),
+            test_task_runner_->DelayToNextTaskTime());
+
+  voter0->SetQueueEnabled(false);
+  test_task_runner_->RemoveCancelledTasks();
+  ASSERT_TRUE(test_task_runner_->HasPendingTasks());
+  EXPECT_EQ(base::TimeDelta::FromMilliseconds(10),
+            test_task_runner_->DelayToNextTaskTime());
+
+  voter1->SetQueueEnabled(false);
+  test_task_runner_->RemoveCancelledTasks();
+  ASSERT_TRUE(test_task_runner_->HasPendingTasks());
+  EXPECT_EQ(base::TimeDelta::FromMilliseconds(100),
+            test_task_runner_->DelayToNextTaskTime());
+
+  voter2->SetQueueEnabled(false);
+  test_task_runner_->RemoveCancelledTasks();
+  EXPECT_FALSE(test_task_runner_->HasPendingTasks());
+}
+
+TEST_F(TaskQueueManagerTest, GetNextScheduledWakeUp) {
+  Initialize(1u);
+
+  EXPECT_EQ(base::nullopt, runners_[0]->GetNextScheduledWakeUp());
+
+  base::TimeTicks start_time = manager_->Delegate()->NowTicks();
+  base::TimeDelta delay1 = base::TimeDelta::FromMilliseconds(10);
+  base::TimeDelta delay2 = base::TimeDelta::FromMilliseconds(2);
+
+  runners_[0]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask), delay1);
+  EXPECT_EQ(start_time + delay1, runners_[0]->GetNextScheduledWakeUp());
+
+  runners_[0]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask), delay2);
+  EXPECT_EQ(start_time + delay2, runners_[0]->GetNextScheduledWakeUp());
+
+  // We don't have wake-ups scheduled for disabled queues.
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter =
+      runners_[0]->CreateQueueEnabledVoter();
+  voter->SetQueueEnabled(false);
+  EXPECT_EQ(base::nullopt, runners_[0]->GetNextScheduledWakeUp());
+
+  voter->SetQueueEnabled(true);
+  EXPECT_EQ(start_time + delay2, runners_[0]->GetNextScheduledWakeUp());
+
+  // Immediate tasks shouldn't make any difference.
+  runners_[0]->PostTask(FROM_HERE, base::Bind(&NopTask));
+  EXPECT_EQ(start_time + delay2, runners_[0]->GetNextScheduledWakeUp());
+
+  // Neither should fences.
+  runners_[0]->InsertFence(TaskQueue::InsertFencePosition::BEGINNING_OF_TIME);
+  EXPECT_EQ(start_time + delay2, runners_[0]->GetNextScheduledWakeUp());
+}
+
+TEST_F(TaskQueueManagerTest, SetTimeDomainForDisabledQueue) {
+  Initialize(1u);
+
+  MockTaskQueueObserver observer;
+  runners_[0]->SetObserver(&observer);
+
+  runners_[0]->PostDelayedTask(FROM_HERE, base::Bind(&NopTask),
+                               base::TimeDelta::FromMilliseconds(1));
+
+  std::unique_ptr<TaskQueue::QueueEnabledVoter> voter =
+      runners_[0]->CreateQueueEnabledVoter();
+  voter->SetQueueEnabled(false);
+
+  // We should not get a notification for a disabled queue.
+  EXPECT_CALL(observer, OnQueueNextWakeUpChanged(_, _)).Times(0);
+
+  std::unique_ptr<VirtualTimeDomain> domain(
+      new VirtualTimeDomain(manager_->Delegate()->NowTicks()));
+  manager_->RegisterTimeDomain(domain.get());
+  runners_[0]->SetTimeDomain(domain.get());
+
+  // Tidy up.
+  runners_[0]->UnregisterTaskQueue();
+  manager_->UnregisterTimeDomain(domain.get());
 }
 
 }  // namespace scheduler

@@ -24,7 +24,7 @@
 #include "v8/include/v8.h"
 
 #if BUILDFLAG(ENABLE_PLUGINS)
-#include "ppapi/shared_impl/ppapi_switches.h"
+#include "ppapi/shared_impl/ppapi_switches.h"  // nogncheck
 #endif
 
 #if defined(ENABLE_MOJO_CDM)
@@ -131,7 +131,7 @@ void ShellContentRendererClient::DidInitializeWorkerContextOnWorkerThread(
     v8::Local<v8::Context> context) {
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
           switches::kExposeInternalsForTesting)) {
-    blink::WebTestingSupport::injectInternalsObject(context);
+    blink::WebTestingSupport::InjectInternalsObject(context);
   }
 }
 

@@ -127,9 +127,22 @@ def _LoadToolchainEnv(cpu, sdk_dir):
                                        os.environ['GYP_MSVS_OVERRIDE_PATH'],
                                        'VC/vcvarsall.bat'))
     if not os.path.exists(script_path):
-      raise Exception('%s is missing - make sure VC++ tools are installed.' %
-                      script_path)
-    args = [script_path, 'amd64_x86' if cpu == 'x86' else 'amd64']
+      # vcvarsall.bat for VS 2017 fails if run after running vcvarsall.bat from
+      # VS 2013 or VS 2015. Fix this by clearing the vsinstalldir environment
+      # variable.
+      if 'VSINSTALLDIR' in os.environ:
+        del os.environ['VSINSTALLDIR']
+      other_path = os.path.normpath(os.path.join(
+                                        os.environ['GYP_MSVS_OVERRIDE_PATH'],
+                                        'VC/Auxiliary/Build/vcvarsall.bat'))
+      if not os.path.exists(other_path):
+        raise Exception('%s is missing - make sure VC++ tools are installed.' %
+                        script_path)
+      script_path = other_path
+    # Chromium requires the 10.0.14393.0 SDK. Previous versions don't have all
+    # of the required declarations, and 10.0.15063.0 is buggy.
+    args = [script_path, 'amd64_x86' if cpu == 'x86' else 'amd64',
+            '10.0.14393.0']
     variables = _LoadEnvFromBat(args)
   return _ExtractImportantEnvironment(variables)
 
@@ -147,7 +160,7 @@ def _FormatAsEnvironmentBlock(envvar_dict):
 
 
 def main():
-  if len(sys.argv) != 6:
+  if len(sys.argv) != 5:
     print('Usage setup_toolchain.py '
           '<visual studio path> <win sdk path> '
           '<runtime dirs> <target_cpu> <include prefix>')
@@ -155,7 +168,6 @@ def main():
   win_sdk_path = sys.argv[2]
   runtime_dirs = sys.argv[3]
   target_cpu = sys.argv[4]
-  include_prefix = sys.argv[5]
 
   cpus = ('x86', 'x64')
   assert target_cpu in cpus
@@ -177,8 +189,9 @@ def main():
           break
       # The separator for INCLUDE here must match the one used in
       # _LoadToolchainEnv() above.
-      include = [include_prefix + p for p in env['INCLUDE'].split(';') if p]
-      include = ' '.join(['"' + i.replace('"', r'\"') + '"' for i in include])
+      include = [p.replace('"', r'\"') for p in env['INCLUDE'].split(';') if p]
+      include_I = ' '.join(['"/I' + i + '"' for i in include])
+      include_imsvc = ' '.join(['"-imsvc' + i + '"' for i in include])
 
     env_block = _FormatAsEnvironmentBlock(env)
     with open('environment.' + cpu, 'wb') as f:
@@ -195,8 +208,10 @@ def main():
 
   assert vc_bin_dir
   print 'vc_bin_dir = ' + gn_helpers.ToGNString(vc_bin_dir)
-  assert include
-  print 'include_flags = ' + gn_helpers.ToGNString(include)
+  assert include_I
+  print 'include_flags_I = ' + gn_helpers.ToGNString(include_I)
+  assert include_imsvc
+  print 'include_flags_imsvc = ' + gn_helpers.ToGNString(include_imsvc)
 
 if __name__ == '__main__':
   main()

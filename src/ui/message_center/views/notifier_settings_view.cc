@@ -426,12 +426,11 @@ NotifierSettingsView::NotifierSettingsView(NotifierSettingsProvider* provider)
   SetFocusBehavior(FocusBehavior::ALWAYS);
   set_background(
       views::Background::CreateSolidBackground(kMessageCenterBackgroundColor));
-  SetPaintToLayer(true);
+  SetPaintToLayer();
 
   title_label_ = new views::Label(
       l10n_util::GetStringUTF16(IDS_MESSAGE_CENTER_SETTINGS_BUTTON_LABEL),
-      ui::ResourceBundle::GetSharedInstance().GetFontList(
-          ui::ResourceBundle::MediumFont));
+      views::style::CONTEXT_DIALOG_TITLE);
   title_label_->SetHorizontalAlignment(gfx::ALIGN_LEFT);
   title_label_->SetMultiLine(true);
   title_label_->SetBorder(

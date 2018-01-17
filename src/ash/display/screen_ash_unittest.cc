@@ -6,25 +6,14 @@
 #include "ash/test/ash_test_base.h"
 #include "ui/aura/test/test_window_delegate.h"
 #include "ui/aura/window.h"
-#include "ui/display/manager/display_manager.h"
 
 namespace ash {
 
-class ScreenAshTest : public test::AshTestBase {
- public:
-  ScreenAshTest() {}
-  ~ScreenAshTest() override {}
-
- private:
-  DISALLOW_COPY_AND_ASSIGN(ScreenAshTest);
-};
+using ScreenAshTest = test::AshTestBase;
 
 // Tests that ScreenAsh::GetWindowAtScreenPoint() returns the correct window on
 // the correct display.
 TEST_F(ScreenAshTest, TestGetWindowAtScreenPoint) {
-  if (!SupportsMultipleDisplays())
-    return;
-
   UpdateDisplay("200x200,400x400");
 
   aura::test::TestWindowDelegate delegate;

@@ -8,21 +8,21 @@
 #include "ios/web/public/test/http_server_util.h"
 #import "ios/web/public/test/response_providers/html_response_provider.h"
 #import "ios/web/public/test/response_providers/html_response_provider_impl.h"
-#import "ios/web/shell/test/earl_grey/shell_base_test_case.h"
 #import "ios/web/shell/test/earl_grey/shell_earl_grey.h"
 #import "ios/web/shell/test/earl_grey/shell_matchers.h"
+#import "ios/web/shell/test/earl_grey/web_shell_test_case.h"
 #include "net/http/http_status_code.h"
 
 #if !defined(__has_feature) || !__has_feature(objc_arc)
 #error "This file requires ARC support."
 #endif
 
-using web::addressFieldText;
+using web::AddressFieldText;
 using web::test::HttpServer;
-using web::webViewContainingText;
+using web::WebViewContainingText;
 
 // Redirect test cases for the web shell.
-@interface RedirectTestCase : ShellBaseTestCase
+@interface RedirectTestCase : WebShellTestCase
 @end
 
 @implementation RedirectTestCase
@@ -51,9 +51,9 @@ using web::webViewContainingText;
 
   // Load first URL and expect destination URL to load.
   [ShellEarlGrey loadURL:firstRedirectURL];
-  [[EarlGrey selectElementWithMatcher:addressFieldText(destinationURL.spec())]
+  [[EarlGrey selectElementWithMatcher:AddressFieldText(destinationURL.spec())]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kFinalPageContent)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kFinalPageContent)]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -75,9 +75,9 @@ using web::webViewContainingText;
 
   // Load first URL and expect destination URL to load.
   [ShellEarlGrey loadURL:firstRedirectURL];
-  [[EarlGrey selectElementWithMatcher:addressFieldText(destinationURL.spec())]
+  [[EarlGrey selectElementWithMatcher:AddressFieldText(destinationURL.spec())]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kFinalPageContent)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kFinalPageContent)]
       assertWithMatcher:grey_notNil()];
 }
 
@@ -99,9 +99,9 @@ using web::webViewContainingText;
 
   // Load first URL and expect destination URL to load.
   [ShellEarlGrey loadURL:firstRedirectURL];
-  [[EarlGrey selectElementWithMatcher:addressFieldText(destinationURL.spec())]
+  [[EarlGrey selectElementWithMatcher:AddressFieldText(destinationURL.spec())]
       assertWithMatcher:grey_notNil()];
-  [[EarlGrey selectElementWithMatcher:webViewContainingText(kFinalPageContent)]
+  [[EarlGrey selectElementWithMatcher:WebViewContainingText(kFinalPageContent)]
       assertWithMatcher:grey_notNil()];
 }
 

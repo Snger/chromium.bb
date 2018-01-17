@@ -17,8 +17,8 @@ import org.chromium.chrome.browser.bookmarks.BookmarkBridge.BookmarkModelObserve
 import org.chromium.chrome.browser.preferences.PrefServiceBridge;
 import org.chromium.chrome.browser.tabmodel.TabModel.TabLaunchType;
 import org.chromium.chrome.browser.tabmodel.document.TabDelegate;
+import org.chromium.chrome.browser.widget.selection.SelectableListToolbar;
 import org.chromium.chrome.browser.widget.selection.SelectionDelegate;
-import org.chromium.chrome.browser.widget.selection.SelectionToolbar;
 import org.chromium.components.bookmarks.BookmarkId;
 import org.chromium.components.bookmarks.BookmarkType;
 import org.chromium.content_public.browser.LoadUrlParams;
@@ -29,8 +29,8 @@ import java.util.List;
  * Main action bar of bookmark UI. It is responsible for displaying title and buttons
  * associated with the current context.
  */
-public class BookmarkActionBar extends SelectionToolbar<BookmarkId> implements BookmarkUIObserver,
-        OnMenuItemClickListener, OnClickListener {
+public class BookmarkActionBar extends SelectableListToolbar<BookmarkId>
+        implements BookmarkUIObserver, OnMenuItemClickListener, OnClickListener {
     private BookmarkItem mCurrentFolder;
     private BookmarkDelegate mDelegate;
 
@@ -47,7 +47,6 @@ public class BookmarkActionBar extends SelectionToolbar<BookmarkId> implements B
         inflateMenu(R.menu.bookmark_action_bar_menu);
         setOnMenuItemClickListener(this);
 
-        getMenu().findItem(R.id.search_menu_id).setTitle(R.string.bookmark_action_bar_search);
         getMenu().findItem(R.id.selection_mode_edit_menu_id).setTitle(R.string.edit_bookmark);
         getMenu().findItem(R.id.selection_mode_move_menu_id)
                 .setTitle(R.string.bookmark_action_bar_move);
@@ -56,12 +55,19 @@ public class BookmarkActionBar extends SelectionToolbar<BookmarkId> implements B
     }
 
     @Override
-    protected void onNavigationBack() {
+    public void onNavigationBack() {
+        if (mIsSearching) {
+            super.onNavigationBack();
+            return;
+        }
+
         mDelegate.openFolder(mCurrentFolder.getParentId());
     }
 
     @Override
     public boolean onMenuItemClick(MenuItem menuItem) {
+        hideOverflowMenu();
+
         SelectionDelegate<BookmarkId> selectionDelegate = mDelegate.getSelectionDelegate();
         if (menuItem.getItemId() == R.id.edit_menu_id) {
             BookmarkAddEditFolderActivity.startEditFolderActivity(getContext(),
@@ -125,12 +131,6 @@ public class BookmarkActionBar extends SelectionToolbar<BookmarkId> implements B
         mDelegate.addUIObserver(this);
         if (!delegate.isDialogUi()) getMenu().removeItem(R.id.close_menu_id);
         delegate.getModel().addObserver(mBookmarkModelObserver);
-
-        // This class will handle setting the title. Pass 0 to the superclass so that it doesn't
-        // try to set the title when a selection is cleared.
-        int titleResId = 0;
-        initialize(delegate.getSelectionDelegate(), titleResId, delegate.getDrawerLayout(),
-                R.id.normal_menu_group, R.id.selection_mode_menu_group, null);
     }
 
     @Override
@@ -162,8 +162,16 @@ public class BookmarkActionBar extends SelectionToolbar<BookmarkId> implements B
     }
 
     @Override
+    public void onSearchStateSet() {}
+
+    @Override
     public void onSelectionStateChange(List<BookmarkId> selectedBookmarks) {
         super.onSelectionStateChange(selectedBookmarks);
+
+        // The super class registers itself as a SelectionObserver before
+        // #onBookmarkDelegateInitialized() is called. Return early if mDelegate has not been set.
+        if (mDelegate == null) return;
+
         if (mIsSelectionEnabled) {
             // Editing a bookmark action on multiple selected items doesn't make sense. So disable.
             getMenu().findItem(R.id.selection_mode_edit_menu_id).setVisible(

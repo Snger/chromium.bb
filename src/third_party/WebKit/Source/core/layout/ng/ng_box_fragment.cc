@@ -9,12 +9,24 @@
 
 namespace blink {
 
-NGMarginStrut NGBoxFragment::MarginStrut() const {
+NGLogicalSize NGBoxFragment::OverflowSize() const {
+  auto* physical_fragment = ToNGPhysicalBoxFragment(physical_fragment_);
+  return physical_fragment->OverflowSize().ConvertToLogical(WritingMode());
+}
+
+const WTF::Optional<NGLogicalOffset>& NGBoxFragment::BfcOffset() const {
+  WRITING_MODE_IGNORED(
+      "Accessing BFC offset is allowed here because writing"
+      "modes are irrelevant in this case.");
+  return ToNGPhysicalBoxFragment(physical_fragment_)->BfcOffset();
+}
+
+const NGMarginStrut& NGBoxFragment::EndMarginStrut() const {
   WRITING_MODE_IGNORED(
       "Accessing the margin strut is fine here. Changing the writing mode"
-      "establishes a new formatting context, for which a margin strut is never"
-      "set for a fragment.");
-  return toNGPhysicalBoxFragment(physical_fragment_)->MarginStrut();
+      "establishes a new formatting context, for which a margin strut is"
+      "never set for a fragment.");
+  return ToNGPhysicalBoxFragment(physical_fragment_)->EndMarginStrut();
 }
 
 }  // namespace blink

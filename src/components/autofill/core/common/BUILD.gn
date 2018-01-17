@@ -4,6 +4,8 @@
 
 static_library("common") {
   sources = [
+    "autofill_clock.cc",
+    "autofill_clock.h",
     "autofill_constants.cc",
     "autofill_constants.h",
     "autofill_data_validation.cc",
@@ -31,6 +33,7 @@ static_library("common") {
     "password_form_field_prediction_map.h",
     "password_form_fill_data.cc",
     "password_form_fill_data.h",
+    "password_form_generation_data.cc",
     "password_form_generation_data.h",
     "password_generation_util.cc",
     "password_generation_util.h",

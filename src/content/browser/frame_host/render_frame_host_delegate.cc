@@ -57,8 +57,13 @@ bool RenderFrameHostDelegate::CheckMediaAccessPermission(
   return false;
 }
 
+std::string RenderFrameHostDelegate::GetDefaultMediaDeviceID(
+    MediaStreamType type) {
+  return std::string();
+}
+
 AccessibilityMode RenderFrameHostDelegate::GetAccessibilityMode() const {
-  return AccessibilityModeOff;
+  return AccessibilityMode();
 }
 
 RenderFrameHost* RenderFrameHostDelegate::GetGuestByInstanceID(
@@ -72,13 +77,8 @@ RenderFrameHostDelegate::GetGeolocationServiceContext() {
   return nullptr;
 }
 
-device::WakeLockServiceContext*
+device::mojom::WakeLockContext*
 RenderFrameHostDelegate::GetWakeLockServiceContext() {
-  return nullptr;
-}
-
-ScreenOrientationProvider*
-RenderFrameHostDelegate::GetScreenOrientationProvider() {
   return nullptr;
 }
 
@@ -92,5 +92,20 @@ std::unique_ptr<WebUIImpl>
 RenderFrameHostDelegate::CreateWebUIForRenderFrameHost(const GURL& url) {
   return nullptr;
 }
+
+bool RenderFrameHostDelegate::ShouldAllowRunningInsecureContent(
+    WebContents* web_contents,
+    bool allowed_per_prefs,
+    const url::Origin& origin,
+    const GURL& resource_url) {
+  return false;
+}
+
+#if defined(OS_ANDROID)
+base::android::ScopedJavaLocalRef<jobject>
+RenderFrameHostDelegate::GetJavaRenderFrameHostDelegate() {
+  return nullptr;
+}
+#endif
 
 }  // namespace content

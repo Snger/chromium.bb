@@ -10,6 +10,7 @@
 #include "base/feature_list.h"
 #include "build/build_config.h"
 #include "media/base/media_export.h"
+#include "media/media_features.h"
 #include "ppapi/features/features.h"
 
 namespace switches {
@@ -23,9 +24,7 @@ MEDIA_EXPORT extern const char kDisableMediaSuspend[];
 
 MEDIA_EXPORT extern const char kReportVp9AsAnUnsupportedMimeType[];
 
-#if defined(OS_ANDROID)
-MEDIA_EXPORT extern const char kDisableUnifiedMediaPipeline[];
-#endif
+MEDIA_EXPORT extern const char kEnableNewVp9CodecString[];
 
 #if defined(OS_LINUX) || defined(OS_FREEBSD) || defined(OS_SOLARIS)
 MEDIA_EXPORT extern const char kAlsaInputDevice[];
@@ -44,6 +43,9 @@ MEDIA_EXPORT extern const char kWaveOutBuffers[];
 MEDIA_EXPORT extern const char kUseCras[];
 #endif
 
+MEDIA_EXPORT extern const char
+    kUnsafelyAllowProtectedMediaIdentifierForDomain[];
+
 #if !defined(OS_ANDROID) || BUILDFLAG(ENABLE_PLUGINS)
 MEDIA_EXPORT extern const char kEnableDefaultMediaSession[];
 #endif  // !defined(OS_ANDROID) || BUILDFLAG(ENABLE_PLUGINS)
@@ -52,9 +54,14 @@ MEDIA_EXPORT extern const char kEnableDefaultMediaSession[];
 MEDIA_EXPORT extern const char kEnableDefaultMediaSessionDuckFlash[];
 #endif  // BUILDFLAG(ENABLE_PLUGINS)
 
+#if BUILDFLAG(ENABLE_RUNTIME_MEDIA_RENDERER_SELECTION)
+MEDIA_EXPORT extern const char kDisableMojoRenderer[];
+#endif  // BUILDFLAG(ENABLE_RUNTIME_MEDIA_RENDERER_SELECTION)
+
 MEDIA_EXPORT extern const char kUseFakeDeviceForMediaStream[];
 MEDIA_EXPORT extern const char kUseFileForFakeVideoCapture[];
 MEDIA_EXPORT extern const char kUseFileForFakeAudioCapture[];
+MEDIA_EXPORT extern const char kUseFakeJpegDecodeAccelerator[];
 
 MEDIA_EXPORT extern const char kEnableInbandTextTracks[];
 
@@ -91,10 +98,13 @@ MEDIA_EXPORT extern const base::Feature kVideoColorManagement;
 MEDIA_EXPORT extern const base::Feature kVideoBlitColorAccuracy;
 MEDIA_EXPORT extern const base::Feature kExternalClearKeyForTesting;
 MEDIA_EXPORT extern const base::Feature kBackgroundVideoTrackOptimization;
+MEDIA_EXPORT extern const base::Feature kBackgroundVideoPauseOptimization;
+MEDIA_EXPORT extern const base::Feature kMemoryPressureBasedSourceBufferGC;
 
 #if defined(OS_ANDROID)
 MEDIA_EXPORT extern const base::Feature kAndroidMediaPlayerRenderer;
 MEDIA_EXPORT extern const base::Feature kVideoFullscreenOrientationLock;
+MEDIA_EXPORT extern const base::Feature kMediaDrmPersistentLicense;
 #endif  // defined(OS_ANDROID)
 }  // namespace media
 

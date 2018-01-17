@@ -186,6 +186,7 @@ left: auto
 letter-spacing: normal
 lighting-color: rgb(255, 255, 255)
 line-height: normal
+line-height-step: 0px
 list-style-image: none
 list-style-position: outside
 list-style-type: disc
@@ -236,7 +237,7 @@ position: static
 r: 0px
 resize: none
 right: auto
-rotate: 0deg
+rotate: none
 rx: auto
 ry: auto
 scale: none
@@ -250,7 +251,6 @@ shape-image-threshold: 0
 shape-margin: 0px
 shape-outside: none
 shape-rendering: auto
-snap-height: 0px
 speak: normal
 stop-color: rgb(0, 0, 0)
 stop-opacity: 1
@@ -289,7 +289,7 @@ transition-delay: 0s
 transition-duration: 0s
 transition-property: all
 transition-timing-function: ease
-translate: 0px
+translate: none
 unicode-bidi: normal
 user-select: text
 vector-effect: none

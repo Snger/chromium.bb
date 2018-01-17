@@ -14,25 +14,27 @@ import os
 from chromite.cbuildbot import cbuildbot_run
 from chromite.cbuildbot import cbuildbot_unittest
 from chromite.cbuildbot import commands
-from chromite.lib import constants
-from chromite.lib import failures_lib
 from chromite.cbuildbot import manifest_version
-from chromite.lib import metadata_lib
-from chromite.lib import results_lib
-from chromite.cbuildbot import triage_lib
-from chromite.cbuildbot.stages import generic_stages
+from chromite.cbuildbot import topology
+from chromite.cbuildbot import topology_unittest
 from chromite.cbuildbot.stages import generic_stages_unittest
 from chromite.cbuildbot.stages import report_stages
 from chromite.lib import alerts
 from chromite.lib import cidb
+from chromite.lib import constants
 from chromite.lib import cros_build_lib
 from chromite.lib import cros_logging as logging
 from chromite.lib import fake_cidb
+from chromite.lib import failures_lib
 from chromite.lib import gs_unittest
+from chromite.lib import metadata_lib
+from chromite.lib import metrics
 from chromite.lib import osutils
 from chromite.lib import patch_unittest
+from chromite.lib import results_lib
 from chromite.lib import retry_stats
 from chromite.lib import toolchain
+from chromite.lib import triage_lib
 
 
 # pylint: disable=protected-access
@@ -217,7 +219,6 @@ class AbstractReportStageTestCase(
 
     self.PatchObject(report_stages.ReportStage, '_GetBuildDuration',
                      return_value=1000)
-    self.PatchObject(generic_stages.ArchivingStageMixin, 'RunExportMetadata')
     self.PatchObject(toolchain, 'GetToolchainsForBoard')
     self.PatchObject(toolchain, 'GetArchForTarget', return_value='x86')
 
@@ -226,6 +227,10 @@ class AbstractReportStageTestCase(
     # SetupMockCidb
     self.mock_cidb = mock.MagicMock()
     cidb.CIDBConnectionFactory.SetupMockCidb(self.mock_cidb)
+
+    # Setup topology for unittests
+    keyvals = {topology.DATASTORE_WRITER_CREDS_KEY:'./foo/bar.cert'}
+    topology_unittest.FakeFetchTopologyFromCIDB(keyvals=keyvals)
 
     self._Prepare()
 
@@ -386,10 +391,6 @@ class ReportStageTest(AbstractReportStageTestCase):
     tags_content_dict = json.loads(tags_content)
     self.assertEqual(tags_content_dict['build_number'],
                      generic_stages_unittest.DEFAULT_BUILD_NUMBER)
-    self.assertEqual(
-        osutils.WriteFile.call_args_list[1][0][0],
-        (generic_stages.ArchivingStageMixin.RunExportMetadata.
-         call_args_list[0][0][0]))
 
   def testGetChildConfigsMetadataList(self):
     """Test that GetChildConfigListMetadata generates child config metadata."""
@@ -398,12 +399,47 @@ class ReportStageTest(AbstractReportStageTestCase):
     config_status_map = {'config1': True,
                          'config2': False}
     expected = [{'name': 'config1', 'boards': ['board1'],
-                 'status': constants.FINAL_STATUS_PASSED},
+                 'status': constants.BUILDER_STATUS_PASSED},
                 {'name': 'config2', 'boards': ['board2'],
-                 'status': constants.FINAL_STATUS_FAILED}]
+                 'status': constants.BUILDER_STATUS_FAILED}]
     child_config_list = report_stages.GetChildConfigListMetadata(
         child_configs, config_status_map)
     self.assertEqual(expected, child_config_list)
+
+  def testIsSheriffOMaticImportantBuildTrue(self):
+    """Test IsSheriffOMaticImportantBuild with important build."""
+    os.environ['BUILDBOT_MASTERNAME'] = constants.WATERFALL_INTERNAL
+    self._Prepare('master-paladin')
+    stage = self.ConstructStage()
+    self.assertTrue(stage.IsSheriffOMaticImportantBuild())
+
+  def testIsSheriffOMaticImportantBuild(self):
+    """Test IsSheriffOMaticImportantBuild with unimportant build."""
+    stage = self.ConstructStage()
+    self.assertFalse(stage.IsSheriffOMaticImportantBuild())
+
+  def testPerformStage(self):
+    """Test PerformStage."""
+    mock_sd = self.PatchObject(metrics, 'SecondsDistribution')
+    self.PatchObject(report_stages.ReportStage, 'ArchiveResults')
+    stage = self.ConstructStage()
+    stage.PerformStage()
+    self.assertEqual(mock_sd.call_count, 1)
+
+
+class ReportStageForMasterCQTest(AbstractReportStageTestCase):
+  """Test the Report stage for master-paladin."""
+
+  RELEASE_TAG = ''
+  BOT_ID = 'master-paladin'
+
+  def testPerformStage(self):
+    """Test PerformStage."""
+    mock_sd = self.PatchObject(metrics, 'SecondsDistribution')
+    self.PatchObject(report_stages.ReportStage, 'ArchiveResults')
+    stage = self.ConstructStage()
+    stage.PerformStage()
+    self.assertEqual(mock_sd.call_count, 2)
 
 
 class ReportStageNoSyncTest(AbstractReportStageTestCase):
@@ -429,6 +465,12 @@ class DetectIrrelevantChangesStageTest(
     self.changes = self.GetPatches(how_many=2)
 
     self._Prepare()
+
+    self.fake_db = fake_cidb.FakeCIDBConnection()
+    cidb.CIDBConnectionFactory.SetupMockCidb(self.fake_db)
+    build_id = self.fake_db.InsertBuild(
+        'test-paladin', 'chromeos', 1, 'test-paladin', 'bot_hostname')
+    self._run.attrs.metadata.UpdateWithDict({'build_id': build_id})
 
   def testGetSubsystemsWithoutEmptyEntry(self):
     """Tests the logic of GetSubsystemTobeTested() under normal case."""
@@ -456,3 +498,17 @@ class DetectIrrelevantChangesStageTest(
     return report_stages.DetectIrrelevantChangesStage(self._run,
                                                       self._current_board,
                                                       self.changes)
+
+  def testRecordIrrelevantChanges(self):
+    """Test RecordIrrelevantChanges."""
+    stage = self.ConstructStage()
+    stage._RecordIrrelevantChanges(self.changes)
+    action_history = self.fake_db.GetActionHistory()
+    self.assertEqual(len(action_history), 2)
+
+  def testRecordIrrelevantChangesWithEmptySet(self):
+    """Test RecordIrrelevantChanges with an empty changes set."""
+    stage = self.ConstructStage()
+    stage._RecordIrrelevantChanges(set())
+    action_history = self.fake_db.GetActionHistory()
+    self.assertEqual(len(action_history), 0)

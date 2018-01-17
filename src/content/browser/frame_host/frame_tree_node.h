@@ -123,7 +123,8 @@ class CONTENT_EXPORT FrameTreeNode {
 
   // Assigns the initial opener for this node, and if |opener| is non-null,
   // registers an observer that will clear this node's opener if |opener| is
-  // ever destroyed.
+  // ever destroyed. The value set here is the root of the tree.
+  //
   // It is not possible to change the opener once it was set.
   void SetOriginalOpener(FrameTreeNode* opener);
 
@@ -161,20 +162,20 @@ class CONTENT_EXPORT FrameTreeNode {
   // Set the current name and notify proxies about the update.
   void SetFrameName(const std::string& name, const std::string& unique_name);
 
-  // Set the frame's feature policy from an HTTP header, clearing any existing
-  // policy.
-  void SetFeaturePolicyHeader(const ParsedFeaturePolicy& parsed_header);
+  // Set the frame's feature policy header, clearing any existing header.
+  void SetFeaturePolicyHeader(const ParsedFeaturePolicyHeader& parsed_header);
 
-  // Clear any feature policy associated with the frame.
-  void ResetFeaturePolicy();
+  // Clear any feature policy header associated with the frame.
+  void ResetFeaturePolicyHeader();
 
-  // Add CSP header to replication state and notify proxies about the update.
-  void AddContentSecurityPolicy(const ContentSecurityPolicyHeader& header);
+  // Add CSP headers to replication state, notify proxies about the update.
+  void AddContentSecurityPolicies(
+      const std::vector<ContentSecurityPolicyHeader>& headers);
 
   // Discards previous CSP headers and notifies proxies about the update.
   // Typically invoked after committing navigation to a new document (since the
   // new document comes with a fresh set of CSP http headers).
-  void ResetContentSecurityPolicy();
+  void ResetCspHeaders();
 
   // Sets the current insecure request policy, and notifies proxies about the
   // update.
@@ -261,7 +262,10 @@ class CONTENT_EXPORT FrameTreeNode {
   // Resets the current navigation request. If |keep_state| is true, any state
   // created by the NavigationRequest (e.g. speculative RenderFrameHost,
   // loading state) will not be reset by the function.
-  void ResetNavigationRequest(bool keep_state);
+  // If |keep_state| is false and the request is renderer-initiated and
+  // |inform_renderer| is true, an IPC will be sent to the renderer process to
+  // inform it that the navigation it requested was cancelled.
+  void ResetNavigationRequest(bool keep_state, bool inform_renderer);
 
   // Returns true if this node is in a state where the loading progress is being
   // tracked.

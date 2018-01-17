@@ -40,8 +40,8 @@ public:
 
     const GrPrimitiveProcessor& primitiveProcessor() const { return fPrimProc; }
     const GrPipeline& pipeline() const { return fPipeline; }
-    const GrProgramDesc& desc() const { return fDesc; }
-    const GrProgramDesc::KeyHeader& header() const { return fDesc.header(); }
+    GrProgramDesc* desc() { return fDesc; }
+    const GrProgramDesc::KeyHeader& header() const { return fDesc->header(); }
 
     void appendUniformDecls(GrShaderFlags visibility, SkString*) const;
 
@@ -65,10 +65,6 @@ public:
         // origin_upper_left is not supported.
         UniformHandle       fRTHeightUni;
     };
-
-    // Used to add a uniform in the vertex shader for transforming into normalized device space.
-    void addRTAdjustmentUniform(GrSLPrecision precision, const char* name, const char** outName);
-    const char* rtAdjustment() const { return "rtAdjustment"; }
 
     // Used to add a uniform for the RenderTarget height (used for frag position) without mangling
     // the name of the uniform inside of a stage.
@@ -99,7 +95,7 @@ public:
 
     const GrPipeline&           fPipeline;
     const GrPrimitiveProcessor& fPrimProc;
-    const GrProgramDesc&        fDesc;
+    GrProgramDesc*              fDesc;
 
     BuiltinUniformHandles fUniformHandles;
 
@@ -110,7 +106,7 @@ public:
 protected:
     explicit GrGLSLProgramBuilder(const GrPipeline&,
                                   const GrPrimitiveProcessor&,
-                                  const GrProgramDesc&);
+                                  GrProgramDesc*);
 
     void addFeature(GrShaderFlags shaders, uint32_t featureBit, const char* extensionName);
 
@@ -156,19 +152,15 @@ private:
                                 int transformedCoordVarsIdx,
                                 const GrGLSLExpr4& input,
                                 GrGLSLExpr4* output);
-    void emitAndInstallXferProc(const GrXferProcessor&,
-                                const GrGLSLExpr4& colorIn,
-                                const GrGLSLExpr4& coverageIn,
-                                GrPixelLocalStorageState plsState);
-    void emitSamplersAndImageStorages(const GrProcessor& processor,
+    void emitAndInstallXferProc(const GrGLSLExpr4& colorIn, const GrGLSLExpr4& coverageIn);
+    void emitSamplersAndImageStorages(const GrResourceIOProcessor& processor,
                                       SkTArray<SamplerHandle>* outTexSamplerHandles,
                                       SkTArray<SamplerHandle>* outBufferSamplerHandles,
                                       SkTArray<ImageStorageHandle>* outImageStorageHandles);
-    void emitSampler(GrSLType samplerType, GrPixelConfig, const char* name,
-                     GrShaderFlags visibility, SkTArray<SamplerHandle >* outSamplerHandles);
-    void emitImageStorage(const GrProcessor::ImageStorageAccess&,
-                          const char* name,
-                          SkTArray<ImageStorageHandle>* outImageStorageHandles);
+    SamplerHandle emitSampler(GrSLType samplerType, GrPixelConfig, const char* name,
+                              GrShaderFlags visibility);
+    ImageStorageHandle emitImageStorage(const GrResourceIOProcessor::ImageStorageAccess&,
+                                        const char* name);
     void emitFSOutputSwizzle(bool hasSecondaryOutput);
     bool checkSamplerCounts();
     bool checkImageStorageCounts();

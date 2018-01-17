@@ -21,7 +21,7 @@
 #include "content/shell/common/layout_test/layout_test_switches.h"
 #include "content/shell/common/shell_messages.h"
 #include "content/shell/renderer/layout_test/blink_test_helpers.h"
-#include "services/service_manager/public/cpp/interface_registry.h"
+#include "services/service_manager/public/cpp/binder_registry.h"
 
 namespace content {
 namespace {
@@ -72,7 +72,7 @@ void LayoutTestContentBrowserClient::RenderProcessWillLaunch(
 }
 
 void LayoutTestContentBrowserClient::ExposeInterfacesToRenderer(
-    service_manager::InterfaceRegistry* registry,
+    service_manager::BinderRegistry* registry,
     RenderProcessHost* render_process_host) {
   scoped_refptr<base::SingleThreadTaskRunner> ui_task_runner =
       content::BrowserThread::GetTaskRunnerForThread(
@@ -126,6 +126,15 @@ BrowserMainParts* LayoutTestContentBrowserClient::CreateBrowserMainParts(
     const MainFunctionParams& parameters) {
   set_browser_main_parts(new LayoutTestBrowserMainParts(parameters));
   return shell_browser_main_parts();
+}
+
+void LayoutTestContentBrowserClient::GetQuotaSettings(
+    BrowserContext* context,
+    StoragePartition* partition,
+    const storage::OptionalQuotaSettingsCallback& callback) {
+  // The 1GB limit is intended to give a large headroom to tests that need to
+  // build up a large data set and issue many concurrent reads or writes.
+  callback.Run(storage::GetHardCodedSettings(1024 * 1024 * 1024));
 }
 
 PlatformNotificationService*

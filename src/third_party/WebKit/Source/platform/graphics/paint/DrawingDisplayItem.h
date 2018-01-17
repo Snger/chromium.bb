@@ -10,7 +10,7 @@
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/geometry/FloatPoint.h"
 #include "platform/graphics/paint/DisplayItem.h"
-#include "third_party/skia/include/core/SkPicture.h"
+#include "platform/graphics/paint/PaintRecord.h"
 #include "third_party/skia/include/core/SkRefCnt.h"
 
 namespace blink {
@@ -20,39 +20,39 @@ class PLATFORM_EXPORT DrawingDisplayItem final : public DisplayItem {
   DISABLE_CFI_PERF
   DrawingDisplayItem(const DisplayItemClient& client,
                      Type type,
-                     sk_sp<const SkPicture> picture,
-                     bool knownToBeOpaque = false)
+                     sk_sp<const PaintRecord> record,
+                     bool known_to_be_opaque = false)
       : DisplayItem(client, type, sizeof(*this)),
-        m_picture(picture && picture->approximateOpCount() ? std::move(picture)
-                                                           : nullptr),
-        m_knownToBeOpaque(knownToBeOpaque) {
-    DCHECK(isDrawingType(type));
+        record_(record && record->approximateOpCount() ? std::move(record)
+                                                       : nullptr),
+        known_to_be_opaque_(known_to_be_opaque) {
+    DCHECK(IsDrawingType(type));
   }
 
-  void replay(GraphicsContext&) const override;
-  void appendToWebDisplayItemList(const IntRect&,
+  void Replay(GraphicsContext&) const override;
+  void AppendToWebDisplayItemList(const IntRect&,
                                   WebDisplayItemList*) const override;
-  bool drawsContent() const override;
+  bool DrawsContent() const override;
 
-  const SkPicture* picture() const { return m_picture.get(); }
+  const sk_sp<const PaintRecord>& GetPaintRecord() const { return record_; }
 
-  bool knownToBeOpaque() const {
+  bool KnownToBeOpaque() const {
     DCHECK(RuntimeEnabledFeatures::slimmingPaintV2Enabled());
-    return m_knownToBeOpaque;
+    return known_to_be_opaque_;
   }
 
-  void analyzeForGpuRasterization(SkPictureGpuAnalyzer&) const override;
+  void AnalyzeForGpuRasterization(SkPictureGpuAnalyzer&) const override;
 
  private:
 #ifndef NDEBUG
-  void dumpPropertiesAsDebugString(WTF::StringBuilder&) const override;
+  void DumpPropertiesAsDebugString(WTF::StringBuilder&) const override;
 #endif
-  bool equals(const DisplayItem& other) const final;
+  bool Equals(const DisplayItem& other) const final;
 
-  sk_sp<const SkPicture> m_picture;
+  sk_sp<const PaintRecord> record_;
 
   // True if there are no transparent areas. Only used for SlimmingPaintV2.
-  const bool m_knownToBeOpaque;
+  const bool known_to_be_opaque_;
 };
 
 }  // namespace blink

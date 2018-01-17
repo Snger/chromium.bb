@@ -13,7 +13,6 @@
 #include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
 #include "base/strings/stringprintf.h"
-#include "base/template_util.h"
 
 namespace ntp_snippets {
 namespace metrics {
@@ -59,8 +58,8 @@ const char kHistogramMovedUpCategoryNewIndex[] =
     "NewTabPage.ContentSuggestions.MovedUpCategoryNewIndex";
 const char kHistogramCategoryDismissed[] =
     "NewTabPage.ContentSuggestions.CategoryDismissed";
-const char kHistogramContentSuggestionsTimeSinceLastBackgroundFetch[] =
-    "NewTabPage.ContentSuggestions.TimeSinceLastBackgroundFetch";
+const char kHistogramTimeSinceSuggestionFetched[] =
+    "NewTabPage.ContentSuggestions.TimeSinceSuggestionFetched";
 
 const char kPerCategoryHistogramFormat[] = "%s.%s";
 
@@ -76,14 +75,15 @@ enum HistogramCategories {
   PHYSICAL_WEB_PAGES,
   FOREIGN_TABS,
   ARTICLES,
+  READING_LIST,
   // Insert new values here!
   COUNT
 };
 
 HistogramCategories GetHistogramCategory(Category category) {
   static_assert(
-      std::is_same<decltype(category.id()), typename base::underlying_type<
-                                                KnownCategories>::type>::value,
+      std::is_same<decltype(category.id()),
+                   typename std::underlying_type<KnownCategories>::type>::value,
       "KnownCategories must have the same underlying type as category.id()");
   // Note: Since the underlying type of KnownCategories is int, it's legal to
   // cast from int to KnownCategories, even if the given value isn't listed in
@@ -103,6 +103,8 @@ HistogramCategories GetHistogramCategory(Category category) {
       return HistogramCategories::FOREIGN_TABS;
     case KnownCategories::ARTICLES:
       return HistogramCategories::ARTICLES;
+    case KnownCategories::READING_LIST:
+      return HistogramCategories::READING_LIST;
     case KnownCategories::LOCAL_CATEGORIES_COUNT:
     case KnownCategories::REMOTE_CATEGORIES_OFFSET:
       NOTREACHED();
@@ -131,6 +133,8 @@ std::string GetCategorySuffix(Category category) {
       return "Articles";
     case HistogramCategories::EXPERIMENTAL:
       return "Experimental";
+    case HistogramCategories::READING_LIST:
+      return "ReadingList";
     case HistogramCategories::COUNT:
       NOTREACHED();
       break;
@@ -223,8 +227,8 @@ void OnSuggestionShown(int global_position,
                        Category category,
                        int position_in_category,
                        base::Time publish_date,
-                       base::Time last_background_fetch_time,
-                       float score) {
+                       float score,
+                       base::Time fetch_date) {
   UMA_HISTOGRAM_EXACT_LINEAR(kHistogramShown, global_position,
                              kMaxSuggestionsTotal);
   LogCategoryHistogramPosition(kHistogramShown, category, position_in_category,
@@ -235,6 +239,14 @@ void OnSuggestionShown(int global_position,
 
   LogCategoryHistogramScore(kHistogramShownScore, category, score);
 
+  if (category.IsKnownCategory(KnownCategories::ARTICLES)) {
+    // Records the time since the fetch time of the displayed snippet.
+    UMA_HISTOGRAM_CUSTOM_TIMES(
+        kHistogramTimeSinceSuggestionFetched, base::Time::Now() - fetch_date,
+        base::TimeDelta::FromSeconds(1), base::TimeDelta::FromDays(7),
+        /*bucket_count=*/100);
+  }
+
   // TODO(markusheintz): Discuss whether the code below should be move into a
   // separate method called OnSuggestionsListShown.
   // When the first of the articles suggestions is shown, then we count this as
@@ -242,14 +254,6 @@ void OnSuggestionShown(int global_position,
   if (category.IsKnownCategory(KnownCategories::ARTICLES) &&
       position_in_category == 0) {
     RecordContentSuggestionsUsage();
-
-    // Records the time since the last background fetch of the remote content
-    // suggestions.
-    UMA_HISTOGRAM_CUSTOM_TIMES(
-        kHistogramContentSuggestionsTimeSinceLastBackgroundFetch,
-        base::Time::Now() - last_background_fetch_time,
-        base::TimeDelta::FromSeconds(1), base::TimeDelta::FromDays(7),
-        /*bucket_count=*/100);
   }
 }
 
@@ -355,6 +359,11 @@ void OnCategoryDismissed(Category category) {
   UMA_HISTOGRAM_ENUMERATION(kHistogramCategoryDismissed,
                             GetHistogramCategory(category),
                             HistogramCategories::COUNT);
+}
+
+void RecordRemoteSuggestionsProviderState(bool enabled) {
+  UMA_HISTOGRAM_BOOLEAN(
+      "NewTabPage.ContentSuggestions.Preferences.RemoteSuggestions", enabled);
 }
 
 }  // namespace metrics

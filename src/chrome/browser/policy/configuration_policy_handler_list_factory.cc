@@ -8,6 +8,7 @@
 #include <stddef.h>
 
 #include <utility>
+#include <vector>
 
 #include "base/bind.h"
 #include "base/macros.h"
@@ -63,7 +64,7 @@
 #endif
 
 #if defined(OS_CHROMEOS)
-#include "ash/common/accessibility_types.h"
+#include "ash/accessibility_types.h"
 #include "chrome/browser/chromeos/platform_keys/key_permissions_policy_handler.h"
 #include "chrome/browser/chromeos/policy/configuration_policy_handler_chromeos.h"
 #include "chrome/browser/policy/default_geolocation_policy_handler.h"
@@ -108,6 +109,9 @@ const PolicyToPreferenceMapEntry kSimplePolicyMap[] = {
   { key::kHomepageIsNewTabPage,
     prefs::kHomePageIsNewTabPage,
     base::Value::Type::BOOLEAN },
+  { key::kNewTabPageLocation,
+    prefs::kNewTabPageLocationOverride,
+    base::Value::Type::STRING },
   { key::kRestoreOnStartupURLs,
     prefs::kURLsToRestoreOnStartup,
     base::Value::Type::LIST },
@@ -243,6 +247,9 @@ const PolicyToPreferenceMapEntry kSimplePolicyMap[] = {
   { key::kEnableSha1ForLocalAnchors,
     ssl_config::prefs::kCertEnableSha1LocalAnchors,
     base::Value::Type::BOOLEAN },
+  { key::kEnableCommonNameFallbackForLocalAnchors,
+    ssl_config::prefs::kCertEnableCommonNameFallbackLocalAnchors,
+    base::Value::Type::BOOLEAN },
   { key::kAuthSchemes,
     prefs::kAuthSchemes,
     base::Value::Type::STRING },
@@ -312,6 +319,8 @@ const PolicyToPreferenceMapEntry kSimplePolicyMap[] = {
   { key::kAllowFileSelectionDialogs,
     prefs::kAllowFileSelectionDialogs,
     base::Value::Type::BOOLEAN },
+
+  // First run import.
   { key::kImportBookmarks,
     prefs::kImportBookmarks,
     base::Value::Type::BOOLEAN },
@@ -330,6 +339,25 @@ const PolicyToPreferenceMapEntry kSimplePolicyMap[] = {
   { key::kImportAutofillFormData,
     prefs::kImportAutofillFormData,
     base::Value::Type::BOOLEAN },
+
+  // Import data dialog: controlled by same policies as first run import, but
+  // uses different prefs.
+  { key::kImportBookmarks,
+    prefs::kImportDialogBookmarks,
+    base::Value::Type::BOOLEAN },
+  { key::kImportHistory,
+    prefs::kImportDialogHistory,
+    base::Value::Type::BOOLEAN },
+  { key::kImportSearchEngine,
+    prefs::kImportDialogSearchEngine,
+    base::Value::Type::BOOLEAN },
+  { key::kImportSavedPasswords,
+    prefs::kImportDialogSavedPasswords,
+    base::Value::Type::BOOLEAN },
+  { key::kImportAutofillFormData,
+    prefs::kImportDialogAutofillFormData,
+    base::Value::Type::BOOLEAN },
+
   { key::kMaxConnectionsPerProxy,
     prefs::kMaxConnectionsPerProxy,
     base::Value::Type::INTEGER },
@@ -397,9 +425,9 @@ const PolicyToPreferenceMapEntry kSimplePolicyMap[] = {
   { key::kForceEphemeralProfiles,
     prefs::kForceEphemeralProfiles,
     base::Value::Type::BOOLEAN },
-  { key::kDHEEnabled,
-    ssl_config::prefs::kDHEEnabled,
-    base::Value::Type::BOOLEAN },
+  { key::kSSLVersionMax,
+    ssl_config::prefs::kSSLVersionMax,
+    base::Value::Type::STRING },
   { key::kNTPContentSuggestionsEnabled,
     ntp_snippets::prefs::kEnableSnippets,
     base::Value::Type::BOOLEAN },
@@ -407,6 +435,11 @@ const PolicyToPreferenceMapEntry kSimplePolicyMap[] = {
   { key::kEnableMediaRouter,
     prefs::kEnableMediaRouter,
     base::Value::Type::BOOLEAN },
+#if !defined(OS_ANDROID)
+  { key::kShowCastIconInToolbar,
+    prefs::kShowCastIconInToolbar,
+    base::Value::Type::BOOLEAN },
+#endif  // !defined(OS_ANDROID)
 #endif  // defined(ENABLE_MEDIA_ROUTER)
 #if BUILDFLAG(ENABLE_WEBRTC)
   { key::kWebRtcUdpPortRange,
@@ -670,7 +703,7 @@ class ForceSafeSearchPolicyHandler : public TypeCheckingPolicyHandler {
       if (value->GetAsBoolean(&enabled)) {
         prefs->SetValue(
             prefs::kForceYouTubeRestrict,
-            base::MakeUnique<base::FundamentalValue>(
+            base::MakeUnique<base::Value>(
                 enabled ? safe_search_util::YOUTUBE_RESTRICT_MODERATE
                         : safe_search_util::YOUTUBE_RESTRICT_OFF));
       }
@@ -699,11 +732,10 @@ class ForceYouTubeSafetyModePolicyHandler : public TypeCheckingPolicyHandler {
     const base::Value* value = policies.GetValue(policy_name());
     bool enabled;
     if (value && value->GetAsBoolean(&enabled)) {
-      prefs->SetValue(
-          prefs::kForceYouTubeRestrict,
-          base::MakeUnique<base::FundamentalValue>(
-              enabled ? safe_search_util::YOUTUBE_RESTRICT_MODERATE
-                      : safe_search_util::YOUTUBE_RESTRICT_OFF));
+      prefs->SetValue(prefs::kForceYouTubeRestrict,
+                      base::MakeUnique<base::Value>(
+                          enabled ? safe_search_util::YOUTUBE_RESTRICT_MODERATE
+                                  : safe_search_util::YOUTUBE_RESTRICT_OFF));
     }
   }
 
@@ -726,8 +758,9 @@ class BrowsingHistoryPolicyHandler : public TypeCheckingPolicyHandler {
         !deleting_history_allowed) {
       prefs->SetBoolean(
           browsing_data::prefs::kDeleteBrowsingHistory, false);
-      prefs->SetBoolean(
-          browsing_data::prefs::kDeleteDownloadHistory, false);
+      prefs->SetBoolean(browsing_data::prefs::kDeleteBrowsingHistoryBasic,
+                        false);
+      prefs->SetBoolean(browsing_data::prefs::kDeleteDownloadHistory, false);
     }
   }
 };
@@ -745,7 +778,7 @@ void GetExtensionAllowedTypesMap(
     result->push_back(
         base::MakeUnique<StringMappingListPolicyHandler::MappingEntry>(
             entry.name, std::unique_ptr<base::Value>(
-                            new base::FundamentalValue(entry.manifest_type))));
+                            new base::Value(entry.manifest_type))));
   }
 }
 
@@ -766,7 +799,7 @@ class DevToolsExtensionsUIPolicyHandler : public TypeCheckingPolicyHandler {
     if (value && value->GetAsBoolean(&developerToolsDisabled) &&
         developerToolsDisabled) {
       prefs->SetValue(prefs::kExtensionsUIDeveloperMode,
-                      base::MakeUnique<base::FundamentalValue>(false));
+                      base::MakeUnique<base::Value>(false));
     }
   }
 
@@ -851,6 +884,9 @@ std::unique_ptr<ConfigurationPolicyHandlerList> BuildHandlerList(
       true));
   handlers->AddHandler(
       base::MakeUnique<extensions::ExtensionInstallForcelistPolicyHandler>());
+  handlers->AddHandler(
+      base::MakeUnique<
+          extensions::ExtensionInstallLoginScreenAppListPolicyHandler>());
   handlers->AddHandler(
       base::MakeUnique<extensions::ExtensionURLPatternListPolicyHandler>(
           key::kExtensionInstallSources,

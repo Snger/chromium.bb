@@ -4,15 +4,12 @@
 
 #include "ash/mus/test/wm_test_helper.h"
 
-#include "ash/common/material_design/material_design_controller.h"
-#include "ash/common/test/material_design_controller_test_api.h"
-#include "ash/common/test/test_system_tray_delegate.h"
-#include "ash/common/test/wm_shell_test_api.h"
-#include "ash/common/wm_shell.h"
-#include "ash/common/wm_window.h"
 #include "ash/mus/screen_mus.h"
 #include "ash/mus/window_manager.h"
 #include "ash/mus/window_manager_application.h"
+#include "ash/public/cpp/config.h"
+#include "ash/test/test_shell_delegate.h"
+#include "ash/wm_window.h"
 #include "base/memory/ptr_util.h"
 #include "base/message_loop/message_loop.h"
 #include "base/strings/string_number_conversions.h"
@@ -82,13 +79,14 @@ WmTestHelper::~WmTestHelper() {
   blocking_pool_owner_.reset();
   base::RunLoop().RunUntilIdle();
 
-  ash::test::MaterialDesignControllerTestAPI::Uninitialize();
   ui::test::MaterialDesignControllerTestAPI::Uninitialize();
 }
 
 void WmTestHelper::Init() {
+  // MaterialDesignController may have already been initialized. To cover that
+  // case explicitly uninitialize before initializing.
+  ui::test::MaterialDesignControllerTestAPI::Uninitialize();
   ui::MaterialDesignController::Initialize();
-  ash::MaterialDesignController::Initialize();
 
   views_delegate_ = base::MakeUnique<views::TestViewsDelegate>();
 
@@ -101,18 +99,22 @@ void WmTestHelper::Init() {
   blocking_pool_owner_ = base::MakeUnique<base::SequencedWorkerPoolOwner>(
       kMaxNumberThreads, kThreadNamePrefix);
 
-  window_manager_app_->window_manager_.reset(new WindowManager(nullptr));
-  window_manager_app_->window_manager()->system_tray_delegate_for_test_ =
-      base::MakeUnique<test::TestSystemTrayDelegate>();
+  window_manager_app_->window_manager_ =
+      base::MakeUnique<WindowManager>(nullptr, Config::MASH);
+  window_manager_app_->window_manager()->shell_delegate_ =
+      base::MakeUnique<test::TestShellDelegate>();
 
   window_tree_client_setup_.InitForWindowManager(
       window_manager_app_->window_manager_.get(),
       window_manager_app_->window_manager_.get());
   aura::test::EnvTestHelper().SetWindowTreeClient(
       window_tree_client_setup_.window_tree_client());
+  // See comment in AshTestHelper for details on why NetworkHandler is not
+  // initialized.
+  const bool init_network_handler = false;
   window_manager_app_->InitWindowManager(
       window_tree_client_setup_.OwnWindowTreeClient(),
-      blocking_pool_owner_->pool());
+      blocking_pool_owner_->pool(), init_network_handler);
 
   aura::WindowTreeClient* window_tree_client =
       window_manager_app_->window_manager()->window_tree_client();

@@ -4,6 +4,8 @@
 
 #include "components/metrics/test_metrics_service_client.h"
 
+#include <memory>
+
 #include "base/callback.h"
 #include "components/metrics/metrics_log_uploader.h"
 #include "components/metrics/proto/chrome_user_metrics_extension.pb.h"
@@ -63,10 +65,12 @@ void TestMetricsServiceClient::CollectFinalMetricsForLog(
 }
 
 std::unique_ptr<MetricsLogUploader> TestMetricsServiceClient::CreateUploader(
-    const std::string& server_url,
-    const std::string& mime_type,
-    const base::Callback<void(int)>& on_upload_complete) {
-  return std::unique_ptr<MetricsLogUploader>();
+    base::StringPiece server_url,
+    base::StringPiece mime_type,
+    MetricsLogUploader::MetricServiceType service_type,
+    const MetricsLogUploader::UploadCallback& on_upload_complete) {
+  uploader_ = new TestMetricsLogUploader(on_upload_complete);
+  return std::unique_ptr<MetricsLogUploader>(uploader_);
 }
 
 base::TimeDelta TestMetricsServiceClient::GetStandardUploadInterval() {

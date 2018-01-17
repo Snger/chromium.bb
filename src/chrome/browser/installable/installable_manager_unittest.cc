@@ -8,6 +8,8 @@
 #include "testing/gtest/include/gtest/gtest.h"
 #include "third_party/WebKit/public/platform/WebDisplayMode.h"
 
+using IconPurpose = content::Manifest::Icon::IconPurpose;
+
 class InstallableManagerUnitTest : public testing::Test {
  public:
   InstallableManagerUnitTest() : manager_(new InstallableManager(nullptr)) { }
@@ -22,13 +24,16 @@ class InstallableManagerUnitTest : public testing::Test {
     manifest.name = ToNullableUTF16("foo");
     manifest.short_name = ToNullableUTF16("bar");
     manifest.start_url = GURL("http://example.com");
-    manifest.display = blink::WebDisplayModeStandalone;
+    manifest.display = blink::kWebDisplayModeStandalone;
 
-    content::Manifest::Icon icon;
-    icon.type = base::ASCIIToUTF16("image/png");
-    icon.sizes.push_back(gfx::Size(144, 144));
-    manifest.icons.push_back(icon);
+    content::Manifest::Icon primary_icon;
+    primary_icon.type = base::ASCIIToUTF16("image/png");
+    primary_icon.sizes.push_back(gfx::Size(144, 144));
+    primary_icon.purpose.push_back(IconPurpose::ANY);
+    manifest.icons.push_back(primary_icon);
 
+    // No need to include the optional badge icon as it does not affect the
+    // unit tests.
     return manifest;
   }
 
@@ -131,6 +136,20 @@ TEST_F(InstallableManagerUnitTest, ManifestRequiresImagePNG) {
   EXPECT_EQ(MANIFEST_MISSING_SUITABLE_ICON, GetErrorCode());
 }
 
+TEST_F(InstallableManagerUnitTest, ManifestRequiresPurposeAny) {
+  content::Manifest manifest = GetValidManifest();
+
+  // The icon MUST have IconPurpose::ANY at least.
+  manifest.icons[0].purpose[0] = IconPurpose::BADGE;
+  EXPECT_FALSE(IsManifestValid(manifest));
+  EXPECT_EQ(MANIFEST_MISSING_SUITABLE_ICON, GetErrorCode());
+
+  // If one of the icon purposes match the requirement, it should be accepted.
+  manifest.icons[0].purpose.push_back(IconPurpose::ANY);
+  EXPECT_TRUE(IsManifestValid(manifest));
+  EXPECT_EQ(NO_ERROR_DETECTED, GetErrorCode());
+}
+
 TEST_F(InstallableManagerUnitTest, ManifestRequiresMinimalSize) {
   content::Manifest manifest = GetValidManifest();
 
@@ -167,23 +186,23 @@ TEST_F(InstallableManagerUnitTest, ManifestRequiresMinimalSize) {
 TEST_F(InstallableManagerUnitTest, ManifestDisplayStandaloneFullscreen) {
   content::Manifest manifest = GetValidManifest();
 
-  manifest.display = blink::WebDisplayModeUndefined;
+  manifest.display = blink::kWebDisplayModeUndefined;
   EXPECT_FALSE(IsManifestValid(manifest));
   EXPECT_EQ(MANIFEST_DISPLAY_NOT_SUPPORTED, GetErrorCode());
 
-  manifest.display = blink::WebDisplayModeBrowser;
+  manifest.display = blink::kWebDisplayModeBrowser;
   EXPECT_FALSE(IsManifestValid(manifest));
   EXPECT_EQ(MANIFEST_DISPLAY_NOT_SUPPORTED, GetErrorCode());
 
-  manifest.display = blink::WebDisplayModeMinimalUi;
+  manifest.display = blink::kWebDisplayModeMinimalUi;
   EXPECT_FALSE(IsManifestValid(manifest));
   EXPECT_EQ(MANIFEST_DISPLAY_NOT_SUPPORTED, GetErrorCode());
 
-  manifest.display = blink::WebDisplayModeStandalone;
+  manifest.display = blink::kWebDisplayModeStandalone;
   EXPECT_TRUE(IsManifestValid(manifest));
   EXPECT_EQ(NO_ERROR_DETECTED, GetErrorCode());
 
-  manifest.display = blink::WebDisplayModeFullscreen;
+  manifest.display = blink::kWebDisplayModeFullscreen;
   EXPECT_TRUE(IsManifestValid(manifest));
   EXPECT_EQ(NO_ERROR_DETECTED, GetErrorCode());
 }

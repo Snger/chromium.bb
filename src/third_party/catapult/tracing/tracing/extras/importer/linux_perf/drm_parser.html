@@ -14,7 +14,6 @@ found in the LICENSE file.
  * @fileoverview Parses drm driver events in the Linux event trace format.
  */
 tr.exportTo('tr.e.importer.linux_perf', function() {
-
   var ColorScheme = tr.b.ColorScheme;
   var Parser = tr.e.importer.linux_perf.Parser;
 
@@ -47,8 +46,7 @@ tr.exportTo('tr.e.importer.linux_perf', function() {
      */
     vblankEvent: function(eventName, cpuNumber, pid, ts, eventBase) {
       var event = /crtc=(\d+), seq=(\d+)/.exec(eventBase.details);
-      if (!event)
-        return false;
+      if (!event) return false;
 
       var crtc = parseInt(event[1]);
       var seq = parseInt(event[2]);

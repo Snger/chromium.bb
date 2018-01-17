@@ -6,20 +6,21 @@
 #define Worklet_h
 
 #include "bindings/core/v8/ScriptPromise.h"
+#include "bindings/core/v8/ScriptPromiseResolver.h"
 #include "bindings/core/v8/ScriptWrappable.h"
 #include "core/CoreExport.h"
 #include "core/dom/ContextLifecycleObserver.h"
-#include "core/loader/resource/ScriptResource.h"
+#include "core/loader/WorkletScriptLoader.h"
 #include "platform/heap/Handle.h"
+#include "platform/loader/fetch/ResourceFetcher.h"
 
 namespace blink {
 
 class LocalFrame;
-class ResourceFetcher;
 class WorkletGlobalScopeProxy;
-class WorkletScriptLoader;
 
 class CORE_EXPORT Worklet : public GarbageCollectedFinalized<Worklet>,
+                            public WorkletScriptLoader::Client,
                             public ScriptWrappable,
                             public ContextLifecycleObserver {
   DEFINE_WRAPPERTYPEINFO();
@@ -27,20 +28,22 @@ class CORE_EXPORT Worklet : public GarbageCollectedFinalized<Worklet>,
   WTF_MAKE_NONCOPYABLE(Worklet);
 
  public:
-  virtual ~Worklet() {}
+  virtual ~Worklet() = default;
 
-  virtual void initialize() {}
-  virtual bool isInitialized() const { return true; }
+  virtual void Initialize() {}
+  virtual bool IsInitialized() const { return true; }
 
-  virtual WorkletGlobalScopeProxy* workletGlobalScopeProxy() const = 0;
+  virtual WorkletGlobalScopeProxy* GetWorkletGlobalScopeProxy() const = 0;
 
   // Worklet
   ScriptPromise import(ScriptState*, const String& url);
 
-  void notifyFinished(WorkletScriptLoader*);
+  // WorkletScriptLoader::Client
+  void NotifyWorkletScriptLoadingFinished(WorkletScriptLoader*,
+                                          const ScriptSourceCode&) final;
 
   // ContextLifecycleObserver
-  void contextDestroyed(ExecutionContext*) final;
+  void ContextDestroyed(ExecutionContext*) final;
 
   DECLARE_VIRTUAL_TRACE();
 
@@ -49,10 +52,9 @@ class CORE_EXPORT Worklet : public GarbageCollectedFinalized<Worklet>,
   explicit Worklet(LocalFrame*);
 
  private:
-  ResourceFetcher* fetcher() const { return m_fetcher.get(); }
-
-  Member<ResourceFetcher> m_fetcher;
-  HeapHashSet<Member<WorkletScriptLoader>> m_scriptLoaders;
+  Member<LocalFrame> frame_;
+  HeapHashMap<Member<WorkletScriptLoader>, Member<ScriptPromiseResolver>>
+      loader_and_resolvers_;
 };
 
 }  // namespace blink

@@ -16,7 +16,6 @@
 
 #include "Context.hpp"
 #include "Surface.hpp"
-#include "CPUID.hpp"
 #include "PixelRoutine.hpp"
 #include "Debug.hpp"
 
@@ -407,6 +406,15 @@ namespace sw
 
 	FilterType Sampler::getTextureFilter() const
 	{
+		// Don't filter 1x1 textures.
+		if(texture.mipmap[0].width[0] == 1 && texture.mipmap[0].height[0] == 1 && texture.mipmap[0].depth[0] == 1)
+		{
+			if(mipmapFilter() == MIPMAP_NONE)
+			{
+				return FILTER_POINT;
+			}
+		}
+
 		FilterType filter = textureFilter;
 
 		if(gather && Surface::componentCount(internalTextureFormat) == 1)

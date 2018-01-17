@@ -454,6 +454,10 @@ bool ValidateES2TexImageParameters(Context *context,
                 }
                 break;
             case GL_ETC1_RGB8_LOSSY_DECODE_ANGLE:
+            case GL_COMPRESSED_RGB8_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_SRGB8_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_LOSSY_DECODE_ETC2_ANGLE:
                 if (!context->getExtensions().lossyETCDecode)
                 {
                     context->handleError(Error(
@@ -467,7 +471,8 @@ bool ValidateES2TexImageParameters(Context *context,
                           "internalformat is not a supported compressed internal format"));
                 return false;
         }
-        if (!ValidCompressedImageSize(context, actualInternalFormat, width, height))
+        if (!ValidCompressedImageSize(context, actualInternalFormat, xoffset, yoffset, width,
+                                      height))
         {
             context->handleError(Error(GL_INVALID_OPERATION));
             return false;
@@ -667,11 +672,15 @@ bool ValidateES2TexImageParameters(Context *context,
                 }
                 break;
             case GL_ETC1_RGB8_LOSSY_DECODE_ANGLE:
+            case GL_COMPRESSED_RGB8_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_SRGB8_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_LOSSY_DECODE_ETC2_ANGLE:
                 if (context->getExtensions().lossyETCDecode)
                 {
                     context->handleError(
                         Error(GL_INVALID_OPERATION,
-                              "ETC1_RGB8_LOSSY_DECODE_ANGLE can't work with this type."));
+                              "ETC lossy decode formats can't work with this type."));
                     return false;
                 }
                 else
@@ -840,6 +849,10 @@ bool ValidateES2CopyTexImageParameters(ValidationContext *context,
             case GL_COMPRESSED_RGBA_S3TC_DXT5_ANGLE:
             case GL_ETC1_RGB8_OES:
             case GL_ETC1_RGB8_LOSSY_DECODE_ANGLE:
+            case GL_COMPRESSED_RGB8_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_SRGB8_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_LOSSY_DECODE_ETC2_ANGLE:
                 context->handleError(Error(GL_INVALID_OPERATION));
                 return false;
             case GL_DEPTH_COMPONENT:
@@ -972,10 +985,14 @@ bool ValidateES2CopyTexImageParameters(ValidationContext *context,
                 }
                 break;
             case GL_ETC1_RGB8_LOSSY_DECODE_ANGLE:
+            case GL_COMPRESSED_RGB8_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_SRGB8_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_LOSSY_DECODE_ETC2_ANGLE:
+            case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_LOSSY_DECODE_ETC2_ANGLE:
                 if (context->getExtensions().lossyETCDecode)
                 {
                     context->handleError(Error(GL_INVALID_OPERATION,
-                                               "ETC1_RGB8_LOSSY_DECODE_ANGLE can't be copied to."));
+                                               "ETC lossy decode formats can't be copied to."));
                     return false;
                 }
                 else
@@ -1114,6 +1131,10 @@ bool ValidateES2TexStorageParameters(Context *context,
             }
             break;
         case GL_ETC1_RGB8_LOSSY_DECODE_ANGLE:
+        case GL_COMPRESSED_RGB8_LOSSY_DECODE_ETC2_ANGLE:
+        case GL_COMPRESSED_SRGB8_LOSSY_DECODE_ETC2_ANGLE:
+        case GL_COMPRESSED_RGB8_PUNCHTHROUGH_ALPHA1_LOSSY_DECODE_ETC2_ANGLE:
+        case GL_COMPRESSED_SRGB8_PUNCHTHROUGH_ALPHA1_LOSSY_DECODE_ETC2_ANGLE:
             if (!context->getExtensions().lossyETCDecode)
             {
                 context->handleError(
@@ -1883,7 +1904,7 @@ bool ValidateBlitFramebufferANGLE(Context *context,
                 }
             }
 
-            if (readFramebuffer->getSamples(context->getContextState()) != 0 &&
+            if (readFramebuffer->getSamples(context) != 0 &&
                 IsPartialBlit(context, readColorAttachment, drawColorAttachment, srcX0, srcY0,
                               srcX1, srcY1, dstX0, dstY0, dstX1, dstY1))
             {
@@ -1910,9 +1931,9 @@ bool ValidateBlitFramebufferANGLE(Context *context,
                                   dstX0, dstY0, dstX1, dstY1))
                 {
                     // only whole-buffer copies are permitted
-                    ERR("Only whole-buffer depth and stencil blits are supported by this "
-                        "implementation.");
-                    context->handleError(Error(GL_INVALID_OPERATION));
+                    context->handleError(Error(GL_INVALID_OPERATION,
+                                               "Only whole-buffer depth and stencil blits are "
+                                               "supported by this extension."));
                     return false;
                 }
 
@@ -1932,7 +1953,7 @@ bool ValidateBlitFramebufferANGLE(Context *context,
 bool ValidateClear(ValidationContext *context, GLbitfield mask)
 {
     auto fbo = context->getGLState().getDrawFramebuffer();
-    if (fbo->checkStatus(context->getContextState()) != GL_FRAMEBUFFER_COMPLETE)
+    if (fbo->checkStatus(context) != GL_FRAMEBUFFER_COMPLETE)
     {
         context->handleError(Error(GL_INVALID_FRAMEBUFFER_OPERATION));
         return false;
@@ -1942,6 +1963,22 @@ bool ValidateClear(ValidationContext *context, GLbitfield mask)
     {
         context->handleError(Error(GL_INVALID_VALUE));
         return false;
+    }
+
+    if (context->getExtensions().webglCompatibility && (mask & GL_COLOR_BUFFER_BIT) != 0)
+    {
+        constexpr GLenum validComponentTypes[] = {GL_FLOAT, GL_UNSIGNED_NORMALIZED,
+                                                  GL_SIGNED_NORMALIZED};
+
+        for (GLuint drawBufferIdx = 0; drawBufferIdx < context->getCaps().maxDrawBuffers;
+             drawBufferIdx++)
+        {
+            if (!ValidateWebGLFramebufferAttachmentClearType(
+                    context, drawBufferIdx, validComponentTypes, ArraySize(validComponentTypes)))
+            {
+                return false;
+            }
+        }
     }
 
     return true;
@@ -3150,7 +3187,10 @@ bool ValidateProgramPathFragmentInputGen(Context *context,
 
 bool ValidateCopyTextureCHROMIUM(Context *context,
                                  GLuint sourceId,
+                                 GLint sourceLevel,
+                                 GLenum destTarget,
                                  GLuint destId,
+                                 GLint destLevel,
                                  GLint internalFormat,
                                  GLenum destType,
                                  GLboolean unpackFlipY,
@@ -3228,7 +3268,10 @@ bool ValidateCopyTextureCHROMIUM(Context *context,
 
 bool ValidateCopySubTextureCHROMIUM(Context *context,
                                     GLuint sourceId,
+                                    GLint sourceLevel,
+                                    GLenum destTarget,
                                     GLuint destId,
+                                    GLint destLevel,
                                     GLint xoffset,
                                     GLint yoffset,
                                     GLint x,
@@ -3311,7 +3354,6 @@ bool ValidateCopySubTextureCHROMIUM(Context *context,
         return false;
     }
 
-    GLenum destTarget = dest->getTarget();
     ASSERT(destTarget != GL_TEXTURE_CUBE_MAP);
     if (dest->getWidth(sourceTarget, 0) == 0 || dest->getHeight(sourceTarget, 0) == 0)
     {
@@ -3827,7 +3869,8 @@ bool ValidateBlendFuncSeparate(ValidationContext *context,
         return false;
     }
 
-    if (context->getLimitations().noSimultaneousConstantColorAndAlphaBlendFunc)
+    if (context->getLimitations().noSimultaneousConstantColorAndAlphaBlendFunc ||
+        context->getExtensions().webglCompatibility)
     {
         bool constantColorUsed =
             (srcRGB == GL_CONSTANT_COLOR || srcRGB == GL_ONE_MINUS_CONSTANT_COLOR ||
@@ -3839,14 +3882,22 @@ bool ValidateBlendFuncSeparate(ValidationContext *context,
 
         if (constantColorUsed && constantAlphaUsed)
         {
-            ERR("Simultaneous use of GL_CONSTANT_ALPHA/GL_ONE_MINUS_CONSTANT_ALPHA and "
-                "GL_CONSTANT_COLOR/GL_ONE_MINUS_CONSTANT_COLOR not supported by this "
-                "implementation.");
-            context->handleError(Error(GL_INVALID_OPERATION,
-                                       "Simultaneous use of "
-                                       "GL_CONSTANT_ALPHA/GL_ONE_MINUS_CONSTANT_ALPHA and "
-                                       "GL_CONSTANT_COLOR/GL_ONE_MINUS_CONSTANT_COLOR not "
-                                       "supported by this implementation."));
+            const char *msg;
+            if (context->getExtensions().webglCompatibility)
+            {
+                msg =
+                    "Invalid simultaneous use of GL_CONSTANT_ALPHA/GL_ONE_MINUS_CONSTANT_ALPHA and "
+                    "GL_CONSTANT_COLOR/GL_ONE_MINUS_CONSTANT_COLOR.";
+            }
+            else
+            {
+                msg =
+                    "Simultaneous use of GL_CONSTANT_ALPHA/GL_ONE_MINUS_CONSTANT_ALPHA and "
+                    "GL_CONSTANT_COLOR/GL_ONE_MINUS_CONSTANT_COLOR not supported by this "
+                    "implementation.";
+                ERR() << msg;
+            }
+            context->handleError(Error(GL_INVALID_OPERATION, msg));
             return false;
         }
     }
@@ -3900,68 +3951,46 @@ bool ValidateVertexAttribPointer(ValidationContext *context,
                                  GLsizei stride,
                                  const GLvoid *ptr)
 {
-    if (index >= MAX_VERTEX_ATTRIBS)
+    if (!ValidateVertexFormatBase(context, index, size, type, false))
     {
-        context->handleError(Error(GL_INVALID_VALUE, "Invalid index value."));
         return false;
-    }
-
-    if (size < 1 || size > 4)
-    {
-        context->handleError(Error(GL_INVALID_VALUE, "Invalide size value."));
-        return false;
-    }
-
-    switch (type)
-    {
-        case GL_BYTE:
-        case GL_UNSIGNED_BYTE:
-        case GL_SHORT:
-        case GL_UNSIGNED_SHORT:
-        case GL_FIXED:
-        case GL_FLOAT:
-            break;
-
-        case GL_HALF_FLOAT:
-        case GL_INT:
-        case GL_UNSIGNED_INT:
-        case GL_INT_2_10_10_10_REV:
-        case GL_UNSIGNED_INT_2_10_10_10_REV:
-            if (context->getClientMajorVersion() < 3)
-            {
-                context->handleError(
-                    Error(GL_INVALID_ENUM, "Vertex type not supported before OpenGL ES 3.0."));
-                return false;
-            }
-            break;
-
-        default:
-            context->handleError(Error(GL_INVALID_ENUM, "Invalid vertex type."));
-            return false;
     }
 
     if (stride < 0)
     {
-        context->handleError(Error(GL_INVALID_VALUE, "Invalid stride."));
+        context->handleError(Error(GL_INVALID_VALUE, "stride cannot be negative."));
         return false;
     }
 
-    if ((type == GL_INT_2_10_10_10_REV || type == GL_UNSIGNED_INT_2_10_10_10_REV) && size != 4)
+    const Caps &caps = context->getCaps();
+    if (context->getClientVersion() >= ES_3_1)
     {
-        context->handleError(Error(GL_INVALID_OPERATION, "Invalid size for a sized vertex type."));
-        return false;
+        if (stride > caps.maxVertexAttribStride)
+        {
+            context->handleError(
+                Error(GL_INVALID_VALUE, "stride cannot be greater than MAX_VERTEX_ATTRIB_STRIDE."));
+            return false;
+        }
+
+        if (index >= caps.maxVertexAttribBindings)
+        {
+            context->handleError(
+                Error(GL_INVALID_VALUE, "index must be smaller than MAX_VERTEX_ATTRIB_BINDINGS."));
+            return false;
+        }
     }
 
     // [OpenGL ES 3.0.2] Section 2.8 page 24:
     // An INVALID_OPERATION error is generated when a non-zero vertex array object
     // is bound, zero is bound to the ARRAY_BUFFER buffer object binding point,
     // and the pointer argument is not NULL.
-    if (context->getGLState().getVertexArray()->id() != 0 &&
-        context->getGLState().getArrayBufferId() == 0 && ptr != NULL)
+    bool nullBufferAllowed = context->getGLState().areClientArraysEnabled() &&
+                             context->getGLState().getVertexArray()->id() == 0;
+    if (!nullBufferAllowed && context->getGLState().getArrayBufferId() == 0 && ptr != nullptr)
     {
         context->handleError(
             Error(GL_INVALID_OPERATION,
-                  "Pointer is null with a non-zero VAO bound and zero bound to GL_ARRAY_BUFFER."));
+                  "Client data cannot be used with a non-default vertex array object."));
         return false;
     }
 
@@ -3975,43 +4004,75 @@ bool ValidateVertexAttribPointer(ValidationContext *context,
             return false;
         }
 
-        // WebGL 1.0 [Section 6.11] Vertex Attribute Data Stride
-        // The WebGL API supports vertex attribute data strides up to 255 bytes. A call to
-        // vertexAttribPointer will generate an INVALID_VALUE error if the value for the stride
-        // parameter exceeds 255.
-        constexpr GLsizei kMaxWebGLStride = 255;
-        if (stride > kMaxWebGLStride)
+        if (!ValidateWebGLVertexAttribPointer(context, type, normalized, stride, ptr, false))
         {
-            context->handleError(
-                Error(GL_INVALID_VALUE, "Stride is over the maximum stride allowed by WebGL."));
-            return false;
-        }
-
-        // WebGL 1.0 [Section 6.4] Buffer Offset and Stride Requirements
-        // The offset arguments to drawElements and vertexAttribPointer, and the stride argument to
-        // vertexAttribPointer, must be a multiple of the size of the data type passed to the call,
-        // or an INVALID_OPERATION error is generated.
-        VertexFormatType internalType = GetVertexFormatType(type, normalized, 1, false);
-        size_t typeSize = GetVertexFormatTypeSize(internalType);
-
-        ASSERT(isPow2(typeSize) && typeSize > 0);
-        size_t sizeMask = (typeSize - 1);
-        if ((reinterpret_cast<intptr_t>(ptr) & sizeMask) != 0)
-        {
-            context->handleError(
-                Error(GL_INVALID_OPERATION, "Offset is not a multiple of the type size."));
-            return false;
-        }
-
-        if ((stride & sizeMask) != 0)
-        {
-            context->handleError(
-                Error(GL_INVALID_OPERATION, "Stride is not a multiple of the type size."));
             return false;
         }
     }
 
     return true;
+}
+
+bool ValidateDepthRangef(ValidationContext *context, GLclampf zNear, GLclampf zFar)
+{
+    if (context->getExtensions().webglCompatibility && zNear > zFar)
+    {
+        context->handleError(Error(GL_INVALID_OPERATION, "Depth near > far."));
+        return false;
+    }
+
+    return true;
+}
+
+bool ValidateRenderbufferStorage(ValidationContext *context,
+                                 GLenum target,
+                                 GLenum internalformat,
+                                 GLsizei width,
+                                 GLsizei height)
+{
+    return ValidateRenderbufferStorageParametersBase(context, target, 0, internalformat, width,
+                                                     height);
+}
+
+bool ValidateRenderbufferStorageMultisampleANGLE(ValidationContext *context,
+                                                 GLenum target,
+                                                 GLsizei samples,
+                                                 GLenum internalformat,
+                                                 GLsizei width,
+                                                 GLsizei height)
+{
+    if (!context->getExtensions().framebufferMultisample)
+    {
+        context->handleError(
+            Error(GL_INVALID_OPERATION, "GL_ANGLE_framebuffer_multisample not available"));
+        return false;
+    }
+
+    // ANGLE_framebuffer_multisample states that the value of samples must be less than or equal
+    // to MAX_SAMPLES_ANGLE (Context::getCaps().maxSamples) otherwise GL_INVALID_OPERATION is
+    // generated.
+    if (static_cast<GLuint>(samples) > context->getCaps().maxSamples)
+    {
+        context->handleError(Error(GL_INVALID_VALUE));
+        return false;
+    }
+
+    // ANGLE_framebuffer_multisample states GL_OUT_OF_MEMORY is generated on a failure to create
+    // the specified storage. This is different than ES 3.0 in which a sample number higher
+    // than the maximum sample number supported by this format generates a GL_INVALID_VALUE.
+    // The TextureCaps::getMaxSamples method is only guarenteed to be valid when the context is ES3.
+    if (context->getClientMajorVersion() >= 3)
+    {
+        const TextureCaps &formatCaps = context->getTextureCaps().get(internalformat);
+        if (static_cast<GLuint>(samples) > formatCaps.getMaxSamples())
+        {
+            context->handleError(Error(GL_OUT_OF_MEMORY));
+            return false;
+        }
+    }
+
+    return ValidateRenderbufferStorageParametersBase(context, target, samples, internalformat,
+                                                     width, height);
 }
 
 }  // namespace gl

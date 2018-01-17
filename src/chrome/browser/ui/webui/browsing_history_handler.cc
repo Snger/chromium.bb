@@ -14,7 +14,6 @@
 #include "base/i18n/rtl.h"
 #include "base/i18n/time_formatting.h"
 #include "base/logging.h"
-#include "base/memory/ptr_util.h"
 #include "base/strings/string16.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/utf_string_conversions.h"
@@ -56,9 +55,9 @@
 #endif
 
 #if defined(OS_ANDROID)
-#include "chrome/browser/android/chrome_application.h"
+#include "chrome/browser/android/preferences/preferences_launcher.h"
 #else
-#include "chrome/browser/ui/webui/md_history_ui.h"
+#include "chrome/common/chrome_features.h"
 #endif
 
 // Number of chars to truncate titles when making them "short".
@@ -239,7 +238,7 @@ std::unique_ptr<base::DictionaryValue> HistoryEntryToValue(
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
   if (supervised_user_service) {
     const SupervisedUserURLFilter* url_filter =
-        supervised_user_service->GetURLFilterForUIThread();
+        supervised_user_service->GetURLFilter();
     int filtering_behavior =
         url_filter->GetFilteringBehaviorForURL(entry->url.GetWithEmptyPath());
     is_blocked_visit = entry->blocked_visit;
@@ -365,14 +364,13 @@ void BrowsingHistoryHandler::HandleRemoveVisits(const base::ListValue* args) {
   items_to_remove.reserve(args->GetSize());
   for (base::ListValue::const_iterator it = args->begin();
        it != args->end(); ++it) {
-    base::DictionaryValue* deletion = NULL;
+    const base::DictionaryValue* deletion = NULL;
     base::string16 url;
-    base::ListValue* timestamps = NULL;
+    const base::ListValue* timestamps = NULL;
 
     // Each argument is a dictionary with properties "url" and "timestamps".
-    if (!((*it)->GetAsDictionary(&deletion) &&
-        deletion->GetString("url", &url) &&
-        deletion->GetList("timestamps", &timestamps))) {
+    if (!(it->GetAsDictionary(&deletion) && deletion->GetString("url", &url) &&
+          deletion->GetList("timestamps", &timestamps))) {
       NOTREACHED() << "Unable to extract arguments";
       return;
     }
@@ -385,7 +383,7 @@ void BrowsingHistoryHandler::HandleRemoveVisits(const base::ListValue* args) {
     double timestamp;
     for (base::ListValue::const_iterator ts_iterator = timestamps->begin();
          ts_iterator != timestamps->end(); ++ts_iterator) {
-      if (!(*ts_iterator)->GetAsDouble(&timestamp)) {
+      if (!ts_iterator->GetAsDouble(&timestamp)) {
         NOTREACHED() << "Unable to extract visit timestamp.";
         continue;
       }
@@ -404,7 +402,7 @@ void BrowsingHistoryHandler::HandleRemoveVisits(const base::ListValue* args) {
 void BrowsingHistoryHandler::HandleClearBrowsingData(
     const base::ListValue* args) {
 #if defined(OS_ANDROID)
-  chrome::android::ChromeApplication::OpenClearBrowsingData(
+  chrome::android::PreferencesLauncher::OpenClearBrowsingData(
       web_ui()->GetWebContents());
 #else
   // TODO(beng): This is an improper direct dependency on Browser. Route this
@@ -492,7 +490,7 @@ void BrowsingHistoryHandler::OnQueryComplete(
 
   bool is_md = false;
 #if !defined(OS_ANDROID)
-  is_md = MdHistoryUI::IsEnabled(profile);
+  is_md = base::FeatureList::IsEnabled(::features::kMaterialDesignHistory);
 #endif
 
   // Convert the result vector into a ListValue.
@@ -523,6 +521,20 @@ void BrowsingHistoryHandler::OnQueryComplete(
       "queryEndTime",
       GetRelativeDateLocalized(clock_.get(), query_results_info->end_time));
 
+// Not used in mobile UI, and cause ~16kb of code bloat (crbug/683386).
+#ifndef OS_ANDROID
+  // TODO(calamity): Clean up grouped-specific fields once grouped history is
+  // removed.
+  results_info.SetString(
+      "queryStartMonth",
+      base::TimeFormatMonthAndYear(query_results_info->start_time));
+  results_info.SetString(
+      "queryInterval",
+      base::DateIntervalFormat(query_results_info->start_time,
+                               query_results_info->end_time,
+                               base::DATE_FORMAT_MONTH_WEEKDAY_DAY));
+#endif
+
   web_ui()->CallJavascriptFunctionUnsafe("historyResult", results_info,
                                          results_value);
 }
@@ -542,7 +554,7 @@ void BrowsingHistoryHandler::HistoryDeleted() {
 void BrowsingHistoryHandler::HasOtherFormsOfBrowsingHistory(
     bool has_other_forms,
     bool has_synced_results) {
-    web_ui()->CallJavascriptFunctionUnsafe(
-        "showNotification", base::FundamentalValue(has_synced_results),
-        base::FundamentalValue(has_other_forms));
+  web_ui()->CallJavascriptFunctionUnsafe("showNotification",
+                                         base::Value(has_synced_results),
+                                         base::Value(has_other_forms));
 }

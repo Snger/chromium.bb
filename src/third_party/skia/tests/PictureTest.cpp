@@ -21,7 +21,6 @@
 #include "SkPicture.h"
 #include "SkPictureAnalyzer.h"
 #include "SkPictureRecorder.h"
-#include "SkPictureUtils.h"
 #include "SkPixelRef.h"
 #include "SkPixelSerializer.h"
 #include "SkMiniRecorder.h"
@@ -417,18 +416,14 @@ static void check_balance(skiatest::Reporter* reporter, SkPicture* picture) {
 
     SkMatrix beforeMatrix = canvas.getTotalMatrix();
 
-    SkRect beforeClip;
-
-    canvas.getClipBounds(&beforeClip);
+    SkRect beforeClip = canvas.getLocalClipBounds();
 
     canvas.drawPicture(picture);
 
     REPORTER_ASSERT(reporter, beforeSaveCount == canvas.getSaveCount());
     REPORTER_ASSERT(reporter, beforeMatrix == canvas.getTotalMatrix());
 
-    SkRect afterClip;
-
-    canvas.getClipBounds(&afterClip);
+    SkRect afterClip = canvas.getLocalClipBounds();
 
     REPORTER_ASSERT(reporter, afterClip == beforeClip);
 }
@@ -643,8 +638,7 @@ static void test_clip_bound_opt(skiatest::Reporter* reporter) {
     {
         SkCanvas* canvas = recorder.beginRecording(10, 10);
         canvas->clipPath(invPath);
-        bool nonEmpty = canvas->getClipDeviceBounds(&clipBounds);
-        REPORTER_ASSERT(reporter, true == nonEmpty);
+        clipBounds = canvas->getDeviceClipBounds();
         REPORTER_ASSERT(reporter, 0 == clipBounds.fLeft);
         REPORTER_ASSERT(reporter, 0 == clipBounds.fTop);
         REPORTER_ASSERT(reporter, 10 == clipBounds.fBottom);
@@ -654,8 +648,7 @@ static void test_clip_bound_opt(skiatest::Reporter* reporter) {
         SkCanvas* canvas = recorder.beginRecording(10, 10);
         canvas->clipPath(path);
         canvas->clipPath(invPath);
-        bool nonEmpty = canvas->getClipDeviceBounds(&clipBounds);
-        REPORTER_ASSERT(reporter, true == nonEmpty);
+        clipBounds = canvas->getDeviceClipBounds();
         REPORTER_ASSERT(reporter, 7 == clipBounds.fLeft);
         REPORTER_ASSERT(reporter, 7 == clipBounds.fTop);
         REPORTER_ASSERT(reporter, 8 == clipBounds.fBottom);
@@ -665,8 +658,7 @@ static void test_clip_bound_opt(skiatest::Reporter* reporter) {
         SkCanvas* canvas = recorder.beginRecording(10, 10);
         canvas->clipPath(path);
         canvas->clipPath(invPath, kUnion_SkClipOp);
-        bool nonEmpty = canvas->getClipDeviceBounds(&clipBounds);
-        REPORTER_ASSERT(reporter, true == nonEmpty);
+        clipBounds = canvas->getDeviceClipBounds();
         REPORTER_ASSERT(reporter, 0 == clipBounds.fLeft);
         REPORTER_ASSERT(reporter, 0 == clipBounds.fTop);
         REPORTER_ASSERT(reporter, 10 == clipBounds.fBottom);
@@ -675,8 +667,7 @@ static void test_clip_bound_opt(skiatest::Reporter* reporter) {
     {
         SkCanvas* canvas = recorder.beginRecording(10, 10);
         canvas->clipPath(path, kDifference_SkClipOp);
-        bool nonEmpty = canvas->getClipDeviceBounds(&clipBounds);
-        REPORTER_ASSERT(reporter, true == nonEmpty);
+        clipBounds = canvas->getDeviceClipBounds();
         REPORTER_ASSERT(reporter, 0 == clipBounds.fLeft);
         REPORTER_ASSERT(reporter, 0 == clipBounds.fTop);
         REPORTER_ASSERT(reporter, 10 == clipBounds.fBottom);
@@ -685,11 +676,10 @@ static void test_clip_bound_opt(skiatest::Reporter* reporter) {
     {
         SkCanvas* canvas = recorder.beginRecording(10, 10);
         canvas->clipPath(path, kReverseDifference_SkClipOp);
-        bool nonEmpty = canvas->getClipDeviceBounds(&clipBounds);
+        clipBounds = canvas->getDeviceClipBounds();
         // True clip is actually empty in this case, but the best
         // determination we can make using only bounds as input is that the
         // clip is included in the bounds of 'path'.
-        REPORTER_ASSERT(reporter, true == nonEmpty);
         REPORTER_ASSERT(reporter, 7 == clipBounds.fLeft);
         REPORTER_ASSERT(reporter, 7 == clipBounds.fTop);
         REPORTER_ASSERT(reporter, 8 == clipBounds.fBottom);
@@ -699,8 +689,7 @@ static void test_clip_bound_opt(skiatest::Reporter* reporter) {
         SkCanvas* canvas = recorder.beginRecording(10, 10);
         canvas->clipPath(path, kIntersect_SkClipOp);
         canvas->clipPath(path2, kXOR_SkClipOp);
-        bool nonEmpty = canvas->getClipDeviceBounds(&clipBounds);
-        REPORTER_ASSERT(reporter, true == nonEmpty);
+        clipBounds = canvas->getDeviceClipBounds();
         REPORTER_ASSERT(reporter, 6 == clipBounds.fLeft);
         REPORTER_ASSERT(reporter, 6 == clipBounds.fTop);
         REPORTER_ASSERT(reporter, 8 == clipBounds.fBottom);
@@ -846,7 +835,7 @@ static void test_gen_id(skiatest::Reporter* reporter) {
     REPORTER_ASSERT(reporter, empty->uniqueID() != SK_InvalidGenID);
 
     SkCanvas* canvas = recorder.beginRecording(1, 1);
-    canvas->drawARGB(255, 255, 255, 255);
+    canvas->drawColor(SK_ColorWHITE);
     sk_sp<SkPicture> hasData(recorder.finishRecordingAsPicture());
     // picture should have a non-zero id after recording
     REPORTER_ASSERT(reporter, hasData->uniqueID() != SK_InvalidGenID);
@@ -952,7 +941,7 @@ DEF_TEST(DontOptimizeSaveLayerDrawDrawRestore, reporter) {
 
     SkPictureRecorder recorder;
     SkCanvas* canvas = recorder.beginRecording(100, 100);
-    canvas->drawARGB(0, 0, 0, 0);
+    canvas->drawColor(0);
 
     canvas->saveLayer(0, &semiTransparent);
     canvas->drawBitmap(blueBM, 25, 25);
@@ -1147,67 +1136,3 @@ DEF_TEST(PictureGpuAnalyzer, r) {
 }
 
 #endif // SK_SUPPORT_GPU
-
-///////////////////////////////////////////////////////////////////////////////////////////////////
-
-// Disable until we properly fix https://bugs.chromium.org/p/skia/issues/detail?id=5548
-#if 0
-static void empty_ops(SkCanvas* canvas) {
-}
-static void clip_ops(SkCanvas* canvas) {
-    canvas->save();
-    canvas->clipRect(SkRect::MakeWH(20, 20));
-    canvas->restore();
-}
-static void matrix_ops(SkCanvas* canvas) {
-    canvas->save();
-    canvas->scale(2, 3);
-    canvas->restore();
-}
-static void matrixclip_ops(SkCanvas* canvas) {
-    canvas->save();
-    canvas->scale(2, 3);
-    canvas->clipRect(SkRect::MakeWH(20, 20));
-    canvas->restore();
-}
-typedef void (*CanvasProc)(SkCanvas*);
-
-// Test the kReturnNullForEmpty_FinishFlag option when recording
-//
-DEF_TEST(Picture_RecordEmpty, r) {
-    const SkRect cull = SkRect::MakeWH(100, 100);
-
-    CanvasProc procs[] { empty_ops, clip_ops, matrix_ops, matrixclip_ops };
-
-    for (auto proc : procs) {
-        {
-            SkPictureRecorder rec;
-            proc(rec.beginRecording(cull));
-            sk_sp<SkPicture> pic = rec.finishRecordingAsPicture(0);
-            REPORTER_ASSERT(r, pic.get());
-            REPORTER_ASSERT(r, pic->approximateOpCount() == 0);
-        }
-        {
-            SkPictureRecorder rec;
-            proc(rec.beginRecording(cull));
-            sk_sp<SkPicture> pic = rec.finishRecordingAsPicture(
-                                                 SkPictureRecorder::kReturnNullForEmpty_FinishFlag);
-            REPORTER_ASSERT(r, !pic.get());
-        }
-        {
-            SkPictureRecorder rec;
-            proc(rec.beginRecording(cull));
-            sk_sp<SkDrawable> dr = rec.finishRecordingAsDrawable(0);
-            REPORTER_ASSERT(r, dr.get());
-        }
-        {
-            SkPictureRecorder rec;
-            proc(rec.beginRecording(cull));
-            sk_sp<SkDrawable> dr = rec.finishRecordingAsDrawable(
-                                                 SkPictureRecorder::kReturnNullForEmpty_FinishFlag);
-            REPORTER_ASSERT(r, !dr.get());
-        }
-    }
-}
-#endif
-

@@ -6,8 +6,8 @@
 #define BluetoothStructTraits_h
 
 #include "device/bluetooth/public/interfaces/uuid.mojom-blink.h"
+#include "platform/wtf/text/WTFString.h"
 #include "public/platform/modules/bluetooth/web_bluetooth.mojom-blink.h"
-#include "wtf/text/WTFString.h"
 
 namespace mojo {
 
@@ -26,6 +26,10 @@ struct StructTraits<bluetooth::mojom::UUIDDataView, WTF::String> {
   static const WTF::String& uuid(const WTF::String& input) { return input; }
 
   static bool Read(bluetooth::mojom::UUIDDataView, WTF::String* output);
+
+  static bool IsNull(const WTF::String& input) { return input.IsNull(); }
+
+  static void SetToNull(WTF::String* output);
 };
 
 }  // namespace mojo

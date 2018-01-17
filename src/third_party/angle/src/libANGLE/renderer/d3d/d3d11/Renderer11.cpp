@@ -9,7 +9,6 @@
 #include "libANGLE/renderer/d3d/d3d11/Renderer11.h"
 
 #include <EGL/eglext.h>
-#include <iomanip>
 #include <sstream>
 #include <versionhelpers.h>
 
@@ -377,10 +376,7 @@ int GetWrapBits(GLenum wrap)
     }
 }
 
-// If we request a scratch buffer requesting a smaller size this many times,
-// release and recreate the scratch buffer. This ensures we don't have a
-// degenerate case where we are stuck hogging memory.
-const int ScratchMemoryBufferLifetime = 1000;
+const uint32_t ScratchMemoryBufferLifetime = 1000;
 
 }  // anonymous namespace
 
@@ -388,9 +384,10 @@ Renderer11::Renderer11(egl::Display *display)
     : RendererD3D(display),
       mStateCache(this),
       mStateManager(this),
-      mLastHistogramUpdateTime(ANGLEPlatformCurrent()->monotonicallyIncreasingTime()),
+      mLastHistogramUpdateTime(
+          ANGLEPlatformCurrent()->monotonicallyIncreasingTime(ANGLEPlatformCurrent())),
       mDebug(nullptr),
-      mScratchMemoryBufferResetCounter(0),
+      mScratchMemoryBuffer(ScratchMemoryBufferLifetime),
       mAnnotator(nullptr)
 {
     mVertexDataManager = NULL;
@@ -733,7 +730,7 @@ egl::Error Renderer11::initializeD3DDevice()
 
         if (!mDevice || FAILED(result))
         {
-            ERR("Failed creating Debug D3D11 device - falling back to release runtime.\n");
+            WARN() << "Failed creating Debug D3D11 device - falling back to release runtime.";
         }
 
         if (!mDevice || FAILED(result))
@@ -869,7 +866,7 @@ void Renderer11::populateRenderer11DeviceCaps()
     if (FAILED(hr))
     {
         mRenderer11DeviceCaps.driverVersion.reset();
-        ERR("Error querying driver version from DXGI Adapter.");
+        ERR() << "Error querying driver version from DXGI Adapter.";
     }
     else
     {
@@ -932,6 +929,17 @@ egl::ConfigSet Renderer11::generateConfigs()
 
     // 24-bit supported formats
     colorBufferFormats.push_back(GL_RGB8_OES);
+
+    if (mRenderer11DeviceCaps.featureLevel >= D3D_FEATURE_LEVEL_10_0)
+    {
+        // Additional high bit depth formats added in D3D 10.0
+        // https://msdn.microsoft.com/en-us/library/windows/desktop/bb173064.aspx
+        colorBufferFormats.push_back(GL_RGBA16F);
+
+        // TODO(geofflang): Re-enable once client code has been updated to filter configs better and
+        // not use RGB10A2 accidentally when requesting RGBA8
+        // colorBufferFormats.push_back(GL_RGB10_A2);
+    }
 
     if (!mPresentPathFastEnabled)
     {
@@ -1041,6 +1049,8 @@ egl::ConfigSet Renderer11::generateConfigs()
             config.transparentGreenValue = 0;
             config.transparentBlueValue  = 0;
             config.optimalOrientation    = optimalSurfaceOrientation;
+            config.colorComponentType =
+                gl_egl::GLComponentTypeToEGLColorComponentType(colorBufferFormatInfo.componentType);
 
             configs.add(config);
         }
@@ -1090,6 +1100,14 @@ void Renderer11::generateDisplayExtensions(egl::DisplayExtensions *outExtensions
 
     outExtensions->flexibleSurfaceCompatibility = true;
     outExtensions->directComposition            = !!mDCompModule;
+
+    // Contexts are virtualized so textures can be shared globally
+    outExtensions->displayTextureShareGroup = true;
+
+    outExtensions->createContextRobustResourceInitialization = true;
+
+    // getSyncValues requires direct composition.
+    outExtensions->getSyncValues = outExtensions->directComposition;
 }
 
 gl::Error Renderer11::flush()
@@ -1133,8 +1151,11 @@ gl::Error Renderer11::finish()
                              result);
         }
 
-        // Keep polling, but allow other threads to do something useful first
-        ScheduleYield();
+        if (result == S_FALSE)
+        {
+            // Keep polling, but allow other threads to do something useful first
+            ScheduleYield();
+        }
 
         if (testDeviceLost())
         {
@@ -1571,15 +1592,16 @@ gl::Error Renderer11::setUniformBuffers(const gl::ContextState &data,
     return gl::NoError();
 }
 
-gl::Error Renderer11::updateState(const gl::ContextState &data, GLenum drawMode)
+gl::Error Renderer11::updateState(ContextImpl *contextImpl, GLenum drawMode)
 {
+    const auto &data    = contextImpl->getContextState();
     const auto &glState = data.getState();
 
     // Applies the render target surface, depth stencil surface, viewport rectangle and
     // scissor rectangle to the renderer
     gl::Framebuffer *framebuffer = glState.getDrawFramebuffer();
-    ASSERT(framebuffer && !framebuffer->hasAnyDirtyBit() && framebuffer->complete(data));
-    ANGLE_TRY(applyRenderTarget(framebuffer));
+    ASSERT(framebuffer && !framebuffer->hasAnyDirtyBit() && framebuffer->cachedComplete());
+    ANGLE_TRY(mStateManager.syncFramebuffer(contextImpl, framebuffer));
 
     // Set the present path state
     auto firstColorAttachment        = framebuffer->getFirstColorbuffer();
@@ -1680,11 +1702,6 @@ bool Renderer11::applyPrimitiveType(GLenum mode, GLsizei count, bool usesPointSi
     }
 
     return count >= minCount;
-}
-
-gl::Error Renderer11::applyRenderTarget(gl::Framebuffer *framebuffer)
-{
-    return mStateManager.syncFramebuffer(framebuffer);
 }
 
 gl::Error Renderer11::applyVertexBuffer(const gl::State &state,
@@ -1873,7 +1890,7 @@ gl::Error Renderer11::drawArraysImpl(const gl::ContextState &data,
 
     if (mode == GL_LINE_LOOP)
     {
-        return drawLineLoop(data, count, GL_NONE, nullptr, nullptr, instances);
+        return drawLineLoop(data, count, GL_NONE, nullptr, 0, instances);
     }
 
     if (mode == GL_TRIANGLE_FAN)
@@ -1932,16 +1949,17 @@ gl::Error Renderer11::drawElementsImpl(const gl::ContextState &data,
                                        const GLvoid *indices,
                                        GLsizei instances)
 {
-    int minIndex = static_cast<int>(indexInfo.indexRange.start);
+    int startVertex = static_cast<int>(indexInfo.indexRange.start);
+    int baseVertex  = -startVertex;
 
     if (mode == GL_LINE_LOOP)
     {
-        return drawLineLoop(data, count, type, indices, &indexInfo, instances);
+        return drawLineLoop(data, count, type, indices, baseVertex, instances);
     }
 
     if (mode == GL_TRIANGLE_FAN)
     {
-        return drawTriangleFan(data, count, type, indices, minIndex, instances);
+        return drawTriangleFan(data, count, type, indices, baseVertex, instances);
     }
 
     const ProgramD3D *programD3D = GetImplAs<ProgramD3D>(data.getState().getProgram());
@@ -1961,13 +1979,13 @@ gl::Error Renderer11::drawElementsImpl(const gl::ContextState &data,
             for (GLsizei i = 0; i < instances; i++)
             {
                 ANGLE_TRY(
-                    mInputLayoutCache.updateVertexOffsetsForPointSpritesEmulation(minIndex, i));
+                    mInputLayoutCache.updateVertexOffsetsForPointSpritesEmulation(startVertex, i));
                 mDeviceContext->DrawIndexedInstanced(6, elementsToRender, 0, 0, 0);
             }
         }
         else
         {
-            mDeviceContext->DrawIndexedInstanced(count, instances, 0, -minIndex, 0);
+            mDeviceContext->DrawIndexedInstanced(count, instances, 0, baseVertex, 0);
         }
         return gl::NoError();
     }
@@ -1989,8 +2007,152 @@ gl::Error Renderer11::drawElementsImpl(const gl::ContextState &data,
     }
     else
     {
-        mDeviceContext->DrawIndexed(count, 0, -minIndex);
+        mDeviceContext->DrawIndexed(count, 0, baseVertex);
     }
+    return gl::NoError();
+}
+
+bool Renderer11::supportsFastIndirectDraw(const gl::State &state, GLenum mode, GLenum type)
+{
+    const auto &vertexArray = state.getVertexArray();
+    auto *vertexArray11     = GetImplAs<VertexArray11>(vertexArray);
+    // Indirect drawing doesn't support dynamic attribute storage since it needs the first and count
+    // to translate when applyVertexBuffer. GL_LINE_LOOP and GL_TRIANGLE_FAN are not supported
+    // either since we need to simulate them in D3D.
+    if (vertexArray11->hasDynamicAttrib(state) || mode == GL_LINE_LOOP || mode == GL_TRIANGLE_FAN)
+    {
+        return false;
+    }
+
+    if (type != GL_NONE)
+    {
+        gl::Buffer *elementArrayBuffer = vertexArray->getElementArrayBuffer().get();
+        ASSERT(elementArrayBuffer);
+        // Only non-streaming index data can be directly used to do indirect draw since they don't
+        // need the indices and count informations. Here we don't check whether it really has
+        // primitive restart index in it since it also needs to know the index range and count.
+        // So, for all other situations, we fall back to normal draw instead of indirect draw.
+        bool primitiveRestartWorkaround = mIndexDataManager->usePrimitiveRestartWorkaround(
+            state.isPrimitiveRestartEnabled(), type);
+        return !mIndexDataManager->isStreamingIndexData(primitiveRestartWorkaround, type,
+                                                        elementArrayBuffer);
+    }
+    return true;
+}
+
+gl::Error Renderer11::drawArraysIndirectImpl(const gl::ContextState &data,
+                                             GLenum mode,
+                                             const GLvoid *indirect)
+{
+    if (skipDraw(data, mode))
+    {
+        return gl::NoError();
+    }
+
+    const auto &glState            = data.getState();
+    gl::Buffer *drawIndirectBuffer = glState.getDrawIndirectBuffer();
+    ASSERT(drawIndirectBuffer);
+    Buffer11 *storage = GetImplAs<Buffer11>(drawIndirectBuffer);
+    uintptr_t offset  = reinterpret_cast<uintptr_t>(indirect);
+
+    if (supportsFastIndirectDraw(glState, mode, GL_NONE))
+    {
+        applyVertexBuffer(glState, mode, 0, 0, 0, nullptr);
+        ID3D11Buffer *buffer = nullptr;
+        ANGLE_TRY_RESULT(storage->getBuffer(BUFFER_USAGE_INDIRECT), buffer);
+        mDeviceContext->DrawInstancedIndirect(buffer, static_cast<unsigned int>(offset));
+        return gl::NoError();
+    }
+
+    const uint8_t *bufferData = nullptr;
+    ANGLE_TRY(storage->getData(&bufferData));
+    ASSERT(bufferData);
+    const gl::DrawArraysIndirectCommand *args =
+        reinterpret_cast<const gl::DrawArraysIndirectCommand *>(bufferData + offset);
+    GLuint count     = args->count;
+    GLuint instances = args->instanceCount;
+    GLuint first     = args->first;
+
+    ANGLE_TRY(applyVertexBuffer(glState, mode, first, count, instances, nullptr));
+
+    if (mode == GL_LINE_LOOP)
+    {
+        return drawLineLoop(data, count, GL_NONE, nullptr, 0, instances);
+    }
+    if (mode == GL_TRIANGLE_FAN)
+    {
+        return drawTriangleFan(data, count, GL_NONE, nullptr, 0, instances);
+    }
+
+    mDeviceContext->DrawInstanced(count, instances, 0, 0);
+    return gl::NoError();
+}
+
+gl::Error Renderer11::drawElementsIndirectImpl(const gl::ContextState &data,
+                                               GLenum mode,
+                                               GLenum type,
+                                               const GLvoid *indirect)
+{
+    if (skipDraw(data, mode))
+    {
+        return gl::NoError();
+    }
+
+    const auto &glState            = data.getState();
+    gl::Buffer *drawIndirectBuffer = glState.getDrawIndirectBuffer();
+    ASSERT(drawIndirectBuffer);
+    Buffer11 *storage = GetImplAs<Buffer11>(drawIndirectBuffer);
+    uintptr_t offset  = reinterpret_cast<uintptr_t>(indirect);
+
+    TranslatedIndexData indexInfo;
+    if (supportsFastIndirectDraw(glState, mode, type))
+    {
+        ANGLE_TRY(applyIndexBuffer(data, nullptr, 0, mode, type, &indexInfo));
+        ANGLE_TRY(applyVertexBuffer(glState, mode, 0, 0, 0, &indexInfo));
+        ID3D11Buffer *buffer = nullptr;
+        ANGLE_TRY_RESULT(storage->getBuffer(BUFFER_USAGE_INDIRECT), buffer);
+        mDeviceContext->DrawIndexedInstancedIndirect(buffer, static_cast<unsigned int>(offset));
+        return gl::NoError();
+    }
+
+    const uint8_t *bufferData = nullptr;
+    ANGLE_TRY(storage->getData(&bufferData));
+    ASSERT(bufferData);
+
+    const gl::DrawElementsIndirectCommand *cmd =
+        reinterpret_cast<const gl::DrawElementsIndirectCommand *>(bufferData + offset);
+    GLuint count      = cmd->count;
+    GLuint instances  = cmd->primCount;
+    GLuint firstIndex = cmd->firstIndex;
+    GLint baseVertex  = cmd->baseVertex;
+
+    const gl::Type &typeInfo = gl::GetTypeInfo(type);
+    uint8_t *indices         = static_cast<uint8_t *>(0) + firstIndex * typeInfo.bytes;
+
+    gl::Buffer *elementArrayBuffer = glState.getVertexArray()->getElementArrayBuffer().get();
+    ASSERT(elementArrayBuffer);
+    gl::IndexRange indexRange;
+    ANGLE_TRY(elementArrayBuffer->getIndexRange(type, reinterpret_cast<size_t>(indices), count,
+                                                glState.isPrimitiveRestartEnabled(), &indexRange));
+
+    indexInfo.indexRange = indexRange;
+    ANGLE_TRY(applyIndexBuffer(data, indices, count, mode, type, &indexInfo));
+    size_t vertexCount = indexRange.vertexCount();
+    ANGLE_TRY(applyVertexBuffer(glState, mode, static_cast<GLsizei>(indexRange.start) + baseVertex,
+                                static_cast<GLsizei>(vertexCount), instances, &indexInfo));
+
+    int baseVertexLocation = -static_cast<int>(indexRange.start);
+    if (mode == GL_LINE_LOOP)
+    {
+        return drawLineLoop(data, count, type, indices, baseVertexLocation, instances);
+    }
+
+    if (mode == GL_TRIANGLE_FAN)
+    {
+        return drawTriangleFan(data, count, type, indices, baseVertexLocation, instances);
+    }
+
+    mDeviceContext->DrawIndexedInstanced(count, instances, 0, baseVertexLocation, 0);
     return gl::NoError();
 }
 
@@ -1998,7 +2160,7 @@ gl::Error Renderer11::drawLineLoop(const gl::ContextState &data,
                                    GLsizei count,
                                    GLenum type,
                                    const GLvoid *indexPointer,
-                                   const TranslatedIndexData *indexInfo,
+                                   int baseVertex,
                                    int instances)
 {
     const auto &glState            = data.getState();
@@ -2072,16 +2234,15 @@ gl::Error Renderer11::drawLineLoop(const gl::ContextState &data,
         mAppliedIBOffset = offset;
     }
 
-    INT baseVertexLocation = (indexInfo ? -static_cast<int>(indexInfo->indexRange.start) : 0);
     UINT indexCount        = static_cast<UINT>(mScratchIndexDataBuffer.size());
 
     if (instances > 0)
     {
-        mDeviceContext->DrawIndexedInstanced(indexCount, instances, 0, baseVertexLocation, 0);
+        mDeviceContext->DrawIndexedInstanced(indexCount, instances, 0, baseVertex, 0);
     }
     else
     {
-        mDeviceContext->DrawIndexed(indexCount, 0, baseVertexLocation);
+        mDeviceContext->DrawIndexed(indexCount, 0, baseVertex);
     }
 
     return gl::NoError();
@@ -2091,7 +2252,7 @@ gl::Error Renderer11::drawTriangleFan(const gl::ContextState &data,
                                       GLsizei count,
                                       GLenum type,
                                       const GLvoid *indices,
-                                      int minIndex,
+                                      int baseVertex,
                                       int instances)
 {
     gl::VertexArray *vao           = data.getState().getVertexArray();
@@ -2167,11 +2328,11 @@ gl::Error Renderer11::drawTriangleFan(const gl::ContextState &data,
 
     if (instances > 0)
     {
-        mDeviceContext->DrawIndexedInstanced(indexCount, instances, 0, -minIndex, 0);
+        mDeviceContext->DrawIndexedInstanced(indexCount, instances, 0, baseVertex, 0);
     }
     else
     {
-        mDeviceContext->DrawIndexed(indexCount, 0, -minIndex);
+        mDeviceContext->DrawIndexed(indexCount, 0, baseVertex);
     }
 
     return gl::NoError();
@@ -2651,7 +2812,7 @@ bool Renderer11::testDeviceLost()
 
     if (isLost)
     {
-        ERR("The D3D11 device was removed: 0x%08X", result);
+        ERR() << "The D3D11 device was removed, " << gl::FmtHR(result);
     }
 
     return isLost;
@@ -2698,7 +2859,7 @@ void Renderer11::release()
 {
     RendererD3D::cleanup();
 
-    mScratchMemoryBuffer.resize(0);
+    mScratchMemoryBuffer.clear();
 
     if (mAnnotator != nullptr)
     {
@@ -2761,7 +2922,7 @@ bool Renderer11::resetDevice()
 
     if (result.isError())
     {
-        ERR("Could not reinitialize D3D11 device: %08X", result.getCode());
+        ERR() << "Could not reinitialize D3D11 device: " << result;
         return false;
     }
 
@@ -3124,6 +3285,7 @@ gl::Error Renderer11::copyTexture(const gl::Texture *source,
                                   GLenum destFormat,
                                   const gl::Offset &destOffset,
                                   TextureStorage *storage,
+                                  GLenum destTarget,
                                   GLint destLevel,
                                   bool unpackFlipY,
                                   bool unpackPremultiplyAlpha,
@@ -3134,6 +3296,7 @@ gl::Error Renderer11::copyTexture(const gl::Texture *source,
     TextureStorage *sourceStorage = nullptr;
     ANGLE_TRY(const_cast<TextureD3D *>(sourceD3D)->getNativeTexture(&sourceStorage));
 
+    ASSERT(destTarget == GL_TEXTURE_2D);
     TextureStorage11_2D *sourceStorage11 = GetAs<TextureStorage11_2D>(sourceStorage);
     ASSERT(sourceStorage11);
 
@@ -4011,9 +4174,8 @@ gl::Error Renderer11::blitRenderbufferRect(const gl::Rectangle &readRectIn,
     RenderTarget11 *drawRenderTarget11 = GetAs<RenderTarget11>(drawRenderTarget);
     if (!drawRenderTarget11)
     {
-        return gl::Error(
-            GL_OUT_OF_MEMORY,
-            "Failed to retrieve the internal draw render target from the draw framebuffer.");
+        return gl::OutOfMemory()
+               << "Failed to retrieve the internal draw render target from the draw framebuffer.";
     }
 
     TextureHelper11 drawTexture = TextureHelper11::MakeAndReference(
@@ -4025,9 +4187,8 @@ gl::Error Renderer11::blitRenderbufferRect(const gl::Rectangle &readRectIn,
     RenderTarget11 *readRenderTarget11 = GetAs<RenderTarget11>(readRenderTarget);
     if (!readRenderTarget11)
     {
-        return gl::Error(
-            GL_OUT_OF_MEMORY,
-            "Failed to retrieve the internal read render target from the read framebuffer.");
+        return gl::OutOfMemory()
+               << "Failed to retrieve the internal read render target from the read framebuffer.";
     }
 
     TextureHelper11 readTexture;
@@ -4036,8 +4197,8 @@ gl::Error Renderer11::blitRenderbufferRect(const gl::Rectangle &readRectIn,
 
     if (readRenderTarget->getSamples() > 1)
     {
-        auto readRT11 = GetAs<RenderTarget11>(readRenderTarget);
-        ANGLE_TRY_RESULT(resolveMultisampledTexture(readRT11, depthBlit, stencilBlit), readTexture);
+        ANGLE_TRY_RESULT(resolveMultisampledTexture(readRenderTarget11, depthBlit, stencilBlit),
+                         readTexture);
 
         if (!stencilBlit)
         {
@@ -4053,9 +4214,9 @@ gl::Error Renderer11::blitRenderbufferRect(const gl::Rectangle &readRectIn,
                 mDevice->CreateShaderResourceView(readTexture.getResource(), &viewDesc, &readSRV);
             if (FAILED(hresult))
             {
-                return gl::Error(
-                    GL_OUT_OF_MEMORY,
-                    "Renderer11::blitRenderbufferRect: Failed to create temporary SRV.");
+                return gl::OutOfMemory()
+                       << "Renderer11::blitRenderbufferRect: Failed to create temporary SRV, "
+                       << hresult;
             }
         }
     }
@@ -4281,7 +4442,8 @@ void Renderer11::onSwap()
     // Send histogram updates every half hour
     const double kHistogramUpdateInterval = 30 * 60;
 
-    const double currentTime         = ANGLEPlatformCurrent()->monotonicallyIncreasingTime();
+    auto *platform                   = ANGLEPlatformCurrent();
+    const double currentTime         = platform->monotonicallyIncreasingTime(platform);
     const double timeSinceLastUpdate = currentTime - mLastHistogramUpdateTime;
 
     if (timeSinceLastUpdate > kHistogramUpdateInterval)
@@ -4395,6 +4557,7 @@ GLenum Renderer11::getVertexComponentType(gl::VertexFormatType vertexFormatType)
 
 gl::ErrorOrResult<unsigned int> Renderer11::getVertexSpaceRequired(
     const gl::VertexAttribute &attrib,
+    const gl::VertexBinding &binding,
     GLsizei count,
     GLsizei instances) const
 {
@@ -4404,14 +4567,14 @@ gl::ErrorOrResult<unsigned int> Renderer11::getVertexSpaceRequired(
     }
 
     unsigned int elementCount = 0;
-    if (instances == 0 || attrib.divisor == 0)
+    if (instances == 0 || binding.divisor == 0)
     {
         elementCount = count;
     }
     else
     {
         // Round up to divisor, if possible
-        elementCount = UnsignedCeilDivide(static_cast<unsigned int>(instances), attrib.divisor);
+        elementCount = UnsignedCeilDivide(static_cast<unsigned int>(instances), binding.divisor);
     }
 
     gl::VertexFormatType formatType      = gl::GetVertexFormatType(attrib);
@@ -4497,7 +4660,7 @@ gl::Error Renderer11::genericDrawElements(Context11 *context,
         return gl::NoError();
     }
 
-    ANGLE_TRY(updateState(data, mode));
+    ANGLE_TRY(updateState(context, mode));
 
     TranslatedIndexData indexInfo;
     indexInfo.indexRange = indexRange;
@@ -4545,7 +4708,7 @@ gl::Error Renderer11::genericDrawArrays(Context11 *context,
         return gl::NoError();
     }
 
-    ANGLE_TRY(updateState(data, mode));
+    ANGLE_TRY(updateState(context, mode));
     ANGLE_TRY(applyTransformFeedbackBuffers(data));
     ANGLE_TRY(applyVertexBuffer(glState, mode, first, count, instances, nullptr));
     ANGLE_TRY(applyTextures(context, data));
@@ -4565,38 +4728,51 @@ gl::Error Renderer11::genericDrawArrays(Context11 *context,
     return gl::NoError();
 }
 
+gl::Error Renderer11::genericDrawIndirect(Context11 *context,
+                                          GLenum mode,
+                                          GLenum type,
+                                          const GLvoid *indirect)
+{
+    const auto &data     = context->getContextState();
+    const auto &glState  = data.getState();
+    gl::Program *program = glState.getProgram();
+    ASSERT(program != nullptr);
+    ProgramD3D *programD3D = GetImplAs<ProgramD3D>(program);
+    bool usesPointSize     = programD3D->usesPointSize();
+    programD3D->updateSamplerMapping();
+
+    ANGLE_TRY(generateSwizzles(data));
+    applyPrimitiveType(mode, 0, usesPointSize);
+    ANGLE_TRY(updateState(context, mode));
+    ANGLE_TRY(applyTransformFeedbackBuffers(data));
+    ASSERT(!glState.isTransformFeedbackActiveUnpaused());
+    ANGLE_TRY(applyTextures(context, data));
+    ANGLE_TRY(applyShaders(data, mode));
+    ANGLE_TRY(programD3D->applyUniformBuffers(data));
+
+    if (type == GL_NONE)
+    {
+        ANGLE_TRY(drawArraysIndirectImpl(data, mode, indirect));
+    }
+    else
+    {
+        ANGLE_TRY(drawElementsIndirectImpl(data, mode, type, indirect));
+    }
+
+    return gl::NoError();
+}
+
 FramebufferImpl *Renderer11::createDefaultFramebuffer(const gl::FramebufferState &state)
 {
     return new Framebuffer11(state, this);
 }
 
-gl::Error Renderer11::getScratchMemoryBuffer(size_t requestedSize, MemoryBuffer **bufferOut)
+gl::Error Renderer11::getScratchMemoryBuffer(size_t requestedSize, angle::MemoryBuffer **bufferOut)
 {
-    if (mScratchMemoryBuffer.size() == requestedSize)
+    if (!mScratchMemoryBuffer.get(requestedSize, bufferOut))
     {
-        mScratchMemoryBufferResetCounter = ScratchMemoryBufferLifetime;
-        *bufferOut                       = &mScratchMemoryBuffer;
-        return gl::NoError();
+        return gl::OutOfMemory() << "Failed to allocate internal buffer.";
     }
-
-    if (mScratchMemoryBuffer.size() > requestedSize)
-    {
-        mScratchMemoryBufferResetCounter--;
-    }
-
-    if (mScratchMemoryBufferResetCounter <= 0 || mScratchMemoryBuffer.size() < requestedSize)
-    {
-        mScratchMemoryBuffer.resize(0);
-        if (!mScratchMemoryBuffer.resize(requestedSize))
-        {
-            return gl::Error(GL_OUT_OF_MEMORY, "Failed to allocate internal buffer.");
-        }
-        mScratchMemoryBufferResetCounter = ScratchMemoryBufferLifetime;
-    }
-
-    ASSERT(mScratchMemoryBuffer.size() >= requestedSize);
-
-    *bufferOut = &mScratchMemoryBuffer;
     return gl::NoError();
 }
 

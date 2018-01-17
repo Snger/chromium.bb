@@ -74,6 +74,8 @@ static inline const char* GrGLSLPrecisionString(GrSLPrecision p) {
             return "mediump";
         case kHigh_GrSLPrecision:
             return "highp";
+        case kDefault_GrSLPrecision:
+            return "";
         default:
             SkFAIL("Unexpected precision type.");
             return "";
@@ -95,6 +97,12 @@ static inline const char* GrGLSLTypeString(GrSLType t) {
             return "vec3";
         case kVec4f_GrSLType:
             return "vec4";
+        case kVec2i_GrSLType:
+            return "ivec2";
+        case kVec3i_GrSLType:
+            return "ivec3";
+        case kVec4i_GrSLType:
+            return "ivec4";
         case kMat22f_GrSLType:
             return "mat2";
         case kMat33f_GrSLType:

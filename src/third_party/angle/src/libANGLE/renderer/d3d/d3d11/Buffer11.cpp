@@ -143,7 +143,7 @@ class Buffer11::NativeStorage : public Buffer11::BufferStorage
   public:
     NativeStorage(Renderer11 *renderer,
                   BufferUsage usage,
-                  const angle::BroadcastChannel *onStorageChanged);
+                  const angle::BroadcastChannel<> *onStorageChanged);
     ~NativeStorage() override;
 
     bool isMappable(GLbitfield access) const override;
@@ -171,7 +171,7 @@ class Buffer11::NativeStorage : public Buffer11::BufferStorage
     void clearSRVs();
 
     ID3D11Buffer *mNativeStorage;
-    const angle::BroadcastChannel *mOnStorageChanged;
+    const angle::BroadcastChannel<> *mOnStorageChanged;
     std::map<DXGI_FORMAT, ID3D11ShaderResourceView *> mBufferResourceViews;
 };
 
@@ -205,8 +205,8 @@ class Buffer11::EmulatedIndexedStorage : public Buffer11::BufferStorage
 
   private:
     ID3D11Buffer *mNativeStorage;       // contains expanded data for use by D3D
-    MemoryBuffer mMemoryBuffer;         // original data (not expanded)
-    MemoryBuffer mIndicesMemoryBuffer;  // indices data
+    angle::MemoryBuffer mMemoryBuffer;  // original data (not expanded)
+    angle::MemoryBuffer mIndicesMemoryBuffer;  // indices data
 };
 
 // Pack storage represents internal storage for pack buffers. We implement pack buffers
@@ -237,7 +237,7 @@ class Buffer11::PackStorage : public Buffer11::BufferStorage
     gl::Error flushQueuedPackCommand();
 
     TextureHelper11 mStagingTexture;
-    MemoryBuffer mMemoryBuffer;
+    angle::MemoryBuffer mMemoryBuffer;
     std::unique_ptr<PackPixelsParams> mQueuedPackCommand;
     PackPixelsParams mPackParams;
     bool mDataModified;
@@ -265,10 +265,10 @@ class Buffer11::SystemMemoryStorage : public Buffer11::BufferStorage
                   uint8_t **mapPointerOut) override;
     void unmap() override;
 
-    MemoryBuffer *getSystemCopy() { return &mSystemCopy; }
+    angle::MemoryBuffer *getSystemCopy() { return &mSystemCopy; }
 
   protected:
-    MemoryBuffer mSystemCopy;
+    angle::MemoryBuffer mSystemCopy;
 };
 
 Buffer11::Buffer11(const gl::BufferState &state, Renderer11 *renderer)
@@ -299,10 +299,14 @@ Buffer11::~Buffer11()
     mRenderer->onBufferDelete(this);
 }
 
-gl::Error Buffer11::setData(GLenum target, const void *data, size_t size, GLenum usage)
+gl::Error Buffer11::setData(ContextImpl *context,
+                            GLenum target,
+                            const void *data,
+                            size_t size,
+                            GLenum usage)
 {
     updateD3DBufferUsage(usage);
-    ANGLE_TRY(setSubData(target, data, size, 0));
+    ANGLE_TRY(setSubData(context, target, data, size, 0));
     return gl::NoError();
 }
 
@@ -324,7 +328,11 @@ gl::ErrorOrResult<Buffer11::SystemMemoryStorage *> Buffer11::getSystemMemoryStor
     return GetAs<SystemMemoryStorage>(storage);
 }
 
-gl::Error Buffer11::setSubData(GLenum target, const void *data, size_t size, size_t offset)
+gl::Error Buffer11::setSubData(ContextImpl * /*context*/,
+                               GLenum target,
+                               const void *data,
+                               size_t size,
+                               size_t offset)
 {
     size_t requiredSize = size + offset;
 
@@ -380,7 +388,8 @@ gl::Error Buffer11::setSubData(GLenum target, const void *data, size_t size, siz
     return gl::NoError();
 }
 
-gl::Error Buffer11::copySubData(BufferImpl *source,
+gl::Error Buffer11::copySubData(ContextImpl *context,
+                                BufferImpl *source,
                                 GLintptr sourceOffset,
                                 GLintptr destOffset,
                                 GLsizeiptr size)
@@ -443,15 +452,19 @@ gl::Error Buffer11::copySubData(BufferImpl *source,
     return gl::NoError();
 }
 
-gl::Error Buffer11::map(GLenum access, GLvoid **mapPtr)
+gl::Error Buffer11::map(ContextImpl *context, GLenum access, GLvoid **mapPtr)
 {
     // GL_OES_mapbuffer uses an enum instead of a bitfield for it's access, convert to a bitfield
     // and call mapRange.
     ASSERT(access == GL_WRITE_ONLY_OES);
-    return mapRange(0, mSize, GL_MAP_WRITE_BIT, mapPtr);
+    return mapRange(context, 0, mSize, GL_MAP_WRITE_BIT, mapPtr);
 }
 
-gl::Error Buffer11::mapRange(size_t offset, size_t length, GLbitfield access, GLvoid **mapPtr)
+gl::Error Buffer11::mapRange(ContextImpl *context,
+                             size_t offset,
+                             size_t length,
+                             GLbitfield access,
+                             GLvoid **mapPtr)
 {
     ASSERT(!mMappedStorage);
 
@@ -491,7 +504,7 @@ gl::Error Buffer11::mapRange(size_t offset, size_t length, GLbitfield access, GL
     return gl::NoError();
 }
 
-gl::Error Buffer11::unmap(GLboolean *result)
+gl::Error Buffer11::unmap(ContextImpl *context, GLboolean *result)
 {
     ASSERT(mMappedStorage);
     mMappedStorage->unmap();
@@ -889,12 +902,12 @@ void Buffer11::invalidateStaticData()
     mStaticBroadcastChannel.signal();
 }
 
-angle::BroadcastChannel *Buffer11::getStaticBroadcastChannel()
+angle::BroadcastChannel<> *Buffer11::getStaticBroadcastChannel()
 {
     return &mStaticBroadcastChannel;
 }
 
-angle::BroadcastChannel *Buffer11::getDirectBroadcastChannel()
+angle::BroadcastChannel<> *Buffer11::getDirectBroadcastChannel()
 {
     return &mDirectBroadcastChannel;
 }
@@ -928,7 +941,7 @@ gl::Error Buffer11::BufferStorage::setData(const uint8_t *data, size_t offset, s
 
 Buffer11::NativeStorage::NativeStorage(Renderer11 *renderer,
                                        BufferUsage usage,
-                                       const angle::BroadcastChannel *onStorageChanged)
+                                       const angle::BroadcastChannel<> *onStorageChanged)
     : BufferStorage(renderer, usage), mNativeStorage(nullptr), mOnStorageChanged(onStorageChanged)
 {
 }
@@ -1097,6 +1110,13 @@ void Buffer11::NativeStorage::FillBufferDesc(D3D11_BUFFER_DESC *bufferDesc,
             bufferDesc->CPUAccessFlags = 0;
             break;
 
+        case BUFFER_USAGE_INDIRECT:
+            bufferDesc->MiscFlags      = D3D11_RESOURCE_MISC_DRAWINDIRECT_ARGS;
+            bufferDesc->Usage          = D3D11_USAGE_DEFAULT;
+            bufferDesc->BindFlags      = 0;
+            bufferDesc->CPUAccessFlags = 0;
+            break;
+
         case BUFFER_USAGE_PIXEL_UNPACK:
             bufferDesc->Usage          = D3D11_USAGE_DEFAULT;
             bufferDesc->BindFlags      = D3D11_BIND_SHADER_RESOURCE;
@@ -1261,7 +1281,7 @@ gl::ErrorOrResult<ID3D11Buffer *> Buffer11::EmulatedIndexedStorage::getNativeSto
         // Expand the memory storage upon request and cache the results.
         unsigned int expandedDataSize =
             static_cast<unsigned int>((indexInfo->srcCount * attribute.stride) + offset);
-        MemoryBuffer expandedData;
+        angle::MemoryBuffer expandedData;
         if (!expandedData.resize(expandedDataSize))
         {
             return gl::Error(

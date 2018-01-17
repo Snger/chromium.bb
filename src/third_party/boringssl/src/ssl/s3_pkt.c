@@ -140,7 +140,7 @@ again:
   }
 
   CBS body;
-  uint8_t type, alert;
+  uint8_t type, alert = SSL_AD_DECODE_ERROR;
   size_t consumed;
   enum ssl_open_record_t open_ret =
       tls_open_record(ssl, &type, &body, &consumed, &alert,
@@ -188,16 +188,10 @@ again:
   return -1;
 }
 
-int ssl3_write_app_data(SSL *ssl, const void *buf, int len) {
-  assert(!SSL_in_init(ssl) || SSL_in_false_start(ssl));
+int ssl3_write_app_data(SSL *ssl, const uint8_t *buf, int len) {
+  assert(ssl_can_write(ssl));
+  assert(ssl->s3->aead_write_ctx != NULL);
 
-  return ssl3_write_bytes(ssl, SSL3_RT_APPLICATION_DATA, buf, len);
-}
-
-/* Call this to write data in records of type |type|. It will return <= 0 if
- * not all data has been sent or non-blocking IO. */
-int ssl3_write_bytes(SSL *ssl, int type, const void *buf_, int len) {
-  const uint8_t *buf = buf_;
   unsigned tot, n, nw;
 
   assert(ssl->s3->wnum <= INT_MAX);
@@ -216,7 +210,7 @@ int ssl3_write_bytes(SSL *ssl, int type, const void *buf_, int len) {
     return -1;
   }
 
-  n = (len - tot);
+  n = len - tot;
   for (;;) {
     /* max contains the maximum number of bytes that we can put into a
      * record. */
@@ -227,14 +221,13 @@ int ssl3_write_bytes(SSL *ssl, int type, const void *buf_, int len) {
       nw = n;
     }
 
-    int ret = do_ssl3_write(ssl, type, &buf[tot], nw);
+    int ret = do_ssl3_write(ssl, SSL3_RT_APPLICATION_DATA, &buf[tot], nw);
     if (ret <= 0) {
       ssl->s3->wnum = tot;
       return ret;
     }
 
-    if (ret == (int)n || (type == SSL3_RT_APPLICATION_DATA &&
-                          (ssl->mode & SSL_MODE_ENABLE_PARTIAL_WRITE))) {
+    if (ret == (int)n || (ssl->mode & SSL_MODE_ENABLE_PARTIAL_WRITE)) {
       return tot + ret;
     }
 
@@ -267,13 +260,12 @@ static int do_ssl3_write(SSL *ssl, int type, const uint8_t *buf, unsigned len) {
     return ssl3_write_pending(ssl, type, buf, len);
   }
 
-  /* If we have an alert to send, lets send it */
-  if (ssl->s3->alert_dispatch) {
-    int ret = ssl->method->dispatch_alert(ssl);
-    if (ret <= 0) {
-      return ret;
-    }
-    /* if it went, fall through and send more stuff */
+  /* The handshake flight buffer is mutually exclusive with application data.
+   *
+   * TODO(davidben): This will not be true when closure alerts use this. */
+  if (ssl->s3->pending_flight != NULL) {
+    OPENSSL_PUT_ERROR(SSL, ERR_R_INTERNAL_ERROR);
+    return -1;
   }
 
   if (len > SSL3_RT_MAX_PLAIN_LENGTH) {
@@ -334,9 +326,11 @@ static int consume_record(SSL *ssl, uint8_t *out, int len, int peek) {
 
 int ssl3_read_app_data(SSL *ssl, int *out_got_handshake, uint8_t *buf, int len,
                        int peek) {
-  assert(!SSL_in_init(ssl));
-  assert(ssl->s3->initial_handshake_complete);
+  assert(ssl_can_read(ssl));
+  assert(ssl->s3->aead_read_ctx != NULL);
   *out_got_handshake = 0;
+
+  ssl->method->release_current_message(ssl, 0 /* don't free buffer */);
 
   SSL3_RECORD *rr = &ssl->s3->rrec;
 
@@ -354,6 +348,14 @@ int ssl3_read_app_data(SSL *ssl, int *out_got_handshake, uint8_t *buf, int len,
     }
 
     if (has_hs_data || rr->type == SSL3_RT_HANDSHAKE) {
+      /* If reading 0-RTT data, reject handshake data. 0-RTT data is terminated
+       * by an alert. */
+      if (SSL_in_init(ssl)) {
+        OPENSSL_PUT_ERROR(SSL, SSL_R_UNEXPECTED_RECORD);
+        ssl3_send_alert(ssl, SSL3_AL_FATAL, SSL_AD_UNEXPECTED_MESSAGE);
+        return -1;
+      }
+
       /* Post-handshake data prior to TLS 1.3 is always renegotiation, which we
        * never accept as a server. Otherwise |ssl3_get_message| will send
        * |SSL_R_EXCESSIVE_MESSAGE_SIZE|. */
@@ -364,10 +366,28 @@ int ssl3_read_app_data(SSL *ssl, int *out_got_handshake, uint8_t *buf, int len,
       }
 
       /* Parse post-handshake handshake messages. */
-      int ret = ssl3_get_message(ssl, -1, ssl_dont_hash_message);
+      int ret = ssl3_get_message(ssl);
       if (ret <= 0) {
         return ret;
       }
+      *out_got_handshake = 1;
+      return -1;
+    }
+
+    /* Handle the end_of_early_data alert. */
+    if (rr->type == SSL3_RT_ALERT &&
+        rr->length == 2 &&
+        rr->data[0] == SSL3_AL_WARNING &&
+        rr->data[1] == TLS1_AD_END_OF_EARLY_DATA &&
+        ssl->server &&
+        ssl->s3->hs != NULL &&
+        ssl->s3->hs->can_early_read &&
+        ssl3_protocol_version(ssl) >= TLS1_3_VERSION) {
+      /* Consume the record. */
+      rr->length = 0;
+      ssl_read_buffer_discard(ssl);
+      /* Stop accepting early data. */
+      ssl->s3->hs->can_early_read = 0;
       *out_got_handshake = 1;
       return -1;
     }
@@ -456,10 +476,11 @@ int ssl3_send_alert(SSL *ssl, int level, int desc) {
     return -1;
   }
 
-  if (level == SSL3_AL_FATAL) {
-    ssl->s3->send_shutdown = ssl_shutdown_fatal_alert;
-  } else if (level == SSL3_AL_WARNING && desc == SSL_AD_CLOSE_NOTIFY) {
+  if (level == SSL3_AL_WARNING && desc == SSL_AD_CLOSE_NOTIFY) {
     ssl->s3->send_shutdown = ssl_shutdown_close_notify;
+  } else {
+    assert(level == SSL3_AL_FATAL);
+    ssl->s3->send_shutdown = ssl_shutdown_fatal_alert;
   }
 
   ssl->s3->alert_dispatch = 1;
@@ -476,12 +497,11 @@ int ssl3_send_alert(SSL *ssl, int level, int desc) {
 }
 
 int ssl3_dispatch_alert(SSL *ssl) {
-  ssl->s3->alert_dispatch = 0;
   int ret = do_ssl3_write(ssl, SSL3_RT_ALERT, &ssl->s3->send_alert[0], 2);
   if (ret <= 0) {
-    ssl->s3->alert_dispatch = 1;
     return ret;
   }
+  ssl->s3->alert_dispatch = 0;
 
   /* If the alert is fatal, flush the BIO now. */
   if (ssl->s3->send_alert[0] == SSL3_AL_FATAL) {

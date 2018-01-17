@@ -4,7 +4,7 @@
 
 #include "chrome/browser/ui/webui/options/chromeos/options_stylus_handler.h"
 
-#include "ash/common/system/chromeos/palette/palette_utils.h"
+#include "ash/system/palette/palette_utils.h"
 #include "base/values.h"
 #include "chrome/browser/profiles/profile.h"
 #include "chrome/grit/generated_resources.h"
@@ -51,7 +51,7 @@ void OptionsStylusHandler::GetLocalizedValues(
       l10n_util::GetStringUTF16(IDS_SETTINGS_STYLUS_ENABLE_STYLUS_TOOLS));
   localized_strings->SetString(
       "stylusFindMoreApps",
-      l10n_util::GetStringUTF16(IDS_SETTINGS_STYLUS_FIND_MORE_APPS));
+      l10n_util::GetStringUTF16(IDS_SETTINGS_STYLUS_FIND_MORE_APPS_PRIMARY));
   localized_strings->SetString(
       "stylusNoteTakingApp",
       l10n_util::GetStringUTF16(IDS_OPTIONS_STYLUS_NOTE_TAKING_APP_LABEL));
@@ -99,7 +99,7 @@ void OptionsStylusHandler::SendHasStylus() {
 
   web_ui()->CallJavascriptFunctionUnsafe(
       "BrowserOptions.setStylusInputStatus",
-      base::FundamentalValue(ash::palette_utils::HasStylusInput()));
+      base::Value(ash::palette_utils::HasStylusInput()));
 }
 
 void OptionsStylusHandler::UpdateNoteTakingApps() {
@@ -108,8 +108,8 @@ void OptionsStylusHandler::UpdateNoteTakingApps() {
   base::ListValue apps_list;
 
   NoteTakingHelper* helper = NoteTakingHelper::Get();
-  if (helper->android_enabled() && !helper->android_apps_received()) {
-    // If Android is enabled but not ready yet, let the JS know so it can
+  if (helper->play_store_enabled() && !helper->android_apps_received()) {
+    // If Play Store is enabled but not ready yet, let the JS know so it can
     // disable the menu and display an explanatory message.
     waiting_for_android = true;
   } else {
@@ -127,9 +127,9 @@ void OptionsStylusHandler::UpdateNoteTakingApps() {
     }
   }
 
-  web_ui()->CallJavascriptFunctionUnsafe(
-      "StylusOverlay.updateNoteTakingApps", apps_list,
-      base::FundamentalValue(waiting_for_android));
+  web_ui()->CallJavascriptFunctionUnsafe("StylusOverlay.updateNoteTakingApps",
+                                         apps_list,
+                                         base::Value(waiting_for_android));
 }
 
 void OptionsStylusHandler::SetPreferredNoteTakingApp(

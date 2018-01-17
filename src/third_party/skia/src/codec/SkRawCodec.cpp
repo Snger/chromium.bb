@@ -201,7 +201,7 @@ public:
 
 class SkRawLimitedDynamicMemoryWStream : public SkDynamicMemoryWStream {
 public:
-    virtual ~SkRawLimitedDynamicMemoryWStream() {}
+    ~SkRawLimitedDynamicMemoryWStream() override {}
 
     bool write(const void* buffer, size_t size) override {
         size_t newSize;
@@ -648,6 +648,19 @@ SkCodec* SkRawCodec::NewFromStream(SkStream* stream) {
     ::piex::PreviewImageData imageData;
     if (::piex::IsRaw(&piexStream)) {
         ::piex::Error error = ::piex::GetPreviewImageData(&piexStream, &imageData);
+        if (error == ::piex::Error::kFail) {
+            return nullptr;
+        }
+
+        sk_sp<SkColorSpace> colorSpace;
+        switch (imageData.color_space) {
+            case ::piex::PreviewImageData::kSrgb:
+                colorSpace = SkColorSpace::MakeSRGB();
+                break;
+            case ::piex::PreviewImageData::kAdobeRgb:
+                colorSpace = SkColorSpace_Base::MakeNamed(SkColorSpace_Base::kAdobeRGB_Named);
+                break;
+        }
 
         //  Theoretically PIEX can return JPEG compressed image or uncompressed RGB image. We only
         //  handle the JPEG compressed preview image here.
@@ -659,9 +672,8 @@ SkCodec* SkRawCodec::NewFromStream(SkStream* stream) {
             // FIXME: one may avoid the copy of memoryStream and use the buffered rawStream.
             SkMemoryStream* memoryStream =
                 rawStream->transferBuffer(imageData.preview.offset, imageData.preview.length);
-            return memoryStream ? SkJpegCodec::NewFromStream(memoryStream) : nullptr;
-        } else if (error == ::piex::Error::kFail) {
-            return nullptr;
+            return memoryStream ? SkJpegCodec::NewFromStream(memoryStream, std::move(colorSpace))
+                                : nullptr;
         }
     }
 
@@ -678,7 +690,9 @@ SkCodec::Result SkRawCodec::onGetPixels(const SkImageInfo& dstInfo, void* dst,
                                         size_t dstRowBytes, const Options& options,
                                         SkPMColor ctable[], int* ctableCount,
                                         int* rowsDecoded) {
-    if (!conversion_possible(dstInfo, this->getInfo()) || !this->initializeColorXform(dstInfo)) {
+    if (!conversion_possible(dstInfo, this->getInfo()) ||
+        !this->initializeColorXform(dstInfo, options.fPremulBehavior))
+    {
         SkCodecPrintf("Error: cannot convert input type to output type.\n");
         return kInvalidConversion;
     }
@@ -794,5 +808,5 @@ SkRawCodec::~SkRawCodec() {}
 
 SkRawCodec::SkRawCodec(SkDngImage* dngImage)
     : INHERITED(dngImage->width(), dngImage->height(), dngImage->getEncodedInfo(), nullptr,
-                SkColorSpace::MakeNamed(SkColorSpace::kSRGB_Named))
+                SkColorSpace::MakeSRGB())
     , fDngImage(dngImage) {}

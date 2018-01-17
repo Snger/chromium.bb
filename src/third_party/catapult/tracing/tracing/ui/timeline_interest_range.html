@@ -5,7 +5,7 @@ Use of this source code is governed by a BSD-style license that can be
 found in the LICENSE file.
 -->
 
-<link rel="import" href="/tracing/base/range.html">
+<link rel="import" href="/tracing/base/math/range.html">
 
 <script>
 'use strict';
@@ -27,7 +27,7 @@ tr.exportTo('tr.ui', function() {
   function TimelineInterestRange(vp) {
     this.viewport_ = vp;
 
-    this.range_ = new tr.b.Range();
+    this.range_ = new tr.b.math.Range();
 
     this.leftSelected_ = false;
     this.rightSelected_ = false;
@@ -85,7 +85,7 @@ tr.exportTo('tr.ui', function() {
     },
 
     asRangeObject: function() {
-      var range = new tr.b.Range();
+      var range = new tr.b.math.Range();
       range.addRange(this.range_);
       return range;
     },
@@ -95,8 +95,8 @@ tr.exportTo('tr.ui', function() {
     },
 
     set leftSelected(leftSelected) {
-      if (this.leftSelected_ === leftSelected)
-        return;
+      if (this.leftSelected_ === leftSelected) return;
+
       this.leftSelected_ = leftSelected;
       this.viewport_.dispatchChangeEvent();
     },
@@ -106,8 +106,8 @@ tr.exportTo('tr.ui', function() {
     },
 
     set rightSelected(rightSelected) {
-      if (this.rightSelected_ === rightSelected)
-        return;
+      if (this.rightSelected_ === rightSelected) return;
+
       this.rightSelected_ = rightSelected;
       this.viewport_.dispatchChangeEvent();
     },
@@ -131,8 +131,8 @@ tr.exportTo('tr.ui', function() {
     },
 
     draw: function(ctx, viewLWorld, viewRWorld) {
-      if (this.range_.isEmpty)
-        return;
+      if (this.range_.isEmpty) return;
+
       var dt = this.viewport_.currentDisplayTransform;
 
       var markerLWorld = this.min;
@@ -156,20 +156,19 @@ tr.exportTo('tr.ui', function() {
       ctx.lineWidth = Math.round(pixelRatio);
       if (this.range_.range > 0) {
         this.drawLine_(ctx, viewLWorld, viewRWorld,
-                       ctx.canvas.height, this.min, this.leftSelected_);
+            ctx.canvas.height, this.min, this.leftSelected_);
         this.drawLine_(ctx, viewLWorld, viewRWorld,
-                       ctx.canvas.height, this.max, this.rightSelected_);
+            ctx.canvas.height, this.max, this.rightSelected_);
       } else {
         this.drawLine_(ctx, viewLWorld, viewRWorld,
-                       ctx.canvas.height, this.min,
-                       this.leftSelected_ || this.rightSelected_);
+            ctx.canvas.height, this.min,
+            this.leftSelected_ || this.rightSelected_);
       }
       ctx.lineWidth = 1;
     },
 
     drawLine_: function(ctx, viewLWorld, viewRWorld, height, ts, selected) {
-      if (ts < viewLWorld || ts >= viewRWorld)
-        return;
+      if (ts < viewLWorld || ts >= viewRWorld) return;
 
       var dt = this.viewport_.currentDisplayTransform;
       var viewX = Math.round(dt.xWorldToView(ts));
@@ -181,10 +180,11 @@ tr.exportTo('tr.ui', function() {
 
       ctx.beginPath();
       tr.ui.b.drawLine(ctx, viewX, 0, viewX, height);
-      if (selected)
+      if (selected) {
         ctx.strokeStyle = 'rgb(255, 0, 0)';
-      else
+      } else {
         ctx.strokeStyle = 'rgb(0, 0, 0)';
+      }
       ctx.stroke();
 
       ctx.restore();
@@ -193,20 +193,20 @@ tr.exportTo('tr.ui', function() {
     drawIndicators: function(ctx, viewLWorld, viewRWorld) {
       if (this.leftSnapIndicator_) {
         this.drawIndicator_(ctx, viewLWorld, viewRWorld,
-                            this.range_.min,
-                            this.leftSnapIndicator_,
-                            this.leftSelected_);
+            this.range_.min,
+            this.leftSnapIndicator_,
+            this.leftSelected_);
       }
       if (this.rightSnapIndicator_) {
         this.drawIndicator_(ctx, viewLWorld, viewRWorld,
-                            this.range_.max,
-                            this.rightSnapIndicator_,
-                            this.rightSelected_);
+            this.range_.max,
+            this.rightSnapIndicator_,
+            this.rightSelected_);
       }
     },
 
     drawIndicator_: function(ctx, viewLWorld, viewRWorld,
-                             xWorld, si, selected) {
+        xWorld, si, selected) {
       var dt = this.viewport_.currentDisplayTransform;
 
       var viewX = Math.round(dt.xWorldToView(xWorld));
@@ -221,10 +221,11 @@ tr.exportTo('tr.ui', function() {
       var viewHeight = si.height * devicePixelRatio;
       var arrowSize = 4 * pixelRatio;
 
-      if (selected)
+      if (selected) {
         ctx.fillStyle = 'rgb(255, 0, 0)';
-      else
+      } else {
         ctx.fillStyle = 'rgb(0, 0, 0)';
+      }
       tr.ui.b.drawTriangle(ctx,
           viewX - arrowSize * 0.75, viewY,
           viewX + arrowSize * 0.75, viewY,

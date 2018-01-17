@@ -50,6 +50,7 @@
 #include "chrome/browser/ui/webui/policy_ui.h"
 #include "chrome/browser/ui/webui/predictors/predictors_ui.h"
 #include "chrome/browser/ui/webui/profiler_ui.h"
+#include "chrome/browser/ui/webui/quota_internals/quota_internals_ui.h"
 #include "chrome/browser/ui/webui/settings/md_settings_ui.h"
 #include "chrome/browser/ui/webui/settings_utils.h"
 #include "chrome/browser/ui/webui/signin_internals_ui.h"
@@ -114,9 +115,7 @@
 #include "chrome/browser/ui/webui/offline/offline_internals_ui.h"
 #include "chrome/browser/ui/webui/popular_sites_internals_ui.h"
 #include "chrome/browser/ui/webui/snippets_internals_ui.h"
-#if defined(ENABLE_VR_SHELL) || defined(ENABLE_WEBVR)
-#include "chrome/browser/ui/webui/vr_shell/vr_shell_ui_ui.h"
-#endif
+#include "chrome/browser/ui/webui/webapks_ui.h"
 #else
 #include "chrome/browser/signin/easy_unlock_service.h"
 #include "chrome/browser/signin/easy_unlock_service_factory.h"
@@ -127,7 +126,6 @@
 #include "chrome/browser/ui/webui/md_feedback/md_feedback_ui.h"
 #include "chrome/browser/ui/webui/md_history_ui.h"
 #include "chrome/browser/ui/webui/ntp/new_tab_ui.h"
-#include "chrome/browser/ui/webui/quota_internals/quota_internals_ui.h"
 #include "chrome/browser/ui/webui/sync_file_system_internals/sync_file_system_internals_ui.h"
 #include "chrome/browser/ui/webui/system_info_ui.h"
 #include "chrome/browser/ui/webui/uber/uber_ui.h"
@@ -175,9 +173,14 @@
 #endif
 
 #if defined(OS_WIN)
+#include "chrome/browser/ui/webui/cleanup_tool/cleanup_tool_ui.h"
 #include "chrome/browser/ui/webui/conflicts_ui.h"
 #include "chrome/browser/ui/webui/set_as_default_browser_ui_win.h"
 #include "chrome/browser/ui/webui/welcome_win10_ui.h"
+#endif
+
+#if defined(OS_LINUX) || defined(OS_ANDROID)
+#include "chrome/browser/ui/webui/sandbox_internals_ui.h"
 #endif
 
 #if (defined(USE_NSS_CERTS) || defined(USE_OPENSSL_CERTS)) && defined(USE_AURA)
@@ -290,8 +293,7 @@ bool IsAboutUI(const GURL& url) {
           || url.host_piece() == chrome::kChromeUITermsHost
 #endif
 #if defined(OS_LINUX) || defined(OS_OPENBSD)
-          || url.host_piece() == chrome::kChromeUILinuxProxyConfigHost ||
-          url.host_piece() == chrome::kChromeUISandboxHost
+          || url.host_piece() == chrome::kChromeUILinuxProxyConfigHost
 #endif
 #if defined(OS_CHROMEOS)
           || url.host_piece() == chrome::kChromeUIOSCreditsHost
@@ -366,7 +368,9 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<PredictorsUI>;
   if (url.host_piece() == chrome::kChromeUIProfilerHost)
     return &NewWebUI<ProfilerUI>;
-  if (url.host_piece() == chrome::kChromeUISignInInternalsHost)
+  if (url.host() == chrome::kChromeUIQuotaInternalsHost)
+    return &NewWebUI<QuotaInternalsUI>;
+  if (url.host() == chrome::kChromeUISignInInternalsHost)
     return &NewWebUI<SignInInternalsUI>;
   if (url.host_piece() == chrome::kChromeUISuggestionsHost)
     return &NewWebUI<suggestions::SuggestionsUI>;
@@ -432,7 +436,7 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<extensions::ExtensionsUI>;
   }
   // Material Design history is on its own host, rather than on an Uber page.
-  if (MdHistoryUI::IsEnabled(profile) &&
+  if (base::FeatureList::IsEnabled(features::kMaterialDesignHistory) &&
       url.host_piece() == chrome::kChromeUIHistoryHost) {
     return &NewWebUI<MdHistoryUI>;
   }
@@ -441,14 +445,11 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
       url.host_piece() == chrome::kChromeUISettingsHost) {
     return &NewWebUI<settings::MdSettingsUI>;
   }
-  if (url.host_piece() == chrome::kChromeUIQuotaInternalsHost)
-    return &NewWebUI<QuotaInternalsUI>;
   // Settings are implemented with native UI elements on Android.
-  // Handle chrome://settings if settings in a window and about in settings
-  // are enabled.
+  // Handle chrome://settings if settings in a window is enabled.
   if (url.host_piece() == chrome::kChromeUISettingsFrameHost ||
       (url.host_piece() == chrome::kChromeUISettingsHost &&
-       ::switches::AboutInSettingsEnabled())) {
+       ::switches::SettingsWindowEnabled())) {
     return &NewWebUI<options::OptionsUI>;
   }
   if (url.host_piece() == chrome::kChromeUISyncFileSystemInternalsHost)
@@ -463,6 +464,9 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<UberUI>;
 #endif  // !defined(OS_ANDROID)
 #if defined(OS_WIN)
+  if (base::FeatureList::IsEnabled(features::kCleanupToolUI) &&
+      url.host_piece() == chrome::kChromeUICleanupToolHost)
+    return &NewWebUI<CleanupToolUI>;
   if (url.host_piece() == chrome::kChromeUIConflictsHost)
     return &NewWebUI<ConflictsUI>;
   if (url.host_piece() == chrome::kChromeUIMetroFlowHost)
@@ -520,10 +524,8 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
   if (url.host_piece() == chrome::kChromeUISnippetsInternalsHost &&
       !profile->IsOffTheRecord())
     return &NewWebUI<SnippetsInternalsUI>;
-#if defined(ENABLE_VR_SHELL) || defined(ENABLE_WEBVR)
-  if (url.host_piece() == chrome::kChromeUIVrShellUIHost)
-    return &NewWebUI<VrShellUIUI>;
-#endif
+  if (url.host_piece() == chrome::kChromeUIWebApksHost)
+    return &NewWebUI<WebApksUI>;
 #else
   if (url.SchemeIs(content::kChromeDevToolsScheme)) {
     if (!DevToolsUIBindings::IsValidFrontendURL(url))
@@ -542,7 +544,8 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
   if (url.host_piece() == chrome::kChromeUIMdUserManagerHost)
     return &NewWebUI<MDUserManagerUI>;
   if (url.host_piece() == chrome::kChromeUISigninErrorHost &&
-      !profile->IsOffTheRecord())
+      (!profile->IsOffTheRecord() ||
+       profile->GetOriginalProfile()->IsSystemProfile()))
     return &NewWebUI<SigninErrorUI>;
   if (url.host_piece() == chrome::kChromeUISyncConfirmationHost &&
       !profile->IsOffTheRecord())
@@ -626,6 +629,11 @@ WebUIFactoryFunction GetWebUIFactoryFunction(WebUI* web_ui,
     return &NewWebUI<CastUI>;
   }
 #endif
+#endif
+#if defined(OS_LINUX) || defined(OS_ANDROID)
+  if (url.host_piece() == chrome::kChromeUISandboxHost) {
+    return &NewWebUI<SandboxInternalsUI>;
+  }
 #endif
   if (IsAboutUI(url))
     return &NewWebUI<AboutUI>;

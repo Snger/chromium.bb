@@ -20,12 +20,14 @@
 #include "base/i18n/bidi_line_iterator.h"
 #include "base/strings/string_number_conversions.h"
 #include "base/strings/string_util.h"
+#include "chrome/browser/ui/layout_constants.h"
 #include "chrome/browser/ui/views/location_bar/background_with_1_px_border.h"
 #include "chrome/browser/ui/views/location_bar/location_bar_view.h"
 #include "chrome/browser/ui/views/omnibox/omnibox_popup_contents_view.h"
 #include "chrome/grit/generated_resources.h"
 #include "components/grit/components_scaled_resources.h"
 #include "components/omnibox/browser/omnibox_popup_model.h"
+#include "components/omnibox/browser/vector_icons.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/base/l10n/l10n_util.h"
@@ -40,12 +42,15 @@
 #include "ui/gfx/range/range.h"
 #include "ui/gfx/render_text.h"
 #include "ui/gfx/text_utils.h"
-#include "ui/gfx/vector_icons_public.h"
 #include "ui/native_theme/native_theme.h"
 
 using ui::NativeTheme;
 
 namespace {
+
+// The padding that should be placed between content and description in a
+// vertical layout.
+static const int kVerticalPadding = 3;
 
 // A mapping from OmniboxResultView's ResultViewState/ColorKind types to
 // NativeTheme colors.
@@ -127,15 +132,15 @@ TextStyle GetTextStyle(int type) {
               gfx::NORMAL_BASELINE};
     case SuggestionAnswer::ANSWER_TEXT_MEDIUM:
       return {ui::ResourceBundle::BaseFont,
-              {NativeTheme::kColorId_ResultsTableNormalText,
-               NativeTheme::kColorId_ResultsTableHoveredText,
-               NativeTheme::kColorId_ResultsTableSelectedText},
+              {NativeTheme::kColorId_ResultsTableNormalDimmedText,
+               NativeTheme::kColorId_ResultsTableHoveredDimmedText,
+               NativeTheme::kColorId_ResultsTableSelectedDimmedText},
               gfx::NORMAL_BASELINE};
     case SuggestionAnswer::ANSWER_TEXT_LARGE:
       return {ui::ResourceBundle::LargeFont,
-              {NativeTheme::kColorId_ResultsTableNormalText,
-               NativeTheme::kColorId_ResultsTableHoveredText,
-               NativeTheme::kColorId_ResultsTableSelectedText},
+              {NativeTheme::kColorId_ResultsTableNormalDimmedText,
+               NativeTheme::kColorId_ResultsTableHoveredDimmedText,
+               NativeTheme::kColorId_ResultsTableSelectedDimmedText},
               gfx::NORMAL_BASELINE};
     case SuggestionAnswer::SUGGESTION_SECONDARY_TEXT_SMALL:
       return {ui::ResourceBundle::LargeFont,
@@ -215,8 +220,7 @@ OmniboxResultView::OmniboxResultView(OmniboxPopupContentsView* model,
   CHECK_GE(model_index, 0);
   keyword_icon_->set_owned_by_client();
   keyword_icon_->EnableCanvasFlippingForRTLUI(true);
-  keyword_icon_->SetImage(
-      GetVectorIcon(gfx::VectorIconId::OMNIBOX_KEYWORD_SEARCH));
+  keyword_icon_->SetImage(GetVectorIcon(omnibox::kKeywordSearchIcon));
   keyword_icon_->SizeToPreferredSize();
 }
 
@@ -290,24 +294,14 @@ void OmniboxResultView::OnSelected() {
   // updating the text in the omnibox but this alert and GetAccessibleNodeData
   // below make the answer contents accessible.
   if (match_.answer)
-    NotifyAccessibilityEvent(ui::AX_EVENT_ALERT, true);
+    NotifyAccessibilityEvent(ui::AX_EVENT_SELECTION, true);
 }
 
 gfx::Size OmniboxResultView::GetPreferredSize() const {
-  if (!match_.answer)
-    return gfx::Size(0, GetContentLineHeight());
-  if (match_.answer->second_line().num_text_lines() == 1)
-    return gfx::Size(0, GetContentLineHeight() + GetAnswerLineHeight());
-  if (!description_rendertext_) {
-    description_rendertext_ =
-        CreateAnswerLine(match_.answer->second_line(), GetAnswerLineFont());
-  }
-  description_rendertext_->SetDisplayRect(
-      gfx::Rect(text_bounds_.width(), 0));
-  description_rendertext_->GetStringSize();
-  return gfx::Size(
-      0, GetContentLineHeight() +
-             GetAnswerLineHeight() * description_rendertext_->GetNumLines());
+  int height = GetTextHeight() + (2 * GetVerticalMargin());
+  if (match_.answer)
+    height += GetAnswerHeight() + kVerticalPadding;
+  return gfx::Size(0, height);
 }
 
 void OmniboxResultView::GetAccessibleNodeData(ui::AXNodeData* node_data) {
@@ -341,7 +335,7 @@ void OmniboxResultView::PaintMatch(const AutocompleteMatch& match,
                                    gfx::RenderText* description,
                                    gfx::Canvas* canvas,
                                    int x) const {
-  int y = text_bounds_.y();
+  int y = text_bounds_.y() + GetVerticalMargin();
 
   if (!separator_rendertext_) {
     const base::string16& separator =
@@ -370,9 +364,9 @@ void OmniboxResultView::PaintMatch(const AutocompleteMatch& match,
 
   if (description_max_width != 0) {
     if (match.answer) {
-      y += GetContentLineHeight();
+      y += GetTextHeight() + kVerticalPadding;
       if (!answer_image_.isNull()) {
-        int answer_icon_size = GetAnswerLineHeight();
+        int answer_icon_size = GetAnswerHeight();
         canvas->DrawImageInt(
             answer_image_,
             0, 0, answer_image_.width(), answer_image_.height(),
@@ -460,21 +454,17 @@ int OmniboxResultView::DrawRenderText(
     prefix_render_text->SetDisplayRect(
         gfx::Rect(mirroring_context_->mirrored_left_coord(
                       prefix_x, prefix_x + prefix_width),
-                  y, prefix_width, GetContentLineHeight()));
+                  y, prefix_width, GetTextHeight()));
     prefix_render_text->Draw(canvas);
   }
 
   // Set the display rect to trigger elision.
-  const int final_width = right_x - x;
-  int height = GetContentLineHeight();
-  if (render_text_type == DESCRIPTION && match.answer) {
-    render_text->SetDisplayRect(gfx::Rect(gfx::Size(final_width, 0)));
-    render_text->GetStringSize();
-    height = GetAnswerLineHeight() * render_text->GetNumLines();
-  }
+  int height = (render_text_type == DESCRIPTION && match.answer)
+                   ? GetAnswerHeight()
+                   : GetTextHeight();
   render_text->SetDisplayRect(
       gfx::Rect(mirroring_context_->mirrored_left_coord(x, right_x), y,
-                final_width, height));
+                right_x - x, height));
   render_text->Draw(canvas);
   return right_x;
 }
@@ -582,19 +572,18 @@ gfx::ImageSkia OmniboxResultView::GetIcon() const {
   if (!image.IsEmpty())
     return image.AsImageSkia();
 
-  return GetVectorIcon(
-      model_->IsStarredMatch(match_)
-          ? gfx::VectorIconId::OMNIBOX_STAR
-          : AutocompleteMatch::TypeToVectorIcon(match_.type));
+  return GetVectorIcon(model_->IsStarredMatch(match_)
+                           ? omnibox::kStarIcon
+                           : AutocompleteMatch::TypeToVectorIcon(match_.type));
 }
 
 gfx::ImageSkia OmniboxResultView::GetVectorIcon(
-    gfx::VectorIconId icon_id) const {
+    const gfx::VectorIcon& icon) const {
   // For selected rows, paint the icon the same color as the text.
   SkColor color = GetColor(GetState(), TEXT);
   if (GetState() != SELECTED)
     color = color_utils::DeriveDefaultIconColor(color);
-  return gfx::CreateVectorIcon(icon_id, 16, color);
+  return gfx::CreateVectorIcon(icon, 16, color);
 }
 
 bool OmniboxResultView::ShowOnlyKeywordMatch() const {
@@ -604,28 +593,33 @@ bool OmniboxResultView::ShowOnlyKeywordMatch() const {
 
 void OmniboxResultView::InitContentsRenderTextIfNecessary() const {
   if (!contents_rendertext_) {
-    contents_rendertext_.reset(
-        CreateClassifiedRenderText(
-            match_.contents, match_.contents_class, false).release());
+    if (match_.answer) {
+      contents_rendertext_ =
+          CreateAnswerText(match_.answer->first_line(), font_list_);
+    } else {
+      contents_rendertext_ = CreateClassifiedRenderText(
+          match_.contents, match_.contents_class, false);
+    }
   }
 }
 
 void OmniboxResultView::Layout() {
-  constexpr int horizontal_padding = LocationBarView::kHorizontalPadding;
+  const int horizontal_padding =
+      GetLayoutConstant(LOCATION_BAR_ELEMENT_PADDING) +
+      LocationBarView::kIconInteriorPadding;
   // The horizontal bounds we're given are the outside bounds, so we can match
   // the omnibox border outline shape exactly in OnPaint().  We have to inset
   // here to keep the icons lined up.
-  constexpr int start_x =
-      BackgroundWith1PxBorder::kLocationBarBorderThicknessDip +
-      horizontal_padding;
+  const int start_x = BackgroundWith1PxBorder::kLocationBarBorderThicknessDip +
+                      horizontal_padding;
   const int end_x = width() - start_x;
 
   const gfx::ImageSkia icon = GetIcon();
-  icon_bounds_.SetRect(start_x, (GetContentLineHeight() - icon.height()) / 2,
-                       icon.width(), icon.height());
+  const int icon_y =
+      GetVerticalMargin() + (GetTextHeight() - icon.height()) / 2;
+  icon_bounds_.SetRect(start_x, icon_y, icon.width(), icon.height());
 
-  constexpr int text_x =
-      start_x + LocationBarView::kIconWidth + horizontal_padding;
+  const int text_x = start_x + LocationBarView::kIconWidth + horizontal_padding;
   int text_width = end_x - text_x;
 
   if (match_.associated_keyword.get()) {
@@ -661,10 +655,8 @@ void OmniboxResultView::OnPaint(gfx::Canvas* canvas) {
 
     if (!description_rendertext_) {
       if (match_.answer) {
-        contents_rendertext_ =
-            CreateAnswerLine(match_.answer->first_line(), font_list_);
         description_rendertext_ =
-            CreateAnswerLine(match_.answer->second_line(), GetAnswerLineFont());
+            CreateAnswerText(match_.answer->second_line(), GetAnswerFont());
       } else if (!match_.description.empty()) {
         description_rendertext_ = CreateClassifiedRenderText(
             match_.description, match_.description_class, true);
@@ -679,17 +671,13 @@ void OmniboxResultView::OnPaint(gfx::Canvas* canvas) {
     int x = GetMirroredXForRect(keyword_text_bounds_);
     mirroring_context_->Initialize(x, keyword_text_bounds_.width());
     if (!keyword_contents_rendertext_) {
-      keyword_contents_rendertext_.reset(
-          CreateClassifiedRenderText(keyword_match->contents,
-                                     keyword_match->contents_class,
-                                     false).release());
+      keyword_contents_rendertext_ = CreateClassifiedRenderText(
+          keyword_match->contents, keyword_match->contents_class, false);
     }
     if (!keyword_description_rendertext_ &&
         !keyword_match->description.empty()) {
-      keyword_description_rendertext_.reset(
-          CreateClassifiedRenderText(keyword_match->description,
-                                     keyword_match->description_class,
-                                     true).release());
+      keyword_description_rendertext_ = CreateClassifiedRenderText(
+          keyword_match->description, keyword_match->description_class, true);
     }
     PaintMatch(*keyword_match, keyword_contents_rendertext_.get(),
                keyword_description_rendertext_.get(), canvas, x);
@@ -701,7 +689,7 @@ void OmniboxResultView::AnimationProgressed(const gfx::Animation* animation) {
   SchedulePaint();
 }
 
-const gfx::FontList& OmniboxResultView::GetAnswerLineFont() const {
+const gfx::FontList& OmniboxResultView::GetAnswerFont() const {
   // This assumes that the first text type in the second answer line can be used
   // to specify the font for all the text fields in the line. For now this works
   // but eventually it will be necessary to get RenderText to support multiple
@@ -714,20 +702,35 @@ const gfx::FontList& OmniboxResultView::GetAnswerLineFont() const {
       GetTextStyle(text_type).font);
 }
 
-int OmniboxResultView::GetAnswerLineHeight() const {
-  return GetAnswerLineFont().GetHeight();
+int OmniboxResultView::GetAnswerHeight() const {
+  // If the answer specifies a maximum of 1 line we can simply return the answer
+  // font height.
+  if (match_.answer->second_line().num_text_lines() == 1)
+    return GetAnswerFont().GetHeight();
+
+  // Multi-line answers require layout in order to determine the number of lines
+  // the RenderText will use.
+  if (!description_rendertext_) {
+    description_rendertext_ =
+        CreateAnswerText(match_.answer->second_line(), GetAnswerFont());
+  }
+  description_rendertext_->SetDisplayRect(gfx::Rect(text_bounds_.width(), 0));
+  description_rendertext_->GetStringSize();
+  return GetAnswerFont().GetHeight() * description_rendertext_->GetNumLines();
 }
 
-int OmniboxResultView::GetContentLineHeight() const {
+int OmniboxResultView::GetVerticalMargin() const {
+  // Regardless of the text size, we ensure a minimum size for the content line
+  // here. This minimum is larger for hybrid mouse/touch devices to ensure an
+  // adequately sized touch target.
   using Md = ui::MaterialDesignController;
   const int kIconVerticalPad = Md::GetMode() == Md::MATERIAL_HYBRID ? 8 : 4;
-  const int kTextVerticalPad = 3;
-  return std::max(
-      LocationBarView::kIconWidth + 2 * kIconVerticalPad,
-      GetTextHeight() + 2 * kTextVerticalPad);
+  const int min_height = LocationBarView::kIconWidth + 2 * kIconVerticalPad;
+
+  return std::max(kVerticalPadding, (min_height - GetTextHeight()) / 2);
 }
 
-std::unique_ptr<gfx::RenderText> OmniboxResultView::CreateAnswerLine(
+std::unique_ptr<gfx::RenderText> OmniboxResultView::CreateAnswerText(
     const SuggestionAnswer::ImageLine& line,
     const gfx::FontList& font_list) const {
   std::unique_ptr<gfx::RenderText> destination =

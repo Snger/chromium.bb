@@ -44,8 +44,10 @@ class State : angle::NonCopyable
                     const Extensions &extensions,
                     const Version &clientVersion,
                     bool debug,
-                    bool bindGeneratesResource);
-    void reset();
+                    bool bindGeneratesResource,
+                    bool clientArraysEnabled,
+                    bool robustResourceInit);
+    void reset(const Context *context);
 
     // State chunk getters
     const RasterizerState &getRasterizerState() const;
@@ -152,6 +154,9 @@ class State : angle::NonCopyable
     // GL_CHROMIUM_bind_generates_resource
     bool isBindGeneratesResourceEnabled() const;
 
+    // GL_ANGLE_client_arrays
+    bool areClientArraysEnabled() const;
+
     // Viewport state setter/getter
     void setViewportParams(GLint x, GLint y, GLsizei width, GLsizei height);
     const Rectangle &getViewport() const;
@@ -163,7 +168,7 @@ class State : angle::NonCopyable
     Texture *getTargetTexture(GLenum target) const;
     Texture *getSamplerTexture(unsigned int sampler, GLenum type) const;
     GLuint getSamplerTextureId(unsigned int sampler, GLenum type) const;
-    void detachTexture(const TextureMap &zeroTextures, GLuint texture);
+    void detachTexture(const Context *context, const TextureMap &zeroTextures, GLuint texture);
     void initializeZeroTextures(const TextureMap &zeroTextures);
 
     // Sampler object binding manipulation
@@ -176,7 +181,7 @@ class State : angle::NonCopyable
     void setRenderbufferBinding(Renderbuffer *renderbuffer);
     GLuint getRenderbufferId() const;
     Renderbuffer *getCurrentRenderbuffer() const;
-    void detachRenderbuffer(GLuint renderbuffer);
+    void detachRenderbuffer(const Context *context, GLuint renderbuffer);
 
     // Framebuffer binding manipulation
     void setReadFramebufferBinding(Framebuffer *framebuffer);
@@ -194,7 +199,7 @@ class State : angle::NonCopyable
     bool removeVertexArrayBinding(GLuint vertexArray);
 
     // Program binding manipulation
-    void setProgram(Program *newProgram);
+    void setProgram(const Context *context, Program *newProgram);
     Program *getProgram() const;
 
     // Transform feedback object (not buffer) binding manipulation
@@ -223,6 +228,22 @@ class State : angle::NonCopyable
     void setIndexedUniformBufferBinding(GLuint index, Buffer *buffer, GLintptr offset, GLsizeiptr size);
     const OffsetBindingPointer<Buffer> &getIndexedUniformBuffer(size_t index) const;
 
+    // GL_ATOMIC_COUNTER_BUFFER - Both indexed and generic targets
+    void setGenericAtomicCounterBufferBinding(Buffer *buffer);
+    void setIndexedAtomicCounterBufferBinding(GLuint index,
+                                              Buffer *buffer,
+                                              GLintptr offset,
+                                              GLsizeiptr size);
+    const OffsetBindingPointer<Buffer> &getIndexedAtomicCounterBuffer(size_t index) const;
+
+    // GL_SHADER_STORAGE_BUFFER - Both indexed and generic targets
+    void setGenericShaderStorageBufferBinding(Buffer *buffer);
+    void setIndexedShaderStorageBufferBinding(GLuint index,
+                                              Buffer *buffer,
+                                              GLintptr offset,
+                                              GLsizeiptr size);
+    const OffsetBindingPointer<Buffer> &getIndexedShaderStorageBuffer(size_t index) const;
+
     // GL_COPY_[READ/WRITE]_BUFFER
     void setCopyReadBufferBinding(Buffer *buffer);
     void setCopyWriteBufferBinding(Buffer *buffer);
@@ -238,6 +259,7 @@ class State : angle::NonCopyable
 
     // Vertex attrib manipulation
     void setEnableVertexAttribArray(unsigned int attribNum, bool enabled);
+    void setElementArrayBuffer(Buffer *buffer);
     void setVertexAttribf(GLuint index, const GLfloat values[4]);
     void setVertexAttribu(GLuint index, const GLuint values[4]);
     void setVertexAttribi(GLuint index, const GLint values[4]);
@@ -246,6 +268,18 @@ class State : angle::NonCopyable
     void setVertexAttribDivisor(GLuint index, GLuint divisor);
     const VertexAttribCurrentValueData &getVertexAttribCurrentValue(unsigned int attribNum) const;
     const void *getVertexAttribPointer(unsigned int attribNum) const;
+    void bindVertexBuffer(GLuint bindingIndex,
+                          Buffer *boundBuffer,
+                          GLintptr offset,
+                          GLsizei stride);
+    void setVertexAttribFormat(GLuint attribIndex,
+                               GLint size,
+                               GLenum type,
+                               bool normalized,
+                               bool pureInteger,
+                               GLuint relativeOffset);
+    void setVertexAttribBinding(GLuint attribIndex, GLuint bindingIndex);
+    void setVertexBindingDivisor(GLuint bindingIndex, GLuint divisor);
 
     // Pixel pack state manipulation
     void setPackAlignment(GLint alignment);
@@ -301,13 +335,14 @@ class State : angle::NonCopyable
     // State query functions
     void getBooleanv(GLenum pname, GLboolean *params);
     void getFloatv(GLenum pname, GLfloat *params);
-    void getIntegerv(const ContextState &data, GLenum pname, GLint *params);
+    void getIntegerv(const Context *context, GLenum pname, GLint *params);
     void getPointerv(GLenum pname, void **params) const;
     void getIntegeri_v(GLenum target, GLuint index, GLint *data);
     void getInteger64i_v(GLenum target, GLuint index, GLint64 *data);
     void getBooleani_v(GLenum target, GLuint index, GLboolean *data);
 
     bool hasMappedBuffer(GLenum target) const;
+    bool isRobustResourceInitEnabled() const { return mRobustResourceInit; }
 
     enum DirtyBitType
     {
@@ -399,9 +434,9 @@ class State : angle::NonCopyable
     typedef std::bitset<DIRTY_OBJECT_MAX> DirtyObjects;
     void clearDirtyObjects() { mDirtyObjects.reset(); }
     void setAllDirtyObjects() { mDirtyObjects.set(); }
-    void syncDirtyObjects();
-    void syncDirtyObjects(const DirtyObjects &bitset);
-    void syncDirtyObject(GLenum target);
+    void syncDirtyObjects(const Context *context);
+    void syncDirtyObjects(const Context *context, const DirtyObjects &bitset);
+    void syncDirtyObject(const Context *context, GLenum target);
     void setObjectDirty(GLenum target);
 
   private:
@@ -433,6 +468,7 @@ class State : angle::NonCopyable
     GLenum mFragmentShaderDerivativeHint;
 
     bool mBindGeneratesResource;
+    bool mClientArraysEnabled;
 
     Rectangle mViewport;
     float mNearZ;
@@ -468,6 +504,12 @@ class State : angle::NonCopyable
 
     BindingPointer<TransformFeedback> mTransformFeedback;
 
+    BindingPointer<Buffer> mGenericAtomicCounterBuffer;
+    BufferVector mAtomicCounterBuffers;
+
+    BindingPointer<Buffer> mGenericShaderStorageBuffer;
+    BufferVector mShaderStorageBuffers;
+
     BindingPointer<Buffer> mCopyReadBuffer;
     BindingPointer<Buffer> mCopyWriteBuffer;
 
@@ -492,6 +534,9 @@ class State : angle::NonCopyable
 
     // GL_EXT_sRGB_write_control
     bool mFramebufferSRGB;
+
+    // GL_ANGLE_robust_resource_intialization
+    bool mRobustResourceInit;
 
     DirtyBits mDirtyBits;
     DirtyObjects mDirtyObjects;

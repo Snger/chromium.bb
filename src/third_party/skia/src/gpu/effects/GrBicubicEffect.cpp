@@ -6,7 +6,9 @@
  */
 
 #include "GrBicubicEffect.h"
-#include "GrInvariantOutput.h"
+
+#include "GrProxyMove.h"
+#include "GrTextureProxy.h"
 #include "glsl/GrGLSLColorSpaceXformHelper.h"
 #include "glsl/GrGLSLFragmentShaderBuilder.h"
 #include "glsl/GrGLSLProgramDataManager.h"
@@ -25,13 +27,13 @@ public:
     }
 
 protected:
-    void onSetData(const GrGLSLProgramDataManager&, const GrProcessor&) override;
+    void onSetData(const GrGLSLProgramDataManager&, const GrFragmentProcessor&) override;
 
 private:
     typedef GrGLSLProgramDataManager::UniformHandle UniformHandle;
 
     UniformHandle               fImageIncrementUni;
-    UniformHandle               fColorSpaceXformUni;
+    GrGLSLColorSpaceXformHelper fColorSpaceHelper;
     GrTextureDomain::GLDomain   fDomain;
 
     typedef GrGLSLFragmentProcessor INHERITED;
@@ -47,8 +49,7 @@ void GrGLBicubicEffect::emitCode(EmitArgs& args) {
 
     const char* imgInc = uniformHandler->getUniformCStr(fImageIncrementUni);
 
-    GrGLSLColorSpaceXformHelper colorSpaceHelper(uniformHandler, bicubicEffect.colorSpaceXform(),
-                                                 &fColorSpaceXformUni);
+    fColorSpaceHelper.emitCode(uniformHandler, bicubicEffect.colorSpaceXform());
 
     GrGLSLFPFragmentBuilder* fragBuilder = args.fFragBuilder;
     SkString coords2D = fragBuilder->ensureCoords2D(args.fTransformedCoords[0]);
@@ -106,9 +107,9 @@ void GrGLBicubicEffect::emitCode(EmitArgs& args) {
             y);
     }
     SkString bicubicColor("(wy.x * s0 + wy.y * s1 + wy.z * s2 + wy.w * s3)");
-    if (colorSpaceHelper.getXformMatrix()) {
+    if (fColorSpaceHelper.isValid()) {
         SkString xformedColor;
-        fragBuilder->appendColorGamutXform(&xformedColor, bicubicColor.c_str(), &colorSpaceHelper);
+        fragBuilder->appendColorGamutXform(&xformedColor, bicubicColor.c_str(), &fColorSpaceHelper);
         bicubicColor.swap(xformedColor);
     }
     fragBuilder->codeAppendf("%s = %s;",
@@ -117,7 +118,7 @@ void GrGLBicubicEffect::emitCode(EmitArgs& args) {
 }
 
 void GrGLBicubicEffect::onSetData(const GrGLSLProgramDataManager& pdman,
-                                  const GrProcessor& processor) {
+                                  const GrFragmentProcessor& processor) {
     const GrBicubicEffect& bicubicEffect = processor.cast<GrBicubicEffect>();
     GrTexture* texture = processor.textureSampler(0).texture();
     float imageIncrement[2];
@@ -126,27 +127,32 @@ void GrGLBicubicEffect::onSetData(const GrGLSLProgramDataManager& pdman,
     pdman.set2fv(fImageIncrementUni, 1, imageIncrement);
     fDomain.setData(pdman, bicubicEffect.domain(), texture);
     if (SkToBool(bicubicEffect.colorSpaceXform())) {
-        pdman.setSkMatrix44(fColorSpaceXformUni, bicubicEffect.colorSpaceXform()->srcToDst());
+        fColorSpaceHelper.setData(pdman, bicubicEffect.colorSpaceXform());
     }
 }
 
-GrBicubicEffect::GrBicubicEffect(GrTexture* texture,
+GrBicubicEffect::GrBicubicEffect(GrResourceProvider* resourceProvider, sk_sp<GrTextureProxy> proxy,
                                  sk_sp<GrColorSpaceXform> colorSpaceXform,
                                  const SkMatrix &matrix,
                                  const SkShader::TileMode tileModes[2])
-  : INHERITED(texture, std::move(colorSpaceXform), matrix,
-              GrSamplerParams(tileModes, GrSamplerParams::kNone_FilterMode))
+  : INHERITED{resourceProvider,
+              ModulationFlags(proxy->config()),
+              GR_PROXY_MOVE(proxy),
+              std::move(colorSpaceXform),
+              matrix,
+              GrSamplerParams(tileModes, GrSamplerParams::kNone_FilterMode)}
   , fDomain(GrTextureDomain::IgnoredDomain()) {
     this->initClassID<GrBicubicEffect>();
 }
 
-GrBicubicEffect::GrBicubicEffect(GrTexture* texture,
+GrBicubicEffect::GrBicubicEffect(GrResourceProvider* resourceProvider, sk_sp<GrTextureProxy> proxy,
                                  sk_sp<GrColorSpaceXform> colorSpaceXform,
                                  const SkMatrix &matrix,
                                  const SkRect& domain)
-  : INHERITED(texture, std::move(colorSpaceXform), matrix,
+  : INHERITED(resourceProvider, ModulationFlags(proxy->config()), proxy,
+              std::move(colorSpaceXform), matrix,
               GrSamplerParams(SkShader::kClamp_TileMode, GrSamplerParams::kNone_FilterMode))
-  , fDomain(texture, domain, GrTextureDomain::kClamp_Mode) {
+  , fDomain(proxy.get(), domain, GrTextureDomain::kClamp_Mode) {
     this->initClassID<GrBicubicEffect>();
 }
 
@@ -167,23 +173,20 @@ bool GrBicubicEffect::onIsEqual(const GrFragmentProcessor& sBase) const {
     return fDomain == s.fDomain;
 }
 
-void GrBicubicEffect::onComputeInvariantOutput(GrInvariantOutput* inout) const {
-    // FIXME: Perhaps we can do better.
-    inout->mulByUnknownSingleComponent();
-}
-
 GR_DEFINE_FRAGMENT_PROCESSOR_TEST(GrBicubicEffect);
 
+#if GR_TEST_UTILS
 sk_sp<GrFragmentProcessor> GrBicubicEffect::TestCreate(GrProcessorTestData* d) {
-    int texIdx = d->fRandom->nextBool() ? GrProcessorUnitTest::kSkiaPMTextureIdx :
-                                          GrProcessorUnitTest::kAlphaTextureIdx;
-    auto colorSpaceXform = GrTest::TestColorXform(d->fRandom);
+    int texIdx = d->fRandom->nextBool() ? GrProcessorUnitTest::kSkiaPMTextureIdx
+                                        : GrProcessorUnitTest::kAlphaTextureIdx;
+    sk_sp<GrColorSpaceXform> colorSpaceXform = GrTest::TestColorXform(d->fRandom);
     static const SkShader::TileMode kClampClamp[] =
         { SkShader::kClamp_TileMode, SkShader::kClamp_TileMode };
-    return GrBicubicEffect::Make(d->fTextures[texIdx], colorSpaceXform,
-                                 GrCoordTransform::MakeDivByTextureWHMatrix(d->fTextures[texIdx]),
-                                 kClampClamp);
+    return GrBicubicEffect::Make(d->resourceProvider(),
+                                 d->textureProxy(texIdx), std::move(colorSpaceXform),
+                                 SkMatrix::I(), kClampClamp);
 }
+#endif
 
 //////////////////////////////////////////////////////////////////////////////
 

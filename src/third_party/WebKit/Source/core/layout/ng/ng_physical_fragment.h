@@ -6,29 +6,51 @@
 #define NGPhysicalFragment_h
 
 #include "core/CoreExport.h"
-#include "core/layout/ng/ng_units.h"
+#include "core/layout/ng/geometry/ng_physical_offset.h"
+#include "core/layout/ng/geometry/ng_physical_size.h"
+#include "core/layout/ng/ng_break_token.h"
 #include "platform/LayoutUnit.h"
 #include "platform/heap/Handle.h"
-#include "wtf/Vector.h"
+#include "platform/wtf/RefPtr.h"
+#include "platform/wtf/Vector.h"
 
 namespace blink {
 
-class NGBlockNode;
-class NGBreakToken;
+class ComputedStyle;
+class LayoutObject;
 
-// The NGPhysicalFragmentBase contains the output information from layout. The
+// The NGPhysicalFragment contains the output geometry from layout. The
 // fragment stores all of its information in the physical coordinate system for
 // use by paint, hit-testing etc.
 //
-// Layout code should only access output layout information through the
-// NGFragmentBase classes which transforms information into the logical
+// The fragment keeps a pointer back to the LayoutObject which generated it.
+// Once we have transitioned fully to LayoutNG it should be a const pointer
+// such that paint/hit-testing/etc don't modify it.
+//
+// Layout code should only access geometry information through the
+// NGFragment wrapper classes which transforms information into the logical
 // coordinate system.
-class CORE_EXPORT NGPhysicalFragment
-    : public GarbageCollectedFinalized<NGPhysicalFragment> {
+class CORE_EXPORT NGPhysicalFragment : public RefCounted<NGPhysicalFragment> {
  public:
-  enum NGFragmentType { kFragmentBox = 0, kFragmentText = 1 };
+  enum NGFragmentType {
+    kFragmentBox = 0,
+    kFragmentText = 1,
+    kFragmentLineBox = 2
+    // When adding new values, make sure the bit size of |type_| is large
+    // enough to store.
+  };
 
   NGFragmentType Type() const { return static_cast<NGFragmentType>(type_); }
+  bool IsBox() const { return Type() == NGFragmentType::kFragmentBox; }
+  bool IsText() const { return Type() == NGFragmentType::kFragmentText; }
+  bool IsLineBox() const { return Type() == NGFragmentType::kFragmentLineBox; }
+
+  // Override RefCounted's deref() to ensure operator delete is called on the
+  // appropriate subclass type.
+  void Deref() const {
+    if (DerefBase())
+      Destroy();
+  }
 
   // The accessors in this class shouldn't be used by layout code directly,
   // instead should be accessed by the NGFragmentBase classes. These accessors
@@ -39,62 +61,57 @@ class CORE_EXPORT NGPhysicalFragment
   LayoutUnit Width() const { return size_.width; }
   LayoutUnit Height() const { return size_.height; }
 
-  // Returns the total size, including the contents outside of the border-box.
-  LayoutUnit WidthOverflow() const { return overflow_.width; }
-  LayoutUnit HeightOverflow() const { return overflow_.height; }
-
-  // Returns the offset relative to the parent fragement's content-box.
+  // Returns the offset relative to the parent fragment's content-box.
   LayoutUnit LeftOffset() const {
-    DCHECK(has_been_placed_);
+    DCHECK(is_placed_);
     return offset_.left;
   }
 
   LayoutUnit TopOffset() const {
-    DCHECK(has_been_placed_);
+    DCHECK(is_placed_);
     return offset_.top;
   }
 
-  // Should only be used by the parent fragement's layout.
+  NGPhysicalOffset Offset() const {
+    DCHECK(is_placed_);
+    return offset_;
+  }
+
+  // Should only be used by the parent fragment's layout.
   void SetOffset(NGPhysicalOffset offset) {
-    DCHECK(!has_been_placed_);
+    DCHECK(!is_placed_);
     offset_ = offset;
-    has_been_placed_ = true;
+    is_placed_ = true;
   }
 
-  NGBreakToken* BreakToken() const { return break_token_; }
+  NGBreakToken* BreakToken() const { return break_token_.Get(); }
 
-  const HeapLinkedHashSet<WeakMember<NGBlockNode>>& OutOfFlowDescendants()
-      const {
-    return out_of_flow_descendants_;
-  }
+  const ComputedStyle& Style() const;
 
-  const Vector<NGStaticPosition>& OutOfFlowPositions() const {
-    return out_of_flow_positions_;
-  }
+  // GetLayoutObject should only be used when necessary for compatibility
+  // with LegacyLayout.
+  LayoutObject* GetLayoutObject() const { return layout_object_; }
 
-  DECLARE_TRACE_AFTER_DISPATCH();
-  DECLARE_TRACE();
+  bool IsPlaced() const { return is_placed_; }
 
-  void finalizeGarbageCollectedObject();
+  String ToString() const;
 
  protected:
-  NGPhysicalFragment(
-      NGPhysicalSize size,
-      NGPhysicalSize overflow,
-      NGFragmentType type,
-      HeapLinkedHashSet<WeakMember<NGBlockNode>>& out_of_flow_descendants,
-      Vector<NGStaticPosition> out_of_flow_positions,
-      NGBreakToken* break_token = nullptr);
+  NGPhysicalFragment(LayoutObject* layout_object,
+                     NGPhysicalSize size,
+                     NGFragmentType type,
+                     RefPtr<NGBreakToken> break_token = nullptr);
 
+  LayoutObject* layout_object_;
   NGPhysicalSize size_;
-  NGPhysicalSize overflow_;
   NGPhysicalOffset offset_;
-  Member<NGBreakToken> break_token_;
-  HeapLinkedHashSet<WeakMember<NGBlockNode>> out_of_flow_descendants_;
-  Vector<NGStaticPosition> out_of_flow_positions_;
+  RefPtr<NGBreakToken> break_token_;
 
-  unsigned type_ : 1;
-  unsigned has_been_placed_ : 1;
+  unsigned type_ : 2;
+  unsigned is_placed_ : 1;
+
+ private:
+  void Destroy() const;
 };
 
 }  // namespace blink

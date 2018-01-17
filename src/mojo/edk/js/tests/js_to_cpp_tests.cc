@@ -22,10 +22,10 @@
 #include "mojo/common/data_pipe_utils.h"
 #include "mojo/edk/js/mojo_runner_delegate.h"
 #include "mojo/edk/js/tests/js_to_cpp.mojom.h"
-#include "mojo/edk/test/test_utils.h"
 #include "mojo/public/cpp/bindings/binding.h"
 #include "mojo/public/cpp/bindings/lib/validation_errors.h"
 #include "mojo/public/cpp/system/core.h"
+#include "mojo/public/cpp/system/wait.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
 namespace mojo {
@@ -77,9 +77,7 @@ void CheckDataPipe(ScopedDataPipeConsumerHandle data_pipe_handle) {
 void CheckMessagePipe(MessagePipeHandle message_pipe_handle) {
   unsigned char buffer[100];
   uint32_t buffer_size = static_cast<uint32_t>(sizeof(buffer));
-  MojoResult result = Wait(
-      message_pipe_handle, MOJO_HANDLE_SIGNAL_READABLE,
-      MOJO_DEADLINE_INDEFINITE, nullptr);
+  MojoResult result = Wait(message_pipe_handle, MOJO_HANDLE_SIGNAL_READABLE);
   EXPECT_EQ(MOJO_RESULT_OK, result);
   result = ReadMessageRaw(
       message_pipe_handle, buffer, &buffer_size, 0, 0, 0);

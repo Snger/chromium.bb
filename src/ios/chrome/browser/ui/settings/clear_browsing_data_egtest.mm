@@ -5,7 +5,7 @@
 #import <XCTest/XCTest.h>
 
 #include "components/strings/grit/components_strings.h"
-#import "ios/chrome/browser/ui/tools_menu/tools_menu_view_controller.h"
+#include "ios/chrome/browser/ui/tools_menu/tools_menu_constants.h"
 #include "ios/chrome/grit/ios_strings.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey.h"
 #import "ios/chrome/test/earl_grey/chrome_earl_grey_ui.h"
@@ -13,8 +13,13 @@
 #import "ios/chrome/test/earl_grey/chrome_test_case.h"
 #include "ui/base/l10n/l10n_util.h"
 
-using chrome_test_util::buttonWithAccessibilityLabel;
-using chrome_test_util::buttonWithAccessibilityLabelId;
+#if !defined(__has_feature) || !__has_feature(objc_arc)
+#error "This file requires ARC support."
+#endif
+
+using chrome_test_util::ButtonWithAccessibilityLabel;
+using chrome_test_util::ButtonWithAccessibilityLabelId;
+using chrome_test_util::NavigationBarDoneButton;
 
 @interface ClearBrowsingDataSettingsTestCase : ChromeTestCase
 @end
@@ -29,19 +34,18 @@ using chrome_test_util::buttonWithAccessibilityLabelId;
   NSString* settingsLabel =
       l10n_util::GetNSString(IDS_OPTIONS_ADVANCED_SECTION_TITLE_PRIVACY);
   [[EarlGrey
-      selectElementWithMatcher:buttonWithAccessibilityLabel(settingsLabel)]
+      selectElementWithMatcher:ButtonWithAccessibilityLabel(settingsLabel)]
       performAction:grey_tap()];
 
   NSString* clearBrowsingDataDialogLabel =
       l10n_util::GetNSString(IDS_IOS_CLEAR_BROWSING_DATA_TITLE);
-  [[EarlGrey selectElementWithMatcher:buttonWithAccessibilityLabel(
+  [[EarlGrey selectElementWithMatcher:ButtonWithAccessibilityLabel(
                                           clearBrowsingDataDialogLabel)]
       performAction:grey_tap()];
 }
 
 - (void)exitSettingsMenu {
-  [[EarlGrey selectElementWithMatcher:buttonWithAccessibilityLabelId(
-                                          IDS_IOS_NAVIGATION_BAR_DONE_BUTTON)]
+  [[EarlGrey selectElementWithMatcher:NavigationBarDoneButton()]
       performAction:grey_tap()];
   // Wait for UI components to finish loading.
   [[GREYUIThreadExecutor sharedInstance] drainUntilIdle];

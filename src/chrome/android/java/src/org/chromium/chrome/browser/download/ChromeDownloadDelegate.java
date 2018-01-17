@@ -25,6 +25,7 @@ import org.chromium.base.ThreadUtils;
 import org.chromium.base.annotations.CalledByNative;
 import org.chromium.chrome.R;
 import org.chromium.chrome.browser.ChromeActivity;
+import org.chromium.chrome.browser.UrlConstants;
 import org.chromium.chrome.browser.tab.EmptyTabObserver;
 import org.chromium.chrome.browser.tab.Tab;
 import org.chromium.chrome.browser.tabmodel.TabModelSelector;
@@ -263,9 +264,8 @@ public class ChromeDownloadDelegate {
      * @param info Download information about the download.
      */
     private void enqueueDownloadManagerRequest(final DownloadInfo info) {
-        DownloadManagerService.getDownloadManagerService(
-                mContext.getApplicationContext()).enqueueDownloadManagerRequest(
-                        new DownloadItem(true, info), true);
+        DownloadManagerService.getDownloadManagerService().enqueueDownloadManagerRequest(
+                new DownloadItem(true, info), true);
         closeBlankTab();
     }
 
@@ -306,8 +306,7 @@ public class ChromeDownloadDelegate {
      * @param reason Reason of failure defined in {@link DownloadManager}
      */
     private void alertDownloadFailure(String fileName, int reason) {
-        DownloadManagerService.getDownloadManagerService(
-                mContext.getApplicationContext()).onDownloadFailed(fileName, reason);
+        DownloadManagerService.getDownloadManagerService().onDownloadFailed(fileName, reason);
     }
 
     /**
@@ -321,11 +320,11 @@ public class ChromeDownloadDelegate {
      */
     @CalledByNative
     private void enqueueAndroidDownloadManagerRequest(String url, String userAgent,
-            String contentDisposition, String mimeType, String cookie, String referrer) {
+            String fileName, String mimeType, String cookie, String referrer) {
         DownloadInfo downloadInfo = new DownloadInfo.Builder()
                 .setUrl(url)
                 .setUserAgent(userAgent)
-                .setContentDisposition(contentDisposition)
+                .setFileName(fileName)
                 .setMimeType(mimeType)
                 .setCookie(cookie)
                 .setReferrer(referrer)
@@ -451,7 +450,9 @@ public class ChromeDownloadDelegate {
     public boolean shouldInterceptContextMenuDownload(String url) {
         Uri uri = Uri.parse(url);
         String scheme = uri.normalizeScheme().getScheme();
-        if (!"http".equals(scheme) && !"https".equals(scheme)) return false;
+        if (!UrlConstants.HTTP_SCHEME.equals(scheme) && !UrlConstants.HTTPS_SCHEME.equals(scheme)) {
+            return false;
+        }
         String path = uri.getPath();
         // OMA downloads have extension "dm" or "dd". For the latter, it
         // can be handled when native download completes.

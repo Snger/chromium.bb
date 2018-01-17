@@ -98,6 +98,8 @@ class ExistingUserController
   void ResetAutoLoginTimer() override;
   void ResyncUserData() override;
   void SetDisplayEmail(const std::string& email) override;
+  void SetDisplayAndGivenName(const std::string& display_name,
+                              const std::string& given_name) override;
   void ShowWrongHWIDScreen() override;
   void Signout() override;
   bool IsUserWhitelisted(const AccountId& account_id) override;
@@ -141,6 +143,8 @@ class ExistingUserController
   friend class ExistingUserControllerPublicSessionTest;
   friend class MockLoginPerformerDelegate;
 
+  FRIEND_TEST_ALL_PREFIXES(ExistingUserControllerTest, ExistingUserLogin);
+
   void LoginAsGuest();
   void LoginAsPublicSession(const UserContext& user_context);
   void LoginAsKioskApp(const std::string& app_id, bool diagnostic_mode);
@@ -159,6 +163,8 @@ class ExistingUserController
   void OnAuthSuccess(const UserContext& user_context) override;
   void OnOffTheRecordAuthSuccess() override;
   void OnPasswordChangeDetected() override;
+  void OnOldEncryptionDetected(const UserContext& user_context,
+                               bool has_incomplete_migration) override;
   void WhiteListCheckFailed(const std::string& email) override;
   void PolicyLoadFailed() override;
   void SetAuthFlowOffline(bool offline) override;
@@ -202,6 +208,10 @@ class ExistingUserController
   // Shows "kiosk auto-launch permission" screen.
   void ShowKioskAutolaunchScreen();
 
+  // Shows "filesystem encryption migration" screen.
+  void ShowEncryptionMigrationScreen(const UserContext& user_context,
+                                     bool has_incomplete_migration);
+
   // Shows "critical TPM error" screen.
   void ShowTPMError();
 
@@ -211,6 +221,10 @@ class ExistingUserController
   // Creates |login_performer_| if necessary and calls login() on it.
   void PerformLogin(const UserContext& user_context,
                     LoginPerformer::AuthorizationMode auth_mode);
+
+  // calls login() on previously-used |login_performer|.
+  void ContinuePerformLogin(LoginPerformer::AuthorizationMode auth_mode,
+                            const UserContext& user_context);
 
   // Updates the |login_display_| attached to this controller.
   void UpdateLoginDisplay(const user_manager::UserList& users);
@@ -261,6 +275,10 @@ class ExistingUserController
       const AccountId&,
       TokenHandleUtil::TokenHandleStatus token_handle_status);
 
+  // Clear the recorded displayed email, displayed name, given name so it won't
+  // affect any future attempts.
+  void ClearRecordedNames();
+
   // Public session auto-login timer.
   std::unique_ptr<base::OneShotTimer> auto_login_timer_;
 
@@ -282,6 +300,9 @@ class ExistingUserController
 
   // AccountId of the last login attempt.
   AccountId last_login_attempt_account_id_ = EmptyAccountId();
+
+  // Whether the last login attempt was an auto login.
+  bool last_login_attempt_was_auto_login_ = false;
 
   // OOBE/login display host.
   LoginDisplayHost* host_;
@@ -308,6 +329,13 @@ class ExistingUserController
 
   // The displayed email for the next login attempt set by |SetDisplayEmail|.
   std::string display_email_;
+
+  // The displayed name for the next login attempt set by
+  // |SetDisplayAndGivenName|.
+  base::string16 display_name_;
+
+  // The given name for the next login attempt set by |SetDisplayAndGivenName|.
+  base::string16 given_name_;
 
   // Whether login attempt is running.
   bool is_login_in_progress_ = false;
@@ -356,8 +384,6 @@ class ExistingUserController
   std::unique_ptr<OAuth2TokenInitializer> oauth2_token_initializer_;
 
   std::unique_ptr<TokenHandleUtil> token_handle_util_;
-
-  FRIEND_TEST_ALL_PREFIXES(ExistingUserControllerTest, ExistingUserLogin);
 
   // Factory of callbacks.
   base::WeakPtrFactory<ExistingUserController> weak_factory_;

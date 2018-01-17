@@ -26,11 +26,11 @@ tr.exportTo('tr.metrics.sh', function() {
    *   clock time.
    * This metric requires only the 'toplevel' tracing category.
    *
-   * @param {!tr.v.HistogramSet} values
+   * @param {!tr.v.HistogramSet} histograms
    * @param {!tr.model.Model} model
    * @param {!Object=} opt_options
    */
-  function cpuTimeMetric(values, model, opt_options) {
+  function cpuTimeMetric(histograms, model, opt_options) {
     var rangeOfInterest = model.bounds;
 
     if (opt_options && opt_options.rangeOfInterest) {
@@ -62,11 +62,10 @@ tr.exportTo('tr.metrics.sh', function() {
         var thread = process.threads[tid];
         var threadCpuTime = 0;
         thread.sliceGroup.topLevelSlices.forEach(function(slice) {
-          if (slice.duration === 0)
-            return;
-          if (!slice.cpuDuration)
-            return;
-          var sliceRange = tr.b.Range.fromExplicitRange(slice.start, slice.end);
+          if (slice.duration === 0) return;
+          if (!slice.cpuDuration) return;
+          var sliceRange = tr.b.math.Range.fromExplicitRange(
+              slice.start, slice.end);
           var intersection = rangeOfInterest.findIntersection(sliceRange);
           var fractionOfSliceInsideRangeOfInterest =
               intersection.duration / slice.duration;
@@ -104,7 +103,7 @@ tr.exportTo('tr.metrics.sh', function() {
       sum: false
     });
     cpuTimeHist.addSample(normalizedAllProcessCpuTime);
-    values.addHistogram(cpuTimeHist);
+    histograms.addHistogram(cpuTimeHist);
   }
 
   tr.metrics.MetricRegistry.register(cpuTimeMetric, {

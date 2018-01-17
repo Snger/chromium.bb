@@ -173,13 +173,17 @@ class MakeProductDetailsTest : public testing::TestWithParam<TestData> {
         root_key_(test_data_.system_level ? HKEY_LOCAL_MACHINE
                                           : HKEY_CURRENT_USER),
         nt_root_key_(test_data_.system_level ? nt::HKLM : nt::HKCU) {
-    base::string16 path;
-    override_manager_.OverrideRegistry(root_key_, &path);
-    nt::SetTestingOverride(nt_root_key_, path);
   }
 
   ~MakeProductDetailsTest() {
     nt::SetTestingOverride(nt_root_key_, base::string16());
+  }
+
+  void SetUp() override {
+    base::string16 path;
+    ASSERT_NO_FATAL_FAILURE(
+        override_manager_.OverrideRegistry(root_key_, &path));
+    nt::SetTestingOverride(nt_root_key_, path);
   }
 
   const TestData& test_data() const { return test_data_; }
@@ -189,6 +193,15 @@ class MakeProductDetailsTest : public testing::TestWithParam<TestData> {
                                   KEY_WOW64_32KEY | KEY_SET_VALUE)
                     .WriteValue(L"ap", value),
                 Eq(ERROR_SUCCESS));
+  }
+
+  void SetCohortName(const wchar_t* value) {
+    ASSERT_THAT(
+        base::win::RegKey(root_key_,
+                          GetClientStateKeyPath().append(L"\\cohort").c_str(),
+                          KEY_WOW64_32KEY | KEY_SET_VALUE)
+            .WriteValue(L"name", value),
+        Eq(ERROR_SUCCESS));
   }
 
  private:
@@ -283,6 +296,52 @@ TEST_P(MakeProductDetailsTest, AdditionalParametersChannels) {
       // "ap" is ignored for this mode.
       EXPECT_THAT(details->channel(), StrEq(test_data().channel));
     }
+  }
+}
+
+// Test that the "ap" value is cached during initialization.
+TEST_P(MakeProductDetailsTest, UpdateAp) {
+  // This test is only valid for brands that integrate with Google Update.
+  if (!kUseGoogleUpdateIntegration)
+    return;
+
+  // With no value in the registry, the ap value should be empty.
+  {
+    std::unique_ptr<PrimaryInstallDetails> details(
+        MakeProductDetails(test_data().path));
+    EXPECT_THAT(details->update_ap(), StrEq(L""));
+  }
+
+  // And with a value, it should have ... the value.
+  static constexpr wchar_t kCrookedMoon[] = L"CrookedMoon";
+  SetAp(kCrookedMoon);
+  {
+    std::unique_ptr<PrimaryInstallDetails> details(
+        MakeProductDetails(test_data().path));
+    EXPECT_THAT(details->update_ap(), StrEq(kCrookedMoon));
+  }
+}
+
+// Test that the cohort name is cached during initialization.
+TEST_P(MakeProductDetailsTest, UpdateCohortName) {
+  // This test is only valid for brands that integrate with Google Update.
+  if (!kUseGoogleUpdateIntegration)
+    return;
+
+  // With no value in the registry, the cohort name should be empty.
+  {
+    std::unique_ptr<PrimaryInstallDetails> details(
+        MakeProductDetails(test_data().path));
+    EXPECT_THAT(details->update_cohort_name(), StrEq(L""));
+  }
+
+  // And with a value, it should have ... the value.
+  static constexpr wchar_t kPhony[] = L"Phony";
+  SetCohortName(kPhony);
+  {
+    std::unique_ptr<PrimaryInstallDetails> details(
+        MakeProductDetails(test_data().path));
+    EXPECT_THAT(details->update_cohort_name(), StrEq(kPhony));
   }
 }
 

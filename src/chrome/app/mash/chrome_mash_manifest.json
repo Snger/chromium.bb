@@ -15,9 +15,13 @@
         ]
       },
       "requires": {
+        "*": [ "app" ],
+        "ash": [ "app" ],
+        "catalog": [ "control" ],
+        "content_browser": [ "app" ],
+        "quick_launch": [ "app" ],
         "service_manager": [ "service_manager:instance_per_child" ],
-        "mash_session": [ "app" ],
-        "catalog": [ "control" ]
+        "ui": [ "app" ]
       }
     }
   }

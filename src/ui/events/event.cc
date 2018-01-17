@@ -17,6 +17,7 @@
 #include <cmath>
 #include <cstring>
 
+#include "base/memory/ptr_util.h"
 #include "base/metrics/histogram.h"
 #include "base/metrics/histogram_macros.h"
 #include "base/strings/stringprintf.h"
@@ -44,11 +45,16 @@
 #include "ui/events/keycodes/platform_key_map_win.h"
 #endif
 
+namespace ui {
 namespace {
 
-std::string EventTypeName(ui::EventType type) {
-#define RETURN_IF_TYPE(t) if (type == ui::t)  return #t
-#define CASE_TYPE(t) case ui::t:  return #t
+const char* EventTypeName(EventType type) {
+  if (type >= ET_LAST)
+    return "";
+
+#define CASE_TYPE(t) \
+  case t:            \
+    return #t
   switch (type) {
     CASE_TYPE(ET_UNKNOWN);
     CASE_TYPE(ET_MOUSE_PRESSED);
@@ -97,81 +103,83 @@ std::string EventTypeName(ui::EventType type) {
     CASE_TYPE(ET_SCROLL_FLING_CANCEL);
     CASE_TYPE(ET_CANCEL_MODE);
     CASE_TYPE(ET_UMA_DATA);
-    case ui::ET_LAST: NOTREACHED(); return std::string();
-    // Don't include default, so that we get an error when new type is added.
+    case ET_LAST:
+      NOTREACHED();
+      return "";
+      // Don't include default, so that we get an error when new type is added.
   }
 #undef CASE_TYPE
 
   NOTREACHED();
-  return std::string();
+  return "";
 }
 
-ui::SourceEventType EventTypeToLatencySourceEventType(ui::EventType type) {
+SourceEventType EventTypeToLatencySourceEventType(EventType type) {
   switch (type) {
-    case ui::ET_UNKNOWN:
+    case ET_UNKNOWN:
     // SourceEventType for PointerEvents/GestureEvents can be either TOUCH or
     // WHEEL. The proper value is assigned in the constructors.
-    case ui::ET_POINTER_DOWN:
-    case ui::ET_POINTER_MOVED:
-    case ui::ET_POINTER_UP:
-    case ui::ET_POINTER_CANCELLED:
-    case ui::ET_POINTER_ENTERED:
-    case ui::ET_POINTER_EXITED:
-    case ui::ET_POINTER_CAPTURE_CHANGED:
-    case ui::ET_GESTURE_SCROLL_BEGIN:
-    case ui::ET_GESTURE_SCROLL_END:
-    case ui::ET_GESTURE_SCROLL_UPDATE:
-    case ui::ET_GESTURE_TAP:
-    case ui::ET_GESTURE_TAP_DOWN:
-    case ui::ET_GESTURE_TAP_CANCEL:
-    case ui::ET_GESTURE_TAP_UNCONFIRMED:
-    case ui::ET_GESTURE_DOUBLE_TAP:
-    case ui::ET_GESTURE_BEGIN:
-    case ui::ET_GESTURE_END:
-    case ui::ET_GESTURE_TWO_FINGER_TAP:
-    case ui::ET_GESTURE_PINCH_BEGIN:
-    case ui::ET_GESTURE_PINCH_END:
-    case ui::ET_GESTURE_PINCH_UPDATE:
-    case ui::ET_GESTURE_LONG_PRESS:
-    case ui::ET_GESTURE_LONG_TAP:
-    case ui::ET_GESTURE_SWIPE:
-    case ui::ET_GESTURE_SHOW_PRESS:
+    case ET_POINTER_DOWN:
+    case ET_POINTER_MOVED:
+    case ET_POINTER_UP:
+    case ET_POINTER_CANCELLED:
+    case ET_POINTER_ENTERED:
+    case ET_POINTER_EXITED:
+    case ET_POINTER_CAPTURE_CHANGED:
+    case ET_GESTURE_SCROLL_BEGIN:
+    case ET_GESTURE_SCROLL_END:
+    case ET_GESTURE_SCROLL_UPDATE:
+    case ET_GESTURE_TAP:
+    case ET_GESTURE_TAP_DOWN:
+    case ET_GESTURE_TAP_CANCEL:
+    case ET_GESTURE_TAP_UNCONFIRMED:
+    case ET_GESTURE_DOUBLE_TAP:
+    case ET_GESTURE_BEGIN:
+    case ET_GESTURE_END:
+    case ET_GESTURE_TWO_FINGER_TAP:
+    case ET_GESTURE_PINCH_BEGIN:
+    case ET_GESTURE_PINCH_END:
+    case ET_GESTURE_PINCH_UPDATE:
+    case ET_GESTURE_LONG_PRESS:
+    case ET_GESTURE_LONG_TAP:
+    case ET_GESTURE_SWIPE:
+    case ET_GESTURE_SHOW_PRESS:
     // Flings can be GestureEvents too.
-    case ui::ET_SCROLL_FLING_START:
-    case ui::ET_SCROLL_FLING_CANCEL:
-      return ui::SourceEventType::UNKNOWN;
+    case ET_SCROLL_FLING_START:
+    case ET_SCROLL_FLING_CANCEL:
+      return SourceEventType::UNKNOWN;
 
-    case ui::ET_MOUSE_PRESSED:
-    case ui::ET_MOUSE_DRAGGED:
-    case ui::ET_MOUSE_RELEASED:
-    case ui::ET_MOUSE_MOVED:
-    case ui::ET_MOUSE_ENTERED:
-    case ui::ET_MOUSE_EXITED:
-    case ui::ET_KEY_PRESSED:
-    case ui::ET_KEY_RELEASED:
-    case ui::ET_MOUSE_CAPTURE_CHANGED:
-    case ui::ET_DROP_TARGET_EVENT:
-    case ui::ET_CANCEL_MODE:
-    case ui::ET_UMA_DATA:
-      return ui::SourceEventType::OTHER;
+    case ET_MOUSE_PRESSED:
+    case ET_MOUSE_DRAGGED:
+    case ET_MOUSE_RELEASED:
+    case ET_MOUSE_MOVED:
+    case ET_MOUSE_ENTERED:
+    case ET_MOUSE_EXITED:
+    case ET_KEY_PRESSED:
+    case ET_KEY_RELEASED:
+    case ET_MOUSE_CAPTURE_CHANGED:
+    case ET_DROP_TARGET_EVENT:
+    case ET_CANCEL_MODE:
+    case ET_UMA_DATA:
+      return SourceEventType::OTHER;
 
-    case ui::ET_TOUCH_RELEASED:
-    case ui::ET_TOUCH_PRESSED:
-    case ui::ET_TOUCH_MOVED:
-    case ui::ET_TOUCH_CANCELLED:
-      return ui::SourceEventType::TOUCH;
+    case ET_TOUCH_RELEASED:
+    case ET_TOUCH_PRESSED:
+    case ET_TOUCH_MOVED:
+    case ET_TOUCH_CANCELLED:
+      return SourceEventType::TOUCH;
 
-    case ui::ET_MOUSEWHEEL:
-    case ui::ET_POINTER_WHEEL_CHANGED:
-    case ui::ET_SCROLL:
-      return ui::SourceEventType::WHEEL;
+    case ET_MOUSEWHEEL:
+    case ET_POINTER_WHEEL_CHANGED:
+    case ET_SCROLL:
+      return SourceEventType::WHEEL;
 
-    case ui::ET_LAST:
+    case ET_LAST:
       NOTREACHED();
-      return ui::SourceEventType::UNKNOWN;
+      return SourceEventType::UNKNOWN;
   }
   NOTREACHED();
-  return ui::SourceEventType::UNKNOWN;
+  return SourceEventType::UNKNOWN;
 }
 
 bool IsX11SendEventTrue(const base::NativeEvent& event) {
@@ -195,8 +203,6 @@ bool X11EventHasNonStandardState(const base::NativeEvent& event) {
 }
 
 }  // namespace
-
-namespace ui {
 
 ////////////////////////////////////////////////////////////////////////////////
 // Event
@@ -241,6 +247,10 @@ std::unique_ptr<Event> Event::Clone(const Event& event) {
 Event::~Event() {
   if (delete_native_event_)
     ReleaseCopiedNativeEvent(native_event_);
+}
+
+const char* Event::GetName() const {
+  return EventTypeName(type_);
 }
 
 bool Event::IsMousePointerEvent() const {
@@ -378,10 +388,8 @@ Event::Event(EventType type, base::TimeTicks time_stamp, int flags)
       phase_(EP_PREDISPATCH),
       result_(ER_UNHANDLED),
       source_device_id_(ED_UNKNOWN_DEVICE) {
-  if (type_ < ET_LAST) {
+  if (type_ < ET_LAST)
     latency()->set_source_event_type(EventTypeToLatencySourceEventType(type));
-    name_ = EventTypeName(type_);
-  }
 }
 
 Event::Event(const base::NativeEvent& native_event,
@@ -398,10 +406,8 @@ Event::Event(const base::NativeEvent& native_event,
       result_(ER_UNHANDLED),
       source_device_id_(ED_UNKNOWN_DEVICE) {
   base::TimeDelta delta = EventTimeForNow() - time_stamp_;
-  if (type_ < ET_LAST) {
+  if (type_ < ET_LAST)
     latency()->set_source_event_type(EventTypeToLatencySourceEventType(type));
-    name_ = EventTypeName(type_);
-  }
   base::HistogramBase::Sample delta_sample =
       static_cast<base::HistogramBase::Sample>(delta.InMicroseconds());
   UMA_HISTOGRAM_CUSTOM_COUNTS("Event.Latency.Browser", delta_sample, 1, 1000000,
@@ -412,12 +418,11 @@ Event::Event(const base::NativeEvent& native_event,
   // instance will be used only for DCHECK builds and the second won't be
   // executed at all if the histogram was previously accessed here.
   STATIC_HISTOGRAM_POINTER_GROUP(
-      base::StringPrintf("Event.Latency.Browser.%s", name_.c_str()),
-      type_, ET_LAST, Add(delta_sample),
+      base::StringPrintf("Event.Latency.Browser.%s", GetName()), type_, ET_LAST,
+      Add(delta_sample),
       base::Histogram::FactoryGet(
-          base::StringPrintf("Event.Latency.Browser.%s", name_.c_str()),
-          1, 1000000, 100,
-          base::HistogramBase::kUmaTargetedHistogramFlag));
+          base::StringPrintf("Event.Latency.Browser.%s", GetName()), 1, 1000000,
+          100, base::HistogramBase::kUmaTargetedHistogramFlag));
 
 #if defined(USE_X11)
   if (native_event->type == GenericEvent) {
@@ -444,18 +449,12 @@ Event::Event(const Event& copy)
       phase_(EP_PREDISPATCH),
       result_(ER_UNHANDLED),
       source_device_id_(copy.source_device_id_) {
-  if (type_ < ET_LAST)
-    name_ = EventTypeName(type_);
 }
 
 void Event::SetType(EventType type) {
-  if (type_ < ET_LAST)
-    name_ = std::string();
   type_ = type;
-  if (type_ < ET_LAST) {
-    name_ = EventTypeName(type_);
+  if (type_ < ET_LAST)
     latency()->set_source_event_type(EventTypeToLatencySourceEventType(type));
-  }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -479,7 +478,7 @@ LocatedEvent::LocatedEvent(const base::NativeEvent& native_event)
     : Event(native_event,
             EventTypeFromNative(native_event),
             EventFlagsFromNative(native_event)),
-      location_(EventLocationFromNativeF(native_event)),
+      location_(EventLocationFromNative(native_event)),
       root_location_(location_) {}
 
 LocatedEvent::LocatedEvent(EventType type,
@@ -499,6 +498,66 @@ void LocatedEvent::UpdateForRootTransform(
   location_ = p.AsPointF();
   root_location_ = location_;
 }
+
+////////////////////////////////////////////////////////////////////////////////
+// PointerDetails
+
+PointerDetails::PointerDetails() {}
+
+PointerDetails::PointerDetails(EventPointerType pointer_type, int pointer_id)
+    : PointerDetails(pointer_type,
+                     pointer_id,
+                     /* radius_x */ 0.0f,
+                     /* radius_y */ 0.0f,
+                     /* force */ std::numeric_limits<float>::quiet_NaN()) {}
+
+PointerDetails::PointerDetails(EventPointerType pointer_type,
+                               int pointer_id,
+                               float radius_x,
+                               float radius_y,
+                               float force,
+                               float tilt_x,
+                               float tilt_y,
+                               float tangential_pressure,
+                               int twist)
+    : pointer_type(pointer_type),
+      // If we aren't provided with a radius on one axis, use the
+      // information from the other axis.
+      radius_x(radius_x > 0 ? radius_x : radius_y),
+      radius_y(radius_y > 0 ? radius_y : radius_x),
+      force(force),
+      tilt_x(tilt_x),
+      tilt_y(tilt_y),
+      tangential_pressure(tangential_pressure),
+      twist(twist),
+      id(pointer_id) {
+  if (pointer_id == PointerDetails::kUnknownPointerId) {
+    id = pointer_type == EventPointerType::POINTER_TYPE_MOUSE
+             ? MouseEvent::kMousePointerId
+             : 0;
+  }
+}
+
+PointerDetails::PointerDetails(EventPointerType pointer_type,
+                               const gfx::Vector2d& pointer_offset,
+                               int pointer_id)
+    : PointerDetails(pointer_type, pointer_id) {
+  offset = pointer_offset;
+}
+
+PointerDetails::PointerDetails(const PointerDetails& other)
+    : pointer_type(other.pointer_type),
+      radius_x(other.radius_x),
+      radius_y(other.radius_y),
+      force(other.force),
+      tilt_x(other.tilt_x),
+      tilt_y(other.tilt_y),
+      tangential_pressure(other.tangential_pressure),
+      twist(other.twist),
+      id(other.id),
+      offset(other.offset) {}
+
+const int PointerDetails::kUnknownPointerId = -1;
 
 ////////////////////////////////////////////////////////////////////////////////
 // MouseEvent
@@ -566,14 +625,15 @@ MouseEvent::MouseEvent(EventType type,
                        const gfx::Point& root_location,
                        base::TimeTicks time_stamp,
                        int flags,
-                       int changed_button_flags)
+                       int changed_button_flags,
+                       const PointerDetails& pointer_details)
     : LocatedEvent(type,
                    gfx::PointF(location),
                    gfx::PointF(root_location),
                    time_stamp,
                    flags),
       changed_button_flags_(changed_button_flags),
-      pointer_details_(PointerDetails(EventPointerType::POINTER_TYPE_MOUSE)) {
+      pointer_details_(pointer_details) {
   DCHECK_NE(ET_MOUSEWHEEL, type);
   latency()->AddLatencyNumber(INPUT_EVENT_LATENCY_UI_COMPONENT, 0, 0);
   if (this->type() == ET_MOUSE_MOVED && IsAnyButton())
@@ -698,6 +758,8 @@ void MouseEvent::SetClickCount(int click_count) {
   set_flags(f);
 }
 
+const int MouseEvent::kMousePointerId = std::numeric_limits<int32_t>::max();
+
 ////////////////////////////////////////////////////////////////////////////////
 // MouseWheelEvent
 
@@ -766,7 +828,6 @@ const int MouseWheelEvent::kWheelDelta = 53;
 
 TouchEvent::TouchEvent(const base::NativeEvent& native_event)
     : LocatedEvent(native_event),
-      touch_id_(GetTouchId(native_event)),
       unique_event_id_(ui::GetNextTouchEventId()),
       rotation_angle_(GetTouchAngle(native_event)),
       may_cause_scrolling_(false),
@@ -784,7 +845,6 @@ TouchEvent::TouchEvent(const base::NativeEvent& native_event)
 
 TouchEvent::TouchEvent(const PointerEvent& pointer_event)
     : LocatedEvent(pointer_event),
-      touch_id_(pointer_event.pointer_id()),
       unique_event_id_(ui::GetNextTouchEventId()),
       rotation_angle_(0.0f),
       may_cause_scrolling_(false),
@@ -815,54 +875,26 @@ TouchEvent::TouchEvent(const PointerEvent& pointer_event)
 
 TouchEvent::TouchEvent(EventType type,
                        const gfx::Point& location,
-                       int touch_id,
-                       base::TimeTicks time_stamp)
-    : LocatedEvent(type,
-                   gfx::PointF(location),
-                   gfx::PointF(location),
-                   time_stamp,
-                   0),
-      touch_id_(touch_id),
-      unique_event_id_(ui::GetNextTouchEventId()),
-      rotation_angle_(0.0f),
-      may_cause_scrolling_(false),
-      should_remove_native_touch_id_mapping_(false),
-      pointer_details_(PointerDetails(EventPointerType::POINTER_TYPE_TOUCH)) {
-  latency()->AddLatencyNumber(INPUT_EVENT_LATENCY_UI_COMPONENT, 0, 0);
-}
-
-TouchEvent::TouchEvent(EventType type,
-                       const gfx::Point& location,
-                       int flags,
-                       int touch_id,
                        base::TimeTicks time_stamp,
-                       float radius_x,
-                       float radius_y,
-                       float angle,
-                       float force)
+                       const PointerDetails& pointer_details,
+                       int flags,
+                       float angle)
     : LocatedEvent(type,
                    gfx::PointF(location),
                    gfx::PointF(location),
                    time_stamp,
                    flags),
-      touch_id_(touch_id),
       unique_event_id_(ui::GetNextTouchEventId()),
       rotation_angle_(angle),
       may_cause_scrolling_(false),
       should_remove_native_touch_id_mapping_(false),
-      pointer_details_(PointerDetails(EventPointerType::POINTER_TYPE_TOUCH,
-                                      radius_x,
-                                      radius_y,
-                                      force,
-                                      /* tilt_x */ 0.0f,
-                                      /* tilt_y */ 0.0f)) {
+      pointer_details_(pointer_details) {
   latency()->AddLatencyNumber(INPUT_EVENT_LATENCY_UI_COMPONENT, 0, 0);
   FixRotationAngle();
 }
 
 TouchEvent::TouchEvent(const TouchEvent& copy)
     : LocatedEvent(copy),
-      touch_id_(copy.touch_id_),
       unique_event_id_(copy.unique_event_id_),
       rotation_angle_(copy.rotation_angle_),
       may_cause_scrolling_(copy.may_cause_scrolling_),
@@ -909,6 +941,11 @@ void TouchEvent::FixRotationAngle() {
     rotation_angle_ -= 180;
 }
 
+void TouchEvent::set_pointer_details(const PointerDetails& pointer_details) {
+  DCHECK_EQ(pointer_details_.id, pointer_details.id);
+  pointer_details_ = pointer_details;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // PointerEvent
 
@@ -934,7 +971,6 @@ bool PointerEvent::CanConvertFrom(const Event& event) {
 
 PointerEvent::PointerEvent(const PointerEvent& pointer_event)
     : LocatedEvent(pointer_event),
-      pointer_id_(pointer_event.pointer_id()),
       changed_button_flags_(pointer_event.changed_button_flags()),
       details_(pointer_event.pointer_details()) {
   if (details_.pointer_type == EventPointerType::POINTER_TYPE_TOUCH)
@@ -947,7 +983,6 @@ PointerEvent::PointerEvent(const PointerEvent& pointer_event)
 
 PointerEvent::PointerEvent(const MouseEvent& mouse_event)
     : LocatedEvent(mouse_event),
-      pointer_id_(kMousePointerId),
       changed_button_flags_(mouse_event.changed_button_flags()),
       details_(mouse_event.pointer_details()) {
   DCHECK(CanConvertFrom(mouse_event));
@@ -981,7 +1016,8 @@ PointerEvent::PointerEvent(const MouseEvent& mouse_event)
     case ET_MOUSEWHEEL:
       SetType(ET_POINTER_WHEEL_CHANGED);
       details_ = PointerDetails(EventPointerType::POINTER_TYPE_MOUSE,
-                                mouse_event.AsMouseWheelEvent()->offset());
+                                mouse_event.AsMouseWheelEvent()->offset(),
+                                mouse_event.pointer_details().id);
       latency()->set_source_event_type(ui::SourceEventType::WHEEL);
       break;
 
@@ -996,7 +1032,6 @@ PointerEvent::PointerEvent(const MouseEvent& mouse_event)
 
 PointerEvent::PointerEvent(const TouchEvent& touch_event)
     : LocatedEvent(touch_event),
-      pointer_id_(touch_event.touch_id()),
       changed_button_flags_(0),
       details_(touch_event.pointer_details()) {
   DCHECK(CanConvertFrom(touch_event));
@@ -1027,7 +1062,6 @@ PointerEvent::PointerEvent(EventType type,
                            const gfx::Point& location,
                            const gfx::Point& root_location,
                            int flags,
-                           int pointer_id,
                            int changed_button_flags,
                            const PointerDetails& pointer_details,
                            base::TimeTicks time_stamp)
@@ -1036,7 +1070,6 @@ PointerEvent::PointerEvent(EventType type,
                    gfx::PointF(root_location),
                    time_stamp,
                    flags),
-      pointer_id_(pointer_id),
       changed_button_flags_(changed_button_flags),
       details_(pointer_details) {
   if (details_.pointer_type == EventPointerType::POINTER_TYPE_TOUCH)
@@ -1046,8 +1079,6 @@ PointerEvent::PointerEvent(EventType type,
   else
     latency()->set_source_event_type(ui::SourceEventType::OTHER);
 }
-
-const int PointerEvent::kMousePointerId = std::numeric_limits<int32_t>::max();
 
 ////////////////////////////////////////////////////////////////////////////////
 // KeyEvent
@@ -1118,11 +1149,13 @@ KeyEvent::KeyEvent(const base::NativeEvent& native_event, int event_flags)
 
 KeyEvent::KeyEvent(EventType type,
                    KeyboardCode key_code,
-                   int flags)
-    : Event(type, EventTimeForNow(), flags),
+                   int flags,
+                   base::TimeTicks time_stamp)
+    : Event(type,
+            time_stamp == base::TimeTicks() ? EventTimeForNow() : time_stamp,
+            flags),
       key_code_(key_code),
-      code_(UsLayoutKeyboardCodeToDomCode(key_code)) {
-}
+      code_(UsLayoutKeyboardCodeToDomCode(key_code)) {}
 
 KeyEvent::KeyEvent(EventType type,
                    KeyboardCode key_code,
@@ -1144,21 +1177,27 @@ KeyEvent::KeyEvent(EventType type,
       code_(code),
       key_(key) {}
 
-KeyEvent::KeyEvent(base::char16 character, KeyboardCode key_code, int flags)
-    : Event(ET_KEY_PRESSED, EventTimeForNow(), flags),
+KeyEvent::KeyEvent(base::char16 character,
+                   KeyboardCode key_code,
+                   int flags,
+                   base::TimeTicks time_stamp)
+    : Event(ET_KEY_PRESSED,
+            time_stamp == base::TimeTicks() ? EventTimeForNow() : time_stamp,
+            flags),
       key_code_(key_code),
       code_(DomCode::NONE),
       is_char_(true),
-      key_(DomKey::FromCharacter(character)) {
-}
+      key_(DomKey::FromCharacter(character)) {}
 
 KeyEvent::KeyEvent(const KeyEvent& rhs)
     : Event(rhs),
       key_code_(rhs.key_code_),
       code_(rhs.code_),
       is_char_(rhs.is_char_),
-      key_(rhs.key_) {
-}
+      key_(rhs.key_),
+      properties_(rhs.properties_
+                      ? base::MakeUnique<Properties>(*rhs.properties_)
+                      : nullptr) {}
 
 KeyEvent& KeyEvent::operator=(const KeyEvent& rhs) {
   if (this != &rhs) {
@@ -1167,6 +1206,10 @@ KeyEvent& KeyEvent::operator=(const KeyEvent& rhs) {
     code_ = rhs.code_;
     key_ = rhs.key_;
     is_char_ = rhs.is_char_;
+    if (rhs.properties_)
+      properties_ = base::MakeUnique<Properties>(*rhs.properties_);
+    else
+      properties_.reset();
   }
   latency()->set_source_event_type(ui::SourceEventType::OTHER);
   return *this;
@@ -1300,6 +1343,10 @@ void KeyEvent::NormalizeFlags() {
     set_flags(flags() | mask);
   else
     set_flags(flags() & ~mask);
+}
+
+void KeyEvent::SetProperties(const Properties& properties) {
+  properties_ = base::MakeUnique<Properties>(properties);
 }
 
 KeyboardCode KeyEvent::GetLocatedWindowsKeyboardCode() const {

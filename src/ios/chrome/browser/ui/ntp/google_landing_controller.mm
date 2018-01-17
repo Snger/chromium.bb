@@ -13,7 +13,7 @@
 #include "base/mac/bind_objc_block.h"
 #include "base/mac/foundation_util.h"
 #include "base/mac/scoped_nsobject.h"
-#include "base/metrics/histogram.h"
+#include "base/metrics/histogram_macros.h"
 #include "base/metrics/user_metrics.h"
 #include "base/metrics/user_metrics_action.h"
 #include "base/strings/sys_string_conversions.h"
@@ -22,7 +22,6 @@
 #include "components/ntp_tiles/most_visited_sites.h"
 #include "components/ntp_tiles/ntp_tile.h"
 #include "components/rappor/rappor_service_impl.h"
-#include "components/reading_list/core/reading_list_switches.h"
 #include "components/search_engines/template_url_service.h"
 #include "components/search_engines/template_url_service_observer.h"
 #include "components/strings/grit/components_strings.h"
@@ -35,6 +34,7 @@
 #import "ios/chrome/browser/metrics/new_tab_page_uma.h"
 #include "ios/chrome/browser/notification_promo.h"
 #include "ios/chrome/browser/ntp_tiles/ios_most_visited_sites_factory.h"
+#import "ios/chrome/browser/ntp_tiles/most_visited_sites_observer_bridge.h"
 #include "ios/chrome/browser/reading_list/reading_list_model_factory.h"
 #include "ios/chrome/browser/search_engines/template_url_service_factory.h"
 #include "ios/chrome/browser/suggestions/suggestions_service_factory.h"
@@ -109,44 +109,7 @@ const CGFloat kMostVisitedPaddingIPadFavicon = 24;
 
 }  // namespace
 
-@interface GoogleLandingController ()
-- (void)onMostVisitedURLsAvailable:(const ntp_tiles::NTPTilesVector&)data;
-- (void)onIconMadeAvailable:(const GURL&)siteUrl;
-@end
-
 namespace google_landing {
-
-// MostVisitedSitesObserverBridge allow registration as a
-// MostVisitedSites::Observer.
-class MostVisitedSitesObserverBridge
-    : public ntp_tiles::MostVisitedSites::Observer {
- public:
-  MostVisitedSitesObserverBridge(GoogleLandingController* owner);
-  ~MostVisitedSitesObserverBridge() override;
-
-  // MostVisitedSites::Observer implementation.
-  void OnMostVisitedURLsAvailable(
-      const ntp_tiles::NTPTilesVector& most_visited) override;
-  void OnIconMadeAvailable(const GURL& site_url) override;
-
- private:
-  GoogleLandingController* _owner;
-};
-
-MostVisitedSitesObserverBridge::MostVisitedSitesObserverBridge(
-    GoogleLandingController* owner)
-    : _owner(owner) {}
-
-MostVisitedSitesObserverBridge::~MostVisitedSitesObserverBridge() {}
-
-void MostVisitedSitesObserverBridge::OnMostVisitedURLsAvailable(
-    const ntp_tiles::NTPTilesVector& tiles) {
-  [_owner onMostVisitedURLsAvailable:tiles];
-}
-
-void MostVisitedSitesObserverBridge::OnIconMadeAvailable(const GURL& site_url) {
-  [_owner onIconMadeAvailable:site_url];
-}
 
 // Observer used to hide the Google logo and doodle if the TemplateURLService
 // changes.
@@ -221,7 +184,8 @@ void SearchEngineObserver::OnTemplateURLServiceChanged() {
 
 @end
 
-@interface GoogleLandingController ()<OverscrollActionsControllerDelegate,
+@interface GoogleLandingController ()<MostVisitedSitesObserving,
+                                      OverscrollActionsControllerDelegate,
                                       UICollectionViewDataSource,
                                       UICollectionViewDelegate,
                                       UICollectionViewDelegateFlowLayout,
@@ -268,7 +232,7 @@ void SearchEngineObserver::OnTemplateURLServiceChanged() {
 
   // A MostVisitedSites::Observer bridge object to get notified of most visited
   // sites changes.
-  std::unique_ptr<google_landing::MostVisitedSitesObserverBridge>
+  std::unique_ptr<ntp_tiles::MostVisitedSitesObserverBridge>
       _most_visited_observer_bridge;
 
   std::unique_ptr<ntp_tiles::MostVisitedSites> _most_visited_sites;
@@ -350,7 +314,7 @@ void SearchEngineObserver::OnTemplateURLServiceChanged() {
 - (void)reloadData;
 // Logs a histogram due to a Most Visited item being opened.
 - (void)logMostVisitedClick:(const NSUInteger)visitedIndex
-                   tileType:(ntp_tiles::metrics::MostVisitedTileType)tileType;
+                   tileType:(ntp_tiles::TileVisualType)tileType;
 // Returns the size of |_mostVisitedData|.
 - (NSUInteger)numberOfItems;
 // Returns the number of non empty tiles (as opposed to the placeholder tiles).
@@ -931,7 +895,7 @@ void SearchEngineObserver::OnTemplateURLServiceChanged() {
   _most_visited_sites =
       IOSMostVisitedSitesFactory::NewForBrowserState(_browserState);
   _most_visited_observer_bridge.reset(
-      new google_landing::MostVisitedSitesObserverBridge(self));
+      new ntp_tiles::MostVisitedSitesObserverBridge(self));
   _most_visited_sites->SetMostVisitedURLsObserver(
       _most_visited_observer_bridge.get(), kMaxNumMostVisitedFavicons);
 }
@@ -1089,40 +1053,12 @@ void SearchEngineObserver::OnTemplateURLServiceChanged() {
 }
 
 - (void)logMostVisitedClick:(const NSUInteger)visitedIndex
-                   tileType:(ntp_tiles::metrics::MostVisitedTileType)tileType {
+                   tileType:(ntp_tiles::TileVisualType)tileType {
   new_tab_page_uma::RecordAction(
       _browserState, new_tab_page_uma::ACTION_OPENED_MOST_VISITED_ENTRY);
   base::RecordAction(UserMetricsAction("MobileNTPMostVisited"));
   const ntp_tiles::NTPTile& tile = _mostVisitedData[visitedIndex];
   ntp_tiles::metrics::RecordTileClick(visitedIndex, tile.source, tileType);
-}
-
-- (void)onMostVisitedURLsAvailable:(const ntp_tiles::NTPTilesVector&)data {
-  _mostVisitedData = data;
-  [self reloadData];
-
-  if (data.size() && !_recordedPageImpression) {
-    _recordedPageImpression = YES;
-    std::vector<ntp_tiles::metrics::TileImpression> tiles;
-    for (const ntp_tiles::NTPTile& ntpTile : data) {
-      tiles.emplace_back(ntpTile.source, ntp_tiles::metrics::UNKNOWN_TILE_TYPE,
-                         ntpTile.url);
-    }
-    ntp_tiles::metrics::RecordPageImpression(
-        tiles, GetApplicationContext()->GetRapporServiceImpl());
-  }
-}
-
-- (void)onIconMadeAvailable:(const GURL&)siteUrl {
-  for (size_t i = 0; i < [self numberOfItems]; ++i) {
-    const ntp_tiles::NTPTile& ntpTile = _mostVisitedData[i];
-    if (ntpTile.url == siteUrl) {
-      NSIndexPath* indexPath =
-          [NSIndexPath indexPathForRow:i inSection:SectionWithMostVisited];
-      [_mostVisitedView reloadItemsAtIndexPaths:@[ indexPath ]];
-      break;
-    }
-  }
 }
 
 - (void)reloadData {
@@ -1160,6 +1096,36 @@ void SearchEngineObserver::OnTemplateURLServiceChanged() {
     }
   }
   return headerHeight;
+}
+
+#pragma mark - MostVisitedSitesObserving
+
+- (void)onMostVisitedURLsAvailable:(const ntp_tiles::NTPTilesVector&)data {
+  _mostVisitedData = data;
+  [self reloadData];
+
+  if (data.size() && !_recordedPageImpression) {
+    _recordedPageImpression = YES;
+    std::vector<ntp_tiles::metrics::TileImpression> tiles;
+    for (const ntp_tiles::NTPTile& ntpTile : data) {
+      tiles.emplace_back(ntpTile.source, ntp_tiles::UNKNOWN_TILE_TYPE,
+                         ntpTile.url);
+    }
+    ntp_tiles::metrics::RecordPageImpression(
+        tiles, GetApplicationContext()->GetRapporServiceImpl());
+  }
+}
+
+- (void)onIconMadeAvailable:(const GURL&)siteUrl {
+  for (size_t i = 0; i < [self numberOfItems]; ++i) {
+    const ntp_tiles::NTPTile& ntpTile = _mostVisitedData[i];
+    if (ntpTile.url == siteUrl) {
+      NSIndexPath* indexPath =
+          [NSIndexPath indexPathForRow:i inSection:SectionWithMostVisited];
+      [_mostVisitedView reloadItemsAtIndexPaths:@[ indexPath ]];
+      break;
+    }
+  }
 }
 
 #pragma mark - UICollectionView Methods.
@@ -1223,57 +1189,58 @@ void SearchEngineObserver::OnTemplateURLServiceChanged() {
 - (UICollectionReusableView*)collectionView:(UICollectionView*)collectionView
           viewForSupplementaryElementOfKind:(NSString*)kind
                                 atIndexPath:(NSIndexPath*)indexPath {
+  DCHECK(kind == UICollectionElementKindSectionHeader);
+
   if (!_supplementaryViews)
     _supplementaryViews.reset([[NSMutableArray alloc] init]);
-  if (kind == UICollectionElementKindSectionHeader) {
-    NSUInteger section = indexPath.section;
-    if (section == SectionWithOmnibox) {
-      if (!_headerView) {
-        _headerView.reset([[collectionView
-            dequeueReusableSupplementaryViewOfKind:
-                UICollectionElementKindSectionHeader
-                               withReuseIdentifier:@"header"
-                                      forIndexPath:indexPath] retain]);
-        [_headerView addSubview:[_doodleController view]];
-        [_headerView addSubview:_searchTapTarget];
-        [_headerView addViewsToSearchField:_searchTapTarget];
 
-        if (!IsIPadIdiom()) {
-          ReadingListModel* readingListModel = nullptr;
-          if (reading_list::switches::IsReadingListEnabled()) {
-            readingListModel =
-                ReadingListModelFactory::GetForBrowserState(_browserState);
-          }
-          // iPhone header also contains a toolbar since the normal toolbar is
-          // hidden.
-          [_headerView addToolbarWithDelegate:_webToolbarDelegate
-                                      focuser:_focuser
-                                     tabModel:_tabModel
-                             readingListModel:readingListModel];
-        }
-        [_supplementaryViews addObject:_headerView];
+  if (indexPath.section == SectionWithOmnibox) {
+    if (!_headerView) {
+      _headerView.reset([[collectionView
+          dequeueReusableSupplementaryViewOfKind:
+              UICollectionElementKindSectionHeader
+                             withReuseIdentifier:@"header"
+                                    forIndexPath:indexPath] retain]);
+      [_headerView addSubview:[_doodleController view]];
+      [_headerView addSubview:_searchTapTarget];
+      [_headerView addViewsToSearchField:_searchTapTarget];
+
+      if (!IsIPadIdiom()) {
+        ReadingListModel* readingListModel =
+            ReadingListModelFactory::GetForBrowserState(_browserState);
+        // iPhone header also contains a toolbar since the normal toolbar is
+        // hidden.
+        [_headerView addToolbarWithDelegate:_webToolbarDelegate
+                                    focuser:_focuser
+                                   tabModel:_tabModel
+                           readingListModel:readingListModel];
       }
-      return _headerView;
-    } else if (section == SectionWithMostVisited) {
-      if (!_promoHeaderView) {
-        _promoHeaderView.reset([[collectionView
-            dequeueReusableSupplementaryViewOfKind:
-                UICollectionElementKindSectionHeader
-                               withReuseIdentifier:@"whatsNew"
-                                      forIndexPath:indexPath] retain]);
-        [_promoHeaderView setSideMargin:[self leftMargin]];
-        [_promoHeaderView setDelegate:self];
-        if (_notification_promo && _notification_promo->CanShow()) {
-          [_promoHeaderView setText:base::SysUTF8ToNSString(
-                                        _notification_promo->promo_text())];
-          [_promoHeaderView setIcon:_notification_promo->icon()];
-          _notification_promo->HandleViewed();
-        }
-        [_supplementaryViews addObject:_promoHeaderView];
-      }
-      return _promoHeaderView;
+      [_supplementaryViews addObject:_headerView];
     }
+    return _headerView;
   }
+
+  if (indexPath.section == SectionWithMostVisited) {
+    if (!_promoHeaderView) {
+      _promoHeaderView.reset([[collectionView
+          dequeueReusableSupplementaryViewOfKind:
+              UICollectionElementKindSectionHeader
+                             withReuseIdentifier:@"whatsNew"
+                                    forIndexPath:indexPath] retain]);
+      [_promoHeaderView setSideMargin:[self leftMargin]];
+      [_promoHeaderView setDelegate:self];
+      if (_notification_promo && _notification_promo->CanShow()) {
+        [_promoHeaderView
+            setText:base::SysUTF8ToNSString(_notification_promo->promo_text())];
+        [_promoHeaderView setIcon:_notification_promo->icon()];
+        _notification_promo->HandleViewed();
+      }
+      [_supplementaryViews addObject:_promoHeaderView];
+    }
+    return _promoHeaderView;
+  }
+
+  NOTREACHED();
   return nil;
 }
 
@@ -1377,7 +1344,6 @@ void SearchEngineObserver::OnTemplateURLServiceChanged() {
       [strongSelf logMostVisitedClick:index tileType:cell.tileType];
       [[strongSelf loader] webPageOrderedOpen:url
                                      referrer:web::Referrer()
-                                   windowName:nil
                                  inBackground:YES
                                      appendTo:kCurrentTab];
     };
@@ -1397,7 +1363,6 @@ void SearchEngineObserver::OnTemplateURLServiceChanged() {
         [strongSelf logMostVisitedClick:index tileType:cell.tileType];
         [[strongSelf loader] webPageOrderedOpen:url
                                        referrer:web::Referrer()
-                                     windowName:nil
                                     inIncognito:YES
                                    inBackground:NO
                                        appendTo:kCurrentTab];
@@ -1446,6 +1411,7 @@ void SearchEngineObserver::OnTemplateURLServiceChanged() {
   action.title = l10n_util::GetNSString(IDS_NEW_TAB_UNDO_THUMBNAIL_REMOVE);
   action.accessibilityIdentifier = @"Undo";
 
+  TriggerHapticFeedbackForNotification(UINotificationFeedbackTypeSuccess);
   MDCSnackbarMessage* message = [MDCSnackbarMessage
       messageWithText:l10n_util::GetNSString(
                           IDS_IOS_NEW_TAB_MOST_VISITED_ITEM_REMOVED)];
@@ -1463,7 +1429,6 @@ void SearchEngineObserver::OnTemplateURLServiceChanged() {
   if (_notification_promo->IsURLPromo()) {
     [_loader webPageOrderedOpen:_notification_promo->url()
                        referrer:web::Referrer()
-                     windowName:nil
                    inBackground:NO
                        appendTo:kCurrentTab];
     _notification_promo.reset();

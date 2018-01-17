@@ -7,19 +7,18 @@
 #include <memory>
 #include <utility>
 
-#include "ash/common/accelerators/accelerator_controller.h"
-#include "ash/common/accessibility_delegate.h"
-#include "ash/common/system/tray/system_tray_delegate.h"
-#include "ash/common/wm_shell.h"
+#include "ash/accelerators/accelerator_controller.h"
+#include "ash/accessibility_delegate.h"
 #include "ash/display/root_window_transformers.h"
 #include "ash/host/ash_window_tree_host.h"
 #include "ash/host/root_window_transformer.h"
 #include "ash/root_window_controller.h"
-#include "ash/screen_util.h"
 #include "ash/shell.h"
+#include "ash/system/tray/system_tray_delegate.h"
 #include "base/command_line.h"
 #include "base/synchronization/waitable_event.h"
 #include "base/timer/timer.h"
+#include "chromeos/chromeos_switches.h"
 #include "ui/aura/client/cursor_client.h"
 #include "ui/aura/window.h"
 #include "ui/aura/window_tree_host.h"
@@ -34,6 +33,7 @@
 #include "ui/display/screen.h"
 #include "ui/events/event.h"
 #include "ui/events/event_handler.h"
+#include "ui/events/gesture_event_details.h"
 #include "ui/gfx/geometry/point3_f.h"
 #include "ui/gfx/geometry/point_conversions.h"
 #include "ui/gfx/geometry/point_f.h"
@@ -191,6 +191,7 @@ class MagnificationControllerImpl : public MagnificationController,
   void OnMouseEvent(ui::MouseEvent* event) override;
   void OnScrollEvent(ui::ScrollEvent* event) override;
   void OnTouchEvent(ui::TouchEvent* event) override;
+  void OnGestureEvent(ui::GestureEvent* event) override;
 
   // Moves the view port when |point| is located within
   // |x_panning_margin| and |y_pannin_margin| to the edge of the visible
@@ -276,7 +277,7 @@ MagnificationControllerImpl::MagnificationControllerImpl()
       scale_(kNonMagnifiedScale),
       scroll_direction_(SCROLL_NONE),
       disable_move_magnifier_delay_(false) {
-  Shell::GetInstance()->AddPreTargetHandler(this);
+  Shell::Get()->AddPreTargetHandler(this);
   root_window_->AddObserver(this);
   point_of_interest_ = root_window_->bounds().CenterPoint();
 }
@@ -288,7 +289,7 @@ MagnificationControllerImpl::~MagnificationControllerImpl() {
 
   root_window_->RemoveObserver(this);
 
-  Shell::GetInstance()->RemovePreTargetHandler(this);
+  Shell::Get()->RemovePreTargetHandler(this);
 }
 
 void MagnificationControllerImpl::RedrawKeepingMousePosition(float scale,
@@ -437,8 +438,8 @@ void MagnificationControllerImpl::HandleFocusedNodeChanged(
   if (node_bounds_in_screen.IsEmpty())
     return;
 
-  gfx::Rect node_bounds_in_root =
-      ScreenUtil::ConvertRectFromScreen(root_window_, node_bounds_in_screen);
+  gfx::Rect node_bounds_in_root = node_bounds_in_screen;
+  ::wm::ConvertRectFromScreen(root_window_, &node_bounds_in_root);
   if (GetViewportRect().Contains(node_bounds_in_root))
     return;
 
@@ -538,7 +539,7 @@ void MagnificationControllerImpl::OnWindowDestroying(
     // destroyed before the root windows get destroyed.
     DCHECK(root_window);
 
-    aura::Window* target_root_window = Shell::GetTargetRootWindow();
+    aura::Window* target_root_window = Shell::GetRootWindowForNewWindows();
     CHECK(target_root_window);
 
     // The destroyed root window must not be target.
@@ -564,7 +565,7 @@ void MagnificationControllerImpl::SetScale(float scale, bool animate) {
     return;
 
   ValidateScale(&scale);
-  WmShell::Get()->accessibility_delegate()->SaveScreenMagnifierScale(scale);
+  Shell::Get()->accessibility_delegate()->SaveScreenMagnifierScale(scale);
   RedrawKeepingMousePosition(scale, animate);
 }
 
@@ -595,9 +596,9 @@ void MagnificationControllerImpl::SetEnabled(bool enabled) {
     if (!is_enabled_ && input_method)
       input_method->AddObserver(this);
 
-    WmShell* wm_shell = WmShell::Get();
+    Shell* shell = Shell::Get();
     float scale =
-        wm_shell->accessibility_delegate()->GetSavedScreenMagnifierScale();
+        shell->accessibility_delegate()->GetSavedScreenMagnifierScale();
     if (scale <= 0.0f)
       scale = kInitialMagnifiedScale;
     ValidateScale(&scale);
@@ -608,7 +609,7 @@ void MagnificationControllerImpl::SetEnabled(bool enabled) {
 
     is_enabled_ = enabled;
     RedrawKeepingMousePosition(scale, true);
-    wm_shell->accessibility_delegate()->SaveScreenMagnifierScale(scale);
+    shell->accessibility_delegate()->SaveScreenMagnifierScale(scale);
   } else {
     // Do nothing, if already disabled.
     if (!is_enabled_)
@@ -687,6 +688,33 @@ void MagnificationControllerImpl::OnTouchEvent(ui::TouchEvent* event) {
     gfx::Rect root_bounds = current_root->bounds();
     if (root_bounds.Contains(event->root_location()))
       point_of_interest_ = event->root_location();
+  }
+}
+
+void MagnificationControllerImpl::OnGestureEvent(ui::GestureEvent* event) {
+  if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
+          chromeos::switches::kEnableTouchSupportForScreenMagnifier)) {
+    return;
+  }
+
+  const ui::GestureEventDetails& details = event->details();
+  if (details.type() == ui::ET_GESTURE_SCROLL_UPDATE &&
+      details.touch_points() == 2) {
+    gfx::Rect viewport_rect_in_dip = GetViewportRect();
+    viewport_rect_in_dip.Offset(-details.scroll_x(), -details.scroll_y());
+    gfx::Rect viewport_rect_in_pixel =
+        ui::ConvertRectToPixel(root_window_->layer(), viewport_rect_in_dip);
+    MoveWindow(viewport_rect_in_pixel.origin(), false);
+    event->SetHandled();
+  } else if (details.type() == ui::ET_GESTURE_PINCH_UPDATE &&
+             details.touch_points() == 3) {
+    float scale = GetScale() * details.scale();
+    scale = std::max(scale, kMinMagnifiedScaleThreshold);
+    scale = std::min(scale, kMaxMagnifiedScaleThreshold);
+
+    point_of_interest_ = event->root_location();
+    SetScale(scale, false);
+    event->SetHandled();
   }
 }
 

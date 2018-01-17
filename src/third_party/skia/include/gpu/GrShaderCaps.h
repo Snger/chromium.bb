@@ -98,24 +98,6 @@ public:
     bool floatPrecisionVaries() const { return fShaderPrecisionVaries; }
 
     /**
-     * PLS storage size in bytes (0 when not supported). The PLS spec defines a minimum size of 16
-     * bytes whenever PLS is supported.
-     */
-    int pixelLocalStorageSize() const { return fPixelLocalStorageSize; }
-
-    /**
-     * True if this context supports the necessary extensions and features to enable the PLS path
-     * renderer.
-     */
-    bool plsPathRenderingSupport() const {
-#if GR_ENABLE_PLS_PATH_RENDERING
-        return fPLSPathRenderingSupport;
-#else
-        return false;
-#endif
-    }
-
-    /**
      * Some helper functions for encapsulating various extensions to read FB Buffer on openglES
      *
      * TODO(joshualitt) On desktop opengl 4.2+ we can achieve something similar to this effect
@@ -164,14 +146,20 @@ public:
 
     bool usesPrecisionModifiers() const { return fUsesPrecisionModifiers; }
 
-    // Returns whether we can use the glsl funciton any() in our shader code.
+    // Returns whether we can use the glsl function any() in our shader code.
     bool canUseAnyFunctionInShader() const { return fCanUseAnyFunctionInShader; }
 
     bool canUseMinAndAbsTogether() const { return fCanUseMinAndAbsTogether; }
 
     bool mustForceNegatedAtanParamToFloat() const { return fMustForceNegatedAtanParamToFloat; }
 
+    // Returns whether a device incorrectly implements atan(y,x) as atan(y/x)
+    bool atan2ImplementedAsAtanYOverX() const { return fAtan2ImplementedAsAtanYOverX; }
+
     bool requiresLocalOutputColorForFBFetch() const { return fRequiresLocalOutputColorForFBFetch; }
+
+    // On MacBook, geometry shaders break if they have more than one invocation.
+    bool mustImplementGSInvocationsWithLoop() const { return fMustImplementGSInvocationsWithLoop; }
 
     // Returns the string of an extension that must be enabled in the shader to support
     // derivatives. If nullptr is returned then no extension needs to be enabled. Before calling
@@ -280,7 +268,6 @@ private:
     bool fIntegerSupport            : 1;
     bool fTexelBufferSupport        : 1;
     bool fImageLoadStoreSupport     : 1;
-    bool fPLSPathRenderingSupport   : 1;
     bool fShaderPrecisionVaries     : 1;
     bool fDropsTileOnZeroDivide : 1;
     bool fFBFetchSupport : 1;
@@ -299,10 +286,11 @@ private:
     // Used for specific driver bug work arounds
     bool fCanUseMinAndAbsTogether : 1;
     bool fMustForceNegatedAtanParamToFloat : 1;
+    bool fAtan2ImplementedAsAtanYOverX : 1;
     bool fRequiresLocalOutputColorForFBFetch : 1;
+    bool fMustImplementGSInvocationsWithLoop : 1;
 
     PrecisionInfo fFloatPrecisions[kGrShaderTypeCount][kGrSLPrecisionCount];
-    int fPixelLocalStorageSize;
 
     const char* fVersionDeclString;
 

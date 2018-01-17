@@ -325,18 +325,25 @@ static av_cold int nvenc_check_device(AVCodecContext *avctx, int idx)
     }
 
     cu_res = dl_fn->cuda_dl->cuDeviceGetName(name, sizeof(name), cu_device);
-    if (cu_res != CUDA_SUCCESS)
+    if (cu_res != CUDA_SUCCESS) {
+        av_log(avctx, AV_LOG_ERROR, "cuDeviceGetName failed on device %d\n", idx);
         return -1;
+    }
 
     cu_res = dl_fn->cuda_dl->cuDeviceComputeCapability(&major, &minor, cu_device);
-    if (cu_res != CUDA_SUCCESS)
+    if (cu_res != CUDA_SUCCESS) {
+        av_log(avctx, AV_LOG_ERROR, "cuDeviceComputeCapability failed on device %d\n", idx);
         return -1;
+    }
 
     av_log(avctx, loglevel, "[ GPU #%d - < %s > has Compute SM %d.%d ]\n", idx, name, major, minor);
     if (((major << 4) | minor) < NVENC_CAP) {
         av_log(avctx, loglevel, "does not support NVENC\n");
         goto fail;
     }
+
+    if (ctx->device != idx && ctx->device != ANY_DEVICE)
+        return -1;
 
     cu_res = dl_fn->cuda_dl->cuCtxCreate(&ctx->cu_context_internal, 0, cu_device);
     if (cu_res != CUDA_SUCCESS) {
@@ -362,7 +369,7 @@ static av_cold int nvenc_check_device(AVCodecContext *avctx, int idx)
 
     dl_fn->nvenc_device_count++;
 
-    if (ctx->device == dl_fn->nvenc_device_count - 1 || ctx->device == ANY_DEVICE)
+    if (ctx->device == idx || ctx->device == ANY_DEVICE)
         return 0;
 
 fail3:
@@ -451,7 +458,7 @@ static av_cold int nvenc_setup_device(AVCodecContext *avctx)
             return AVERROR_EXTERNAL;
         }
 
-        av_log(avctx, AV_LOG_FATAL, "Requested GPU %d, but only %d GPUs are available!\n", ctx->device, dl_fn->nvenc_device_count);
+        av_log(avctx, AV_LOG_FATAL, "Requested GPU %d, but only %d GPUs are available!\n", ctx->device, nb_devices);
         return AVERROR(EINVAL);
     }
 
@@ -540,16 +547,33 @@ static av_cold void set_vbr(AVCodecContext *avctx)
     }
 
     rc->enableInitialRCQP = 1;
-    rc->initialRCQP.qpInterP  = qp_inter_p;
 
-    if (avctx->i_quant_factor != 0.0 && avctx->b_quant_factor != 0.0) {
-        rc->initialRCQP.qpIntra = av_clip(
-            qp_inter_p * fabs(avctx->i_quant_factor) + avctx->i_quant_offset, 0, 51);
-        rc->initialRCQP.qpInterB = av_clip(
-            qp_inter_p * fabs(avctx->b_quant_factor) + avctx->b_quant_offset, 0, 51);
+    if (ctx->init_qp_p < 0) {
+        rc->initialRCQP.qpInterP  = qp_inter_p;
     } else {
-        rc->initialRCQP.qpIntra = qp_inter_p;
-        rc->initialRCQP.qpInterB = qp_inter_p;
+        rc->initialRCQP.qpInterP = ctx->init_qp_p;
+    }
+
+    if (ctx->init_qp_i < 0) {
+        if (avctx->i_quant_factor != 0.0 && avctx->b_quant_factor != 0.0) {
+            rc->initialRCQP.qpIntra = av_clip(
+                rc->initialRCQP.qpInterP * fabs(avctx->i_quant_factor) + avctx->i_quant_offset + 0.5, 0, 51);
+        } else {
+            rc->initialRCQP.qpIntra = rc->initialRCQP.qpInterP;
+        }
+    } else {
+        rc->initialRCQP.qpIntra = ctx->init_qp_i;
+    }
+
+    if (ctx->init_qp_b < 0) {
+        if (avctx->i_quant_factor != 0.0 && avctx->b_quant_factor != 0.0) {
+            rc->initialRCQP.qpInterB = av_clip(
+                rc->initialRCQP.qpInterP * fabs(avctx->b_quant_factor) + avctx->b_quant_offset + 0.5, 0, 51);
+        } else {
+            rc->initialRCQP.qpInterB = rc->initialRCQP.qpInterP;
+        }
+    } else {
+        rc->initialRCQP.qpInterB = ctx->init_qp_b;
     }
 }
 
@@ -582,16 +606,6 @@ static void nvenc_override_rate_control(AVCodecContext *avctx)
         }
         set_constqp(avctx);
         return;
-    case NV_ENC_PARAMS_RC_2_PASS_VBR:
-    case NV_ENC_PARAMS_RC_VBR:
-        if (avctx->qmin < 0 && avctx->qmax < 0) {
-            av_log(avctx, AV_LOG_WARNING,
-                   "The variable bitrate rate-control requires "
-                   "the 'qmin' and/or 'qmax' option set.\n");
-            set_vbr(avctx);
-            return;
-        }
-        /* fall through */
     case NV_ENC_PARAMS_RC_VBR_MINQP:
         if (avctx->qmin < 0) {
             av_log(avctx, AV_LOG_WARNING,
@@ -600,6 +614,9 @@ static void nvenc_override_rate_control(AVCodecContext *avctx)
             set_vbr(avctx);
             return;
         }
+        /* fall through */
+    case NV_ENC_PARAMS_RC_2_PASS_VBR:
+    case NV_ENC_PARAMS_RC_VBR:
         set_vbr(avctx);
         break;
     case NV_ENC_PARAMS_RC_CBR:
@@ -695,7 +712,7 @@ static av_cold void nvenc_setup_rate_control(AVCodecContext *avctx)
         av_log(avctx, AV_LOG_VERBOSE, "Temporal AQ enabled.\n");
     }
 
-    if (ctx->rc_lookahead) {
+    if (ctx->rc_lookahead > 0) {
         int lkd_bound = FFMIN(ctx->nb_surfaces, ctx->async_depth) -
                         ctx->encode_config.frameIntervalP - 4;
 
@@ -756,7 +773,7 @@ static av_cold int nvenc_setup_h264_config(AVCodecContext *avctx)
 
     h264->disableSPSPPS = (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER) ? 1 : 0;
     h264->repeatSPSPPS  = (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER) ? 0 : 1;
-    h264->outputAUD     = 1;
+    h264->outputAUD     = ctx->aud;
 
     if (avctx->refs >= 0) {
         /* 0 means "let the hardware decide" */
@@ -840,7 +857,7 @@ static av_cold int nvenc_setup_hevc_config(AVCodecContext *avctx)
 
     hevc->disableSPSPPS = (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER) ? 1 : 0;
     hevc->repeatSPSPPS  = (avctx->flags & AV_CODEC_FLAG_GLOBAL_HEADER) ? 0 : 1;
-    hevc->outputAUD     = 1;
+    hevc->outputAUD     = ctx->aud;
 
     if (avctx->refs >= 0) {
         /* 0 means "let the hardware decide" */
@@ -957,6 +974,21 @@ static av_cold int nvenc_setup_encoder(AVCodecContext *avctx)
 
     ctx->init_encode_params.enableEncodeAsync = 0;
     ctx->init_encode_params.enablePTD = 1;
+
+    if (ctx->bluray_compat) {
+        ctx->aud = 1;
+        avctx->refs = FFMIN(FFMAX(avctx->refs, 0), 6);
+        avctx->max_b_frames = FFMIN(avctx->max_b_frames, 3);
+        switch (avctx->codec->id) {
+        case AV_CODEC_ID_H264:
+            /* maximum level depends on used resolution */
+            break;
+        case AV_CODEC_ID_HEVC:
+            ctx->level = NV_ENC_LEVEL_HEVC_51;
+            ctx->tier = NV_ENC_TIER_HEVC_HIGH;
+            break;
+        }
+    }
 
     if (avctx->gop_size > 0) {
         if (avctx->max_b_frames >= 0) {
@@ -1399,6 +1431,7 @@ static int nvenc_upload_frame(AVCodecContext *avctx, const AVFrame *frame,
         ctx->registered_frames[reg_idx].mapped = 1;
         nvenc_frame->reg_idx                   = reg_idx;
         nvenc_frame->input_surface             = nvenc_frame->in_map.mappedResource;
+        nvenc_frame->format                    = nvenc_frame->in_map.mappedBufferFmt;
         nvenc_frame->pitch                     = frame->linesize[0];
         return 0;
     } else {
@@ -1626,6 +1659,8 @@ int ff_nvenc_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
                           const AVFrame *frame, int *got_packet)
 {
     NVENCSTATUS nv_status;
+    CUresult cu_res;
+    CUcontext dummy;
     NvencSurface *tmpoutsurf, *inSurf;
     int res;
 
@@ -1643,7 +1678,20 @@ int ff_nvenc_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
             return AVERROR_BUG;
         }
 
+        cu_res = dl_fn->cuda_dl->cuCtxPushCurrent(ctx->cu_context);
+        if (cu_res != CUDA_SUCCESS) {
+            av_log(avctx, AV_LOG_ERROR, "cuCtxPushCurrent failed\n");
+            return AVERROR_EXTERNAL;
+        }
+
         res = nvenc_upload_frame(avctx, frame, inSurf);
+
+        cu_res = dl_fn->cuda_dl->cuCtxPopCurrent(&dummy);
+        if (cu_res != CUDA_SUCCESS) {
+            av_log(avctx, AV_LOG_ERROR, "cuCtxPopCurrent failed\n");
+            return AVERROR_EXTERNAL;
+        }
+
         if (res) {
             inSurf->lockCount = 0;
             return res;
@@ -1679,7 +1727,20 @@ int ff_nvenc_encode_frame(AVCodecContext *avctx, AVPacket *pkt,
         pic_params.encodePicFlags = NV_ENC_PIC_FLAG_EOS;
     }
 
+    cu_res = dl_fn->cuda_dl->cuCtxPushCurrent(ctx->cu_context);
+    if (cu_res != CUDA_SUCCESS) {
+        av_log(avctx, AV_LOG_ERROR, "cuCtxPushCurrent failed\n");
+        return AVERROR_EXTERNAL;
+    }
+
     nv_status = p_nvenc->nvEncEncodePicture(ctx->nvencoder, &pic_params);
+
+    cu_res = dl_fn->cuda_dl->cuCtxPopCurrent(&dummy);
+    if (cu_res != CUDA_SUCCESS) {
+        av_log(avctx, AV_LOG_ERROR, "cuCtxPopCurrent failed\n");
+        return AVERROR_EXTERNAL;
+    }
+
     if (nv_status != NV_ENC_SUCCESS &&
         nv_status != NV_ENC_ERR_NEED_MORE_INPUT)
         return nvenc_print_error(avctx, nv_status, "EncodePicture failed!");

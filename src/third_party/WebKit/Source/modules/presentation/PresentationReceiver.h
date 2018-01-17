@@ -17,12 +17,15 @@
 
 namespace blink {
 
+class Document;
 class PresentationConnection;
 class PresentationConnectionList;
 class WebPresentationClient;
 
 // Implements the PresentationReceiver interface from the Presentation API from
-// which websites can implement the receiving side of a presentation session.
+// which websites can implement the receiving side of a presentation. This needs
+// to be eagerly created in order to have the receiver associated with the
+// client.
 class MODULES_EXPORT PresentationReceiver final
     : public GarbageCollectedFinalized<PresentationReceiver>,
       public ScriptWrappable,
@@ -36,24 +39,31 @@ class MODULES_EXPORT PresentationReceiver final
                             Member<DOMException>>;
 
  public:
-  explicit PresentationReceiver(LocalFrame*, WebPresentationClient*);
+  PresentationReceiver(LocalFrame*, WebPresentationClient*);
   ~PresentationReceiver() = default;
+
+  static PresentationReceiver* From(Document&);
 
   // PresentationReceiver.idl implementation
   ScriptPromise connectionList(ScriptState*);
 
   // Implementation of WebPresentationController.
-  void onReceiverConnectionAvailable(
-      const WebPresentationSessionInfo&) override;
-  void registerConnection(PresentationConnection*);
+  WebPresentationConnection* OnReceiverConnectionAvailable(
+      const WebPresentationInfo&) override;
+  void DidChangeConnectionState(WebPresentationConnectionState) override;
+  void TerminateConnection() override;
+
+  void RegisterConnection(PresentationConnection*);
 
   DECLARE_VIRTUAL_TRACE();
 
  private:
   friend class PresentationReceiverTest;
 
-  Member<ConnectionListProperty> m_connectionListProperty;
-  Member<PresentationConnectionList> m_connectionList;
+  void RecordOriginTypeAccess(Document*) const;
+
+  Member<ConnectionListProperty> connection_list_property_;
+  Member<PresentationConnectionList> connection_list_;
 };
 
 }  // namespace blink

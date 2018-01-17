@@ -6,6 +6,7 @@
  */
 
 #include "gm.h"
+#include "sk_tool_utils.h"
 
 #include "Resources.h"
 #include "SkBlendModePriv.h"
@@ -19,7 +20,7 @@ DEF_SIMPLE_GM(gamma, canvas, 850, 200) {
     const SkScalar tx = sz + 15.0f;
     const SkRect r = SkRect::MakeXYWH(0, 0, sz, sz);
     SkShader::TileMode rpt = SkShader::kRepeat_TileMode;
-    auto srgbColorSpace = SkColorSpace::MakeNamed(SkColorSpace::kSRGB_Named);
+    auto srgbColorSpace = SkColorSpace::MakeSRGB();
 
     SkBitmap ditherBmp;
     ditherBmp.allocN32Pixels(2, 2);

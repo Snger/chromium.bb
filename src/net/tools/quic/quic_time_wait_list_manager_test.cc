@@ -23,7 +23,7 @@
 #include "net/tools/quic/quic_epoll_alarm_factory.h"
 #include "net/tools/quic/quic_epoll_connection_helper.h"
 #include "net/tools/quic/test_tools/mock_epoll_server.h"
-#include "net/tools/quic/test_tools/mock_quic_server_session_visitor.h"
+#include "net/tools/quic/test_tools/mock_quic_session_visitor.h"
 #include "testing/gmock/include/gmock/gmock.h"
 #include "testing/gtest/include/gtest/gtest.h"
 
@@ -125,7 +125,6 @@ class QuicTimeWaitListManagerTest : public ::testing::Test {
       QuicConnectionId connection_id,
       QuicPacketNumber packet_number) {
     return net::test::ConstructEncryptedPacket(connection_id, false, false,
-                                               false, kDefaultPathId,
                                                packet_number, "data");
   }
 

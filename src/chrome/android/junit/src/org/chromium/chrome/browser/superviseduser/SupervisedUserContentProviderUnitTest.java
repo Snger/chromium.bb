@@ -17,21 +17,24 @@ import static org.mockito.Mockito.when;
 
 import android.accounts.Account;
 import android.content.Context;
+import android.content.pm.ProviderInfo;
 
 import org.junit.After;
 import org.junit.Before;
+import org.junit.Rule;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.mockito.Mockito;
 import org.mockito.invocation.InvocationOnMock;
 import org.mockito.stubbing.Answer;
+import org.robolectric.Robolectric;
 import org.robolectric.RuntimeEnvironment;
 import org.robolectric.annotation.Config;
 
 import org.chromium.base.Callback;
 import org.chromium.base.ContextUtils;
 import org.chromium.base.library_loader.ProcessInitException;
-import org.chromium.base.metrics.RecordHistogram;
+import org.chromium.chrome.browser.DisableHistogramsRule;
 import org.chromium.chrome.browser.init.ChromeBrowserInitializer;
 import org.chromium.chrome.browser.superviseduser.SupervisedUserContentProvider.SupervisedUserQueryReply;
 import org.chromium.components.signin.AccountManagerDelegate;
@@ -39,6 +42,7 @@ import org.chromium.components.signin.AccountManagerHelper;
 import org.chromium.components.signin.ChromeSigninController;
 import org.chromium.components.webrestrictions.browser.WebRestrictionsContentProvider.WebRestrictionsResult;
 import org.chromium.testing.local.LocalRobolectricTestRunner;
+
 /**
  * Tests of SupervisedUserContentProvider. This is tested as a simple class, not as a content
  * provider. The content provider aspects are tested with WebRestrictionsContentProviderTest.
@@ -46,48 +50,56 @@ import org.chromium.testing.local.LocalRobolectricTestRunner;
 @RunWith(LocalRobolectricTestRunner.class)
 @Config(manifest = Config.NONE)
 public class SupervisedUserContentProviderUnitTest {
+    @Rule
+    public DisableHistogramsRule mDisableHistogramsRule = new DisableHistogramsRule();
 
     private SupervisedUserContentProvider mSupervisedUserContentProvider;
 
     private static final String DEFAULT_CALLING_PACKAGE = "com.example.some.app";
 
+    // Override methods that wrap things that can't be mocked (including native calls).
+    private static class MySupervisedUserContentProvider extends SupervisedUserContentProvider {
+        @Override
+        void startForcedSigninProcessor(Context context, Runnable onComplete) {
+            ChromeSigninController.get().setSignedInAccountName("Dummy");
+            onComplete.run();
+        }
+
+        @Override
+        void listenForChildAccountStatusChange(Callback<Boolean> callback) {
+            callback.onResult(true);
+        }
+
+        @Override
+        void nativeShouldProceed(long l, SupervisedUserQueryReply reply, String url) {
+            reply.onQueryComplete();
+        }
+
+        @Override
+        void nativeRequestInsert(long l, SupervisedUserInsertReply reply, String url) {
+            reply.onInsertRequestSendComplete(true);
+        }
+
+        @Override
+        long nativeCreateSupervisedUserContentProvider() {
+            return 5678L;
+        }
+    }
+
     @Before
     public void setUp() {
-        RecordHistogram.disableForTests();
+        ContextUtils.initApplicationContextForTests(RuntimeEnvironment.application);
 
         // Ensure clean state (in particular not signed in).
         ContextUtils.getAppSharedPreferences().edit().clear().apply();
 
-        // Spy on the content provider so that we can watch its calls. Override methods that wrap
-        // things that can't be mocked (including native calls).
-        mSupervisedUserContentProvider = Mockito.spy(new SupervisedUserContentProvider() {
-            @Override
-            void startForcedSigninProcessor(Context context, Runnable onComplete) {
-                ChromeSigninController.get(RuntimeEnvironment.application)
-                        .setSignedInAccountName("Dummy");
-                onComplete.run();
-            }
-
-            @Override
-            void listenForChildAccountStatusChange(Callback<Boolean> callback) {
-                callback.onResult(true);
-            }
-
-            @Override
-            void nativeShouldProceed(long l, SupervisedUserQueryReply reply, String url) {
-                reply.onQueryComplete();
-            }
-
-            @Override
-            void nativeRequestInsert(long l, SupervisedUserInsertReply reply, String url) {
-                reply.onInsertRequestSendComplete(true);
-            }
-
-            @Override
-            long nativeCreateSupervisedUserContentProvider() {
-                return 5678L;
-            }
-        });
+        // Spy on the content provider so that we can watch its calls.
+        ProviderInfo info = new ProviderInfo();
+        info.authority = "foo.bar.baz";
+        mSupervisedUserContentProvider =
+                Mockito.spy(Robolectric.buildContentProvider(MySupervisedUserContentProvider.class)
+                                    .create(info)
+                                    .get());
     }
 
     @After
@@ -184,7 +196,7 @@ public class SupervisedUserContentProviderUnitTest {
     @Test
     public void testShouldProceed_withStartupSignedIn() throws ProcessInitException {
         // Set up a signed in user
-        ChromeSigninController.get(RuntimeEnvironment.application).setSignedInAccountName("Dummy");
+        ChromeSigninController.get().setSignedInAccountName("Dummy");
         // Mock things called during startup
         ChromeBrowserInitializer mockBrowserInitializer = mock(ChromeBrowserInitializer.class);
         ChromeBrowserInitializer.setForTesting(mockBrowserInitializer);

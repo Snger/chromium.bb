@@ -10,6 +10,7 @@
 #include "base/android/jni_string.h"
 #include "base/memory/ptr_util.h"
 #include "base/metrics/histogram_macros.h"
+#include "base/metrics/user_metrics.h"
 #include "base/trace_event/trace_event.h"
 #include "cc/layers/layer.h"
 #include "chrome/browser/android/compositor/tab_content_manager.h"
@@ -45,6 +46,7 @@
 #include "chrome/browser/ui/blocked_content/popup_blocker_tab_helper.h"
 #include "chrome/browser/ui/tab_contents/core_tab_helper.h"
 #include "chrome/browser/ui/tab_helpers.h"
+#include "chrome/common/image_context_menu_renderer.mojom.h"
 #include "chrome/common/render_messages.h"
 #include "chrome/common/url_constants.h"
 #include "components/bookmarks/browser/bookmark_model.h"
@@ -69,12 +71,12 @@
 #include "content/public/browser/render_frame_host.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/render_view_host.h"
-#include "content/public/browser/user_metrics.h"
 #include "content/public/browser/web_contents.h"
 #include "content/public/common/browser_controls_state.h"
 #include "content/public/common/resource_request_body.h"
 #include "jni/Tab_jni.h"
 #include "net/base/escape.h"
+#include "services/service_manager/public/cpp/interface_provider.h"
 #include "skia/ext/image_operations.h"
 #include "third_party/WebKit/public/platform/WebReferrerPolicy.h"
 #include "ui/android/view_android.h"
@@ -126,7 +128,8 @@ TabAndroid::TabAndroid(JNIEnv* env, const JavaRef<jobject>& obj)
     : weak_java_tab_(env, obj),
       content_layer_(cc::Layer::Create()),
       tab_content_manager_(NULL),
-      synced_tab_delegate_(new browser_sync::SyncedTabDelegateAndroid(this)) {
+      synced_tab_delegate_(new browser_sync::SyncedTabDelegateAndroid(this)),
+      embedded_media_experience_enabled_(false) {
   Java_Tab_setNativePtr(env, obj, reinterpret_cast<intptr_t>(this));
 }
 
@@ -165,6 +168,11 @@ GURL TabAndroid::GetURL() const {
   JNIEnv* env = base::android::AttachCurrentThread();
   return GURL(base::android::ConvertJavaStringToUTF8(
       Java_Tab_getUrl(env, weak_java_tab_.get(env))));
+}
+
+bool TabAndroid::IsUserInteractable() const {
+  JNIEnv* env = base::android::AttachCurrentThread();
+  return Java_Tab_isUserInteractable(env, weak_java_tab_.get(env));
 }
 
 bool TabAndroid::LoadIfNeeded() {
@@ -308,6 +316,11 @@ void TabAndroid::OnFaviconUpdated(favicon::FaviconDriver* favicon_driver,
   JNIEnv* env = base::android::AttachCurrentThread();
   Java_Tab_onFaviconAvailable(env, weak_java_tab_.get(env),
                               gfx::ConvertToJavaBitmap(&favicon));
+}
+
+bool TabAndroid::IsCurrentlyACustomTab() {
+  JNIEnv* env = base::android::AttachCurrentThread();
+  return Java_Tab_isCurrentlyACustomTab(env, weak_java_tab_.get(env));
 }
 
 void TabAndroid::Destroy(JNIEnv* env, const JavaParamRef<jobject>& obj) {
@@ -486,7 +499,7 @@ TabAndroid::TabLoadStatus TabAndroid::LoadUrl(
     // Record UMA "ShowHistory" here. That way it'll pick up both user
     // typing chrome://history as well as selecting from the drop down menu.
     if (fixed_url.spec() == chrome::kChromeUIHistoryURL) {
-      content::RecordAction(base::UserMetricsAction("ShowHistory"));
+      base::RecordAction(base::UserMetricsAction("ShowHistory"));
     }
 
     content::NavigationController::LoadURLParams load_params(fixed_url);
@@ -649,8 +662,9 @@ void TabAndroid::LoadOriginalImage(JNIEnv* env,
                                    const JavaParamRef<jobject>& obj) {
   content::RenderFrameHost* render_frame_host =
       web_contents()->GetFocusedFrame();
-  render_frame_host->Send(new ChromeViewMsg_RequestReloadImageForContextNode(
-      render_frame_host->GetRoutingID()));
+  chrome::mojom::ImageContextMenuRendererPtr renderer;
+  render_frame_host->GetRemoteInterfaces()->GetInterface(&renderer);
+  renderer->RequestReloadImageForContextNode();
 }
 
 jlong TabAndroid::GetBookmarkId(JNIEnv* env,
@@ -711,6 +725,22 @@ bool TabAndroid::HasPrerenderedUrl(JNIEnv* env,
   return HasPrerenderedUrl(gurl);
 }
 
+void TabAndroid::EnableEmbeddedMediaExperience(
+    JNIEnv* env,
+    const base::android::JavaParamRef<jobject>& obj,
+    jboolean enabled) {
+  embedded_media_experience_enabled_ = enabled;
+
+  if (!web_contents() || !web_contents()->GetRenderViewHost())
+    return;
+
+  web_contents()->GetRenderViewHost()->OnWebkitPreferencesChanged();
+}
+
+bool TabAndroid::ShouldEnableEmbeddedMediaExperience() const {
+  return embedded_media_experience_enabled_;
+}
+
 namespace {
 
 class ChromeInterceptNavigationDelegate : public InterceptNavigationDelegate {
@@ -738,6 +768,17 @@ void TabAndroid::SetInterceptNavigationDelegate(
   InterceptNavigationDelegate::Associate(
       web_contents(),
       base::MakeUnique<ChromeInterceptNavigationDelegate>(env, delegate));
+}
+
+void TabAndroid::SetWebappManifestScope(JNIEnv* env,
+                                        const JavaParamRef<jobject>& obj,
+                                        const JavaParamRef<jstring>& scope) {
+  webapp_manifest_scope_ = base::android::ConvertJavaStringToUTF8(scope);
+
+  if (!web_contents() || !web_contents()->GetRenderViewHost())
+    return;
+
+  web_contents()->GetRenderViewHost()->OnWebkitPreferencesChanged();
 }
 
 void TabAndroid::AttachToTabContentManager(

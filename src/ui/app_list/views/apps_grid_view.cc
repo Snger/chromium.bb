@@ -23,6 +23,8 @@
 #include "ui/app_list/views/page_switcher.h"
 #include "ui/app_list/views/pulsing_block_view.h"
 #include "ui/app_list/views/top_icon_animation_view.h"
+#include "ui/aura/window.h"
+#include "ui/aura/window_event_dispatcher.h"
 #include "ui/compositor/scoped_layer_animation_settings.h"
 #include "ui/events/event.h"
 #include "ui/gfx/animation/animation.h"
@@ -32,11 +34,6 @@
 #include "ui/views/controls/label.h"
 #include "ui/views/view_model_utils.h"
 #include "ui/views/widget/widget.h"
-
-#if defined(USE_AURA)
-#include "ui/aura/window.h"
-#include "ui/aura/window_event_dispatcher.h"
-#endif  // defined(USE_AURA)
 
 namespace app_list {
 
@@ -222,7 +219,7 @@ AppsGridView::AppsGridView(AppsGridViewDelegate* delegate)
       bounds_animator_(this),
       activated_folder_item_view_(NULL),
       dragging_for_reparent_item_(false) {
-  SetPaintToLayer(true);
+  SetPaintToLayer();
   // Clip any icons that are outside the grid view's bounds. These icons would
   // otherwise be visible to the user when the grid view is off screen.
   layer()->SetMasksToBounds(true);
@@ -558,7 +555,7 @@ void AppsGridView::InitiateDragFromReparentItemInRootLevelGridView(
   AppListItemView* view = new AppListItemView(this, original_drag_view->item());
   AddChildView(view);
   drag_view_ = view;
-  drag_view_->SetPaintToLayer(true);
+  drag_view_->SetPaintToLayer();
   drag_view_->layer()->SetFillsBoundsOpaquely(false);
   drag_view_->SetBoundsRect(drag_view_rect);
   drag_view_->SetDragUIState();  // Hide the title of the drag_view_.
@@ -825,7 +822,7 @@ AppListItemView* AppsGridView::CreateViewForItemAtIndex(size_t index) {
   DCHECK_LE(index, item_list_->item_count());
   AppListItemView* view = new AppListItemView(this,
                                               item_list_->item_at(index));
-  view->SetPaintToLayer(true);
+  view->SetPaintToLayer();
   view->layer()->SetFillsBoundsOpaquely(false);
   return view;
 }
@@ -1097,7 +1094,6 @@ void AppsGridView::ExtractDragLocation(const ui::LocatedEvent& event,
   // could have integer round error and causes jitter.
   *drag_point = event.root_location();
 
-#if defined(USE_AURA)
   // GetWidget() could be NULL for tests.
   if (GetWidget()) {
     aura::Window::ConvertPointToTarget(
@@ -1105,7 +1101,6 @@ void AppsGridView::ExtractDragLocation(const ui::LocatedEvent& event,
         GetWidget()->GetNativeWindow(),
         drag_point);
   }
-#endif
 
   views::View::ConvertPointFromWidget(this, drag_point);
 }

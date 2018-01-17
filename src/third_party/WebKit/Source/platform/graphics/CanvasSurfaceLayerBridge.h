@@ -5,14 +5,15 @@
 #ifndef CanvasSurfaceLayerBridge_h
 #define CanvasSurfaceLayerBridge_h
 
+#include <memory>
 #include "base/memory/ref_counted.h"
 #include "base/memory/weak_ptr.h"
+#include "cc/ipc/frame_sink_manager.mojom-blink.h"
 #include "cc/surfaces/surface_id.h"
 #include "cc/surfaces/surface_reference_factory.h"
 #include "mojo/public/cpp/bindings/binding.h"
 #include "platform/PlatformExport.h"
 #include "public/platform/modules/offscreencanvas/offscreen_canvas_surface.mojom-blink.h"
-#include <memory>
 
 namespace cc {
 class Layer;
@@ -22,6 +23,7 @@ class SurfaceInfo;
 namespace blink {
 
 class WebLayer;
+class WebLayerTreeView;
 
 class PLATFORM_EXPORT CanvasSurfaceLayerBridgeObserver {
  public:
@@ -32,34 +34,36 @@ class PLATFORM_EXPORT CanvasSurfaceLayerBridgeObserver {
 };
 
 class PLATFORM_EXPORT CanvasSurfaceLayerBridge
-    : NON_EXPORTED_BASE(public mojom::blink::OffscreenCanvasSurfaceClient) {
+    : NON_EXPORTED_BASE(public cc::mojom::blink::FrameSinkManagerClient) {
  public:
-  explicit CanvasSurfaceLayerBridge(CanvasSurfaceLayerBridgeObserver*);
+  explicit CanvasSurfaceLayerBridge(CanvasSurfaceLayerBridgeObserver*,
+                                    WebLayerTreeView*);
   ~CanvasSurfaceLayerBridge();
-  void createSolidColorLayer();
-  WebLayer* getWebLayer() const { return m_webLayer.get(); }
-  const cc::FrameSinkId& getFrameSinkId() const { return m_frameSinkId; }
+  void CreateSolidColorLayer();
+  WebLayer* GetWebLayer() const { return web_layer_.get(); }
+  const cc::FrameSinkId& GetFrameSinkId() const { return frame_sink_id_; }
 
-  // Implementation of mojom::blink::OffscreenCanvasSurfaceClient
+  // Implementation of cc::mojom::blink::FrameSinkManagerClient
   void OnSurfaceCreated(const cc::SurfaceInfo&) override;
 
-  void satisfyCallback(const cc::SurfaceSequence&);
-  void requireCallback(const cc::SurfaceId&, const cc::SurfaceSequence&);
+  void SatisfyCallback(const cc::SurfaceSequence&);
+  void RequireCallback(const cc::SurfaceId&, const cc::SurfaceSequence&);
 
  private:
-  scoped_refptr<cc::Layer> m_CCLayer;
-  std::unique_ptr<WebLayer> m_webLayer;
+  scoped_refptr<cc::Layer> cc_layer_;
+  std::unique_ptr<WebLayer> web_layer_;
 
-  scoped_refptr<cc::SurfaceReferenceFactory> m_refFactory;
-  base::WeakPtrFactory<CanvasSurfaceLayerBridge> m_weakFactory;
+  scoped_refptr<cc::SurfaceReferenceFactory> ref_factory_;
+  base::WeakPtrFactory<CanvasSurfaceLayerBridge> weak_factory_;
 
-  CanvasSurfaceLayerBridgeObserver* m_observer;
+  CanvasSurfaceLayerBridgeObserver* observer_;
 
-  mojom::blink::OffscreenCanvasSurfacePtr m_service;
-  mojo::Binding<mojom::blink::OffscreenCanvasSurfaceClient> m_binding;
+  mojom::blink::OffscreenCanvasSurfacePtr service_;
+  mojo::Binding<cc::mojom::blink::FrameSinkManagerClient> binding_;
 
-  cc::FrameSinkId m_frameSinkId;
-  cc::SurfaceId m_currentSurfaceId;
+  const cc::FrameSinkId frame_sink_id_;
+  cc::SurfaceId current_surface_id_;
+  const cc::FrameSinkId parent_frame_sink_id_;
 };
 
 }  // namespace blink

@@ -31,7 +31,9 @@
 #include "cc/surfaces/surface_manager.h"
 #include "components/display_compositor/compositor_overlay_candidate_validator.h"
 #include "components/display_compositor/gl_helper.h"
+#include "components/display_compositor/host_shared_bitmap_manager.h"
 #include "content/browser/compositor/browser_compositor_output_surface.h"
+#include "content/browser/compositor/frame_sink_manager_host.h"
 #include "content/browser/compositor/gpu_browser_compositor_output_surface.h"
 #include "content/browser/compositor/gpu_surfaceless_browser_compositor_output_surface.h"
 #include "content/browser/compositor/offscreen_browser_compositor_output_surface.h"
@@ -40,7 +42,6 @@
 #include "content/browser/gpu/browser_gpu_memory_buffer_manager.h"
 #include "content/browser/gpu/gpu_data_manager_impl.h"
 #include "content/browser/renderer_host/render_widget_host_impl.h"
-#include "content/common/host_shared_bitmap_manager.h"
 #include "content/public/common/content_switches.h"
 #include "gpu/GLES2/gl2extchromium.h"
 #include "gpu/command_buffer/client/gles2_interface.h"
@@ -48,6 +49,7 @@
 #include "gpu/command_buffer/common/mailbox.h"
 #include "gpu/ipc/client/gpu_channel_host.h"
 #include "gpu/ipc/host/gpu_memory_buffer_support.h"
+#include "gpu/vulkan/features.h"
 #include "services/service_manager/runner/common/client_util.h"
 #include "services/ui/public/cpp/gpu/context_provider_command_buffer.h"
 #include "third_party/khronos/GLES2/gl2.h"
@@ -58,14 +60,16 @@
 #include "ui/display/types/display_snapshot.h"
 #include "ui/gfx/geometry/size.h"
 #include "ui/gfx/switches.h"
+#include "ui/gl/gl_switches.h"
 
 #if defined(USE_AURA)
-#include "content/browser/compositor/mus_browser_compositor_output_surface.h"
 #include "content/public/common/service_manager_connection.h"
 #include "ui/aura/window_tree_host.h"
 #endif
 
 #if defined(OS_WIN)
+#include "base/win/windows_version.h"
+#include "components/display_compositor/compositor_overlay_candidate_validator_win.h"
 #include "content/browser/compositor/software_output_device_win.h"
 #include "ui/gfx/win/rendering_window_manager.h"
 #elif defined(USE_OZONE)
@@ -92,7 +96,7 @@
 #include "gpu/ipc/common/gpu_surface_tracker.h"
 #endif
 
-#if defined(ENABLE_VULKAN)
+#if BUILDFLAG(ENABLE_VULKAN)
 #include "content/browser/compositor/vulkan_browser_compositor_output_surface.h"
 #endif
 
@@ -102,9 +106,19 @@ using gpu::gles2::GLES2Interface;
 namespace {
 
 const int kNumRetriesBeforeSoftwareFallback = 4;
+// The client_id used here should not conflict with the client_id generated
+// from RenderWidgetHostImpl.
+constexpr uint32_t kDefaultClientId = 0u;
 
-bool IsUsingMus() {
-  return service_manager::ServiceManagerIsRemote();
+bool IsGpuVSyncSignalSupported() {
+#if defined(OS_WIN)
+  // TODO(stanisc): http://crbug.com/467617 Limit to Windows 8+ for now because
+  // of locking issue caused by waiting for VSync on Win7.
+  return base::win::GetVersion() >= base::win::VERSION_WIN8 &&
+         base::FeatureList::IsEnabled(features::kD3DVsync);
+#else
+  return false;
+#endif  // defined(OS_WIN)
 }
 
 scoped_refptr<ui::ContextProviderCommandBuffer> CreateContextCommon(
@@ -167,18 +181,22 @@ namespace content {
 struct GpuProcessTransportFactory::PerCompositorData {
   gpu::SurfaceHandle surface_handle = gpu::kNullSurfaceHandle;
   BrowserCompositorOutputSurface* display_output_surface = nullptr;
-  std::unique_ptr<cc::SyntheticBeginFrameSource> begin_frame_source;
+  // Either |synthetic_begin_frame_source| or |gpu_vsync_begin_frame_source| is
+  // valid but not both at the same time.
+  std::unique_ptr<cc::SyntheticBeginFrameSource> synthetic_begin_frame_source;
+  std::unique_ptr<GpuVSyncBeginFrameSource> gpu_vsync_begin_frame_source;
   ReflectorImpl* reflector = nullptr;
   std::unique_ptr<cc::Display> display;
   bool output_is_secure = false;
 };
 
 GpuProcessTransportFactory::GpuProcessTransportFactory()
-    : task_graph_runner_(new cc::SingleThreadTaskGraphRunner),
+    : frame_sink_id_allocator_(kDefaultClientId),
+      task_graph_runner_(new cc::SingleThreadTaskGraphRunner),
       callback_factory_(this) {
   cc::SetClientNameForMetrics("Browser");
 
-  surface_manager_ = base::WrapUnique(new cc::SurfaceManager);
+  frame_sink_manager_host_ = base::MakeUnique<FrameSinkManagerHost>();
 
   task_graph_runner_->Start("CompositorTileWorker1",
                             base::SimpleThread::Options());
@@ -242,8 +260,7 @@ CreateOverlayCandidateValidator(gfx::AcceleratedWidget widget) {
             ->CreateOverlayCandidates(widget);
     validator.reset(
         new display_compositor::CompositorOverlayCandidateValidatorOzone(
-            std::move(overlay_candidates),
-            enable_overlay_flag == "single-fullscreen"));
+            std::move(overlay_candidates), enable_overlay_flag));
   }
 #elif defined(OS_MACOSX)
   // Overlays are only supported through the remote layer API.
@@ -261,6 +278,9 @@ CreateOverlayCandidateValidator(gfx::AcceleratedWidget widget) {
 #elif defined(OS_ANDROID)
   validator.reset(
       new display_compositor::CompositorOverlayCandidateValidatorAndroid());
+#elif defined(OS_WIN)
+  validator = base::MakeUnique<
+      display_compositor::CompositorOverlayCandidateValidatorWin>();
 #endif
 
   return validator;
@@ -271,9 +291,6 @@ static bool ShouldCreateGpuCompositorFrameSink(ui::Compositor* compositor) {
   // Software fallback does not happen on Chrome OS.
   return true;
 #endif
-  if (IsUsingMus())
-    return true;
-
 #if defined(OS_WIN)
   if (::GetProp(compositor->widget(), kForceSoftwareCompositor) &&
       ::RemoveProp(compositor->widget(), kForceSoftwareCompositor))
@@ -334,7 +351,7 @@ void GpuProcessTransportFactory::EstablishedGpuChannel(
   DCHECK(data);
 
   if (num_attempts > kNumRetriesBeforeSoftwareFallback) {
-    bool fatal = IsUsingMus();
+    bool fatal = false;
 #if defined(OS_CHROMEOS)
     fatal = true;
 #endif
@@ -409,9 +426,8 @@ void GpuProcessTransportFactory::EstablishedGpuChannel(
         // use CommandBufferProxyImpl::TakeFrontBuffer() to take the context's
         // front buffer into a mailbox, insert a sync token, and send the
         // mailbox+sync to the ui service process.
-        gpu::SurfaceHandle surface_handle =
-            IsUsingMus() ? gpu::kNullSurfaceHandle : data->surface_handle;
-        bool need_alpha_channel = IsUsingMus();
+        gpu::SurfaceHandle surface_handle = data->surface_handle;
+        bool need_alpha_channel = false;
         bool support_locking = false;
         context_provider = CreateContextCommon(
             std::move(gpu_channel_host), surface_handle, need_alpha_channel,
@@ -454,23 +470,13 @@ void GpuProcessTransportFactory::EstablishedGpuChannel(
     }
   }
 
-  std::unique_ptr<cc::SyntheticBeginFrameSource> synthetic_begin_frame_source;
-  if (!compositor->GetRendererSettings().disable_display_vsync) {
-    synthetic_begin_frame_source.reset(new cc::DelayBasedBeginFrameSource(
-        base::MakeUnique<cc::DelayBasedTimeSource>(
-            compositor->task_runner().get())));
-  } else {
-    synthetic_begin_frame_source.reset(new cc::BackToBackBeginFrameSource(
-        base::MakeUnique<cc::DelayBasedTimeSource>(
-            compositor->task_runner().get())));
-  }
-  cc::BeginFrameSource* begin_frame_source = synthetic_begin_frame_source.get();
-
   BrowserCompositorOutputSurface::UpdateVSyncParametersCallback vsync_callback =
       base::Bind(&ui::Compositor::SetDisplayVSyncParameters, compositor);
+  cc::BeginFrameSource* begin_frame_source = nullptr;
+  GpuVSyncControl* gpu_vsync_control = nullptr;
 
   std::unique_ptr<BrowserCompositorOutputSurface> display_output_surface;
-#if defined(ENABLE_VULKAN)
+#if BUILDFLAG(ENABLE_VULKAN)
   std::unique_ptr<VulkanBrowserCompositorOutputSurface> vulkan_surface;
   if (vulkan_context_provider) {
     vulkan_surface.reset(new VulkanBrowserCompositorOutputSurface(
@@ -507,59 +513,31 @@ void GpuProcessTransportFactory::EstablishedGpuChannel(
             CreateOverlayCandidateValidator(compositor->widget()),
             GetGpuMemoryBufferManager());
 #else
-        display_output_surface =
+        auto gpu_output_surface =
             base::MakeUnique<GpuSurfacelessBrowserCompositorOutputSurface>(
                 context_provider, data->surface_handle, vsync_callback,
                 CreateOverlayCandidateValidator(compositor->widget()),
                 GL_TEXTURE_2D, GL_RGB,
                 display::DisplaySnapshot::PrimaryFormat(),
                 GetGpuMemoryBufferManager());
+        gpu_vsync_control = gpu_output_surface.get();
+        display_output_surface = std::move(gpu_output_surface);
 #endif
       } else {
         std::unique_ptr<display_compositor::CompositorOverlayCandidateValidator>
             validator;
-        const bool use_mus = IsUsingMus();
-#if !defined(OS_MACOSX)
-        // Overlays are only supported on surfaceless output surfaces on Mac.
-        if (!use_mus)
+#if defined(OS_WIN)
+        if (capabilities.dc_layers)
           validator = CreateOverlayCandidateValidator(compositor->widget());
+#elif !defined(OS_MACOSX)
+        // Overlays are only supported on surfaceless output surfaces on Mac.
+        validator = CreateOverlayCandidateValidator(compositor->widget());
 #endif
-        if (!use_mus) {
-          display_output_surface =
-              base::MakeUnique<GpuBrowserCompositorOutputSurface>(
-                  context_provider, vsync_callback, std::move(validator),
-                  support_stencil);
-        } else {
-#if defined(USE_AURA)
-          std::unique_ptr<MusBrowserCompositorOutputSurface> mus_output_surface;
-          if (compositor->window()) {
-            // TODO(mfomitchev): Remove this clause once we complete the switch
-            // to Aura-Mus.
-            mus_output_surface =
-                base::MakeUnique<MusBrowserCompositorOutputSurface>(
-                    compositor->window(), context_provider,
-                    GetGpuMemoryBufferManager(), vsync_callback,
-                    std::move(validator));
-          } else {
-            aura::WindowTreeHost* host =
-                aura::WindowTreeHost::GetForAcceleratedWidget(
-                    compositor->widget());
-            mus_output_surface =
-                base::MakeUnique<MusBrowserCompositorOutputSurface>(
-                    host->window(), context_provider,
-                    GetGpuMemoryBufferManager(), vsync_callback,
-                    std::move(validator));
-          }
-          // We use the ExternalBeginFrameSource provided by the output surface
-          // instead of our own synthetic one.
-          synthetic_begin_frame_source.reset();
-          begin_frame_source = mus_output_surface->GetBeginFrameSource();
-          DCHECK(begin_frame_source);
-          display_output_surface = std::move(mus_output_surface);
-#else
-          NOTREACHED();
-#endif
-        }
+        auto gpu_output_surface =
+            base::MakeUnique<GpuBrowserCompositorOutputSurface>(
+                context_provider, vsync_callback, std::move(validator));
+        gpu_vsync_control = gpu_output_surface.get();
+        display_output_surface = std::move(gpu_output_surface);
       }
     }
   }
@@ -567,6 +545,31 @@ void GpuProcessTransportFactory::EstablishedGpuChannel(
   data->display_output_surface = display_output_surface.get();
   if (data->reflector)
     data->reflector->OnSourceSurfaceReady(data->display_output_surface);
+
+  std::unique_ptr<cc::SyntheticBeginFrameSource> synthetic_begin_frame_source;
+  std::unique_ptr<GpuVSyncBeginFrameSource> gpu_vsync_begin_frame_source;
+
+  if (!begin_frame_source) {
+    if (!compositor->GetRendererSettings().disable_display_vsync) {
+      if (gpu_vsync_control && IsGpuVSyncSignalSupported()) {
+        gpu_vsync_begin_frame_source =
+            base::MakeUnique<GpuVSyncBeginFrameSource>(gpu_vsync_control);
+        begin_frame_source = gpu_vsync_begin_frame_source.get();
+      } else {
+        synthetic_begin_frame_source =
+            base::MakeUnique<cc::DelayBasedBeginFrameSource>(
+                base::MakeUnique<cc::DelayBasedTimeSource>(
+                    compositor->task_runner().get()));
+        begin_frame_source = synthetic_begin_frame_source.get();
+      }
+    } else {
+      synthetic_begin_frame_source =
+          base::MakeUnique<cc::BackToBackBeginFrameSource>(
+              base::MakeUnique<cc::DelayBasedTimeSource>(
+                  compositor->task_runner().get()));
+      begin_frame_source = synthetic_begin_frame_source.get();
+    }
+  }
 
 #if defined(OS_WIN)
   gfx::RenderingWindowManager::GetInstance()->DoSetParentOnChild(
@@ -579,14 +582,16 @@ void GpuProcessTransportFactory::EstablishedGpuChannel(
 
   // The Display owns and uses the |display_output_surface| created above.
   data->display = base::MakeUnique<cc::Display>(
-      HostSharedBitmapManager::current(), GetGpuMemoryBufferManager(),
-      compositor->GetRendererSettings(), compositor->frame_sink_id(),
-      begin_frame_source, std::move(display_output_surface),
-      std::move(scheduler), base::MakeUnique<cc::TextureMailboxDeleter>(
-                                compositor->task_runner().get()));
-  // Note that we are careful not to destroy a prior |data->begin_frame_source|
+      display_compositor::HostSharedBitmapManager::current(),
+      GetGpuMemoryBufferManager(), compositor->GetRendererSettings(),
+      compositor->frame_sink_id(), begin_frame_source,
+      std::move(display_output_surface), std::move(scheduler),
+      base::MakeUnique<cc::TextureMailboxDeleter>(
+          compositor->task_runner().get()));
+  // Note that we are careful not to destroy prior BeginFrameSource objects
   // until we have reset |data->display|.
-  data->begin_frame_source = std::move(synthetic_begin_frame_source);
+  data->synthetic_begin_frame_source = std::move(synthetic_begin_frame_source);
+  data->gpu_vsync_begin_frame_source = std::move(gpu_vsync_begin_frame_source);
 
   // The |delegated_output_surface| is given back to the compositor, it
   // delegates to the Display as its root surface. Importantly, it shares the
@@ -594,15 +599,15 @@ void GpuProcessTransportFactory::EstablishedGpuChannel(
   auto compositor_frame_sink =
       vulkan_context_provider
           ? base::MakeUnique<cc::DirectCompositorFrameSink>(
-                compositor->frame_sink_id(), surface_manager_.get(),
+                compositor->frame_sink_id(), GetSurfaceManager(),
                 data->display.get(),
                 static_cast<scoped_refptr<cc::VulkanContextProvider>>(
                     vulkan_context_provider))
           : base::MakeUnique<cc::DirectCompositorFrameSink>(
-                compositor->frame_sink_id(), surface_manager_.get(),
+                compositor->frame_sink_id(), GetSurfaceManager(),
                 data->display.get(), context_provider,
                 shared_worker_context_provider_, GetGpuMemoryBufferManager(),
-                HostSharedBitmapManager::current());
+                display_compositor::HostSharedBitmapManager::current());
   data->display->Resize(compositor->size());
   data->display->SetOutputIsSecure(data->output_is_secure);
   compositor->SetCompositorFrameSink(std::move(compositor_frame_sink));
@@ -695,7 +700,7 @@ GpuProcessTransportFactory::GetContextFactoryPrivate() {
 }
 
 cc::FrameSinkId GpuProcessTransportFactory::AllocateFrameSinkId() {
-  return cc::FrameSinkId(0, next_sink_id_++);
+  return frame_sink_id_allocator_.NextFrameSinkId();
 }
 
 void GpuProcessTransportFactory::SetDisplayVisible(ui::Compositor* compositor,
@@ -724,7 +729,8 @@ void GpuProcessTransportFactory::ResizeDisplay(ui::Compositor* compositor,
 
 void GpuProcessTransportFactory::SetDisplayColorSpace(
     ui::Compositor* compositor,
-    const gfx::ColorSpace& color_space) {
+    const gfx::ColorSpace& blending_color_space,
+    const gfx::ColorSpace& output_color_space) {
   PerCompositorDataMap::iterator it = per_compositor_data_.find(compositor);
   if (it == per_compositor_data_.end())
     return;
@@ -733,7 +739,7 @@ void GpuProcessTransportFactory::SetDisplayColorSpace(
   // The compositor will always SetColorSpace on the Display once it is set up,
   // so do nothing if |display| is null.
   if (data->display)
-    data->display->SetColorSpace(color_space);
+    data->display->SetColorSpace(blending_color_space, output_color_space);
 }
 
 void GpuProcessTransportFactory::SetAuthoritativeVSyncInterval(
@@ -744,8 +750,8 @@ void GpuProcessTransportFactory::SetAuthoritativeVSyncInterval(
     return;
   PerCompositorData* data = it->second.get();
   DCHECK(data);
-  if (data->begin_frame_source)
-    data->begin_frame_source->SetAuthoritativeVSyncInterval(interval);
+  if (data->synthetic_begin_frame_source)
+    data->synthetic_begin_frame_source->SetAuthoritativeVSyncInterval(interval);
 }
 
 void GpuProcessTransportFactory::SetDisplayVSyncParameters(
@@ -757,8 +763,12 @@ void GpuProcessTransportFactory::SetDisplayVSyncParameters(
     return;
   PerCompositorData* data = it->second.get();
   DCHECK(data);
-  if (data->begin_frame_source)
-    data->begin_frame_source->OnUpdateVSyncParameters(timebase, interval);
+  if (data->synthetic_begin_frame_source) {
+    data->synthetic_begin_frame_source->OnUpdateVSyncParameters(timebase,
+                                                                interval);
+  } else if (data->gpu_vsync_begin_frame_source) {
+    data->gpu_vsync_begin_frame_source->OnVSync(timebase, interval);
+  }
 }
 
 void GpuProcessTransportFactory::SetOutputIsSecure(ui::Compositor* compositor,
@@ -784,7 +794,11 @@ void GpuProcessTransportFactory::RemoveObserver(
 }
 
 cc::SurfaceManager* GpuProcessTransportFactory::GetSurfaceManager() {
-  return surface_manager_.get();
+  return frame_sink_manager_host_->surface_manager();
+}
+
+FrameSinkManagerHost* GpuProcessTransportFactory::GetFrameSinkManagerHost() {
+  return frame_sink_manager_host_.get();
 }
 
 display_compositor::GLHelper* GpuProcessTransportFactory::GetGLHelper() {

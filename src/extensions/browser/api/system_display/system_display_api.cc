@@ -142,7 +142,7 @@ OverscanTracker::OverscanWebObserver* OverscanTracker::GetObserver(
   if (!create)
     return nullptr;
   auto owned_observer = base::MakeUnique<OverscanWebObserver>(web_contents);
-  auto observer_ptr = owned_observer.get();
+  auto* observer_ptr = owned_observer.get();
   observers_[web_contents] = std::move(owned_observer);
   return observer_ptr;
 }
@@ -179,8 +179,12 @@ bool SystemDisplayFunction::ShouldRestrictToKioskAndWebUI() {
 }
 
 ExtensionFunction::ResponseAction SystemDisplayGetInfoFunction::Run() {
+  std::unique_ptr<display::GetInfo::Params> params(
+      display::GetInfo::Params::Create(*args_));
+  bool single_unified = params->flags && params->flags->single_unified &&
+                        *params->flags->single_unified;
   DisplayInfoProvider::DisplayUnitInfoList all_displays_info =
-      DisplayInfoProvider::Get()->GetAllDisplaysInfo();
+      DisplayInfoProvider::Get()->GetAllDisplaysInfo(single_unified);
   return RespondNow(
       ArgumentList(display::GetInfo::Results::Create(all_displays_info)));
 }
@@ -292,7 +296,7 @@ SystemDisplayShowNativeTouchCalibrationFunction::Run() {
 void SystemDisplayShowNativeTouchCalibrationFunction::OnCalibrationComplete(
     bool success) {
   if (success)
-    Respond(OneArgument(base::MakeUnique<base::FundamentalValue>(true)));
+    Respond(OneArgument(base::MakeUnique<base::Value>(true)));
   else
     Respond(Error(kTouchCalibrationError));
 }

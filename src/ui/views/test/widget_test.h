@@ -17,7 +17,7 @@ namespace ui {
 namespace internal {
 class InputMethodDelegate;
 }
-class EventProcessor;
+class EventSink;
 }
 
 namespace views {
@@ -78,10 +78,10 @@ class WidgetTest : public ViewsTestBase {
   // initiated window resizes.
   gfx::Size GetNativeWidgetMinimumContentSize(Widget* widget);
 
-  // Return the event processor for |widget|. On aura platforms, this is an
+  // Return the event sink for |widget|. On aura platforms, this is an
   // aura::WindowEventDispatcher. Otherwise, it is a bridge to the OS event
-  // processor.
-  static ui::EventProcessor* GetEventProcessor(Widget* widget);
+  // sink.
+  static ui::EventSink* GetEventSink(Widget* widget);
 
   // Get the InputMethodDelegate, for setting on a Mock InputMethod in tests.
   static ui::internal::InputMethodDelegate* GetInputMethodDelegateForWidget(
@@ -89,6 +89,9 @@ class WidgetTest : public ViewsTestBase {
 
   // Return true if |window| is transparent according to the native platform.
   static bool IsNativeWindowTransparent(gfx::NativeWindow window);
+
+  // Returns the set of all Widgets that currently have a NativeWindow.
+  static Widget::Widgets GetAllWidgets();
 
  private:
   DISALLOW_COPY_AND_ASSIGN(WidgetTest);

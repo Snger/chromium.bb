@@ -201,8 +201,9 @@ public:
         , m_width(0)
         , m_height(0)
         , m_transparentPixel(SkGIFColorMap::kNotFound)
+        , m_hasAlpha(false)
         , m_disposalMethod(SkCodecAnimation::Keep_DisposalMethod)
-        , m_requiredFrame(SkCodec::kNone)
+        , m_requiredFrame(kUninitialized)
         , m_dataSize(0)
         , m_progressiveDisplay(false)
         , m_interlaced(false)
@@ -240,10 +241,17 @@ public:
     unsigned height() const { return m_height; }
     size_t transparentPixel() const { return m_transparentPixel; }
     void setTransparentPixel(size_t pixel) { m_transparentPixel = pixel; }
+    bool hasAlpha() const { return m_hasAlpha; }
+    void setHasAlpha(bool alpha) { m_hasAlpha = alpha; }
     SkCodecAnimation::DisposalMethod getDisposalMethod() const { return m_disposalMethod; }
     void setDisposalMethod(SkCodecAnimation::DisposalMethod disposalMethod) { m_disposalMethod = disposalMethod; }
-    size_t getRequiredFrame() const { return m_requiredFrame; }
+
+    size_t getRequiredFrame() const {
+        SkASSERT(this->reachedStartOfData());
+        return m_requiredFrame;
+    }
     void setRequiredFrame(size_t req) { m_requiredFrame = req; }
+
     unsigned delayTime() const { return m_delayTime; }
     void setDelayTime(unsigned delay) { m_delayTime = delay; }
     bool isComplete() const { return m_isComplete; }
@@ -266,13 +274,22 @@ public:
     const SkGIFColorMap& localColorMap() const { return m_localColorMap; }
     SkGIFColorMap& localColorMap() { return m_localColorMap; }
 
+    bool reachedStartOfData() const { return m_requiredFrame != kUninitialized; }
+
 private:
+    static constexpr size_t kUninitialized = static_cast<size_t>(-2);
+
     int m_frameId;
     unsigned m_xOffset;
     unsigned m_yOffset; // With respect to "screen" origin.
     unsigned m_width;
     unsigned m_height;
     size_t m_transparentPixel; // Index of transparent pixel. Value is kNotFound if there is no transparent pixel.
+    // Cached value, taking into account:
+    // - m_transparentPixel
+    // - frameRect
+    // - previous required frame
+    bool m_hasAlpha;
     SkCodecAnimation::DisposalMethod m_disposalMethod; // Restore to background, leave in place, etc.
     size_t m_requiredFrame;
     int m_dataSize;
@@ -346,13 +363,19 @@ public:
 
     size_t imagesCount() const
     {
-        if (m_frames.empty())
-            return 0;
+        // Report the first frame immediately, so the parser can stop when it
+        // sees the size on a SizeQuery.
+        const size_t frames = m_frames.size();
+        if (frames <= 1) {
+            return frames;
+        }
 
-        // This avoids counting an empty frame when the file is truncated right after
-        // SkGIFControlExtension but before SkGIFImageHeader.
-        // FIXME: This extra complexity is not necessary and we should just report m_frames.size().
-        return m_frames.back()->isHeaderDefined() ? m_frames.size() : m_frames.size() - 1;
+        // This avoids counting an empty frame when the file is truncated (or
+        // simply not yet complete) after receiving SkGIFControlExtension (and
+        // possibly SkGIFImageHeader) but before reading the color table. This
+        // ensures that we do not count a frame before we know its required
+        // frame.
+        return m_frames.back()->reachedStartOfData() ? frames : frames - 1;
     }
     int loopCount() const {
         if (cLoopCountNotSeen == m_loopCount) {
@@ -392,7 +415,7 @@ private:
 
     void addFrameIfNecessary();
     // Must be called *after* the SkGIFFrameContext's color table (if any) has been parsed.
-    void setRequiredFrame(SkGIFFrameContext*);
+    void setAlphaAndRequiredFrame(SkGIFFrameContext*);
     // This method is sometimes called before creating a SkGIFFrameContext, so it cannot rely
     // on SkGIFFrameContext::localColorMap().
     bool hasTransparentPixel(size_t frameIndex, bool hasLocalColorMap, size_t localMapColors);

@@ -25,18 +25,18 @@ class CPWL_List_Notify {
   explicit CPWL_List_Notify(CPWL_ListBox* pList);
   ~CPWL_List_Notify();
 
-  void IOnSetScrollInfoY(FX_FLOAT fPlateMin,
-                         FX_FLOAT fPlateMax,
-                         FX_FLOAT fContentMin,
-                         FX_FLOAT fContentMax,
-                         FX_FLOAT fSmallStep,
-                         FX_FLOAT fBigStep);
-  void IOnSetScrollPosY(FX_FLOAT fy);
+  void IOnSetScrollInfoY(float fPlateMin,
+                         float fPlateMax,
+                         float fContentMin,
+                         float fContentMax,
+                         float fSmallStep,
+                         float fBigStep);
+  void IOnSetScrollPosY(float fy);
   void IOnInvalidateRect(CFX_FloatRect* pRect);
 
   void IOnSetCaret(bool bVisible,
-                   const CFX_FloatPoint& ptHead,
-                   const CFX_FloatPoint& ptFoot,
+                   const CFX_PointF& ptHead,
+                   const CFX_PointF& ptFoot,
                    const CPVT_WordPlace& place);
 
  private:
@@ -57,11 +57,11 @@ class CPWL_ListBox : public CPWL_Wnd {
                           CFX_Matrix* pUser2Device) override;
   bool OnKeyDown(uint16_t nChar, uint32_t nFlag) override;
   bool OnChar(uint16_t nChar, uint32_t nFlag) override;
-  bool OnLButtonDown(const CFX_FloatPoint& point, uint32_t nFlag) override;
-  bool OnLButtonUp(const CFX_FloatPoint& point, uint32_t nFlag) override;
-  bool OnMouseMove(const CFX_FloatPoint& point, uint32_t nFlag) override;
+  bool OnLButtonDown(const CFX_PointF& point, uint32_t nFlag) override;
+  bool OnLButtonUp(const CFX_PointF& point, uint32_t nFlag) override;
+  bool OnMouseMove(const CFX_PointF& point, uint32_t nFlag) override;
   bool OnMouseWheel(short zDelta,
-                    const CFX_FloatPoint& point,
+                    const CFX_PointF& point,
                     uint32_t nFlag) override;
   void KillFocus() override;
   void OnNotify(CPWL_Wnd* pWnd,
@@ -70,8 +70,8 @@ class CPWL_ListBox : public CPWL_Wnd {
                 intptr_t lParam = 0) override;
   void RePosChildWnd() override;
   CFX_FloatRect GetFocusRect() const override;
-  void SetFontSize(FX_FLOAT fFontSize) override;
-  FX_FLOAT GetFontSize() const override;
+  void SetFontSize(float fFontSize) override;
+  float GetFontSize() const override;
 
   virtual CFX_WideString GetText() const;
 
@@ -92,9 +92,9 @@ class CPWL_ListBox : public CPWL_Wnd {
   int32_t GetCurSel() const;
   bool IsItemSelected(int32_t nItemIndex) const;
   int32_t GetTopVisibleIndex() const;
-  int32_t FindNext(int32_t nIndex, FX_WCHAR nChar) const;
+  int32_t FindNext(int32_t nIndex, wchar_t nChar) const;
   CFX_FloatRect GetContentRect() const;
-  FX_FLOAT GetFirstHeight() const;
+  float GetFirstHeight() const;
   CFX_FloatRect GetListRect() const;
 
   void SetFillerNotify(IPWL_Filler_Notify* pNotify) {

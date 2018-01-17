@@ -30,7 +30,7 @@ namespace page_load_metrics {
 namespace {
 
 const char kDefaultTestUrl[] = "https://google.com/";
-const char kDefaultTestUrlAnchor[] = "https://google.com/#samepage";
+const char kDefaultTestUrlAnchor[] = "https://google.com/#samedocument";
 const char kDefaultTestUrl2[] = "https://whatever.com/";
 const char kFilteredStartUrl[] = "https://whatever.com/ignore-on-start";
 const char kFilteredCommitUrl[] = "https://whatever.com/ignore-on-commit";
@@ -99,7 +99,7 @@ class FilteringPageLoadMetricsObserver : public PageLoadMetricsObserver {
 
   void OnComplete(const PageLoadTiming& timing,
                   const PageLoadExtraInfo& extra_info) override {
-    completed_filtered_urls_->push_back(extra_info.committed_url);
+    completed_filtered_urls_->push_back(extra_info.url);
   }
 
  private:
@@ -279,12 +279,12 @@ TEST_F(MetricsWebContentsObserverTest, NotInMainFrame) {
   ASSERT_EQ(0, CountUpdatedTimingReported());
   ASSERT_EQ(1, CountCompleteTimingReported());
   ASSERT_EQ(1, CountEmptyCompleteTimingReported());
-  CheckErrorEvent(ERR_IPC_FROM_WRONG_FRAME, 1);
+  CheckErrorEvent(ERR_TIMING_IPC_FROM_SUBFRAME, 1);
   CheckErrorEvent(ERR_NO_IPCS_RECEIVED, 1);
   CheckTotalErrorEvents();
 }
 
-TEST_F(MetricsWebContentsObserverTest, SamePageNoTrigger) {
+TEST_F(MetricsWebContentsObserverTest, SameDocumentNoTrigger) {
   PageLoadTiming timing;
   timing.navigation_start = base::Time::FromDoubleT(1);
 
@@ -368,7 +368,7 @@ TEST_F(MetricsWebContentsObserverTest, NotInMainError) {
   subframe_tester->SimulateNavigationStart(GURL(kDefaultTestUrl2));
   subframe_tester->SimulateNavigationCommit(GURL(kDefaultTestUrl2));
   SimulateTimingUpdate(timing, subframe);
-  CheckErrorEvent(ERR_IPC_FROM_WRONG_FRAME, 1);
+  CheckErrorEvent(ERR_TIMING_IPC_FROM_SUBFRAME, 1);
   CheckTotalErrorEvents();
   ASSERT_EQ(0, CountUpdatedTimingReported());
   ASSERT_EQ(0, CountCompleteTimingReported());
@@ -389,7 +389,7 @@ TEST_F(MetricsWebContentsObserverTest, BadIPC) {
   SimulateTimingUpdate(timing2);
   ASSERT_EQ(1, CountUpdatedTimingReported());
 
-  CheckErrorEvent(ERR_BAD_TIMING_IPC, 1);
+  CheckErrorEvent(ERR_BAD_TIMING_IPC_INVALID_TIMING_DESCENDENT, 1);
   CheckTotalErrorEvents();
 }
 

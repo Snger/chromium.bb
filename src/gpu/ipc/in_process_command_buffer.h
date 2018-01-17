@@ -23,6 +23,7 @@
 #include "base/synchronization/waitable_event.h"
 #include "base/threading/thread.h"
 #include "gpu/command_buffer/client/gpu_control.h"
+#include "gpu/command_buffer/common/activity_flags.h"
 #include "gpu/command_buffer/common/command_buffer.h"
 #include "gpu/command_buffer/service/command_executor.h"
 #include "gpu/command_buffer/service/context_group.h"
@@ -51,7 +52,7 @@ class Size;
 
 namespace gpu {
 
-class SyncPointClient;
+class SyncPointClientState;
 class SyncPointOrderData;
 class SyncPointManager;
 struct GpuProcessHostedCALayerTreeParamsMac;
@@ -115,10 +116,6 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
                       size_t height,
                       unsigned internalformat) override;
   void DestroyImage(int32_t id) override;
-  int32_t CreateGpuMemoryBufferImage(size_t width,
-                                     size_t height,
-                                     unsigned internalformat,
-                                     unsigned usage) override;
   void SignalQuery(uint32_t query_id, const base::Closure& callback) override;
   void SetLock(base::Lock*) override;
   void EnsureWorkVisible() override;
@@ -132,7 +129,8 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
   bool IsFenceSyncReleased(uint64_t release) override;
   void SignalSyncToken(const SyncToken& sync_token,
                        const base::Closure& callback) override;
-  bool CanWaitUnverifiedSyncToken(const SyncToken* sync_token) override;
+  void WaitSyncTokenHint(const SyncToken& sync_token) override;
+  bool CanWaitUnverifiedSyncToken(const SyncToken& sync_token) override;
 
 // ImageTransportSurfaceDelegate implementation:
 #if defined(OS_WIN)
@@ -145,6 +143,9 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
   void SetLatencyInfoCallback(const LatencyInfoCallback& callback) override;
   void UpdateVSyncParameters(base::TimeTicks timebase,
                              base::TimeDelta interval) override;
+
+  void AddFilter(IPC::MessageFilter* message_filter) override;
+  int32_t GetRouteID() const override;
 
   using SwapBuffersCompletionCallback = base::Callback<void(
       const std::vector<ui::LatencyInfo>& latency_info,
@@ -165,7 +166,6 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
   // The serializer interface to the GPU service (i.e. thread).
   class Service {
    public:
-    Service();
     Service(const gpu::GpuPreferences& gpu_preferences);
     Service(gpu::gles2::MailboxManager* mailbox_manager,
             scoped_refptr<gl::GLShareGroup> share_group);
@@ -201,6 +201,8 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
     scoped_refptr<gles2::MailboxManager> mailbox_manager_;
     scoped_refptr<gl::GLShareGroup> share_group_;
     std::unique_ptr<gpu::gles2::ProgramCache> program_cache_;
+    // No-op default initialization is used in in-process mode.
+    GpuProcessActivityFlags activity_flags_;
   };
 
  private:
@@ -239,12 +241,8 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
   void ProcessTasksOnGpuThread();
   void CheckSequencedThread();
   void FenceSyncReleaseOnGpuThread(uint64_t release);
-  bool WaitFenceSyncOnGpuThread(gpu::CommandBufferNamespace namespace_id,
-                                gpu::CommandBufferId command_buffer_id,
-                                uint64_t release);
-  void OnWaitFenceSyncCompleted(CommandBufferNamespace namespace_id,
-                                CommandBufferId command_buffer_id,
-                                uint64_t release);
+  bool WaitSyncTokenOnGpuThread(const SyncToken& sync_token);
+  void OnWaitSyncTokenCompleted(const SyncToken& sync_token);
   void DescheduleUntilFinishedOnGpuThread();
   void RescheduleAfterFinishedOnGpuThread();
   void SignalSyncTokenOnGpuThread(const SyncToken& sync_token,
@@ -281,7 +279,7 @@ class GPU_EXPORT InProcessCommandBuffer : public CommandBuffer,
   scoped_refptr<gl::GLContext> context_;
   scoped_refptr<gl::GLSurface> surface_;
   scoped_refptr<SyncPointOrderData> sync_point_order_data_;
-  std::unique_ptr<SyncPointClient> sync_point_client_;
+  scoped_refptr<SyncPointClientState> sync_point_client_state_;
   base::Closure context_lost_callback_;
   // Used to throttle PerformDelayedWorkOnGpuThread.
   bool delayed_work_pending_;
