@@ -190,6 +190,8 @@ class VIEWS_EXPORT HWNDMessageHandlerDelegate {
   // previous call to HandleNCDragBegin returned true.
   virtual void HandleNCDragEnd() = 0;
 
+  virtual void HandleNCDoubleClick() = 0;
+
   // Called when the window's frame has changed.
   virtual void HandleFrameChanged() = 0;
 

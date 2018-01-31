@@ -181,6 +181,12 @@ void NativeViewWidget::OnNCDragEnd()
         d_delegate->OnNCDragEnd();
 }
 
+void NativeViewWidget::OnNCDoubleClick()
+{
+    if (d_delegate)
+        d_delegate->OnNCDoubleClick();
+}
+
 }  // close namespace blpwtk2
 
 // vim: ts=4 et
