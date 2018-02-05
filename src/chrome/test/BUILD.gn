@@ -510,10 +510,12 @@ if (!is_android) {
       "//ui/web_dialogs:test_support",
     ]
 
-    # TODO(rockot) bug 505926: The chrome_extensions_interactive_uitests target
-    # should be deleted and this line removed. See the
-    # chrome_extensions_interactive_uitests target for more.
-    deps += [ "//extensions:chrome_extensions_interactive_uitests" ]
+    if (enable_extensions) {
+      # TODO(rockot) bug 505926: The chrome_extensions_interactive_uitests target
+      # should be deleted and this line removed. See the
+      # chrome_extensions_interactive_uitests target for more.
+      deps += [ "//extensions:chrome_extensions_interactive_uitests" ]
+    }
 
     # Runtime dependencies
     data_deps += [

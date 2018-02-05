@@ -3,6 +3,7 @@
 # found in the LICENSE file.
 #
 
+import("//extensions/features/features.gni")
 import("//mojo/public/tools/bindings/mojom.gni")
 import("//testing/test.gni")
 
@@ -64,9 +65,15 @@ static_library("router") {
   if (!is_android) {
     deps += [
       ":mojo_bindings",
-      "//extensions/browser",
       "//mojo/public/cpp/bindings",
     ]
+
+    if (enable_extensions) {
+      deps += [
+        "//extensions/browser",
+      ]
+    }
+
     sources += [
       # TODO(crbug.com/646627): Move media_router_ui_service* to
       # chrome/browser/ui/.
@@ -115,8 +122,14 @@ static_library("test_support") {
   if (!is_android) {
     deps += [
       ":mojo_bindings",
-      "//extensions/common",
     ]
+
+    if (enable_extensions) {
+      deps += [
+        "//extensions/common",
+      ]
+    }
+
     sources += [
       "mojo/media_router_mojo_test.cc",
       "mojo/media_router_mojo_test.h",

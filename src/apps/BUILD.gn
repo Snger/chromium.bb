@@ -10,6 +10,7 @@ assert(!is_android && !is_ios)
 
 static_library("apps") {
   sources = []
+  deps = []
 
   if (enable_extensions) {
     sources += [
@@ -42,7 +43,7 @@ static_library("apps") {
 
     configs += [ "//build/config/compiler:wexit_time_destructors" ]
 
-    deps = [
+    deps += [
       "//chrome/app/theme:theme_resources",
       "//chrome/browser/extensions",
       "//chrome/common/extensions/api",

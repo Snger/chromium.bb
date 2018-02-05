@@ -73,12 +73,18 @@ static_library("devtools") {
       "//chrome:strings",
       "//chrome/app/theme:theme_resources",
       "//chrome/common",
-      "//chrome/common/extensions/api",
       "//net:http_server",
       "//skia",
       "//third_party/icu",
       "//third_party/leveldatabase",
     ]
+
+    if (enable_extensions) {
+      deps += [
+        "//chrome/common/extensions/api",
+      ]
+    }
+
     sources += [
       "chrome_devtools_manager_delegate.cc",
       "chrome_devtools_manager_delegate.h",
