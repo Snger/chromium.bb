@@ -88,6 +88,12 @@ void AtExitManager::ProcessCallbacksNow() {
   DCHECK(g_top_manager->stack_.empty());
 }
 
+// static
+bool AtExitManager::IsInitialized()
+{
+    return NULL != g_top_manager;
+}
+
 AtExitManager::AtExitManager(bool shadow)
     : processing_callbacks_(false), next_manager_(g_top_manager) {
   DCHECK(shadow || !g_top_manager);
