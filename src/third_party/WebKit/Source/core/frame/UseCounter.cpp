@@ -1073,8 +1073,7 @@ int UseCounter::mapCSSPropertyIdToCSSSampleIdForHistogram(
       return 0;
   }
 
-  ASSERT_NOT_REACHED();
-  return 0;
+    return 0;
 }
 
 UseCounter::UseCounter(Context context)
