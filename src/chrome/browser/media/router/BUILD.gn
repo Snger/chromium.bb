@@ -61,9 +61,15 @@ static_library("router") {
   if (enable_extensions) {
     deps += [
       "discovery",
-      "//extensions/browser",
       "//mojo/public/cpp/bindings",
     ]
+
+    if (enable_extensions) {
+      deps += [
+        "//extensions/browser",
+      ]
+    }
+
     sources += [
       "event_page_request_manager.cc",
       "event_page_request_manager.h",
@@ -113,9 +119,15 @@ static_library("test_support") {
       "discovery",
       "//chrome/common/media_router/mojo:media_router",
       "//chrome/common/media_router/mojo:media_router_test_interfaces",
-      "//extensions/browser",
-      "//extensions/common",
     ]
+
+    if (enable_extensions) {
+      deps += [
+        "//extensions/common",
+        "//extensions/browser",
+      ]
+    }
+
     sources += [
       "discovery/mdns/mock_dns_sd_registry.cc",
       "discovery/mdns/mock_dns_sd_registry.h",
