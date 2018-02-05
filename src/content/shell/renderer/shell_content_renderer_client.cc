@@ -105,6 +105,7 @@ void ShellContentRendererClient::RenderThreadStarted() {
 
 void ShellContentRendererClient::RenderViewCreated(RenderView* render_view) {
   new ShellRenderViewObserver(render_view);
+  // hunk separator
 }
 
 bool ShellContentRendererClient::IsPluginAllowedToUseCompositorAPI(
