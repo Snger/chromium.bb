@@ -823,6 +823,10 @@ void NativeWidgetMus::FrameTypeChanged() {
   NOTIMPLEMENTED();
 }
 
+void NativeWidgetMus::CompositionChanged() {
+  NOTIMPLEMENTED();
+}
+
 Widget* NativeWidgetMus::GetWidget() {
   return native_widget_delegate_->AsWidget();
 }
