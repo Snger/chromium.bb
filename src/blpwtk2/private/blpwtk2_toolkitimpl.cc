@@ -63,6 +63,7 @@
 #include <third_party/WebKit/public/web/WebKit.h>
 #include <third_party/WebKit/public/web/WebSecurityPolicy.h>
 #include <third_party/WebKit/public/web/WebScriptController.h>
+#include <third_party/WebKit/public/web/WebScriptBindings.h>
 
 namespace blpwtk2 {
 
@@ -606,6 +607,11 @@ void ToolkitImpl::setTimerHiddenPageAlignmentInterval(double interval)
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(Statics::isRendererMainThreadMode());
     blink::setTimerHiddenPageAlignmentInterval(interval);
+}
+
+v8::Local<v8::Context> ToolkitImpl::createWebScriptContext()
+{
+    return blink::WebScriptBindings::createWebScriptContext();
 }
 
 void ToolkitImpl::addOriginToTrustworthyList(const StringRef& originString)
