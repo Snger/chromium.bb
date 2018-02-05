@@ -241,7 +241,6 @@ int ProcessHostImpl::createPipeHandleForChild(
     DCHECK(!d_impl);
     d_impl = new Impl(isolated, profileDir);
 
-
     // Create a pipe for Mojo
     mojo::edk::PlatformChannelPair channel_pair;
     HANDLE fileDescriptor;
@@ -544,6 +543,11 @@ void ProcessHostImpl::addBypassRule(const std::string& rule)
 void ProcessHostImpl::clearBypassRules()
 {
     d_impl->context().clearBypassRules();
+}
+
+void ProcessHostImpl::clearWebCache()
+{
+    d_impl->context().clearWebCache();
 }
 
 void ProcessHostImpl::setPacUrl(const std::string& url)

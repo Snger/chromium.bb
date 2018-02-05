@@ -668,6 +668,14 @@ void RenderProcessHostImpl::EarlyZygoteLaunch() {
 }
 #endif  // defined(OS_POSIX) && !defined(OS_ANDROID) && !defined(OS_MACOSX)
 
+// static
+void RenderProcessHost::ClearWebCacheOnAllRenderers() {
+  DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
+  for (iterator i(AllHostsIterator()); !i.IsAtEnd(); i.Advance()) {
+    i.GetCurrentValue()->Send(new ViewMsg_ClearWebCache());
+  }
+}
+
 RenderProcessHostImpl::RenderProcessHostImpl(
     int host_id,
     base::ProcessHandle externally_managed_handle,
