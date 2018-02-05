@@ -42,6 +42,9 @@ class ShellContentBrowserClient : public ContentBrowserClient {
       const std::string& name) override;
   void AppendExtraCommandLineSwitches(base::CommandLine* command_line,
                                       int child_process_id) override;
+  bool SupportsInProcessRenderer() override;
+  void StartInProcessRendererThread(const std::string& service_token) override;
+  void StopInProcessRendererThread() override;
   void ResourceDispatcherHostCreated() override;
   std::string GetDefaultDownloadName() override;
   WebContentsViewDelegate* GetWebContentsViewDelegate(

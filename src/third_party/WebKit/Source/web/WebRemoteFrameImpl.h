@@ -80,6 +80,7 @@ class WEB_EXPORT WebRemoteFrameImpl final
       v8::Local<v8::Value> argv[]) override;
   v8::Local<v8::Context> mainWorldScriptContext() const override;
   v8::Local<v8::Context> deprecatedMainWorldScriptContext() const override;
+  v8::Isolate* scriptIsolate() const override;
   void reload(WebFrameLoadType) override;
   void reloadWithOverrideURL(const WebURL& overrideUrl,
                              WebFrameLoadType) override;

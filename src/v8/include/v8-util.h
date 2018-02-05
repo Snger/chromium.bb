@@ -394,7 +394,7 @@ class PersistentValueMap : public PersistentValueMapBase<K, V, Traits> {
     if (Traits::kCallbackType != kNotWeak) {
       Local<V> value(Local<V>::New(this->isolate(), *persistent));
       persistent->template SetWeak<typename Traits::WeakCallbackDataType>(
-        Traits::WeakCallbackParameter(this, key, value), WeakCallback);
+        Traits::WeakCallbackParameter(this, key, value), WeakCallback, WeakCallbackType::kFinalizer);
     }
     PersistentContainerValue old_value =
         Traits::Set(this->impl(), key, this->ClearAndLeak(persistent));

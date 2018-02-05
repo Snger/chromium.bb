@@ -299,8 +299,20 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate {
   void AddTaskObserver(TaskObserver* task_observer);
   void RemoveTaskObserver(TaskObserver* task_observer);
 
+#if defined(OS_WIN)
+  void set_ipc_sync_messages_should_peek(bool ipc_sync_messages_should_peek) {
+    ipc_sync_messages_should_peek_ = ipc_sync_messages_should_peek;
+  }
+
+  bool ipc_sync_messages_should_peek() const {
+    return ipc_sync_messages_should_peek_;
+  }
+#endif  // OS_WIN
+
   // Can only be called from the thread that owns the MessageLoop.
   bool is_running() const;
+
+  void PrepareRunHandler();
 
   // Returns true if the message loop has high resolution timers enabled.
   // Provided for testing.
@@ -315,6 +327,10 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate {
 
   // Runs the specified PendingTask.
   void RunTask(PendingTask* pending_task);
+
+  MessagePump* get_pump() {
+    return pump_.get();
+  }
 
   // Disallow nesting. After this is called, running a nested RunLoop or calling
   // Add/RemoveNestingObserver() on this MessageLoop will crash.
@@ -435,6 +451,11 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate {
   // A recursion block that prevents accidentally running additional tasks when
   // insider a (accidentally induced?) nested message pump.
   bool nestable_tasks_allowed_;
+
+#if defined(OS_WIN)
+  // Should be set to true if IPC sync messages should PeekMessage periodically.
+  bool ipc_sync_messages_should_peek_;
+#endif
 
   // pump_factory_.Run() is called to create a message pump for this loop
   // if type_ is TYPE_CUSTOM and pump_ is null.

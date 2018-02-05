@@ -27,6 +27,10 @@ namespace views {
 class ClipboardMus;
 }
 
+namespace blpwtk2 {
+class ToolkitImpl;
+}
+
 namespace mojo {
 
 // In some processes, sync calls are disallowed. For example, in the browser
@@ -57,6 +61,7 @@ class MOJO_CPP_BINDINGS_EXPORT SyncCallRestrictions {
   // BEGIN ALLOWED USAGE.
   friend class ui::GpuService;  // http://crbug.com/620058
   friend class aura::GpuService;  // http://crbug.com/620058
+  friend class blpwtk2::ToolkitImpl;  // single-process support
   // END ALLOWED USAGE.
 
   // BEGIN USAGE THAT NEEDS TO BE FIXED.

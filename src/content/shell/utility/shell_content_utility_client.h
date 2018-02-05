@@ -17,6 +17,7 @@ class ShellContentUtilityClient : public ContentUtilityClient {
   void RegisterServices(StaticServiceMap* services) override;
   void ExposeInterfacesToBrowser(
       service_manager::InterfaceRegistry* registry) override;
+  bool OnMessageReceived(const IPC::Message& message) override;
 };
 
 }  // namespace content

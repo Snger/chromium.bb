@@ -75,7 +75,8 @@ WebThread& ScriptStreamerThread::platformThread() {
 }
 
 void ScriptStreamerThread::runScriptStreamingTask(
-    std::unique_ptr<v8::ScriptCompiler::ScriptStreamingTask> task,
+    std::unique_ptr<v8::ScriptCompiler::ScriptStreamingTask,
+                    std::function<void(v8::ScriptCompiler::ScriptStreamingTask*)>> task,
     ScriptStreamer* streamer) {
   TRACE_EVENT1(
       "v8,devtools.timeline", "v8.parseOnBackground", "data",

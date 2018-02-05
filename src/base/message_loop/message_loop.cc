@@ -319,6 +319,9 @@ MessageLoop::MessageLoop(Type type, MessagePumpFactoryCallback pump_factory)
       in_high_res_mode_(false),
 #endif
       nestable_tasks_allowed_(true),
+#if defined(OS_WIN)
+      ipc_sync_messages_should_peek_(false),
+#endif  // OS_WIN
       pump_factory_(pump_factory),
       run_loop_(NULL),
       incoming_task_queue_(new internal::IncomingTaskQueue(this)),
@@ -371,10 +374,14 @@ void MessageLoop::SetThreadTaskRunnerHandle() {
   thread_task_runner_handle_.reset(new ThreadTaskRunnerHandle(task_runner_));
 }
 
-void MessageLoop::RunHandler() {
+void MessageLoop::PrepareRunHandler() {
   DCHECK_EQ(this, current());
   DCHECK(run_loop_);
   CHECK(allow_nesting_ || run_loop_->run_depth_ == 1);
+}
+
+void MessageLoop::RunHandler() {
+  PrepareRunHandler();
   pump_->Run(this);
 }
 

@@ -584,6 +584,8 @@ RenderProcessHostImpl::GetInProcessRendererThreadForTesting() {
   return g_in_process_thread;
 }
 
+int RenderProcessHostImpl::kInvalidId = ChildProcessHost::kInvalidUniqueID;
+
 // static
 size_t RenderProcessHost::GetMaxRendererProcessCount() {
   if (g_max_renderer_count_override)
@@ -635,6 +637,25 @@ void RenderProcessHost::SetMaxRendererProcessCount(size_t count) {
   g_max_renderer_count_override = count;
 }
 
+// static
+RenderProcessHost* RenderProcessHost::CreateProcessHost(
+    base::ProcessHandle processHandle,
+    content::BrowserContext* browserContext)
+{
+    DCHECK(browserContext);
+
+    content::StoragePartition* partition
+        = content::BrowserContext::GetDefaultStoragePartition(browserContext);
+    content::StoragePartitionImpl* partitionImpl
+        = static_cast<content::StoragePartitionImpl*>(partition);
+
+    int id = content::RenderProcessHostImpl::GenerateUniqueId();
+    bool isGuest = false;
+    return new content::RenderProcessHostImpl(id, processHandle,
+                                              browserContext, partitionImpl,
+                                              isGuest);
+}
+
 #if defined(OS_POSIX) && !defined(OS_ANDROID) && !defined(OS_MACOSX)
 // static
 void RenderProcessHostImpl::EarlyZygoteLaunch() {
@@ -648,6 +669,8 @@ void RenderProcessHostImpl::EarlyZygoteLaunch() {
 #endif  // defined(OS_POSIX) && !defined(OS_ANDROID) && !defined(OS_MACOSX)
 
 RenderProcessHostImpl::RenderProcessHostImpl(
+    int host_id,
+    base::ProcessHandle externally_managed_handle,
     BrowserContext* browser_context,
     StoragePartitionImpl* storage_partition_impl,
     bool is_for_guests_only)
@@ -665,7 +688,8 @@ RenderProcessHostImpl::RenderProcessHostImpl(
           mojo::BindingSetDispatchMode::WITH_CONTEXT),
       visible_widgets_(0),
       is_process_backgrounded_(false),
-      id_(ChildProcessHostImpl::GenerateChildProcessUniqueId()),
+      externally_managed_handle_(externally_managed_handle),
+      id_(host_id),
       browser_context_(browser_context),
       storage_partition_impl_(storage_partition_impl),
       sudden_termination_allowed_(true),
@@ -749,10 +773,6 @@ RenderProcessHostImpl::~RenderProcessHostImpl() {
   DCHECK(is_self_deleted_)
       << "RenderProcessHostImpl is destroyed by something other than itself";
 #endif
-
-  // Make sure to clean up the in-process renderer before the channel, otherwise
-  // it may still run and have its IPCs fail, causing asserts.
-  in_process_renderer_.reset();
 
   ChildProcessSecurityPolicyImpl::GetInstance()->Remove(GetID());
 
@@ -839,41 +859,61 @@ bool RenderProcessHostImpl::Init() {
   CreateMessageFilters();
   RegisterMojoInterfaces();
 
-  if (run_renderer_in_process()) {
-    DCHECK(g_renderer_main_thread_factory);
-    // Crank up a thread and run the initialization there.  With the way that
-    // messages flow between the browser and renderer, this thread is required
-    // to prevent a deadlock in single-process mode.  Since the primordial
-    // thread in the renderer process runs the WebKit code and can sometimes
-    // make blocking calls to the UI thread (i.e. this thread), they need to run
-    // on separate threads.
-    in_process_renderer_.reset(
-        g_renderer_main_thread_factory(InProcessChildThreadParams(
-            BrowserThread::GetTaskRunnerForThread(BrowserThread::IO),
-            child_connection_->service_token())));
+  if (IsProcessManagedExternally()) {
+    if (externally_managed_handle_ != base::GetCurrentProcessHandle()) {
+      // Renderer is running in a separate process that is being managed
+      // externally.
+      OnProcessLaunched();  // Fake a callback that the process is ready.
+    } else {
+      // Single-process mode not supported in component build mode.
+      DCHECK(externally_managed_handle_ == base::GetCurrentProcessHandle());
 
-    base::Thread::Options options;
-#if defined(OS_WIN) && !defined(OS_MACOSX)
-    // In-process plugins require this to be a UI message loop.
-    options.message_loop_type = base::MessageLoop::TYPE_UI;
-#else
-    // We can't have multiple UI loops on Linux and Android, so we don't support
-    // in-process plugins.
-    options.message_loop_type = base::MessageLoop::TYPE_DEFAULT;
+      // Crank up a thread and run the initialization there.  With the way that
+      // messages flow between the browser and renderer, this thread is required
+      // to prevent a deadlock in single-process mode.  Since the primordial
+      // thread in the renderer process runs the WebKit code and can sometimes
+      // make blocking calls to the UI thread (i.e. this thread), they need to run
+      // on separate threads.
+
+      // TODO(blpwtk2): Not sure why this is commented out.
+#if 0
+      in_process_renderer_.reset(
+          g_renderer_main_thread_factory(InProcessChildThreadParams(
+              BrowserThread::GetTaskRunnerForThread(BrowserThread::IO),
+              child_connection_->service_token())));
 #endif
-    // As for execution sequence, this callback should have no any dependency
-    // on starting in-process-render-thread.
-    // So put it here to trigger ChannelMojo initialization earlier to enable
-    // in-process-render-thread using ChannelMojo there.
-    OnProcessLaunched();  // Fake a callback that the process is ready.
 
-    in_process_renderer_->StartWithOptions(options);
+      base::Thread::Options options;
+#if defined(OS_WIN) && !defined(OS_MACOSX)
+      // In-process plugins require this to be a UI message loop.
+      options.message_loop_type = base::MessageLoop::TYPE_UI;
+#else
+      // We can't have multiple UI loops on Linux and Android, so we don't support
+      // in-process plugins.
+      options.message_loop_type = base::MessageLoop::TYPE_DEFAULT;
+#endif
 
-    g_in_process_thread = in_process_renderer_->message_loop();
+      // As for execution sequence, this callback should have no any dependency
+      // on starting in-process-render-thread.
+      // So put it here to trigger ChannelMojo initialization earlier to enable
+      // in-process-render-thread using ChannelMojo there.
+      OnProcessLaunched();  // Fake a callback that the process is ready.
 
-    // Make sure any queued messages on the channel are flushed in the case
-    // where we aren't launching a child process.
-    channel_->Flush();
+#if 0
+      in_process_renderer_->StartWithOptions(options);
+
+      g_in_process_thread = in_process_renderer_->message_loop();
+#endif
+
+      if (GetContentClient()->browser()->SupportsInProcessRenderer()) {
+          GetContentClient()->browser()->StartInProcessRendererThread(
+              child_connection_->service_token());
+      }
+
+      // Make sure any queued messages on the channel are flushed in the case
+      // where we aren't launching a child process.
+      channel_->Flush();
+    }
   } else {
     // Build command line for renderer.  We call AppendRendererCommandLine()
     // first so the process type argument will appear first.
@@ -1449,13 +1489,17 @@ void RenderProcessHostImpl::RemoveObserver(
   observers_.RemoveObserver(observer);
 }
 
+size_t RenderProcessHostImpl::NumListeners() {
+  return listeners_.size();
+}
+
 void RenderProcessHostImpl::ShutdownForBadMessage(
     CrashReportMode crash_report_mode) {
   base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
   if (command_line->HasSwitch(switches::kDisableKillAfterBadIPC))
     return;
 
-  if (run_renderer_in_process()) {
+  if (externally_managed_handle_ == base::GetCurrentProcessHandle()) {
     // In single process mode it is better if we don't suicide but just
     // crash.
     CHECK(false);
@@ -1574,6 +1618,20 @@ static void AppendCompositorCommandLineFlags(base::CommandLine* command_line) {
 
 void RenderProcessHostImpl::AppendRendererCommandLine(
     base::CommandLine* command_line) {
+  AdjustCommandLineForRenderer(command_line);
+
+  // Disable databases in incognito mode.
+  if (GetBrowserContext()->IsOffTheRecord() &&
+      command_line->HasSwitch(switches::kDisableDatabases)) {
+    command_line->AppendSwitch(switches::kDisableDatabases);
+  }
+
+  GetContentClient()->browser()->AppendExtraCommandLineSwitches(command_line,
+                                                                GetID());
+}
+
+void RenderProcessHostImpl::AdjustCommandLineForRenderer(
+    base::CommandLine* command_line) {
   // Pass the process type first, so it shows first in process listings.
   command_line->AppendSwitchASCII(switches::kProcessType,
                                   switches::kRendererProcess);
@@ -1591,9 +1649,6 @@ void RenderProcessHostImpl::AppendRendererCommandLine(
   const std::string locale =
       GetContentClient()->browser()->GetApplicationLocale();
   command_line->AppendSwitchASCII(switches::kLang, locale);
-
-  GetContentClient()->browser()->AppendExtraCommandLineSwitches(command_line,
-                                                                GetID());
 
   if (IsPinchToZoomEnabled())
     command_line->AppendSwitch(switches::kEnablePinch);
@@ -1671,6 +1726,9 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kDomAutomationController,
     switches::kEnableBlinkFeatures,
     switches::kEnableBrowserSideNavigation,
+    switches::kEnableCSS3TextDecorations,
+    switches::kEnableCSS3Text,
+    switches::kEnableCSSGridLayout,
     switches::kEnableDisplayList2dCanvas,
     switches::kEnableDistanceFieldText,
     switches::kEnableExperimentalCanvasFeatures,
@@ -1844,12 +1902,6 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
   }
 #endif
 
-  // Disable databases in incognito mode.
-  if (GetBrowserContext()->IsOffTheRecord() &&
-      !browser_cmd.HasSwitch(switches::kDisableDatabases)) {
-    renderer_cmd->AppendSwitch(switches::kDisableDatabases);
-  }
-
   // Add kWaitForDebugger to let renderer process wait for a debugger.
   if (browser_cmd.HasSwitch(switches::kWaitForDebuggerChildren)) {
     // Look to pass-on the kWaitForDebugger flag.
@@ -1876,8 +1928,8 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
 }
 
 base::ProcessHandle RenderProcessHostImpl::GetHandle() const {
-  if (run_renderer_in_process())
-    return base::GetCurrentProcessHandle();
+  if (IsProcessManagedExternally())
+    return externally_managed_handle_;
 
   if (!child_process_launcher_.get() || child_process_launcher_->IsStarting())
     return base::kNullProcessHandle;
@@ -1892,8 +1944,8 @@ bool RenderProcessHostImpl::IsReady() const {
 }
 
 bool RenderProcessHostImpl::Shutdown(int exit_code, bool wait) {
-  if (run_renderer_in_process())
-    return false;  // Single process mode never shuts down the renderer.
+  if (IsProcessManagedExternally())
+    return false;  // Externally managed process never shuts down the renderer.
 
 #if defined(OS_ANDROID)
   // Android requires a different approach for killing.
@@ -1908,8 +1960,8 @@ bool RenderProcessHostImpl::Shutdown(int exit_code, bool wait) {
 }
 
 bool RenderProcessHostImpl::FastShutdownIfPossible() {
-  if (run_renderer_in_process())
-    return false;  // Single process mode never shuts down the renderer.
+  if (IsProcessManagedExternally())
+    return false;  // Externally managed process never shuts down the renderer.
 
   if (!child_process_launcher_.get() || child_process_launcher_->IsStarting() ||
       !GetHandle())
@@ -2085,8 +2137,8 @@ bool RenderProcessHostImpl::IgnoreInputEvents() const {
 
 void RenderProcessHostImpl::Cleanup() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
-  // Keep the one renderer thread around forever in single process mode.
-  if (run_renderer_in_process())
+  // Keep the renderer around forever in externally-managed mode.
+  if (IsProcessManagedExternally())
     return;
 
   // If within_process_died_observer_ is true, one of our observers performed an
@@ -2181,6 +2233,9 @@ void RenderProcessHostImpl::Cleanup() {
   // to processing ipcs referring to them.
   DCHECK(!channel_);
   RemoveUserData(kSessionStorageHolderKey);
+
+  if (externally_managed_handle_ == base::GetCurrentProcessHandle())
+    GetContentClient()->browser()->StopInProcessRendererThread();
 
   // Remove ourself from the list of renderer processes so that we can't be
   // reused in between now and when the Delete task runs.
@@ -2307,8 +2362,16 @@ RenderProcessHostImpl::StartRtpDump(
 }
 #endif
 
+bool RenderProcessHostImpl::IsProcessManagedExternally() const {
+  return externally_managed_handle_ != base::kNullProcessHandle;
+}
+
 IPC::ChannelProxy* RenderProcessHostImpl::GetChannel() {
   return channel_.get();
+}
+
+std::string RenderProcessHostImpl::GetChildToken() const {
+  return child_token_;
 }
 
 void RenderProcessHostImpl::AddFilter(BrowserMessageFilter* filter) {
@@ -2324,6 +2387,12 @@ bool RenderProcessHostImpl::FastShutdownForPageCount(size_t count) {
 
 bool RenderProcessHostImpl::FastShutdownStarted() const {
   return fast_shutdown_started_;
+}
+
+// static
+int RenderProcessHostImpl::GenerateUniqueId()
+{
+  return ChildProcessHostImpl::GenerateChildProcessUniqueId();
 }
 
 // static
@@ -2385,7 +2454,7 @@ void RenderProcessHostImpl::FilterURL(RenderProcessHost* rph,
 bool RenderProcessHostImpl::IsSuitableHost(RenderProcessHost* host,
                                            BrowserContext* browser_context,
                                            const GURL& site_url) {
-  if (run_renderer_in_process()) {
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kSingleProcess)) {
     DCHECK_EQ(host->GetBrowserContext(), browser_context)
         << " Single-process mode does not support multiple browser contexts.";
     return true;
@@ -2446,6 +2515,24 @@ void RenderProcessHost::SetRunRendererInProcess(bool value) {
 }
 
 // static
+void RenderProcessHost::AdjustCommandLineForInProcessRenderer(
+    base::CommandLine* command_line) {
+  {
+    if (!command_line->HasSwitch(switches::kLang)) {
+      // Modify the current process' command line to include the browser locale,
+      // as the renderer expects this flag to be set.
+      const std::string locale =
+          GetContentClient()->browser()->GetApplicationLocale();
+      command_line->AppendSwitchASCII(switches::kLang, locale);
+    }
+    // TODO(piman): we should really send configuration through bools rather
+    // than by parsing strings, i.e. sending an IPC rather than command line
+    // args. crbug.com/314909
+    AppendCompositorCommandLineFlags(command_line);
+  }
+}
+
+// static
 RenderProcessHost::iterator RenderProcessHost::AllHostsIterator() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   return iterator(g_all_hosts.Pointer());
@@ -2463,7 +2550,7 @@ bool RenderProcessHost::ShouldTryToUseExistingProcessHost(
     const GURL& url) {
   // This needs to be checked first to ensure that --single-process
   // and --site-per-process can be used together.
-  if (run_renderer_in_process())
+  if (base::CommandLine::ForCurrentProcess()->HasSwitch(switches::kSingleProcess))
     return true;
 
   // If --site-per-process is enabled, do not try to reuse renderer processes
@@ -2733,7 +2820,7 @@ void RenderProcessHostImpl::OnShutdownRequest() {
   // Don't shut down if there are active RenderViews, or if there are pending
   // RenderViews being swapped back in.
   // In single process mode, we never shutdown the renderer.
-  if (pending_views_ || run_renderer_in_process() || GetActiveViewCount() > 0)
+  if (pending_views_ || IsProcessManagedExternally() || GetActiveViewCount() > 0)
     return;
 
   // Notify any contents that might have swapped out renderers from this

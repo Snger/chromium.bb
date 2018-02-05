@@ -862,10 +862,11 @@ v8::Local<v8::Context> WebLocalFrameImpl::mainWorldScriptContext() const {
   return scriptState->context();
 }
 
-bool WebFrame::scriptCanAccess(WebFrame* target) {
-  return BindingSecurity::shouldAllowAccessToFrame(
-      currentDOMWindow(mainThreadIsolate()), target->toImplBase()->frame(),
-      BindingSecurity::ErrorReportOption::DoNotReport);
+v8::Isolate* WebLocalFrameImpl::scriptIsolate() const {
+  if (!frame()) {
+    return 0;
+  }
+  return toIsolate(frame());
 }
 
 void WebLocalFrameImpl::reload(WebFrameLoadType loadType) {

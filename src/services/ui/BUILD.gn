@@ -8,6 +8,7 @@ import("//services/service_manager/public/cpp/service.gni")
 import("//services/service_manager/public/service_manifest.gni")
 import("//services/service_manager/public/constants.gni")
 import("//tools/grit/repack.gni")
+import("//blpwtk2/blpwtk2.gni") 
 
 group("all") {
   testonly = true
@@ -60,10 +61,17 @@ if (is_win) {
       "//third_party/angle:libGLESv2",
     ]
 
+    if (bb_version != "") {
     sources = [
-      "$root_shlib_dir/libEGL.dll",
-      "$root_shlib_dir/libGLESv2.dll",
+        "$root_shlib_dir/blpcr_egl.$bb_version.dll",
+        "$root_shlib_dir/blpcr_glesv2.$bb_version.dll",
     ]
+    } else {
+      sources = [
+        "$root_shlib_dir/blpcr_egl.dll",
+        "$root_shlib_dir/blpcr_glesv2.dll",
+      ]
+    }
 
     outputs = [
       "$root_out_dir/$packages_directory/ui/{{source_file_part}}",

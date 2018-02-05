@@ -161,7 +161,7 @@ static v8::MaybeLocal<v8::Script> compileAndConsumeCache(
   const char* data = cachedMetadata->data();
   int length = cachedMetadata->size();
   v8::ScriptCompiler::CachedData* cachedData =
-      new v8::ScriptCompiler::CachedData(
+      v8::ScriptCompiler::CachedData::create(
           reinterpret_cast<const uint8_t*>(data), length,
           v8::ScriptCompiler::CachedData::BufferNotOwned);
   v8::ScriptCompiler::Source source(code, origin, cachedData);

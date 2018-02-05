@@ -71,6 +71,10 @@ class BASE_EXPORT RunLoop {
   base::Closure QuitClosure();
   base::Closure QuitWhenIdleClosure();
 
+  // Return false to abort the Run.
+  bool BeforeRun();
+  void AfterRun();
+
  private:
   friend class MessageLoop;
 #if defined(OS_ANDROID)
@@ -84,10 +88,6 @@ class BASE_EXPORT RunLoop {
   // BeforeRun directly.
   friend class base::MessagePumpUIApplication;
 #endif
-
-  // Return false to abort the Run.
-  bool BeforeRun();
-  void AfterRun();
 
   MessageLoop* loop_;
 

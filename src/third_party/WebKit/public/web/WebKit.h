@@ -66,6 +66,10 @@ BLINK_EXPORT void setMockThemeEnabledForTest(bool);
 BLINK_EXPORT void setFontAntialiasingEnabledForTest(bool);
 BLINK_EXPORT bool fontAntialiasingEnabledForTest();
 
+// By default, timers on hidden pages are aligned so that they fire once per
+// second at most.  This API changes that alignment interval.
+BLINK_EXPORT void setTimerHiddenPageAlignmentInterval(double);
+
 // Purge the plugin list cache. If |reloadPages| is true, any pages
 // containing plugins will be reloaded after refreshing the plugin list.
 BLINK_EXPORT void resetPluginCache(bool reloadPages = false);

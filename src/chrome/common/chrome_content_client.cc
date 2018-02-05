@@ -23,14 +23,19 @@
 #include "base/strings/string_util.h"
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
+#include "base/values.h"
 #include "build/build_config.h"
 #include "chrome/common/child_process_logging.h"
 #include "chrome/common/chrome_constants.h"
 #include "chrome/common/chrome_paths.h"
 #include "chrome/common/chrome_switches.h"
+
+#if !defined(BLPWTK2_IMPLEMENTATION)
 #include "chrome/common/crash_keys.h"
 #include "chrome/common/pepper_flash.h"
 #include "chrome/common/secure_origin_whitelist.h"
+#endif
+
 #include "chrome/common/url_constants.h"
 #include "chrome/grit/common_resources.h"
 #include "components/dom_distiller/core/url_constants.h"
@@ -40,7 +45,11 @@
 #include "content/public/common/content_switches.h"
 #include "content/public/common/url_constants.h"
 #include "content/public/common/user_agent.h"
+
+#if defined(USE_EXTENSIONS)
 #include "extensions/common/constants.h"
+#endif
+
 #include "extensions/features/features.h"
 #include "gpu/config/gpu_info.h"
 #include "net/http/http_util.h"
@@ -242,7 +251,11 @@ content::PepperPluginInfo CreatePepperFlashInfo(const base::FilePath& path,
   plugin.is_out_of_process = true;
   plugin.name = content::kFlashPluginName;
   plugin.path = path;
+#if !defined(BLPWTK2_IMPLEMENTATION)
   plugin.permissions = chrome::kPepperFlashPermissions;
+#else
+  plugin.permissions = 0;
+#endif
   plugin.is_external = is_external;
 
   std::vector<std::string> flash_version_numbers = base::SplitString(
@@ -309,6 +322,7 @@ bool TryCreatePepperFlashInfo(const base::FilePath& flash_filename,
   if (!manifest)
     return false;
 
+#if !defined(BLPWTK2_IMPLEMENTATION)
   base::Version version;
   if (!chrome::CheckPepperFlashManifest(*manifest, &version)) {
     LOG(ERROR) << "Browser not compatible with given flash manifest.";
@@ -317,6 +331,9 @@ bool TryCreatePepperFlashInfo(const base::FilePath& flash_filename,
 
   *plugin = CreatePepperFlashInfo(flash_filename, version.GetString(), true);
   return true;
+#else
+  return false;
+#endif
 }
 
 #if defined(OS_CHROMEOS)
@@ -437,11 +454,14 @@ void ChromeContentClient::SetPDFEntryFunctions(
 #endif
 
 void ChromeContentClient::SetActiveURL(const GURL& url) {
+#if !defined(BLPWTK2_IMPLEMENTATION)
   base::debug::SetCrashKeyValue(crash_keys::kActiveURL,
                                 url.possibly_invalid_spec());
+#endif
 }
 
 void ChromeContentClient::SetGpuInfo(const gpu::GPUInfo& gpu_info) {
+#if !defined(BLPWTK2_IMPLEMENTATION)
 #if !defined(OS_ANDROID)
   base::debug::SetCrashKeyValue(crash_keys::kGPUVendorID,
       base::StringPrintf("0x%04x", gpu_info.gpu.vendor_id));
@@ -459,6 +479,7 @@ void ChromeContentClient::SetGpuInfo(const gpu::GPUInfo& gpu_info) {
 #elif defined(OS_POSIX)
   base::debug::SetCrashKeyValue(crash_keys::kGPUVendor, gpu_info.gl_vendor);
   base::debug::SetCrashKeyValue(crash_keys::kGPURenderer, gpu_info.gl_renderer);
+#endif
 #endif
 }
 
@@ -554,18 +575,18 @@ void ChromeContentClient::AddContentDecryptionModules(
   // TODO(jrummell): Add External Clear Key CDM for testing, if it's available.
 }
 
-#if defined(OS_CHROMEOS)
-static const int kNumChromeStandardURLSchemes = 6;
-#else
-static const int kNumChromeStandardURLSchemes = 5;
-#endif
-static const url::SchemeWithType kChromeStandardURLSchemes[
-    kNumChromeStandardURLSchemes] = {
+static const url::SchemeWithType kChromeStandardURLSchemes[] = {
+#if defined(USE_EXTENSIONS)
   {extensions::kExtensionScheme, url::SCHEME_WITHOUT_PORT},
+#endif
   {chrome::kChromeNativeScheme, url::SCHEME_WITHOUT_PORT},
+#if defined(USE_EXTENSIONS)
   {extensions::kExtensionResourceScheme, url::SCHEME_WITHOUT_PORT},
+#endif
   {chrome::kChromeSearchScheme, url::SCHEME_WITHOUT_PORT},
+#if defined(USE_DOM_DISTILLER)
   {dom_distiller::kDomDistillerScheme, url::SCHEME_WITHOUT_PORT},
+#endif
 #if defined(OS_CHROMEOS)
   {chrome::kCrosScheme, url::SCHEME_WITHOUT_PORT},
 #endif
@@ -575,6 +596,10 @@ void ChromeContentClient::AddAdditionalSchemes(
     std::vector<url::SchemeWithType>* standard_schemes,
     std::vector<url::SchemeWithType>* referrer_schemes,
     std::vector<std::string>* savable_schemes) {
+
+  const int kNumChromeStandardURLSchemes =
+    sizeof(kChromeStandardURLSchemes) / sizeof(url::SchemeWithType);
+
   for (int i = 0; i < kNumChromeStandardURLSchemes; i++)
     standard_schemes->push_back(kChromeStandardURLSchemes[i]);
 
@@ -583,10 +608,15 @@ void ChromeContentClient::AddAdditionalSchemes(
       {chrome::kAndroidAppScheme, url::SCHEME_WITHOUT_PORT});
 #endif
 
+#if defined(USE_EXTENSIONS)
   savable_schemes->push_back(extensions::kExtensionScheme);
   savable_schemes->push_back(extensions::kExtensionResourceScheme);
+#endif
   savable_schemes->push_back(chrome::kChromeSearchScheme);
+
+#if defined(USE_DOM_DISTILLER)
   savable_schemes->push_back(dom_distiller::kDomDistillerScheme);
+#endif
 }
 
 std::string ChromeContentClient::GetProduct() const {
@@ -651,9 +681,13 @@ void ChromeContentClient::AddSecureSchemesAndOrigins(
     std::set<GURL>* origins) {
   schemes->insert(chrome::kChromeSearchScheme);
   schemes->insert(content::kChromeUIScheme);
+#if defined(USE_EXTENSIONS)
   schemes->insert(extensions::kExtensionScheme);
   schemes->insert(extensions::kExtensionResourceScheme);
+#endif
+#if !defined(BLPWTK2_IMPLEMENTATION)
   GetSecureOriginWhitelist(origins);
+#endif
 }
 
 void ChromeContentClient::AddServiceWorkerSchemes(
@@ -683,9 +717,13 @@ bool ChromeContentClient::IsSupplementarySiteIsolationModeEnabled() {
 }
 
 content::OriginTrialPolicy* ChromeContentClient::GetOriginTrialPolicy() {
+#if !defined(BLPWTK2_IMPLEMENTATION)
   if (!origin_trial_policy_)
     origin_trial_policy_ = base::MakeUnique<ChromeOriginTrialPolicy>();
   return origin_trial_policy_.get();
+#else
+  return nullptr;
+#endif
 }
 
 #if defined(OS_ANDROID)
@@ -693,3 +731,4 @@ media::MediaClientAndroid* ChromeContentClient::GetMediaClientAndroid() {
   return new ChromeMediaClientAndroid();
 }
 #endif  // OS_ANDROID
+

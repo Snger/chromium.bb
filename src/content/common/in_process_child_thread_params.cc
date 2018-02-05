@@ -8,8 +8,11 @@ namespace content {
 
 InProcessChildThreadParams::InProcessChildThreadParams(
     scoped_refptr<base::SequencedTaskRunner> io_runner,
-    const std::string& service_request_token)
-    : io_runner_(io_runner), service_request_token_(service_request_token) {}
+    const std::string& service_request_token,
+    int mojo_controller_handle)
+    : io_runner_(io_runner),
+      service_request_token_(service_request_token),
+      mojo_controller_handle_(mojo_controller_handle) {}
 
 InProcessChildThreadParams::InProcessChildThreadParams(
     const InProcessChildThreadParams& other) = default;

@@ -77,6 +77,7 @@
 #include "content/public/browser/gpu_data_manager_observer.h"
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/tracing_controller.h"
+#include "content/public/browser/utility_process_host.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"
@@ -98,6 +99,7 @@
 #include "skia/ext/skia_memory_dump_provider.h"
 #include "sql/sql_memory_dump_provider.h"
 #include "ui/base/clipboard/clipboard.h"
+#include "ui/base/ui_base_switches.h"
 
 #if defined(USE_AURA) || defined(OS_MACOSX)
 #include "content/browser/compositor/image_transport_factory.h"
@@ -635,7 +637,7 @@ void BrowserMainLoop::PostMainMessageLoopStart() {
 
   // TODO(boliu): kSingleProcess check is a temporary workaround for
   // in-process Android WebView. crbug.com/503724 tracks proper fix.
-  if (!parsed_command_line_.HasSwitch(switches::kSingleProcess)) {
+  if (!GetContentClient()->browser()->SupportsInProcessRenderer()) {
     base::DiscardableMemoryAllocator::SetInstance(
         discardable_memory::DiscardableSharedMemoryManager::current());
   }
@@ -794,12 +796,14 @@ int BrowserMainLoop::PreCreateThreads() {
       new internal::GpuDataManagerVisualProxy(gpu_data_manager));
 #endif
 
-#if !defined(GOOGLE_CHROME_BUILD) || defined(OS_ANDROID)
-  // Single-process is an unsupported and not fully tested mode, so
-  // don't enable it for official Chrome builds (except on Android).
-  if (parsed_command_line_.HasSwitch(switches::kSingleProcess))
-    RenderProcessHost::SetRunRendererInProcess(true);
-#endif
+  if (parsed_command_line_.HasSwitch(switches::kSingleProcess)) {
+    UtilityProcessHost::SetRunUtilityInProcess(true);
+  }
+
+  if (GetContentClient()->browser()->SupportsInProcessRenderer()) {
+    RenderProcessHost::AdjustCommandLineForInProcessRenderer(
+        base::CommandLine::ForCurrentProcess());
+  }
 
   return result_code_;
 }
@@ -1007,9 +1011,6 @@ void BrowserMainLoop::ShutdownThreadsAndCleanUp() {
 #if defined(OS_ANDROID)
   g_browser_main_loop_shutting_down = true;
 #endif
-
-  if (RenderProcessHost::run_renderer_in_process())
-    RenderProcessHostImpl::ShutDownInProcessRenderer();
 
   if (parts_) {
     TRACE_EVENT0("shutdown",

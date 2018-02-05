@@ -28,6 +28,8 @@
 // See definitions of original functions in ucrt\corecrt_malloc.h in SDK
 // include directory.
 
+__int64 allocator_shim_counter = 0;
+
 namespace {
 
 int new_mode = 0;
@@ -67,16 +69,27 @@ __declspec(restrict) void* malloc(size_t size) {
   for (;;) {
     ptr = base::allocator::WinHeapMalloc(size);
     if (ptr)
-      return ptr;
+      break;
 
     if (!new_mode || base::allocator::WinCallNewHandler(size))
       break;
+  }
+
+  if (ptr) {
+    ::InterlockedAdd64(
+      &allocator_shim_counter,
+      base::allocator::WinHeapGetSizeEstimateFromUserSize(size));
   }
   return ptr;
 }
 
 // Replaces free in ucrt\heap\free.cpp
 void free(void* p) {
+  if (p) {
+    size_t size = base::allocator::WinHeapGetSizeEstimate(ptr);
+    ::InterlockedAdd64(&allocator_shim_counter, -static_cast<LONG64>(size));
+  }
+
   base::allocator::WinHeapFree(p);
   return;
 }
@@ -89,6 +102,7 @@ __declspec(restrict) void* realloc(void* ptr, size_t size) {
   if (!ptr)
     return malloc(size);
 
+  size_t old_size = base::allocator::WinHeapGetSizeEstimate(ptr);
   void* new_ptr;
   for (;;) {
     new_ptr = base::allocator::WinHeapRealloc(ptr, size);
@@ -97,10 +111,22 @@ __declspec(restrict) void* realloc(void* ptr, size_t size) {
     // the requested new size is zero, realloc should free the ptr and return
     // NULL.
     if (new_ptr || !size)
-      return new_ptr;
+      break;
     if (!new_mode || !base::allocator::WinCallNewHandler(size))
       break;
   }
+
+  if (new_ptr) {
+    if (size >= old_size) {
+      ::InterlockedAdd64(&allocator_shim_counter, size - old_size);
+    }
+    else {
+      ::InterlockedAdd64(
+        &allocator_shim_counter,
+        -static_cast<LONG64>(old_size - size));
+    }
+  }
+
   return new_ptr;
 }
 
