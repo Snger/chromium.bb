@@ -263,6 +263,7 @@ class CONTENT_EXPORT RenderWidgetHostImpl : public RenderWidgetHost,
   // Called to notify the RenderWidget that its associated native window
   // got/lost focused.
   void GotFocus();
+  void LostFocus();
   void LostCapture();
 
   // Indicates whether the RenderWidgetHost thinks it is focused.
@@ -424,6 +425,9 @@ class CONTENT_EXPORT RenderWidgetHostImpl : public RenderWidgetHost,
 
   // Whether forwarded WebInputEvents should be dropped.
   bool ShouldDropInputEvents() const;
+
+  bool ShouldSetKeyboardFocusOnMouseDown() const;
+  bool ShouldSetLogicalFocusOnMouseDown() const;
 
   bool has_touch_handler() const { return has_touch_handler_; }
 

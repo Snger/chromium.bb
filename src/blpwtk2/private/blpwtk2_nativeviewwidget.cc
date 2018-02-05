@@ -34,6 +34,7 @@ namespace blpwtk2 {
 NativeViewWidget::NativeViewWidget(gfx::NativeView contents,
                                    blpwtk2::NativeView parent,
                                    NativeViewWidgetDelegate* delegate,
+                                   bool activatable,
                                    bool rerouteMouseWheelToAnyRelatedWindow)
 : d_delegate(delegate)
 , d_nativeViewHost(new views::NativeViewHost())
@@ -47,7 +48,7 @@ NativeViewWidget::NativeViewWidget(gfx::NativeView contents,
     params.delegate = this;
     params.type = views::Widget::InitParams::TYPE_WINDOW_FRAMELESS;
     params.opacity = views::Widget::InitParams::OPAQUE_WINDOW;
-    params.activatable = views::Widget::InitParams::ACTIVATABLE_DEFAULT;
+    params.activatable = activatable ? views::Widget::InitParams::ACTIVATABLE_DEFAULT : views::Widget::InitParams::ACTIVATABLE_NO;
     params.layer_type = ui::LAYER_SOLID_COLOR;
     d_impl->set_focus_on_creation(false);
     d_impl->Init(params);
@@ -153,6 +154,13 @@ void NativeViewWidget::WindowClosing()
 views::View* NativeViewWidget::GetContentsView()
 {
     return this;
+}
+
+aura::Window* NativeViewWidget::GetDefaultActivationWindow()
+{
+    if (d_delegate)
+        return d_delegate->GetDefaultActivationWindow();
+    return NULL;
 }
 
 }  // close namespace blpwtk2

@@ -131,6 +131,7 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
                    const gfx::Rect& pos) override;
   void InitAsFullscreen(RenderWidgetHostView* reference_host_view) override;
   void Focus() override;
+  void Blur() override;
   void UpdateCursor(const WebCursor& cursor) override;
   void SetIsLoading(bool is_loading) override;
   void RenderProcessGone(base::TerminationStatus status,
@@ -170,6 +171,7 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   gfx::NativeViewAccessible AccessibilityGetNativeViewAccessible() override;
   bool LockMouse() override;
   void UnlockMouse() override;
+
   void OnSwapCompositorFrame(uint32_t compositor_frame_sink_id,
                              cc::CompositorFrame frame) override;
   void ClearCompositorFrame() override;
@@ -243,6 +245,7 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
                        const gfx::Rect& new_bounds) override;
   gfx::NativeCursor GetCursor(const gfx::Point& point) override;
   int GetNonClientComponent(const gfx::Point& point) const override;
+  bool ShouldTryFocusOnMouseDown() const override;
   bool ShouldDescendIntoChildForEventHandling(
       aura::Window* child,
       const gfx::Point& location) override;
