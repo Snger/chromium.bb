@@ -140,6 +140,8 @@ void DesktopWindowTreeHostWin::Init(aura::Window* content_window,
     parent_hwnd = params.parent->GetHost()->GetAcceleratedWidget();
 
   remove_standard_frame_ = params.remove_standard_frame;
+  reroute_mouse_wheel_to_any_related_window_ = params.reroute_mouse_wheel_to_any_related_window;
+
   has_non_client_view_ = Widget::RequiresNonClientView(params.type);
 
   // We don't have an HWND yet, so scale relative to the nearest screen.
@@ -151,6 +153,7 @@ void DesktopWindowTreeHostWin::Init(aura::Window* content_window,
               kForceSoftwareCompositor,
               reinterpret_cast<HANDLE>(true));
   }
+  message_handler_->set_reroute_mouse_wheel_to_any_related_window(params.reroute_mouse_wheel_to_any_related_window);
   CreateCompositor();
   OnAcceleratedWidgetAvailable();
 }
