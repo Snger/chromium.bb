@@ -1471,6 +1471,11 @@ class CORE_EXPORT ComputedStyle : public ComputedStyleBase,
                    offsetPosition);
   }
 
+  //caret color
+  void setCaretColor(const StyleColor& c) { SET_VAR(m_rareInheritedData, caretColor, c); }
+  static StyleColor initialCaretColor() { return StyleColor::currentColor(); }
+  StyleColor caretColor() const { return m_rareInheritedData->caretColor; }
+  
   // offset-rotate
   static StyleOffsetRotation initialOffsetRotate() {
     return initialOffsetRotation();

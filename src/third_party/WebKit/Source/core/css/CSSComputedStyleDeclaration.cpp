@@ -119,7 +119,7 @@ static const CSSPropertyID staticComputableProperties[] = {
     CSSPropertyWebkitBoxFlex, CSSPropertyWebkitBoxFlexGroup,
     CSSPropertyWebkitBoxLines, CSSPropertyWebkitBoxOrdinalGroup,
     CSSPropertyWebkitBoxOrient, CSSPropertyWebkitBoxPack,
-    CSSPropertyWebkitBoxReflect, CSSPropertyColumnCount, CSSPropertyColumnGap,
+    CSSPropertyWebkitBoxReflect, CSSPropertyWebkitCaretColor, CSSPropertyColumnCount, CSSPropertyColumnGap,
     CSSPropertyColumnRuleColor, CSSPropertyColumnRuleStyle,
     CSSPropertyColumnRuleWidth, CSSPropertyColumnSpan, CSSPropertyColumnWidth,
     CSSPropertyBackdropFilter, CSSPropertyAlignContent, CSSPropertyAlignItems,

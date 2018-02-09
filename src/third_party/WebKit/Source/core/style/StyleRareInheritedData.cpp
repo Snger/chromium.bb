@@ -52,6 +52,7 @@ struct SameSizeAsStyleRareInheritedData
   uint8_t snapHeight;
 
   Color touchColors;
+  StyleColor caretColor;
   TabSize tabSize;
   void* variables[1];
   TextSizeAdjust textSizeAdjust;
@@ -104,6 +105,7 @@ StyleRareInheritedData::StyleRareInheritedData()
       hyphenationLimitLines(-1),
       m_snapHeightUnit(0),
       tapHighlightColor(ComputedStyle::initialTapHighlightColor()),
+	  caretColor(ComputedStyle::initialCaretColor()),
       m_tabSize(ComputedStyle::initialTabSize()),
       m_textSizeAdjust(ComputedStyle::initialTextSizeAdjust()) {}
 
@@ -166,6 +168,7 @@ StyleRareInheritedData::StyleRareInheritedData(const StyleRareInheritedData& o)
       m_snapHeightUnit(o.m_snapHeightUnit),
       textEmphasisCustomMark(o.textEmphasisCustomMark),
       tapHighlightColor(o.tapHighlightColor),
+	  caretColor(o.caretColor),
       appliedTextDecorations(o.appliedTextDecorations),
       m_tabSize(o.m_tabSize),
       variables(o.variables),
@@ -225,6 +228,7 @@ bool StyleRareInheritedData::operator==(const StyleRareInheritedData& o) const {
          m_textUnderlinePosition == o.m_textUnderlinePosition &&
          m_textDecorationSkip == o.m_textDecorationSkip &&
          m_rubyPosition == o.m_rubyPosition &&
+		 caretColor == o.caretColor &&
          dataEquivalent(listStyleImage.get(), o.listStyleImage.get()) &&
          dataEquivalent(appliedTextDecorations, o.appliedTextDecorations) &&
          dataEquivalent(variables, o.variables) &&

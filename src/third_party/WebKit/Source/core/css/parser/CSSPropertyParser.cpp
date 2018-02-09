@@ -3600,6 +3600,7 @@ const CSSValue* CSSPropertyParser::parseSingleValue(
     case CSSPropertyLightingColor:
     case CSSPropertyColumnRuleColor:
       return consumeColor(m_range, m_context.mode());
+	case CSSPropertyWebkitCaretColor:
     case CSSPropertyColor:
     case CSSPropertyBackgroundColor:
       return consumeColor(m_range, m_context.mode(), inQuirksMode());

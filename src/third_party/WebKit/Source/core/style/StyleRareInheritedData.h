@@ -203,6 +203,8 @@ class CORE_EXPORT StyleRareInheritedData
 
   Color tapHighlightColor;
 
+  StyleColor caretColor;
+  
   RefPtr<AppliedTextDecorationList> appliedTextDecorations;
   TabSize m_tabSize;
 
