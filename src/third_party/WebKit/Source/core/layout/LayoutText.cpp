@@ -1072,19 +1072,7 @@ void LayoutText::computePreferredLogicalWidths(
                   styleToUse.autoWrap();
   bool keepAll =
       styleToUse.wordBreak() == KeepAllWordBreak && styleToUse.autoWrap();
-  bool keepAllIfKorean = styleToUse.wordBreak() == KeepAllIfKoreanWordBreak && styleToUse.autoWrap();
-    
-  LineBreakType lineBreakType;
-  if (breakAll) {
-    lineBreakType = LineBreakType::BreakAll;
-  } else if (keepAll) {
-    lineBreakType = LineBreakType::KeepAll;
-  } else if (keepAllIfKorean) {
-    lineBreakType = LineBreakType::KeepAllIfKorean;
-  } else {
-    lineBreakType = LineBreakType::Normal;
-  }
-	
+
   Hyphenation* hyphenation =
       styleToUse.autoWrap() ? styleToUse.getHyphenation() : nullptr;
   bool disableSoftHyphen = styleToUse.getHyphens() == HyphensNone;
