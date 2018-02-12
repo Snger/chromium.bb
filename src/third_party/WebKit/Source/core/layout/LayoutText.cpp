@@ -1179,7 +1179,8 @@ void LayoutText::computePreferredLogicalWidths(
       if (j == len)
         break;
       c = uncheckedCharacterAt(j);
-      if (breakIterator.isBreakable(j, nextBreakable, lineBreakType) && characterAt(j - 1) != softHyphenCharacter)
+      if (breakIterator.isBreakable(j, nextBreakable) &&
+        characterAt(j - 1) != softHyphenCharacter)
         break;
     }
 
@@ -1476,7 +1477,7 @@ void LayoutText::setTextWithOffset(PassRefPtr<StringImpl> text,
   if (shouldSkipRelayoutOnSetText(this)) {
 	firstTextBox()->setStartAndLen(0, text->length());
 	m_linesDirty = false;
-	setText(text, force);
+	setText(std::move(text), force);
 	return;
   }
 
