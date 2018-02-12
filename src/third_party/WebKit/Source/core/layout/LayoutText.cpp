@@ -1072,7 +1072,19 @@ void LayoutText::computePreferredLogicalWidths(
                   styleToUse.autoWrap();
   bool keepAll =
       styleToUse.wordBreak() == KeepAllWordBreak && styleToUse.autoWrap();
-
+  bool keepAllIfKorean = styleToUse.wordBreak() == KeepAllIfKoreanWordBreak && styleToUse.autoWrap();
+    
+  LineBreakType lineBreakType;
+  if (breakAll) {
+    lineBreakType = LineBreakType::BreakAll;
+  } else if (keepAll) {
+    lineBreakType = LineBreakType::KeepAll;
+  } else if (keepAllIfKorean) {
+    lineBreakType = LineBreakType::KeepAllIfKorean;
+  } else {
+    lineBreakType = LineBreakType::Normal;
+  }
+	
   Hyphenation* hyphenation =
       styleToUse.autoWrap() ? styleToUse.getHyphenation() : nullptr;
   bool disableSoftHyphen = styleToUse.getHyphens() == HyphensNone;
@@ -1179,8 +1191,7 @@ void LayoutText::computePreferredLogicalWidths(
       if (j == len)
         break;
       c = uncheckedCharacterAt(j);
-      if (breakIterator.isBreakable(j, nextBreakable) &&
-          characterAt(j - 1) != softHyphenCharacter)
+      if (breakIterator.isBreakable(j, nextBreakable, lineBreakType) && characterAt(j - 1) != softHyphenCharacter)
         break;
     }
 
@@ -1458,12 +1469,28 @@ void LayoutText::setSelectionState(SelectionState state) {
     containingBlock->setSelectionState(state);
 }
 
+extern bool g_bbNoRelayoutOnSetCharacterData;
+
+bool shouldSkipRelayoutOnSetText(const LayoutText* lt)
+{
+  return g_bbNoRelayoutOnSetCharacterData
+    && lt->firstTextBox()
+    && lt->firstTextBox() == lt->lastTextBox();
+}
+
 void LayoutText::setTextWithOffset(PassRefPtr<StringImpl> text,
                                    unsigned offset,
                                    unsigned len,
                                    bool force) {
   if (!force && equal(m_text.impl(), text.get()))
     return;
+
+  if (shouldSkipRelayoutOnSetText(this)) {
+	firstTextBox()->setStartAndLen(0, text->length());
+	m_linesDirty = false;
+	setText(text, force);
+	return;
+  }
 
   unsigned oldLen = textLength();
   unsigned newLen = text->length();
@@ -1660,9 +1687,13 @@ void LayoutText::setText(PassRefPtr<StringImpl> text, bool force) {
   // LayoutObjectChildList::insertChildNode() fails to set true to owner.
   // To avoid that, we call setNeedsLayoutAndPrefWidthsRecalc() only if this
   // LayoutText has parent.
-  if (parent())
-    setNeedsLayoutAndPrefWidthsRecalcAndFullPaintInvalidation(
-        LayoutInvalidationReason::TextChanged);
+  if (parent()) {
+    if (shouldSkipRelayoutOnSetText(this))
+      setShouldDoFullPaintInvalidation();
+    else
+      setNeedsLayoutAndPrefWidthsRecalcAndFullPaintInvalidation(LayoutInvalidationReason::TextChanged);
+  }
+  
   m_knownToHaveNoOverflowAndNoFallbackFonts = false;
 
   if (AXObjectCache* cache = document().existingAXObjectCache())
