@@ -601,10 +601,14 @@ void InsertListCommand::listifyParagraph(const VisiblePosition& originalStart,
   // inline ancestors of start, since it is easier for editing to produce
   // clean markup when inline elements are pushed down as far as possible.
   Position insertionPos(mostBackwardCaretPosition(startPos));
+  while (isInline(insertionPos.anchorNode()) && !insertionPos.anchorNode()->hasTagName(brTag)) {
+    insertionPos = PositionTemplate<EditingStrategy>::inParentBeforeNode(*insertionPos.anchorNode());
+  }
+	
   // Also avoid the containing list item.
   Node* const listChild = enclosingListChild(insertionPos.anchorNode());
   if (isHTMLLIElement(listChild))
-    insertionPos = Position::inParentBeforeNode(*listChild);
+    insertionPos = PositionTemplate<EditingStrategy>::inParentBeforeNode(*listChild);
 
   HTMLElement* listElement = createHTMLElement(document(), listTag);
   insertNodeAt(listElement, insertionPos, editingState);
