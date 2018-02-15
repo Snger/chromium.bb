@@ -148,11 +148,17 @@ class PLATFORM_EXPORT FontDescription {
   struct FamilyDescription {
     STACK_ALLOCATED();
     FamilyDescription(GenericFamilyType genericFamily)
-        : genericFamily(genericFamily) {}
+        : genericFamily(genericFamily),
+          boldOverride(false), 
+		  italicOverride(false) {}
     FamilyDescription(GenericFamilyType genericFamily, const FontFamily& family)
-        : genericFamily(genericFamily), family(family) {}
+        : genericFamily(genericFamily), family(family),
+          boldOverride(false), 
+		  italicOverride(false)		{}
     GenericFamilyType genericFamily;
     FontFamily family;
+	bool boldOverride;
+    bool italicOverride;
   };
 
   const FontFamily& family() const { return m_familyList; }
