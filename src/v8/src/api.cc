@@ -1079,6 +1079,31 @@ v8::Local<v8::Value> Context::SlowGetEmbedderData(int index) {
   return Utils::ToLocal(result);
 }
 
+static bool debuggerConnected;
+void Debug::DebuggerConnected(bool connected) {
+  debuggerConnected = connected;
+}
+bool Debug::HasDebuggerConnected() {
+  return debuggerConnected;
+}
+
+static bool continueDebuggerOnNavigationEvent = true;
+void ContinueDebuggerOnNavigationEvent(bool enable) {
+  continueDebuggerOnNavigationEvent = enable;
+}
+bool ShouldContinueDebuggerOnNavigationEvent() {
+  return continueDebuggerOnNavigationEvent;
+}
+
+static bool continueDebuggerOnWidgetClose = true;
+void ContinueDebuggerOnWidgetClose(bool enable) {
+  continueDebuggerOnWidgetClose = enable;
+}
+bool ShouldContinueDebuggerOnWidgetClose() {
+  return continueDebuggerOnWidgetClose;
+}
+
+
 
 void Context::SetEmbedderData(int index, v8::Local<Value> value) {
   const char* location = "v8::Context::SetEmbedderData()";

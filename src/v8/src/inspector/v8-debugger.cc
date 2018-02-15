@@ -87,6 +87,10 @@ void V8Debugger::disable() {
 
 bool V8Debugger::enabled() const { return !m_debuggerScript.IsEmpty(); }
 
+void V8Debugger::setConnected() {
+  v8::Debug::DebuggerConnected(true);
+}
+
 // static
 int V8Debugger::contextId(v8::Local<v8::Context> context) {
   v8::Local<v8::Value> data =
