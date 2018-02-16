@@ -10,7 +10,7 @@
 
 #include "base/macros.h"
 #include "content/browser/frame_host/navigation_entry_impl.h"
-#include "content/browser/web_contents/web_contents_view.h"
+#include "content/public/browser/web_contents_view.h"
 #include "content/common/frame_messages.h"
 #include "content/common/view_messages.h"
 #include "content/public/browser/overscroll_configuration.h"

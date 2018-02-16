@@ -1588,6 +1588,11 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
   WebContentsViewDelegate* delegate =
       GetContentClient()->browser()->GetWebContentsViewDelegate(this);
 
+  if (params.host && params.render_view_host_delegate_view) {
+    view_.reset(params.host);
+    render_view_host_delegate_view_ = params.render_view_host_delegate_view;
+  }
+
 #if defined(USE_AURA)
   if (ServiceManagerConnection::GetForProcess() &&
       base::CommandLine::ForCurrentProcess()->HasSwitch(
