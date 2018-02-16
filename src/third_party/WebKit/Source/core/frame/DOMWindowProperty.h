@@ -43,7 +43,7 @@ class CORE_EXPORT DOMWindowProperty : public GarbageCollectedMixin {
 
   DECLARE_VIRTUAL_TRACE();
 
- private:
+ //private:
   Member<LocalFrame> m_frame;
 };
 
