@@ -56,6 +56,7 @@ struct WebURLError;
 }
 
 namespace cc {
+class CompositorFrameSink;
 class ImageSerializationProcessor;
 class RemoteCompositorBridge;
 }
@@ -391,6 +392,11 @@ class CONTENT_EXPORT ContentRendererClient {
   // 'msg' and return 'true'. If the function does not handle the message,
   // it should return 'false' without deleting 'msg'.
   virtual bool Dispatch(IPC::Message* msg) { return false; }
+
+  // Allows the embedder to override construction of the compositor
+  // frame sink for the 'content::RenderView' identified by 'routing_id'.
+  virtual std::unique_ptr<cc::CompositorFrameSink> CreateCompositorFrameSink(
+      bool use_software, int routing_id);
 };
 
 }  // namespace content
