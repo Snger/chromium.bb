@@ -122,6 +122,8 @@ class CORE_EXPORT MouseEvent : public MouseRelatedEvent {
   bool fromTouch() const {
     return m_syntheticEventType == PlatformMouseEvent::FromTouch;
   }
+  
+  bool fromContextMenuKey() const { return m_syntheticEventType == PlatformMouseEvent::FromContextMenuKey; }
 
   const AtomicString& interfaceName() const override;
 

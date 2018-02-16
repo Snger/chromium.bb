@@ -177,12 +177,21 @@ std::unique_ptr<ContextMenu> ContextMenuController::createContextMenu(
 
 void ContextMenuController::showContextMenu(Event* event) {
   bool fromTouch = false;
-  if (event && event->isMouseEvent()) {
-    MouseEvent* mouseEvent = static_cast<MouseEvent*>(event);
-    fromTouch = mouseEvent->fromTouch();
+  bool fromContextMenuKey = false;
+
+  if (event) {
+    if (event->isMouseEvent()) {
+      MouseEvent* mouseEvent = static_cast<MouseEvent*>(event);
+      fromTouch = mouseEvent->fromTouch();
+    }
+
+    if (event->isMouseEvent()) {
+      const MouseEvent* mouseEvent = toMouseEvent(event);
+      fromContextMenuKey = mouseEvent->fromContextMenuKey();
+    }
   }
 
-  if (m_client->showContextMenu(m_contextMenu.get(), fromTouch) && event)
+    if (m_client->showContextMenu(m_contextMenu.get(), fromTouch, fromContextMenuKey) && event)
     event->setDefaultHandled();
 }
 
