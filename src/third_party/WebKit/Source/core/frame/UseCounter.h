@@ -1398,7 +1398,7 @@ class CORE_EXPORT UseCounter {
     TopNavInSandboxWithoutGesture = 1750,
     TopNavInSandboxWithPerm = 1751,
     TopNavInSandboxWithPermButNoGesture = 1752,
-    
+    SelectionGetClipboardCopyString = 1753, // Bloomberg-specific at the moment
     // Add new features immediately above this line. Don't change assigned
     // numbers of any item, and don't reuse removed slots.
     // Also, run update_use_counter_feature_enum.py in

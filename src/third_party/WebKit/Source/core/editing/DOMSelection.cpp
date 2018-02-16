@@ -677,4 +677,12 @@ DEFINE_TRACE(DOMSelection) {
   DOMWindowProperty::trace(visitor);
 }
 
+String DOMSelection::getClipboardCopyString() const
+{
+  if (!m_frame)
+    return String();
+
+  return m_frame->selection().selectedHTMLForClipboard();
+}
+
 }  // namespace blink
