@@ -4,10 +4,12 @@
 
 #include "core/paint/InlineTextBoxPainter.h"
 
+#include "core/css/parser/CSSParser.h"
 #include "core/editing/CompositionUnderline.h"
 #include "core/editing/Editor.h"
 #include "core/editing/markers/DocumentMarkerController.h"
 #include "core/frame/LocalFrame.h"
+#include "core/editing/EditingUtilities.h"
 #include "core/layout/LayoutTextCombine.h"
 #include "core/layout/LayoutTheme.h"
 #include "core/layout/api/LineLayoutAPIShim.h"
@@ -572,10 +574,36 @@ void InlineTextBoxPainter::paintDocumentMarker(GraphicsContext& context,
     // prevent a big gap.
     underlineOffset = baseline + 2;
   }
-  context.drawLineForDocumentMarker(
-      FloatPoint((boxOrigin.x() + start).toFloat(),
-                 (boxOrigin.y() + underlineOffset).toFloat()),
-      width.toFloat(), lineStyleForMarkerType(marker->type()));
+
+  Color markerColor(255,0,0,255);
+  if (m_inlineTextBox.node()) {
+      const Element *element = rootEditableElement(*m_inlineTextBox.node());
+      if (element && element->hasAttributes()) {
+          AtomicString colorAttr = nullAtom;
+
+          if (colorAttr == nullAtom && marker->type() & DocumentMarker::Spelling) {
+              colorAttr = element->getAttribute(HTMLNames::data_marker_color_spellingAttr);
+          }
+          if (colorAttr == nullAtom && marker->type() & DocumentMarker::Grammar) {
+              colorAttr = element->getAttribute(HTMLNames::data_marker_color_grammarAttr);
+          }
+          if (colorAttr == nullAtom) {
+              colorAttr = element->getAttribute(HTMLNames::data_marker_color_defaultAttr);
+          }
+
+          if (colorAttr != nullAtom) {
+              Color parsedColor;
+              String colorStr = colorAttr.getString();
+              if (CSSParser::parseColor(parsedColor, colorStr, false)) {
+                  markerColor = parsedColor;
+              }
+          }
+      }
+  }
+  context.drawLineForDocumentMarker(FloatPoint((boxOrigin.x() + start).toFloat(),
+			            (boxOrigin.y() + underlineOffset).toFloat()),
+		                    width.toFloat(),
+				    markerColor);
 }
 
 template <InlineTextBoxPainter::PaintOptions options>

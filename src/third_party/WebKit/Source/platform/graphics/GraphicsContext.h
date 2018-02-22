@@ -268,7 +268,7 @@ class PLATFORM_EXPORT GraphicsContext {
   };
   void drawLineForDocumentMarker(const FloatPoint&,
                                  float width,
-                                 DocumentMarkerLineStyle);
+                                 const Color& markerColor);
 
   // beginLayer()/endLayer() behave like save()/restore() for CTM and clip
   // states. Apply SkBlendMode when the layer is composited on the backdrop
@@ -385,7 +385,7 @@ class PLATFORM_EXPORT GraphicsContext {
   static SkPMColor lineColors(int);
   static SkPMColor antiColors1(int);
   static SkPMColor antiColors2(int);
-  static void draw1xMarker(SkBitmap*, int);
+  static void draw1xMarker(SkBitmap*, const uint32_t, const uint32_t);
   static void draw2xMarker(SkBitmap*, int);
 #endif
 

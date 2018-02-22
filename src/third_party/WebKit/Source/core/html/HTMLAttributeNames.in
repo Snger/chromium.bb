@@ -93,6 +93,9 @@ coords
 crossorigin
 csp
 data
+data-marker-color-default
+data-marker-color-spelling
+data-marker-color-grammar
 datetime
 declare
 default
