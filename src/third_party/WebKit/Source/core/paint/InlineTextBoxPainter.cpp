@@ -10,6 +10,7 @@
 #include "core/editing/markers/DocumentMarkerController.h"
 #include "core/editing/markers/TextMatchMarker.h"
 #include "core/frame/LocalFrame.h"
+#include "core/editing/EditingUtilities.h"
 #include "core/layout/LayoutTextCombine.h"
 #include "core/layout/LayoutTheme.h"
 #include "core/layout/api/LineLayoutAPIShim.h"
@@ -1026,10 +1027,27 @@ void InlineTextBoxPainter::PaintDocumentMarker(GraphicsContext& context,
     // prevent a big gap.
     underline_offset = baseline + 2;
   }
-  DrawDocumentMarker(context,
-                     FloatPoint((box_origin.X() + start).ToFloat(),
-                                (box_origin.Y() + underline_offset).ToFloat()),
-                     width.ToFloat(), marker.GetType(), style.EffectiveZoom());
+
+  bool hide_spelling_marker = false;
+
+  if (inline_text_box_.node()) {
+      const Element *element = rootEditableElement(*GetLineLayoutItem().GetNode());
+      if (element) {
+          AtomicString colorAttr =
+              element->getAttribute(HTMLNames::bb_hide_spelling_markerAttr);
+
+          if (colorAttr != nullAtom) {
+              hide_spelling_marker = true;
+          }
+      }
+  }
+
+  if (marker.GetType() != DocumentMarker::kSpelling || !hide_spelling_marker) {
+    DrawDocumentMarker(context,
+                       FloatPoint((box_origin.X() + start).ToFloat(),
+                                  (box_origin.Y() + underline_offset).ToFloat()),
+                       width.ToFloat(), marker.GetType(), style.EffectiveZoom());
+  }
 }
 
 template <InlineTextBoxPainter::PaintOptions options>
