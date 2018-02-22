@@ -345,6 +345,13 @@ WebString WebRemoteFrameImpl::layerTreeAsText(bool showDebugInfo) const {
   return WebString();
 }
 
+void WebRemoteFrameImpl::drawInCanvas(const WebRect& rect,
+                                      const WebString& styleClass,
+                                      WebCanvas* canvas) const
+{
+    ASSERT_NOT_REACHED();
+}
+
 WebLocalFrame* WebRemoteFrameImpl::createLocalChild(
     WebTreeScopeType scope,
     const WebString& name,

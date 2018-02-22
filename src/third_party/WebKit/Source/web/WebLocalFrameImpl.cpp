@@ -1461,6 +1461,114 @@ WebRect WebLocalFrameImpl::selectionBoundsRect() const {
                         : WebRect();
 }
 
+class CanvasPainterContext : public DisplayItemClient {
+    FloatRect d_visualRect;
+    
+    void paintToGraphicsContext(GraphicsContext& context, FrameView* view, const FloatRect& floatRect)
+    {
+        // Enter a translation transform
+        AffineTransform transform;
+        transform.translate(static_cast<float>(-floatRect.x()), static_cast<float>(-floatRect.y()));
+        TransformRecorder transformRecorder(context, *this, transform);
+
+        // Enter a clipped region
+        ClipRecorder clipRecorder(context, *this, DisplayItem::kClipPrintedPage, IntRect(floatRect));
+
+        view->updateAllLifecyclePhases();
+
+        view->paintContents(context, GlobalPaintFlattenCompositingLayers, IntRect(floatRect));
+    }
+
+public:
+     void paint(WebCanvas* canvas, FrameView* view, const FloatRect& floatRect)
+     {
+         d_visualRect = floatRect;
+         SkPictureBuilder pictureBuilder(floatRect, &skia::GetMetaData(*canvas));
+         paintToGraphicsContext(pictureBuilder.context(), view, floatRect);
+         pictureBuilder.endRecording()->playback(canvas);
+     }
+
+     String debugName() const override
+     {
+         return "CanvasPainterContext";
+     }
+     LayoutRect visualRect() const override
+     {
+         return LayoutRect(d_visualRect);
+     }
+};
+
+static void collectAllFrames(std::vector<const LocalFrame*>* list, const LocalFrame* frame)
+{
+    list->push_back(frame);
+
+    for (auto childFrame = frame->tree().firstChild(); childFrame; childFrame = childFrame->tree().nextSibling()) {
+        if (!childFrame->isLocalFrame())
+            continue;
+
+        collectAllFrames(list, toLocalFrame(childFrame));
+    }
+}
+
+void WebLocalFrameImpl::drawInCanvas(const WebRect& rect,
+                                      const WebString& styleClass,
+                                      WebCanvas* canvas) const
+{
+    std::vector<const LocalFrame*> frames;
+    collectAllFrames(&frames, frame());
+
+    // Set the new "style" attribute if specified
+    const blink::WebString classAttribute("class");
+    std::vector<WTF::String> originalStyleClasses;
+
+    if (!styleClass.isEmpty()) {
+        for (auto localFrame : frames) {
+            auto htmlBody = localFrame->document()->body();
+
+            // Some documents (ie. SVG documents) do not have body elements
+            if (!htmlBody)
+                continue;
+
+            auto webBody = WebElement(htmlBody);
+            if (webBody.hasAttribute(classAttribute)) {
+                WTF::String originalStyleClass = webBody.getAttribute(classAttribute);
+                originalStyleClasses.push_back(originalStyleClass);
+                webBody.setAttribute(classAttribute, WTF::String(originalStyleClass + " " + WTF::String(styleClass)));
+            }
+            else {
+                originalStyleClasses.push_back(WTF::String());
+                webBody.setAttribute(classAttribute, styleClass);
+            }
+        }
+    }
+
+    CanvasPainterContext painterContext;
+    painterContext.paint(canvas, frameView(), FloatRect(rect));
+
+    // Restore the original "style" attribute
+    if (!originalStyleClasses.empty()) {
+        int index = -1;
+        for (auto localFrame : frames) {
+            auto htmlBody = localFrame->document()->body();
+            if (!htmlBody)
+                continue;
+
+            const auto& originalStyleClass = originalStyleClasses[++index];
+            auto webBody = WebElement(htmlBody);
+
+            if (!originalStyleClass.isEmpty()) {
+                webBody.setAttribute(classAttribute, originalStyleClass);
+            }
+            else {
+                // TODO: fix this!
+                // webBody.removeAttribute(classAttribute);
+                // Element *elem = toElement(webBody);
+                // elem->removeAttribute(classAttribute);
+            }
+        }
+    }
+}
+
 WebString WebLocalFrameImpl::layerTreeAsText(bool showDebugInfo) const {
   if (!frame())
     return WebString();

@@ -236,6 +236,10 @@ class WEB_EXPORT WebLocalFrameImpl final
 
   WebFrameImplBase* toImplBase() override { return this; }
 
+  void drawInCanvas(const WebRect& rect,
+                    const WebString& styleClass,
+                    WebCanvas* canvas) const override;
+
   // WebLocalFrame methods:
   void setAutofillClient(WebAutofillClient*) override;
   WebAutofillClient* autofillClient() override;

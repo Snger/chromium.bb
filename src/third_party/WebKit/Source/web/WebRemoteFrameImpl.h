@@ -116,6 +116,10 @@ class WEB_EXPORT WebRemoteFrameImpl final
 
   WebFrameImplBase* toImplBase() { return this; }
 
+  void drawInCanvas(const WebRect& rect,
+                    const WebString& styleClass,
+                    WebCanvas* canvas) const override;
+
   // WebFrameImplBase methods:
   void initializeCoreFrame(FrameHost*,
                            FrameOwner*,
