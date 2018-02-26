@@ -115,6 +115,10 @@ void V8WrapperInstantiationScope::securityCheck(
     // Sandbox detached frames - they can't create cross origin objects.
     LocalDOMWindow* callingWindow = currentDOMWindow(isolate);
     DOMWindow* targetWindow = toDOMWindow(contextForWrapper);
+    if (callingWindow && callingWindow->document()->getSecurityOrigin()->canAccessCheckSuborigins(targetWindow->document()->getSecurityOrigin()))
+        return;
+    if (!targetWindow || targetWindow->document()->getSecurityOrigin()->hasUniversalAccess())
+        return;    
     // TODO(jochen): Currently, Location is the only object for which we can
     // reach this code path. Should be generalized.
     ExceptionState exceptionState(ExceptionState::ConstructionContext,
