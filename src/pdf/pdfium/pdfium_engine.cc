@@ -658,10 +658,11 @@ bool InitializeSDK() {
 }
 
 void ShutdownSDK() {
-#if !defined(OS_LINUX)
-  delete g_font_info;
-#endif
+
   g_isolate_holder->isolate()->Exit();
+// #if !defined(OS_LINUX)
+//   delete g_font_info;
+// #endif
   // FPDF_DestroyLibrary();
   // TearDownV8();
 }
