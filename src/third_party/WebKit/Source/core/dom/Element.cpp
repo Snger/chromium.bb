@@ -1045,6 +1045,52 @@ uint32_t Element::compositorMutableProperties() const {
   return CompositorMutableProperty::kNone;
 }
 
+int Element::bbScrollLeftNoZoomAdjust()
+{
+    document().updateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = layoutBox())
+        return lb->scrollLeft().toInt();
+    return 0;
+}
+
+int Element::bbScrollTopNoZoomAdjust()
+{
+    document().updateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = layoutBox())
+        return lb->scrollTop().toInt();
+    return 0;
+}
+
+void Element::setBbScrollLeftNoZoomAdjust(int newLeft)
+{
+    document().updateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = layoutBox())
+        lb->setScrollLeft(LayoutUnit(newLeft));
+}
+
+void Element::setBbScrollTopNoZoomAdjust(int newTop)
+{
+    document().updateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = layoutBox())
+        lb->setScrollTop(LayoutUnit(newTop));
+}
+
+int Element::bbScrollWidthNoZoomAdjust()
+{
+    document().updateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = layoutBox())
+        return lb->scrollWidth().toInt();
+    return 0;
+}
+
+int Element::bbScrollHeightNoZoomAdjust()
+{
+    document().updateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = layoutBox())
+        return lb->scrollHeight().toInt();
+    return 0;
+}
+
 bool Element::hasNonEmptyLayoutSize() const {
   document().updateStyleAndLayoutIgnorePendingStylesheets();
 
