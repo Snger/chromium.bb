@@ -12,6 +12,7 @@
 #include <utility>
 
 #include "base/compiler_specific.h"
+#include "base/memory/free_deleter.h"
 #include "base/macros.h"
 #include "base/win/scoped_handle.h"
 #include "sandbox/win/src/crosscall_server.h"
@@ -92,6 +93,11 @@ class BrokerServicesBase final : public BrokerServices,
   // job. Consult |jobless_process_handles_| for handles of processes without
   // jobs.
   std::set<DWORD> child_process_ids_;
+
+#if SANDBOX_DLL
+  // Stores the module name where sandbox.lib is linked into.
+  std::unique_ptr<wchar_t, base::FreeDeleter> module_path_;
+#endif
 
   DISALLOW_COPY_AND_ASSIGN(BrokerServicesBase);
 };
