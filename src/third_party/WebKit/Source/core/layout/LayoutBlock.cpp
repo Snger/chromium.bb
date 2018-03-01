@@ -522,6 +522,16 @@ void LayoutBlock::addVisualOverflowFromTheme() {
   addSelfVisualOverflow(LayoutRect(inflatedRect));
 }
 
+LayoutUnit LayoutBlock::additionalMarginStart() const
+{
+    if (isInline() || !parent() || parent()->childrenInline() || !parent()->node() || (!parent()->node()->hasTagName(HTMLNames::ulTag) && !parent()->node()->hasTagName(HTMLNames::olTag))) {
+        return LayoutUnit(0);
+    }
+
+    LayoutBox *previousBox = previousSiblingBox();
+    return previousBox ? previousBox->additionalMarginStart() : LayoutUnit(40);
+}
+
 DISABLE_CFI_PERF
 bool LayoutBlock::createsNewFormattingContext() const {
   return isInlineBlockOrInlineTable() || isFloatingOrOutOfFlowPositioned() ||
@@ -1507,6 +1517,9 @@ void LayoutBlock::computeBlockPreferredLogicalWidths(
       marginStart += startMarginLength.value();
     if (endMarginLength.isFixed())
       marginEnd += endMarginLength.value();
+      // SHEZ: additionalMarginStart is treated as fixed margin
+      if (child->isBox())
+          marginStart += toLayoutBox(child)->additionalMarginStart();      
     margin = marginStart + marginEnd;
 
     LayoutUnit childMinPreferredLogicalWidth, childMaxPreferredLogicalWidth;
