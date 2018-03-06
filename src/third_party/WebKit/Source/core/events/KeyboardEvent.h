@@ -81,6 +81,7 @@ class CORE_EXPORT KeyboardEvent final : public UIEventWithKeyState {
       const;  // key code for keydown and keyup, character for keypress
   int charCode() const;  // character code for keypress, 0 for keydown and keyup
   bool repeat() const { return modifiers() & PlatformEvent::IsAutoRepeat; }
+  bool bbIsNumLock() const { return m_bbIsNumLock; }
 
   const AtomicString& interfaceName() const override;
   bool isKeyboardEvent() const override;
@@ -99,6 +100,7 @@ class CORE_EXPORT KeyboardEvent final : public UIEventWithKeyState {
   String m_code;
   String m_key;
   unsigned m_location;
+  bool m_bbIsNumLock : 1;
   bool m_isComposing;
 };
 
