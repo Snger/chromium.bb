@@ -167,6 +167,7 @@ class WEB_EXPORT WebViewImpl final
   void willCloseLayerTreeView() override;
   void didAcquirePointerLock() override;
   void didNotAcquirePointerLock() override;
+  void didChangeWindowRect() override;
   void didLosePointerLock() override;
 
   // WebView methods:
