@@ -94,7 +94,7 @@ static Frame* findFrame(v8::Isolate* isolate,
 
 static void reportFatalErrorInMainThread(const char* location,
                                          const char* message) {
-  int memoryUsageMB = Platform::current()->actualMemoryUsageMB();
+  volatile int memoryUsageMB = Platform::current()->actualMemoryUsageMB();
   DVLOG(1) << "V8 error: " << message << " (" << location
            << ").  Current memory usage: " << memoryUsageMB << " MB";
   CRASH();
