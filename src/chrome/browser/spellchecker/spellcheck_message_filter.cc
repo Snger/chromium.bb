@@ -103,8 +103,9 @@ void SpellCheckMessageFilter::OnRespondDocumentMarkers(
   // shutting down.
   if (!spellcheck)
     return;
-  spellcheck->GetFeedbackSender()->OnReceiveDocumentMarkers(
-      render_process_id_, markers);
+  // SHEZ: Remove feedback-sender
+  // spellcheck->GetFeedbackSender()->OnReceiveDocumentMarkers(
+  //    render_process_id_, markers);
 }
 
 #if !BUILDFLAG(USE_BROWSER_SPELLCHECKER)
@@ -138,28 +139,6 @@ void SpellCheckMessageFilter::OnTextCheckComplete(
   if (!spellcheck)
     return;
   std::vector<SpellCheckResult> results_copy = results;
-  spellcheck->GetFeedbackSender()->OnSpellcheckResults(
-      render_process_id_, text, markers, &results_copy);
-
-  // Erase custom dictionary words from the spellcheck results and record
-  // in-dictionary feedback.
-  std::vector<SpellCheckResult>::iterator write_iter;
-  std::vector<SpellCheckResult>::iterator iter;
-  std::string text_copy = base::UTF16ToUTF8(text);
-  for (iter = write_iter = results_copy.begin();
-       iter != results_copy.end();
-       ++iter) {
-    if (spellcheck->GetCustomDictionary()->HasWord(
-            text_copy.substr(iter->location, iter->length))) {
-      spellcheck->GetFeedbackSender()->RecordInDictionary(iter->hash);
-    } else {
-      if (write_iter != iter)
-        *write_iter = *iter;
-      ++write_iter;
-    }
-  }
-  results_copy.erase(write_iter, results_copy.end());
-
   Send(new SpellCheckMsg_RespondSpellingService(
       route_id, identifier, success, text, results_copy));
 }
