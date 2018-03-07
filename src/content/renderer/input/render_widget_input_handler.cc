@@ -397,6 +397,8 @@ void RenderWidgetInputHandler::HandleInputEvent(
 
   TRACE_EVENT_SYNTHETIC_DELAY_END("blink.HandleInputEvent");
 
+  bool can_send_ack = !bb_OnHandleInputEvent_no_ack_;
+
   if (dispatch_type == DISPATCH_TYPE_BLOCKING_NOTIFY_MAIN) {
     // |non_blocking| means it was ack'd already by the InputHandlerProxy
     // so let the delegate know the event has been handled.
@@ -404,7 +406,7 @@ void RenderWidgetInputHandler::HandleInputEvent(
   }
 
   if ((dispatch_type == DISPATCH_TYPE_BLOCKING ||
-       dispatch_type == DISPATCH_TYPE_BLOCKING_NOTIFY_MAIN)) {
+       dispatch_type == DISPATCH_TYPE_BLOCKING_NOTIFY_MAIN) && can_send_ack) {
     std::unique_ptr<InputEventAck> response(new InputEventAck(
         InputEventAckSource::MAIN_THREAD, input_event.type, ack_result,
         swap_latency_info, std::move(event_overscroll),
@@ -413,7 +415,7 @@ void RenderWidgetInputHandler::HandleInputEvent(
   } else {
     DCHECK(!event_overscroll) << "Unexpected overscroll for un-acked event";
   }
-  if (RenderThreadImpl::current()) {
+  if (can_send_ack && RenderThreadImpl::current()) {
     RenderThreadImpl::current()
         ->GetRendererScheduler()
         ->DidHandleInputEventOnMainThread(input_event);

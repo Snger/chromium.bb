@@ -381,6 +381,7 @@ RenderWidget::RenderWidget(int32_t widget_routing_id,
       frame_swap_message_queue_(new FrameSwapMessageQueue()),
       resizing_mode_selector_(new ResizingModeSelector()),
       has_host_context_menu_location_(false),
+      bb_OnHandleInputEvent_no_ack_(false),
       has_focus_(false),
 #if defined(OS_MACOSX)
       text_input_client_observer_(new TextInputClientObserver(this)),
@@ -800,7 +801,10 @@ void RenderWidget::OnHandleInputEvent(const blink::WebInputEvent* input_event,
                                       InputEventDispatchType dispatch_type) {
   if (!input_event)
     return;
+
+  input_handler_->set_on_handle_input_event_no_ack(bb_OnHandleInputEvent_no_ack_);
   input_handler_->HandleInputEvent(*input_event, latency_info, dispatch_type);
+  input_handler_->set_on_handle_input_event_no_ack(false);
 }
 
 void RenderWidget::OnCursorVisibilityChange(bool is_visible) {
@@ -914,6 +918,14 @@ void RenderWidget::ForwardCompositorProto(const std::vector<uint8_t>& proto) {
 
 bool RenderWidget::IsClosing() const {
   return host_closing_;
+}
+
+
+void RenderWidget::bbHandleInputEvent(const blink::WebInputEvent& event) {
+  ui::LatencyInfo latency_info;
+  bb_OnHandleInputEvent_no_ack_ = true;
+  OnHandleInputEvent(&event, latency_info, InputEventDispatchType::DISPATCH_TYPE_BLOCKING);
+  bb_OnHandleInputEvent_no_ack_ = false;
 }
 
 void RenderWidget::RequestScheduleAnimation() {

@@ -389,6 +389,8 @@ class CONTENT_EXPORT RenderWidget
   // the browser even if the composition info is not changed.
   void UpdateCompositionInfo(bool immediate_request);
 
+  void bbHandleInputEvent(const blink::WebInputEvent& event);
+
   // Change the device ICC color profile while running a layout test.
   void SetDeviceColorProfileForTesting(const std::vector<char>& color_profile);
 
@@ -860,6 +862,9 @@ class CONTENT_EXPORT RenderWidget
   DragEventSourceInfo possible_drag_event_info_;
 
   DISALLOW_COPY_AND_ASSIGN(RenderWidget);
+
+ private:
+  bool bb_OnHandleInputEvent_no_ack_;
 };
 
 }  // namespace content

@@ -65,6 +65,10 @@ class CONTENT_EXPORT RenderWidgetInputHandler {
     context_menu_source_type_ = source_type;
   }
 
+  void set_on_handle_input_event_no_ack(bool value) {
+    bb_OnHandleInputEvent_no_ack_ = value;
+  }
+
  private:
   RenderWidgetInputHandlerDelegate* const delegate_;
 
@@ -88,6 +92,9 @@ class CONTENT_EXPORT RenderWidgetInputHandler {
   bool suppress_next_char_events_;
 
   DISALLOW_COPY_AND_ASSIGN(RenderWidgetInputHandler);
+
+ private:
+  bool bb_OnHandleInputEvent_no_ack_ = false;
 };
 
 }  // namespace content
