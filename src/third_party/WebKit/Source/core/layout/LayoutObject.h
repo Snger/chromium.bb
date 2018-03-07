@@ -426,7 +426,7 @@ class CORE_EXPORT LayoutObject : public ImageResourceObserver,
   }
 #endif
 
-  void addAbsoluteRectForLayer(IntRect& result);
+  void addAbsoluteRectForLayer(const IntRect& clip, IntRect& result);
   bool requiresAnonymousTableWrappers(const LayoutObject*) const;
 
   // Gets pseudoStyle from Shadow host(in case of input elements)

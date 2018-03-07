@@ -999,19 +999,30 @@ FloatRect LayoutObject::absoluteBoundingBoxRectForRange(const Range* range) {
   return result;
 }
 
-void LayoutObject::addAbsoluteRectForLayer(IntRect& result) {
+void LayoutObject::addAbsoluteRectForLayer(const IntRect& clip, IntRect& result) {
   if (hasLayer())
-    result.unite(absoluteBoundingBoxRect());
+    result.unite(
+      intersection(
+        clip,
+        absoluteBoundingBoxRect()));
   for (LayoutObject* current = slowFirstChild(); current;
-       current = current->nextSibling())
-    current->addAbsoluteRectForLayer(result);
+        current = current->nextSibling())
+    current->addAbsoluteRectForLayer(
+      hasOverflowClip()?
+        intersection(clip, IntRect(absoluteVisualRect())) :
+        clip,
+      result);
 }
 
 IntRect LayoutObject::absoluteBoundingBoxRectIncludingDescendants() const {
   IntRect result = absoluteBoundingBoxRect();
   for (LayoutObject* current = slowFirstChild(); current;
        current = current->nextSibling())
-    current->addAbsoluteRectForLayer(result);
+    current->addAbsoluteRectForLayer(
+      hasOverflowClip()?
+        IntRect(absoluteVisualRect()) :
+        LayoutRect::infiniteIntRect(),
+      result);
   return result;
 }
 
