@@ -330,6 +330,14 @@ bool LayoutListItem::updateMarkerLocation() {
   return false;
 }
 
+LayoutUnit LayoutListItem::additionalMarginStart() const
+{
+    if (!m_marker || m_marker->isInside())
+        return LayoutUnit();
+
+    return m_marker->minPreferredLogicalWidth();
+}
+
 void LayoutListItem::addOverflowFromChildren() {
   LayoutBlockFlow::addOverflowFromChildren();
   positionListMarker();

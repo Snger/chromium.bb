@@ -499,6 +499,8 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
 
   Position positionForBox(InlineBox*, bool start = true) const;
 
+    LayoutUnit additionalMarginStart() const override;
+
   // End helper functions and structs used by layoutBlockChildren.
 
   void removeFromGlobalMaps();

@@ -2759,11 +2759,17 @@ void LayoutBox::computeMarginsForDirection(MarginDirection flowDirection,
   ASSERT(!isTableRow());
   ASSERT(!isTableSection());
   ASSERT(!isLayoutTableCol());
+
+    LayoutUnit inlineAdditionalMarginStart =
+        flowDirection == InlineDirection ?
+        additionalMarginStart() :
+        LayoutUnit();
+
   if (flowDirection == BlockDirection || isFloating() || isInline()) {
     // Margins are calculated with respect to the logical width of
     // the containing block (8.3)
     // Inline blocks/tables and floats don't have their margins increased.
-    marginStart = minimumValueForLength(marginStartLength, containerWidth);
+        marginStart = minimumValueForLength(marginStartLength, containerWidth) + inlineAdditionalMarginStart;
     marginEnd = minimumValueForLength(marginEndLength, containerWidth);
     return;
   }
@@ -2779,7 +2785,7 @@ void LayoutBox::computeMarginsForDirection(MarginDirection flowDirection,
   }
 
   LayoutUnit marginStartWidth =
-      minimumValueForLength(marginStartLength, containerWidth);
+      minimumValueForLength(marginStartLength, containerWidth) + inlineAdditionalMarginStart;
   LayoutUnit marginEndWidth =
       minimumValueForLength(marginEndLength, containerWidth);
 
@@ -2847,7 +2853,7 @@ void LayoutBox::computeMarginsForDirection(MarginDirection flowDirection,
 
     if (marginStartLength.isAuto()) {
       marginEnd = marginEndWidth;
-      marginStart = availableWidth - childWidth - marginEnd;
+            marginStart = availableWidth - childWidth - marginEnd + inlineAdditionalMarginStart;
       return;
     }
   }
