@@ -113,6 +113,12 @@ class CORE_EXPORT SelectionController final
       const VisibleSelectionInFlatTree&,
       TextGranularity);
 
+
+  HitTestResult adjustHitTestResultForSelectability(
+      const HitTestResult& result,
+      Node* mousePressNode,
+      const IntPoint& lastKnownMousePosition);
+
   FrameSelection& selection() const;
 
   Member<LocalFrame> const m_frame;
