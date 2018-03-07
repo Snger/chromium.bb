@@ -46,6 +46,7 @@
 #include "core/layout/LayoutTableCell.h"
 #include "core/layout/LayoutTheme.h"
 #include "core/layout/LayoutView.h"
+#include "core/layout/LayoutInline.h"
 #include "core/layout/TextAutosizer.h"
 #include "core/layout/api/LineLayoutBox.h"
 #include "core/layout/api/LineLayoutItem.h"
@@ -56,9 +57,11 @@
 #include "core/paint/ObjectPaintInvalidator.h"
 #include "core/paint/PaintLayer.h"
 #include "core/style/ComputedStyle.h"
+#include "core/HTMLNames.h"
 #include "platform/RuntimeEnabledFeatures.h"
 #include "platform/wtf/PtrUtil.h"
 #include "platform/wtf/StdLibExtras.h"
+
 
 namespace blink {
 
@@ -555,6 +558,16 @@ void LayoutBlock::AddVisualOverflowFromTheme() {
   IntRect inflated_rect = PixelSnappedBorderBoxRect();
   LayoutTheme::GetTheme().AddVisualOverflow(*this, inflated_rect);
   AddSelfVisualOverflow(LayoutRect(inflated_rect));
+}
+
+LayoutUnit LayoutBlock::additionalMarginStart() const
+{
+    if (isInline() || !parent() || parent()->childrenInline() || !parent()->node() || (!parent()->node()->hasTagName(HTMLNames::ulTag) && !parent()->node()->hasTagName(HTMLNames::olTag))) {
+        return LayoutUnit(0);
+    }
+
+    LayoutBox *previousBox = previousSiblingBox();
+    return previousBox ? previousBox->additionalMarginStart() : LayoutUnit(40);
 }
 
 static inline bool ChangeInAvailableLogicalHeightAffectsChild(
@@ -1484,6 +1497,11 @@ void LayoutBlock::ComputeBlockPreferredLogicalWidths(
       margin_start += start_margin_length.Value();
     if (end_margin_length.IsFixed())
       margin_end += end_margin_length.Value();
+
+    // SHEZ: additionalMarginStart is treated as fixed margin
+    if (child->isBox())
+      margin_start += toLayoutBox(child)->additionalMarginStart();
+
     margin = margin_start + margin_end;
 
     LayoutUnit child_min_preferred_logical_width,
@@ -1588,6 +1606,9 @@ bool LayoutBlock::HasLineIfEmpty() const {
     return false;
 
   if (IsRootEditableElement(*GetNode()))
+    return true;
+
+  if (hasEditableStyle(*node()) && isTableCell())
     return true;
 
   if (GetNode()->IsShadowRoot() &&
@@ -1839,9 +1860,68 @@ LayoutRect LayoutBlock::LocalCaretRect(InlineBox* inline_box,
                                        LayoutUnit* extra_width_to_end_of_line) {
   // Do the normal calculation in most cases.
   if ((FirstChild() && !FirstChild()->IsPseudoElement()) ||
-      IsInlineBoxWrapperActuallyChild())
-    return LayoutBox::LocalCaretRect(inline_box, caret_offset,
-                                     extra_width_to_end_of_line);
+      IsInlineBoxWrapperActuallyChild()) {
+    if (!childrenInline()) {
+      return LayoutBox::LocalCaretRect(inline_box, caret_offset,
+                                       extra_width_to_end_of_line);
+    }
+
+    // The caret is inside a RenderBlock, before the first inline child, in
+    // between two inline children, or after the last inline child.  Find
+    // the child at the specified 'caretOffset', then use the InlineBox of
+    // that child to determine the caret rect.  It would be either to the
+    // left of the child, or to the right of the child (if the caret is
+    // after the last child).
+
+    LayoutObject* child = firstChild();
+    while (caretOffset && child) {
+        child = child->nextSibling();
+        --caretOffset;
+    }
+
+    bool isAfterLastChild = false;
+    if (!child) {
+        if (caretOffset) {
+            // Something strange going on.  Fallback to the upstream behavior.
+            return LayoutBox::localCaretRect(inlineBox, caretOffset, extraWidthToEndOfLine);
+        }
+
+        // The caret is after the last child.
+        child = lastChild();
+        isAfterLastChild = true;
+
+        if (!child) {
+            // Fallback to the upstream behavior.
+            return LayoutBox::localCaretRect(inlineBox, caretOffset, extraWidthToEndOfLine);
+        }
+    }
+
+    LayoutUnit margin;
+    if (child->isBox()) {
+        LayoutBox* box = toLayoutBox(child);
+        inlineBox = box->inlineBoxWrapper();
+        margin = isAfterLastChild ? box->marginRight() : box->marginLeft();
+    }
+    else if (child->isText()) {
+        inlineBox = isAfterLastChild ? toLayoutText(child)->lastTextBox()
+                                      : toLayoutText(child)->firstTextBox();
+    }
+    else if (child->isLayoutInline()) {
+        inlineBox = isAfterLastChild ? toLayoutInline(child)->lastLineBox()
+                                      : toLayoutInline(child)->firstLineBox();
+    }
+
+    if (!inlineBox) {
+        return LayoutBox::localCaretRect(inlineBox, caretOffset, extraWidthToEndOfLine);
+    }
+
+    LayoutUnit x = isAfterLastChild ? inlineBox->x() + inlineBox->width() + margin
+                                    : inlineBox->x() - margin;
+    if (extraWidthToEndOfLine)
+        *extraWidthToEndOfLine = inlineBox->root().width() - x;
+    LayoutUnit layoutWidth(1);
+    return LayoutRect(x, inlineBox->y(), layoutWidth, inlineBox->height());
+  }
 
   LayoutRect caret_rect =
       LocalCaretRectForEmptyElement(Size().Width(), TextIndentOffset());
