@@ -17,7 +17,10 @@
 #include "base/strings/stringprintf.h"
 #include "base/strings/utf_string_conversions.h"
 #include "base/values.h"
-#include "components/data_use_measurement/core/data_use_user_data.h"
+
+// SHEZ: Remove dependency on data_use_measurement
+// #include "components/data_use_measurement/core/data_use_user_data.h"
+
 #include "components/prefs/pref_service.h"
 #include "components/spellcheck/browser/pref_names.h"
 #include "components/spellcheck/common/spellcheck_common.h"
@@ -96,7 +99,8 @@ bool SpellingServiceClient::RequestTextCheck(
       "\"key\":%s"
       "}"
       "}";
-  std::string api_key = base::GetQuotedJSONString(google_apis::GetAPIKey());
+  // SHEZ: remove dependency on google_apis
+  std::string api_key = ""; // base::GetQuotedJSONString(google_apis::GetAPIKey());
   std::string request = base::StringPrintf(
       kSpellingRequest, type, encoded_text.c_str(), language_code.c_str(),
       country_code.c_str(), api_key.c_str());
@@ -139,8 +143,12 @@ bool SpellingServiceClient::RequestTextCheck(
 
   net::URLFetcher* fetcher =
       CreateURLFetcher(url, traffic_annotation).release();
+
+  // blpwtk2: Remove dependency on data_use_measurement
+#if 0
   data_use_measurement::DataUseUserData::AttachToFetcher(
       fetcher, data_use_measurement::DataUseUserData::SPELL_CHECKER);
+#endif
   fetcher->SetRequestContext(
       content::BrowserContext::GetDefaultStoragePartition(context)
           ->GetURLRequestContext());
