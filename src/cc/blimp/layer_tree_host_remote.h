@@ -38,6 +38,7 @@ class CC_EXPORT LayerTreeHostRemote : public LayerTreeHost,
     MutatorHost* mutator_host;
     std::unique_ptr<RemoteCompositorBridge> remote_compositor_bridge;
     std::unique_ptr<EnginePictureCache> engine_picture_cache;
+    int routing_id =0;
     LayerTreeSettings const* settings = nullptr;
 
     InitParams();
@@ -49,6 +50,7 @@ class CC_EXPORT LayerTreeHostRemote : public LayerTreeHost,
 
   // LayerTreeHost implementation.
   int GetId() const override;
+  int GetRoutingId() const override;
   int SourceFrameNumber() const override;
   LayerTree* GetLayerTree() override;
   const LayerTree* GetLayerTree() const override;
@@ -122,6 +124,7 @@ class CC_EXPORT LayerTreeHostRemote : public LayerTreeHost,
   void SerializeCurrentState(proto::LayerTreeHost* layer_tree_host_proto);
 
   const int id_;
+  int routing_id_;
   int source_frame_number_ = 0;
   bool visible_ = false;
   bool defer_commits_ = false;

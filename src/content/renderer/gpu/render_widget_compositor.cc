@@ -214,10 +214,11 @@ static cc::BrowserControlsState ConvertBrowserControlsState(
 std::unique_ptr<RenderWidgetCompositor> RenderWidgetCompositor::Create(
     RenderWidgetCompositorDelegate* delegate,
     float device_scale_factor,
-    CompositorDependencies* compositor_deps) {
+    CompositorDependencies* compositor_deps,
+    int routingId) {
   std::unique_ptr<RenderWidgetCompositor> compositor(
       new RenderWidgetCompositor(delegate, compositor_deps));
-  compositor->Initialize(device_scale_factor);
+  compositor->Initialize(device_scale_factor, routingId);
   return compositor;
 }
 
@@ -233,7 +234,7 @@ RenderWidgetCompositor::RenderWidgetCompositor(
       remote_proto_channel_receiver_(nullptr),
       weak_factory_(this) {}
 
-void RenderWidgetCompositor::Initialize(float device_scale_factor) {
+void RenderWidgetCompositor::Initialize(float device_scale_factor, int routingId) {
   base::CommandLine* cmd = base::CommandLine::ForCurrentProcess();
   cc::LayerTreeSettings settings =
       GenerateLayerTreeSettings(*cmd, compositor_deps_, device_scale_factor);
@@ -254,6 +255,7 @@ void RenderWidgetCompositor::Initialize(float device_scale_factor) {
     params.engine_picture_cache =
         compositor_deps_->GetImageSerializationProcessor()
             ->CreateEnginePictureCache();
+    params.routing_id = routingId;
     params.settings = &settings;
     layer_tree_host_ = base::MakeUnique<cc::LayerTreeHostRemote>(&params);
   } else {
@@ -263,6 +265,7 @@ void RenderWidgetCompositor::Initialize(float device_scale_factor) {
     params.task_graph_runner = compositor_deps_->GetTaskGraphRunner();
     params.main_task_runner =
         compositor_deps_->GetCompositorMainThreadTaskRunner();
+    params.routing_id = routingId;
     params.mutator_host = animation_host_.get();
     if (!threaded_) {
       // Single-threaded layout tests.

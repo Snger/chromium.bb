@@ -74,6 +74,7 @@ class CC_EXPORT LayerTreeHostInProcess : public LayerTreeHost {
     LayerTreeSettings const* settings = nullptr;
     scoped_refptr<base::SingleThreadTaskRunner> main_task_runner;
     ImageSerializationProcessor* image_serialization_processor = nullptr;
+    int routing_id = 0;
     MutatorHost* mutator_host;
 
     InitParams();
@@ -92,6 +93,7 @@ class CC_EXPORT LayerTreeHostInProcess : public LayerTreeHost {
 
   // LayerTreeHost implementation.
   int GetId() const override;
+  int GetRoutingId() const override;
   int SourceFrameNumber() const override;
   LayerTree* GetLayerTree() override;
   const LayerTree* GetLayerTree() const override;
@@ -296,6 +298,7 @@ class CC_EXPORT LayerTreeHostInProcess : public LayerTreeHost {
   bool did_complete_scale_animation_;
 
   int id_;
+  int routing_id_;
   bool next_commit_forces_redraw_ = false;
   bool next_commit_forces_recalculate_raster_scales_ = false;
 

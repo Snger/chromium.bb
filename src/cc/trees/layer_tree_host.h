@@ -200,6 +200,10 @@ class CC_EXPORT LayerTreeHost {
   // The LayerTreeHost tracks whether the content is suitable for Gpu raster.
   // Calling this will reset it back to not suitable state.
   virtual void ResetGpuRasterizationTracking() = 0;
+
+  virtual int GetRoutingId() const {
+    return 0;
+  }
 };
 
 }  // namespace cc
