@@ -50,6 +50,7 @@
 // feature 0
 // feature 1
 // feature 2
+#define BLPWTK2_FEATURE_PRINTPDF
 // feature 3
 // feature 4
 // feature 5
