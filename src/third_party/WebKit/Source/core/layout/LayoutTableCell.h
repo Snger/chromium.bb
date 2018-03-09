@@ -35,8 +35,8 @@
 
 namespace blink {
 
-static const unsigned unsetColumnIndex = 0x1FFFFFFF;
-static const unsigned maxColumnIndex = 0x1FFFFFFE;  // 536,870,910
+static const unsigned unsetColumnIndex = 0x0FFFFFFF;
+static const unsigned maxColumnIndex = 0x0FFFFFFE; // 268,435,454
 
 enum IncludeBorderColorOrNot { DoNotIncludeBorderColor, IncludeBorderColor };
 
@@ -175,6 +175,9 @@ class CORE_EXPORT LayoutTableCell final : public LayoutBlockFlow {
   }
 
   void setCellLogicalWidth(int constrainedLogicalWidth, SubtreeLayoutScope&);
+
+    bool isFullySelected() const { return m_isFullySelected; }
+    void setSelectionState(SelectionState) override;
 
   int borderLeft() const override;
   int borderRight() const override;
@@ -434,7 +437,8 @@ class CORE_EXPORT LayoutTableCell final : public LayoutBlockFlow {
 
   // Note MSVC will only pack members if they have identical types, hence we use
   // unsigned instead of bool here.
-  unsigned m_absoluteColumnIndex : 29;
+    unsigned m_isFullySelected : 1;
+    unsigned m_absoluteColumnIndex : 28;
   unsigned m_cellWidthChanged : 1;
   unsigned m_hasColSpan : 1;
   unsigned m_hasRowSpan : 1;

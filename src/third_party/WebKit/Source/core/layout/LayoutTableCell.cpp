@@ -27,6 +27,8 @@
 
 #include "core/HTMLNames.h"
 #include "core/css/StylePropertySet.h"
+#include "core/editing/FrameSelection.h"
+#include "core/editing/VisiblePosition.h"
 #include "core/html/HTMLTableCellElement.h"
 #include "core/layout/LayoutAnalyzer.h"
 #include "core/layout/LayoutTableCol.h"
@@ -35,6 +37,7 @@
 #include "core/paint/PaintLayer.h"
 #include "core/paint/TableCellPainter.h"
 #include "core/style/CollapsedBorderValue.h"
+#include "core/frame/LocalFrame.h"
 #include "platform/geometry/FloatQuad.h"
 #include "platform/geometry/TransformState.h"
 #include "wtf/PtrUtil.h"
@@ -57,6 +60,7 @@ static_assert(sizeof(CollapsedBorderValue) == 8,
 
 LayoutTableCell::LayoutTableCell(Element* element)
     : LayoutBlockFlow(element),
+      m_isFullySelected(false),
       m_absoluteColumnIndex(unsetColumnIndex),
       m_cellWidthChanged(false),
       m_intrinsicPaddingBefore(0),
@@ -294,6 +298,42 @@ void LayoutTableCell::setCellLogicalWidth(int tableLayoutLogicalWidth,
 
   setLogicalWidth(LayoutUnit(tableLayoutLogicalWidth));
   setCellWidthChanged(true);
+}
+
+void LayoutTableCell::setSelectionState(SelectionState state)
+{
+    LayoutBlockFlow::setSelectionState(state);
+
+    if (!node() || !node()->document().frame()) {
+        m_isFullySelected = false;
+        return;
+    }
+
+    // Let's get back the *actual* selection state.
+    //
+    // NOTE: After calling 'setSelectionState(state)', the actual
+    //       'selectionState()' might be different from 'state'.
+    //       See the logic in 'LayoutBoxModelObject::setSelectionState'.
+    state = getSelectionState();
+
+    if (SelectionStart == state || SelectionBoth == state) {
+        VisiblePosition selectionStart = node()->document().frame()->selection().selection().visibleStart();
+        VisiblePosition firstPos = createVisiblePosition(PositionTemplate<EditingStrategy>::firstPositionInNode(node()), TextAffinity::Downstream);
+        if (selectionStart.deepEquivalent() != firstPos.deepEquivalent()) {
+            m_isFullySelected = false;
+            return;
+        }
+    }
+    if (SelectionEnd == state || SelectionBoth == state) {
+        VisiblePosition selectionEnd = node()->document().frame()->selection().selection().visibleEnd();
+        VisiblePosition lastPos = createVisiblePosition(PositionTemplate<EditingStrategy>::lastPositionInNode(node()), TextAffinity::Upstream);
+        if (selectionEnd.deepEquivalent() != lastPos.deepEquivalent()) {
+            m_isFullySelected = false;
+            return;
+        }
+    }
+
+    m_isFullySelected = (SelectionNone != state);
 }
 
 void LayoutTableCell::layout() {

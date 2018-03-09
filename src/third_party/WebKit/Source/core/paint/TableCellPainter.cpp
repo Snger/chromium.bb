@@ -214,7 +214,10 @@ void TableCellPainter::paintBackground(const PaintInfo& paintInfo,
   if (m_layoutTableCell.backgroundStolenForBeingBody())
     return;
 
-  Color c = backgroundObject.resolveColor(CSSPropertyBackgroundColor);
+    Color c = m_layoutTableCell.isFullySelected()
+        ? m_layoutTableCell.selectionBackgroundColor()
+        : backgroundObject.resolveColor(CSSPropertyBackgroundColor);
+
   const FillLayer& bgLayer = backgroundObject.styleRef().backgroundLayers();
   if (bgLayer.hasImage() || c.alpha()) {
     // We have to clip here because the background would paint
@@ -248,7 +251,7 @@ void TableCellPainter::paintBoxDecorationBackground(
       m_layoutTableCell.styleRef().hasBorderDecoration() &&
       !table->collapseBorders();
   if (!m_layoutTableCell.styleRef().hasBackground() &&
-      !m_layoutTableCell.styleRef().boxShadow() && !needsToPaintBorder)
+      !m_layoutTableCell.styleRef().boxShadow() && !needsToPaintBorder && !m_layoutTableCell.isFullySelected())
     return;
 
   if (LayoutObjectDrawingRecorder::useCachedDrawingIfPossible(

@@ -32,6 +32,7 @@
 #include "core/layout/LayoutGeometryMap.h"
 #include "core/layout/LayoutMedia.h"
 #include "core/layout/LayoutPart.h"
+#include "core/layout/LayoutTableCell.h"
 #include "core/layout/ViewFragmentationContext.h"
 #include "core/layout/api/LayoutAPIShim.h"
 #include "core/layout/api/LayoutPartItem.h"
@@ -710,7 +711,19 @@ void LayoutView::setSelection(
           cb = cb->containingBlock();
         }
       }
-    }
+            else {
+                // Include the fully-selected table cells.
+                LayoutBlock* cb = os->containingBlock();
+                while (cb && !cb->isLayoutView()) {
+                    if (cb->isTableCell() && toLayoutTableCell(cb)->isFullySelected()) {
+                        SelectedBlockMap::AddResult result = oldSelectedBlocks.add(cb, cb->getSelectionState());
+                        if (!result.isNewEntry)
+                            break;
+                    }
+                    cb = cb->containingBlock();
+                }
+            }
+        }
 
     os = getNextOrPrevLayoutObjectBasedOnDirection(os, stop, continueExploring,
                                                    exploringBackwards);
