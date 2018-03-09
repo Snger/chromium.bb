@@ -337,7 +337,8 @@ class LineLayoutItem {
 
 #endif
 
- protected:
+ // blpwtk2: Making this public because InlineBox.h needs to call this
+ public:
   LayoutObject* GetLayoutObject() { return layout_object_; }
   const LayoutObject* GetLayoutObject() const { return layout_object_; }
 
