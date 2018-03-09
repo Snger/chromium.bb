@@ -122,6 +122,10 @@ Toolkit* ToolkitFactory::create(const ToolkitCreateParams& params)
 
     base::win::SetWinProcExceptionFilter(params.winProcExceptionFilter());
 
+    content::ContentMainRunner::SetCRTErrorHandlerFunctions(
+        params.invalidParameterHandler(),
+        params.purecallHandler());
+
     DCHECK(!Statics::inProcessResourceLoader ||
             Statics::isRendererMainThreadMode());
 
