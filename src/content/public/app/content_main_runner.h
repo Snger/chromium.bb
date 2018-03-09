@@ -8,6 +8,8 @@
 #include "build/build_config.h"
 #include "content/common/content_export.h"
 
+#include <stdlib.h>
+
 namespace content {
 struct ContentMainParams;
 
@@ -22,6 +24,9 @@ class CONTENT_EXPORT ContentMainRunner {
 
   // Create a new ContentMainRunner object.
   static ContentMainRunner* Create();
+
+  // Sets the CRT error handler functions.
+  static void SetCRTErrorHandlerFunctions(_invalid_parameter_handler ivph, _purecall_handler pch);
 
   // Initialize all necessary content state.
   virtual int Initialize(const ContentMainParams& params) = 0;

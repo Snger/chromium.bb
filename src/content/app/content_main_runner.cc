@@ -246,6 +246,14 @@ void CommonSubprocessInit(const std::string& process_type) {
 #endif
 }
 
+// static
+void ContentMainRunner::SetCRTErrorHandlerFunctions(_invalid_parameter_handler ivph, _purecall_handler pch) {
+  if (ivph)
+    base::win::SetInvalidParamHandler(ivph);
+  if (pch)
+    base::win::SetPurecallHandler(pch);
+}
+
 class ContentClientInitializer {
  public:
   static void Set(const std::string& process_type,
