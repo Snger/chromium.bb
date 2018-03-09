@@ -3490,6 +3490,15 @@
       field_group: "rare-inherited",
     },
     {
+      name: "rubberbandable",
+      api_class: "CSSPropertyAPIInherited",
+      inherited: true,
+      field_template: "keyword",
+      keywords: ["none", "text", "text-with-leading-tab"],
+      default_value: "text",
+      field_group: "rare-inherited",
+    },
+    {
       name: "white-space",
       api_class: "CSSPropertyAPIInherited",
       independent: true,

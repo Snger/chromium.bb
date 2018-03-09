@@ -3302,6 +3302,8 @@ const CSSValue* ComputedStyleCSSValueMapping::Get(
       return CSSIdentifierValue::Create(style.UserDrag());
     case CSSPropertyUserSelect:
       return CSSIdentifierValue::Create(style.UserSelect());
+    case CSSPropertyRubberbandable:
+        return CSSIdentifierValue::Create(style.Rubberbandable());
     case CSSPropertyBorderBottomLeftRadius:
       return &ValueForBorderRadiusCorner(style.BorderBottomLeftRadius(), style);
     case CSSPropertyBorderBottomRightRadius:

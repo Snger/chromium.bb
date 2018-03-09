@@ -574,6 +574,9 @@ IPC_MESSAGE_ROUTED3(ViewMsg_UpdateBrowserControlsState,
                     bool /* animate */)
 
 #endif
+// Tells the renderer to enable/disable alt-mousedrag rubberbanding.
+IPC_MESSAGE_ROUTED1(ViewMsg_EnableAltDragRubberbanding,
+                    bool /* enable */)
 
 IPC_MESSAGE_ROUTED0(ViewMsg_SelectWordAroundCaret)
 
@@ -818,6 +821,13 @@ IPC_MESSAGE_ROUTED3(ViewHostMsg_ShowDisambiguationPopup,
                     gfx::Rect, /* Border of touched targets */
                     gfx::Size, /* Size of zoomed image */
                     viz::SharedBitmapId /* id */)
+
+// Instructs the browser to draw the rubberband rect.
+IPC_MESSAGE_ROUTED1(ViewHostMsg_SetRubberbandRect,
+                    gfx::Rect /* rect */)
+
+// Instructs the browser to stop drawing the rubberband rect.
+IPC_MESSAGE_ROUTED0(ViewHostMsg_HideRubberbandRect)
 
 // Message sent from renderer to the browser when the element that is focused
 // has been touched. A bool is passed in this message which indicates if the
