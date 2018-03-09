@@ -18,6 +18,7 @@ namespace blink {
 
 class ApplicationCache;
 class BarProp;
+class BBWindowHooks;
 class CSSRuleList;
 class CSSStyleDeclaration;
 class CustomElementRegistry;
@@ -81,6 +82,9 @@ class CORE_EXPORT DOMWindow : public EventTargetWithInlineData,
   virtual Navigator* navigator() const = 0;
   Navigator* clientInformation() const { return navigator(); }
   Location* location() const;
+
+  // Bloomberg-specific extension.
+  virtual BBWindowHooks* bbWindowHooks() const = 0;
 
   virtual bool offscreenBuffering() const = 0;
 

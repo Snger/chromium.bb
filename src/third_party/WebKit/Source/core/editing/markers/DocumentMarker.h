@@ -46,6 +46,7 @@ class CORE_EXPORT DocumentMarker : public GarbageCollected<DocumentMarker> {
     TextMatchMarkerIndex,
     InvisibleSpellcheckMarkerIndex,
     CompositionMarkerIndex,
+    HighlightMarkerIndex,
     MarkerTypeIndexesCount
   };
 
@@ -55,6 +56,7 @@ class CORE_EXPORT DocumentMarker : public GarbageCollected<DocumentMarker> {
     TextMatch = 1 << TextMatchMarkerIndex,
     InvisibleSpellcheck = 1 << InvisibleSpellcheckMarkerIndex,
     Composition = 1 << CompositionMarkerIndex,
+    Highlight = 1 << HighlightMarkerIndex
   };
 
   class MarkerTypes {
@@ -82,7 +84,7 @@ class CORE_EXPORT DocumentMarker : public GarbageCollected<DocumentMarker> {
    public:
     AllMarkers()
         : MarkerTypes(Spelling | Grammar | TextMatch | InvisibleSpellcheck |
-                      Composition) {}
+                      Composition | Highlight) {}
   };
 
   class MisspellingMarkers : public MarkerTypes {
@@ -107,6 +109,10 @@ class CORE_EXPORT DocumentMarker : public GarbageCollected<DocumentMarker> {
                  Color underlineColor,
                  bool thick,
                  Color backgroundColor);
+  DocumentMarker(unsigned startOffset,
+                 unsigned endOffset,
+                 Color foregroundColor,
+                 Color backgroundColor);
 
   DocumentMarker(const DocumentMarker&);
 
@@ -120,6 +126,7 @@ class CORE_EXPORT DocumentMarker : public GarbageCollected<DocumentMarker> {
   Color underlineColor() const;
   bool thick() const;
   Color backgroundColor() const;
+  Color foregroundColor() const;
   DocumentMarkerDetails* details() const;
 
   void setActiveMatch(bool);
@@ -162,6 +169,7 @@ class DocumentMarkerDetails
   virtual bool isDescription() const { return false; }
   virtual bool isTextMatch() const { return false; }
   virtual bool isComposition() const { return false; }
+  virtual bool isHighlightMarker() const { return false; }
 
   DEFINE_INLINE_VIRTUAL_TRACE() {}
 };
