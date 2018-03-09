@@ -435,6 +435,7 @@ column-width interpolable, converter=convertComputedLength<float>, custom_all
 -webkit-user-drag
 -webkit-user-modify inherited
 user-select inherited
+-bb-rubberbandable inherited, name_for_methods=Rubberbandable
 white-space inherited
 widows interpolable, inherited, type_name=short
 width interpolable, initial=initialSize, converter=convertLengthSizing, typedom_types=[Length], keywords=[auto], supports_percentage

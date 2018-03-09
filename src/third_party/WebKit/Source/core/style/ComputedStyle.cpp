@@ -976,6 +976,8 @@ bool ComputedStyle::diffNeedsPaintInvalidationObject(
             other.m_rareInheritedData->userModify ||
         m_rareInheritedData->userSelect !=
             other.m_rareInheritedData->userSelect ||
+        m_rareInheritedData->rubberbandable != 
+            other.m_rareInheritedData->rubberbandable ||
         m_rareInheritedData->m_imageRendering !=
             other.m_rareInheritedData->m_imageRendering)
       return true;

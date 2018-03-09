@@ -173,6 +173,7 @@ static const CSSPropertyID staticComputableProperties[] = {
     CSSPropertyRy, CSSPropertyScrollSnapType, CSSPropertyScrollSnapPointsX,
     CSSPropertyScrollSnapPointsY, CSSPropertyScrollSnapCoordinate,
     CSSPropertyScrollSnapDestination, CSSPropertyTranslate, CSSPropertyRotate,
+    CSSPropertyBbRubberbandable,
     CSSPropertyScale,
 };
 

@@ -2517,6 +2517,15 @@ class CORE_EXPORT ComputedStyle : public ComputedStyleBase,
     SET_VAR(m_rareInheritedData, userSelect, s);
   }
 
+  static ERubberbandable initialRubberbandable() { return RUBBERBANDABLE_TEXT; }
+  ERubberbandable rubberbandable() const {
+    return static_cast<ERubberbandable>(m_rareInheritedData->rubberbandable);
+  }
+
+  void setRubberbandable(ERubberbandable r) {
+    SET_VAR(m_rareInheritedData, rubberbandable, r);
+  }
+
   // Font properties.
   const Font& font() const;
   void setFont(const Font&);
