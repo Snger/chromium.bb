@@ -39,9 +39,13 @@
 #include <components/prefs/pref_service_factory.h>
 #include <components/prefs/pref_service.h>
 #include <base/threading/thread_restrictions.h>
+#include <chrome/browser/spellchecker/spellcheck_factory.h>
 #include <chrome/common/pref_names.h>
+#include <components/spellcheck/common/spellcheck_common.h>
+#include <components/spellcheck/browser/pref_names.h>
 #include <content/public/browser/browser_thread.h>
 #include <content/public/browser/render_process_host.h>
+#include <content/public/browser/spellcheck_data.h>
 #include <content/public/browser/storage_partition.h>
 #include <components/keyed_service/content/browser_context_dependency_manager.h>
 #include <components/pref_registry/pref_registry_syncable.h>
@@ -89,6 +93,11 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
 
     d_requestContextGetter =
         new URLRequestContextGetterImpl(path, false, false);
+
+    content::SpellcheckData::CreateForContext(this);
+
+    SpellcheckServiceFactory::GetInstance();  // This needs to be initialized before
+                                              // calling CreateBrowserContextServices.
 
     BrowserContextDependencyManager::GetInstance()->CreateBrowserContextServices(this);
     content::BrowserContext::Initialize(this, base::FilePath());
@@ -371,6 +380,62 @@ void BrowserContextImpl::setPacUrl(const StringRef& url)
 
     d_proxyConfig->set_pac_url(GURL(std::string(url.data(), url.size())));
     d_requestContextGetter->setProxyConfig(*d_proxyConfig);
+}
+
+void BrowserContextImpl::enableSpellCheck(bool enabled)
+{
+    DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
+    DCHECK(!d_isDestroyed);
+
+    PrefService *prefs = user_prefs::UserPrefs::Get(this);
+    bool wasEnabled = prefs->GetBoolean(spellcheck::prefs::kEnableSpellcheck);
+
+    prefs->SetBoolean(spellcheck::prefs::kEnableSpellcheck, enabled);
+
+    if (!wasEnabled && enabled) {
+        // Ensure the spellcheck service is created for this context if we just
+        // turned it on.
+        SpellcheckServiceFactory::GetForContext(this);
+    }
+}
+
+void BrowserContextImpl::setLanguages(const StringRef *languages,
+                                      size_t           numLanguages)
+{
+    DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
+    DCHECK(!d_isDestroyed);
+
+    PrefService* prefs = user_prefs::UserPrefs::Get(this);
+    base::ListValue languageList;
+
+    for (size_t i = 0; i < numLanguages; ++i) {
+        languageList.AppendString(languages[i].toStdString());
+    }
+    prefs->Set(spellcheck::prefs::kSpellCheckDictionaries, languageList);
+}
+
+void BrowserContextImpl::addCustomWords(const StringRef *words,
+                                        size_t           numWords)
+{
+    std::vector<base::StringPiece> wordsVector(numWords);
+    for (size_t i = 0; i < numWords; ++i) {
+        wordsVector[i].set(words[i].data(), words[i].length());
+    }
+    content::SpellcheckData::FromContext(this)->AdjustCustomWords(
+        wordsVector,
+        std::vector<base::StringPiece>());
+}
+
+void BrowserContextImpl::removeCustomWords(const StringRef *words,
+                                           size_t           numWords)
+{
+    std::vector<base::StringPiece> wordsVector(numWords);
+    for (size_t i = 0; i < numWords; ++i) {
+        wordsVector[i].set(words[i].data(), words[i].length());
+    }
+    content::SpellcheckData::FromContext(this)->AdjustCustomWords(
+        std::vector<base::StringPiece>(),
+        wordsVector);
 }
 
 // content::BrowserContext overrides

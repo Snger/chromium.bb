@@ -40,6 +40,7 @@
 #include <content/public/browser/resource_request_info.h>
 #include <content/public/browser/web_contents.h>
 #include <content/public/common/url_constants.h>
+#include <chrome/browser/spellchecker/spellcheck_message_filter.h>
 
 namespace blpwtk2 {
 namespace {
@@ -86,6 +87,9 @@ void ContentBrowserClientImpl::RenderProcessWillLaunch(
     content::RenderProcessHost *host)
 {
     DCHECK(Statics::isInBrowserMainThread());
+
+    int id = host->GetID();
+    host->AddFilter(new SpellCheckMessageFilter(id));
 }
 
 void ContentBrowserClientImpl::OverrideWebkitPrefs(

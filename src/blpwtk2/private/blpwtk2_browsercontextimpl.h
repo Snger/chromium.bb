@@ -42,6 +42,7 @@ class PrefService;
 namespace blpwtk2 {
 
 class ResourceContextImpl;
+class SpellCheckConfig;
 class URLRequestContextGetterImpl;
 
                         // ========================
@@ -115,6 +116,16 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     void addBypassRule(const StringRef& rule) override;
     void clearBypassRules() override;
     void setPacUrl(const StringRef& url) override;
+
+    void enableSpellCheck(bool enabled) override;
+
+    void setLanguages(const StringRef *languages,
+                      size_t           numLanguages) override;
+
+    void addCustomWords(const StringRef *words,
+                        size_t           numWords) override;
+    void removeCustomWords(const StringRef *words,
+                           size_t           numWords) override;
 
     // content::BrowserContext overrides
     std::unique_ptr<content::ZoomLevelDelegate> CreateZoomLevelDelegate(

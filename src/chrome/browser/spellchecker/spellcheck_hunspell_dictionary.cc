@@ -17,7 +17,10 @@
 #include "build/build_config.h"
 #include "chrome/browser/spellchecker/spellcheck_service.h"
 #include "chrome/common/chrome_paths.h"
-#include "components/data_use_measurement/core/data_use_user_data.h"
+
+// SHEZ: Remove dependency on data_use_measurement
+// #include "components/data_use_measurement/core/data_use_user_data.h"
+
 #include "components/spellcheck/browser/spellcheck_platform.h"
 #include "components/spellcheck/common/spellcheck_common.h"
 #include "components/spellcheck/spellcheck_build_features.h"
@@ -252,8 +255,11 @@ void SpellcheckHunspellDictionary::DownloadDictionary(GURL url) {
     observer.OnHunspellDictionaryDownloadBegin(language_);
 
   fetcher_ = net::URLFetcher::Create(url, net::URLFetcher::GET, this);
-  data_use_measurement::DataUseUserData::AttachToFetcher(
-      fetcher_.get(), data_use_measurement::DataUseUserData::SPELL_CHECKER);
+
+  // SHEZ: Remove dependency on data_use_measurement
+  //data_use_measurement::DataUseUserData::AttachToFetcher(
+  //    fetcher_.get(), data_use_measurement::DataUseUserData::SPELL_CHECKER);
+
   fetcher_->SetRequestContext(request_context_getter_);
   fetcher_->SetLoadFlags(
       net::LOAD_DO_NOT_SEND_COOKIES | net::LOAD_DO_NOT_SAVE_COOKIES);

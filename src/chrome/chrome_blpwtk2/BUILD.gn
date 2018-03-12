@@ -38,6 +38,14 @@ static_library("chrome_blpwtk2") {
     "//chrome/utility/printing_handler.h",
     "//chrome/common/pref_names.cc",
     "//chrome/common/pref_names.h",
+    "//chrome/browser/spellchecker/spellcheck_service.cc",
+    "//chrome/browser/spellchecker/spellcheck_service.h",
+    "//chrome/browser/spellchecker/spellcheck_factory.cc",
+    "//chrome/browser/spellchecker/spellcheck_factory.h",
+    "//chrome/browser/spellchecker/spellcheck_message_filter.cc",
+    "//chrome/browser/spellchecker/spellcheck_message_filter.h",
+    "//chrome/browser/spellchecker/spellcheck_hunspell_dictionary.cc",
+    "//chrome/browser/spellchecker/spellcheck_hunspell_dictionary.h",
 
     # required by //chrome/common/chrome_content_client.cc
     "//chrome/common/chrome_switches.cc",

@@ -28,6 +28,8 @@
 #include <blpwtk2_stringref.h>
 
 #include <base/strings/utf_string_conversions.h>
+#include <components/spellcheck/renderer/spellcheck.h>
+#include <components/spellcheck/renderer/spellcheck_provider.h>
 #include <content/child/font_warmup_win.h>
 #include <content/public/renderer/render_thread.h>
 #include <net/base/net_errors.h>
@@ -55,12 +57,23 @@ ContentRendererClientImpl::~ContentRendererClientImpl()
 {
 }
 
+void ContentRendererClientImpl::RenderThreadStarted()
+{
+    content::RenderThread* thread = content::RenderThread::Get();
+
+    if (!d_spellcheck) {
+        d_spellcheck.reset(new SpellCheck());
+        thread->AddObserver(d_spellcheck.get());
+    }
+}
+
 void ContentRendererClientImpl::RenderViewCreated(
     content::RenderView* render_view)
 {
     // Note that RenderViewObserverImpl automatically gets deleted when the
     // RenderView is destroyed.
     new RenderViewObserverImpl(render_view);
+    new SpellCheckProvider(render_view, d_spellcheck.get());
 }
 
 void ContentRendererClientImpl::GetNavigationErrorStrings(
