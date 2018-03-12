@@ -1625,7 +1625,7 @@ bool LayoutBlock::hasLineIfEmpty() const {
   if (isRootEditableElement(*node()))
     return true;
 
-    if (node()->hasEditableStyle() && isTableCell())
+    if (hasEditableStyle(*node()) && isTableCell())
         return true;
   if (node()->isShadowRoot() &&
       isHTMLInputElement(toShadowRoot(node())->host()))
