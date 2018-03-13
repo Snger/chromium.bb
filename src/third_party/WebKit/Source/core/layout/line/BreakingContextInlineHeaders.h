@@ -843,6 +843,9 @@ ALWAYS_INLINE bool BreakingContext::rewindToMidWordBreak(
     if (!end)
       return false;
     len = end - start;
+
+        if (!len)
+            return rewindToFirstMidWordBreak(text, style, font, breakAll, wordMeasurement);
   }
   FloatRect rect = font.selectionRectForText(run, FloatPoint(), 0, 0, len);
   return rewindToMidWordBreak(wordMeasurement, end, rect.width());
@@ -936,6 +939,7 @@ inline bool BreakingContext::handleText(WordMeasurements& wordMeasurements,
   bool breakAll =
       m_currentStyle->wordBreak() == BreakAllWordBreak && m_autoWrap;
   bool keepAll = m_currentStyle->wordBreak() == KeepAllWordBreak && m_autoWrap;
+    bool keepAllIfKorean = m_currentStyle->wordBreak() == KeepAllIfKoreanWordBreak && m_autoWrap;
   bool prohibitBreakInside = m_currentStyle->hasTextCombine() &&
                              layoutText.isCombineText() &&
                              LineLayoutTextCombine(layoutText).isCombined();
@@ -955,12 +959,20 @@ inline bool BreakingContext::handleText(WordMeasurements& wordMeasurements,
     breakWords = false;
     breakAll = false;
     keepAll = false;
+        keepAllIfKorean = false;
   }
 
-  // Use LineBreakType::Normal for break-all. When a word does not fit,
-  // rewindToMidWordBreak() finds the mid-word break point.
-  LineBreakType lineBreakType =
-      keepAll ? LineBreakType::KeepAll : LineBreakType::Normal;
+    LineBreakType lineBreakType;
+    if (breakAll) {
+        lineBreakType = LineBreakType::BreakAll;
+    } else if (keepAll) {
+        lineBreakType = LineBreakType::KeepAll;
+    } else if (keepAllIfKorean) {
+        lineBreakType = LineBreakType::KeepAllIfKorean;
+    } else {
+        lineBreakType = LineBreakType::Normal;
+    }
+
   bool canBreakMidWord = breakAll || breakWords;
   int nextBreakablePositionForBreakAll = -1;
 
