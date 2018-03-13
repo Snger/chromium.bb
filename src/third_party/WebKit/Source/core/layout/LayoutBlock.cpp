@@ -1922,7 +1922,8 @@ LayoutRect LayoutBlock::localCaretRect(InlineBox* inlineBox,
                                     : inlineBox->x() - margin;
     if (extraWidthToEndOfLine)
         *extraWidthToEndOfLine = inlineBox->root().width() - x;
-    return LayoutRect(x, inlineBox->y(), 1, inlineBox->height());
+    LayoutUnit layoutWidth(1);
+    return LayoutRect(x, inlineBox->y(), layoutWidth, inlineBox->height());
   }
 
   LayoutRect caretRect =
