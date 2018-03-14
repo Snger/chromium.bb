@@ -1030,6 +1030,9 @@ void RenderThreadImpl::Shutdown() {
   if (gpu_channel_.get())
     gpu_channel_->DestroyChannel();
 
+  if (privileged_gpu_channel_.get())
+    privileged_gpu_channel_->DestroyChannel();
+
   ChildThreadImpl::Shutdown();
 
   // Shut down the message loop (if provided when the RenderThreadImpl was
@@ -1923,6 +1926,10 @@ void RenderThreadImpl::OnProcessResume() {
 scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishGpuChannelSync() {
   TRACE_EVENT0("gpu", "RenderThreadImpl::EstablishGpuChannelSync");
 
+  if (privileged_gpu_channel_) {
+    return EstablishPrivilegedGpuChannelSync();
+  }
+
   if (gpu_channel_) {
     // Do nothing if we already have a GPU channel or are already
     // establishing one.
@@ -1963,6 +1970,49 @@ scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishGpuChannelSync() {
 #endif
   }
   return gpu_channel_;
+}
+
+scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishPrivilegedGpuChannelSync() {
+  TRACE_EVENT0("gpu", "RenderThreadImpl::EstablishGpuChannelSync");
+
+  if (gpu_channel_) {
+    gpu_channel_->DestroyChannel();
+    gpu_channel_ = NULL;
+  }
+
+  if (privileged_gpu_channel_) {
+    // Do nothing if we already have a GPU channel or are already
+    // establishing one.
+    if (!privileged_gpu_channel_->IsLost())
+      return privileged_gpu_channel_;
+
+    // Recreate the channel if it has been lost.
+    privileged_gpu_channel_->DestroyChannel();
+    privileged_gpu_channel_ = NULL;
+  }
+
+  // Ask the browser for the channel name.
+  int client_id = 0;
+  IPC::ChannelHandle channel_handle;
+  gpu::GPUInfo gpu_info;
+  if (!Send(new ChildProcessHostMsg_EstablishPrivilegedGpuChannel(
+          &client_id, &channel_handle, &gpu_info)) ||
+      !channel_handle.mojo_handle.is_valid()) {
+    // Otherwise cancel the connection.
+    return NULL;
+  }
+
+  GetContentClient()->SetGpuInfo(gpu_info);
+
+  // Cache some variables that are needed on the compositor thread for our
+  // implementation of GpuChannelHostFactory.
+  io_thread_task_runner_ = ChildProcess::current()->io_task_runner();
+
+  privileged_gpu_channel_ =
+        gpu::GpuChannelHost::Create(this, client_id, gpu_info, channel_handle,
+                    ChildProcess::current()->GetShutDownEvent(),
+                    GetGpuMemoryBufferManager());
+  return privileged_gpu_channel_;
 }
 
 std::unique_ptr<cc::CompositorFrameSink>

@@ -140,6 +140,11 @@ IPC_SYNC_MESSAGE_CONTROL0_3(ChildProcessHostMsg_EstablishGpuChannel,
                             IPC::ChannelHandle /* handle to channel */,
                             gpu::GPUInfo /* stats about GPU process*/)
 
+IPC_SYNC_MESSAGE_CONTROL0_3(ChildProcessHostMsg_EstablishPrivilegedGpuChannel,
+                            int /* client id */,
+                            IPC::ChannelHandle /* handle to channel */,
+                            gpu::GPUInfo /* stats about GPU process*/)
+
 // A renderer sends this when it wants to know whether a gpu process exists.
 IPC_SYNC_MESSAGE_CONTROL0_1(ChildProcessHostMsg_HasGpuProcess,
                             bool /* result */)

@@ -193,6 +193,9 @@ bool RenderMessageFilter::OnMessageReceived(const IPC::Message& message) {
         OnAllocateGpuMemoryBuffer)
     IPC_MESSAGE_HANDLER_DELAY_REPLY(ChildProcessHostMsg_EstablishGpuChannel,
                                     OnEstablishGpuChannel)
+    IPC_MESSAGE_HANDLER_DELAY_REPLY(
+      ChildProcessHostMsg_EstablishPrivilegedGpuChannel,
+      OnEstablishPrivilegedGpuChannel)
     IPC_MESSAGE_HANDLER_DELAY_REPLY(ChildProcessHostMsg_HasGpuProcess,
                                     OnHasGpuProcess)
     IPC_MESSAGE_HANDLER(ChildProcessHostMsg_DeletedGpuMemoryBuffer,
@@ -625,6 +628,45 @@ void RenderMessageFilter::OnEstablishGpuChannel(
   bool preempts = false;
   bool allow_view_command_buffers = false;
   bool allow_real_time_streams = false;
+  host->EstablishGpuChannel(
+      render_process_id_,
+      ChildProcessHostImpl::ChildProcessUniqueIdToTracingProcessId(
+          render_process_id_),
+      preempts, allow_view_command_buffers, allow_real_time_streams,
+      base::Bind(&RenderMessageFilter::EstablishChannelCallback,
+                 weak_ptr_factory_.GetWeakPtr(), base::Passed(&reply)));
+}
+
+void RenderMessageFilter::OnEstablishPrivilegedGpuChannel(
+    IPC::Message* reply_ptr) {
+  DCHECK_CURRENTLY_ON(BrowserThread::IO);
+  std::unique_ptr<IPC::Message> reply(reply_ptr);
+
+#if defined(OS_WIN) && defined(ARCH_CPU_X86_64)
+  // TODO(jbauman): Remove this when we know why renderer processes are
+  // hanging on x86-64. https://crbug.com/577127
+  if (!GpuDataManagerImpl::GetInstance()->CanUseGpuBrowserCompositor()) {
+    reply->set_reply_error();
+    Send(reply.release());
+    return;
+  }
+#endif
+
+  GpuProcessHost* host = GpuProcessHost::FromID(gpu_process_id_);
+  if (!host) {
+    host = GpuProcessHost::Get(GpuProcessHost::GPU_PROCESS_KIND_SANDBOXED);
+    if (!host) {
+      reply->set_reply_error();
+      Send(reply.release());
+      return;
+    }
+
+    gpu_process_id_ = host->host_id();
+  }
+
+  bool preempts = true;
+  bool allow_view_command_buffers = true;
+  bool allow_real_time_streams = true;
   host->EstablishGpuChannel(
       render_process_id_,
       ChildProcessHostImpl::ChildProcessUniqueIdToTracingProcessId(
