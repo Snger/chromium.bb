@@ -6,6 +6,7 @@
 
 #include "core/layout/api/LineLayoutAPIShim.h"
 #include "core/layout/line/RootInlineBox.h"
+#include "core/layout/line/InlineTextBox.h"
 #include "core/paint/BoxPainter.h"
 #include "core/paint/PaintInfo.h"
 #include "core/paint/PaintLayer.h"
