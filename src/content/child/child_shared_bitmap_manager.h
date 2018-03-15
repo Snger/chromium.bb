@@ -9,12 +9,23 @@
 
 #include <memory>
 
+#include "base/containers/hash_tables.h"
+#include "base/hash.h"
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "base/memory/shared_memory.h"
 #include "cc/resources/shared_bitmap_manager.h"
 #include "content/common/content_export.h"
 #include "content/child/thread_safe_sender.h"
+
+namespace BASE_HASH_NAMESPACE {
+template <>
+struct hash<cc::SharedBitmapId> {
+  size_t operator()(const cc::SharedBitmapId& id) const {
+    return base::Hash(reinterpret_cast<const char*>(id.name), sizeof(id.name));
+  }
+};
+}  // namespace BASE_HASH_NAMESPACE
 
 namespace content {
 
@@ -47,8 +58,14 @@ class CONTENT_EXPORT ChildSharedBitmapManager : public cc::SharedBitmapManager {
   std::unique_ptr<SharedMemoryBitmap> AllocateSharedMemoryBitmap(
       const gfx::Size& size);
 
+  void FreeSharedMemoryFromMap(const cc::SharedBitmapId& id);
+
  private:
   scoped_refptr<ThreadSafeSender> sender_;
+
+  typedef base::hash_map<cc::SharedBitmapId, base::SharedMemory* >
+      SharedMemoryMap;
+  SharedMemoryMap shared_memory_map_;
 
   DISALLOW_COPY_AND_ASSIGN(ChildSharedBitmapManager);
 };
