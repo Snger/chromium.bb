@@ -40,6 +40,7 @@ class CORE_EXPORT CharacterData : public Node {
   const String& data() const { return data_; }
   void setData(const String&);
   unsigned length() const { return data_.length(); }
+  void bbSetDataNoRelayout(const String&);
   String substringData(unsigned offset, unsigned count, ExceptionState&);
   void appendData(const String&);
   void replaceData(unsigned offset,

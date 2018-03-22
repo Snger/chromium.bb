@@ -78,6 +78,7 @@ class CORE_EXPORT InlineTextBox : public InlineBox {
   unsigned end() const { return len_ ? start_ + len_ - 1 : start_; }
   unsigned Len() const { return len_; }
 
+  void SetStartAndLen(unsigned start, unsigned len);
   void OffsetRun(int delta);
 
   unsigned short Truncation() const { return truncation_; }

@@ -1445,12 +1445,27 @@ void LayoutText::SetSelectionState(SelectionState state) {
     containing_block->SetSelectionState(state);
 }
 
+extern bool g_bbNoRelayoutOnSetCharacterData;
+
+bool ShouldSkipRelayoutOnSetText(const LayoutText* lt)
+{
+  return g_bbNoRelayoutOnSetCharacterData
+    && lt->FirstTextBox()
+    && lt->FirstTextBox() == lt->LastTextBox();
+}
 void LayoutText::SetTextWithOffset(RefPtr<StringImpl> text,
                                    unsigned offset,
                                    unsigned len,
                                    bool force) {
   if (!force && Equal(text_.Impl(), text.Get()))
     return;
+
+  if (ShouldSkipRelayoutOnSetText(this)) {
+    FirstTextBox()->SetStartAndLen(0, text->length());
+    lines_dirty_ = false;
+    SetText(std::move(text), force);
+    return;
+  }
 
   unsigned old_len = TextLength();
   unsigned new_len = text->length();
@@ -1648,9 +1663,14 @@ void LayoutText::SetText(RefPtr<StringImpl> text, bool force) {
   // LayoutObjectChildList::insertChildNode() fails to set true to owner.
   // To avoid that, we call setNeedsLayoutAndPrefWidthsRecalc() only if this
   // LayoutText has parent.
-  if (Parent())
-    SetNeedsLayoutAndPrefWidthsRecalcAndFullPaintInvalidation(
-        LayoutInvalidationReason::kTextChanged);
+  if (Parent()) {
+    if (ShouldSkipRelayoutOnSetText(this))
+      SetShouldDoFullPaintInvalidation();
+    else
+      SetNeedsLayoutAndPrefWidthsRecalcAndFullPaintInvalidation(
+          LayoutInvalidationReason::kTextChanged);
+  }
+
   known_to_have_no_overflow_and_no_fallback_fonts_ = false;
 
   if (AXObjectCache* cache = GetDocument().ExistingAXObjectCache())
