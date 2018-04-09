@@ -81,7 +81,7 @@ class WebView
         // Load the specified 'url' into this WebView, replacing whatever
         // contents are currently in this WebView.
 
-    virtual void loadInspector(int pid, int routingId) = 0;
+    virtual void loadInspector(unsigned int pid, int routingId) = 0;
         // Load an inspector for the specified 'inspectedView' into this
         // WebView, replacing whatever contents are currently in this
         // WebView.  This method depends on the blpwtk2_devtools pak file

@@ -39,8 +39,10 @@ namespace blpwtk2 {
 
 // TODO: support other native handles
 typedef HWND NativeView;
+typedef HMONITOR NativeScreen;
 typedef HFONT NativeFont;
 typedef void* NativeViewForTransit;
+typedef void* NativeScreenForTransit;
 typedef MSG NativeMsg;
 typedef HDC NativeDeviceContext;
 typedef RECT NativeRect;

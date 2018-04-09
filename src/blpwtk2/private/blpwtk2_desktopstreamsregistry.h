@@ -39,6 +39,7 @@ namespace blpwtk2 {
 class DesktopStreamsRegistry {
  public:
   static DesktopStreamsRegistry* GetInstance();
+  static std::string RegisterScreenForStreaming(NativeScreen screen);
   static std::string RegisterNativeViewForStreaming(NativeView view);
 
   // Adds new stream to the registry. Returns identifier of the new stream.

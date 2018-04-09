@@ -139,8 +139,22 @@ String ProfileImpl::registerNativeViewForStreaming(NativeView view)
 {
     std::string result;
 
-    if (d_hostPtr->registerNativeViewForStreaming(reinterpret_cast<int>(view),
-                                                  &result)) {
+    if (d_hostPtr->registerNativeViewForStreaming(
+                reinterpret_cast<unsigned int>(view), &result)) {
+        return String(result);
+    }
+    else {
+        return String();
+    }
+}
+
+String ProfileImpl::registerScreenForStreaming(NativeScreen screen)
+{
+    std::string result;
+
+    if (d_hostPtr->registerScreenForStreaming(
+                reinterpret_cast<unsigned int>(view), &result)) {
+
         return String(result);
     }
     else {

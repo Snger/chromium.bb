@@ -497,7 +497,7 @@ void WebViewHostImpl::clearTooltip()
     d_impl->clearTooltip();
 }
 
-void WebViewHostImpl::setParent(int window)
+void WebViewHostImpl::setParent(unsigned int window)
 {
     d_impl->setParent(reinterpret_cast<NativeView>(window));
 }
