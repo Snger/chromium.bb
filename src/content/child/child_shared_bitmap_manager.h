@@ -13,6 +13,7 @@
 #include "base/memory/ref_counted.h"
 #include "base/memory/shared_memory.h"
 #include "cc/resources/shared_bitmap_manager.h"
+#include "content/common/content_export.h"
 #include "content/child/thread_safe_sender.h"
 
 namespace content {
@@ -29,7 +30,7 @@ class SharedMemoryBitmap : public cc::SharedBitmap {
   base::SharedMemory* shared_memory_;
 };
 
-class ChildSharedBitmapManager : public cc::SharedBitmapManager {
+class CONTENT_EXPORT ChildSharedBitmapManager : public cc::SharedBitmapManager {
  public:
   ChildSharedBitmapManager(scoped_refptr<ThreadSafeSender> sender);
   ~ChildSharedBitmapManager() override;

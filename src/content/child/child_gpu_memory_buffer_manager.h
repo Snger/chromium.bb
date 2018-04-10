@@ -8,12 +8,13 @@
 #include <memory>
 
 #include "base/macros.h"
+#include "content/common/content_export.h"
 #include "content/child/thread_safe_sender.h"
 #include "gpu/command_buffer/client/gpu_memory_buffer_manager.h"
 
 namespace content {
 
-class ChildGpuMemoryBufferManager : public gpu::GpuMemoryBufferManager {
+class CONTENT_EXPORT ChildGpuMemoryBufferManager : public gpu::GpuMemoryBufferManager {
  public:
   explicit ChildGpuMemoryBufferManager(ThreadSafeSender* sender);
   ~ChildGpuMemoryBufferManager() override;
