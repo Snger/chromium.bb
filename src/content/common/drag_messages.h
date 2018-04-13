@@ -7,6 +7,7 @@
 
 #include <vector>
 
+#include "content/common/content_export.h"
 #include "content/common/drag_event_source_info.h"
 #include "content/public/common/drop_data.h"
 #include "ipc/ipc_message_macros.h"
@@ -14,6 +15,9 @@
 #include "third_party/skia/include/core/SkBitmap.h"
 #include "ui/gfx/geometry/point.h"
 #include "ui/gfx/geometry/vector2d.h"
+
+#undef IPC_MESSAGE_EXPORT
+#define IPC_MESSAGE_EXPORT CONTENT_EXPORT
 
 #define IPC_MESSAGE_START DragMsgStart
 
