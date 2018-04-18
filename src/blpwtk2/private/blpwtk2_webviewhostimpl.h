@@ -157,6 +157,7 @@ class WebViewHostImpl final : private WebViewImplClient
     WebViewHostImpl(
             mojom::WebViewClientPtr&&                    clientPtr,
             const mojom::WebViewCreateParams&            params,
+            bool                                         rendererUI,
             BrowserContextImpl                          *browserContext,
             unsigned int                                 hostAffinity,
             const scoped_refptr<ProcessHostImpl::Impl>&  processHost);

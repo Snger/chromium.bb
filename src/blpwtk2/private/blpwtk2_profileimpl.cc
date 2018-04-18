@@ -240,7 +240,7 @@ void ProfileImpl::createWebView(WebViewDelegate            *delegate,
     auto taskRunner =
         base::MessageLoop::current()->task_runner();
 
-    if (Statics::rendererUIEnabled) {
+    if (Statics::rendererUIEnabled && Statics::isInProcessRendererEnabled) {
         WebViewProperties properties;
 
         properties.domPasteEnabled =
@@ -256,6 +256,7 @@ void ProfileImpl::createWebView(WebViewDelegate            *delegate,
         d_hostPtr->createWebView(
             mojo::MakeRequest(webViewHostPtr, taskRunner),
             createParams->Clone(),
+            true,
             base::Bind(
                 &onRenderWebViewCreated,
                 renderWebView,
@@ -269,6 +270,7 @@ void ProfileImpl::createWebView(WebViewDelegate            *delegate,
         d_hostPtr->createWebView(
             mojo::MakeRequest(webViewHostPtr, taskRunner),
             createParams->Clone(),
+            false,
             base::Bind(
                 &onWebViewCreated,
                 proxy,
