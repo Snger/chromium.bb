@@ -35,6 +35,7 @@
 #include <blpwtk2_rendererutil.h>
 
 #include <base/win/scoped_gdi_object.h>
+#include <content/common/frame_messages.h>
 #include <content/common/input_messages.h>
 #include <content/common/view_messages.h>
 #include <content/renderer/render_view_impl.h>
@@ -44,6 +45,8 @@
 #include <ui/base/cursor/cursor_loader.h>
 #include <ui/events/blink/web_input_event.h>
 #include "ui/events/blink/web_input_event_traits.h"
+#include <ui/base/ime/input_method.h>
+#include <ui/base/ime/input_method_factory.h>
 #include <ui/events/event.h>
 #include <ui/events/event_utils.h>
 #include <ui/events/latency_info.h>
@@ -90,7 +93,12 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
     d_profile->incrementWebViewCount();
 
     d_hwnd.reset(CreateWindowEx(
+#if defined(BLPWTK2_FEATURE_FOCUS)
+        d_properties.takeKeyboardFocusOnMouseDown?
+            0 : WS_EX_NOACTIVATE,
+#else
         0,
+#endif
         GetWindowClass(),
         L"blpwtk2-RenderWebView",
         WS_OVERLAPPED | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
@@ -112,6 +120,8 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
         GetWindowLong(d_hwnd.get(), GWL_STYLE) & ~WS_CAPTION);
 
     d_has_parent = false;
+
+    d_input_method = ui::CreateInputMethod(this, d_hwnd.get());
 
     RECT rect;
     GetWindowRect(d_hwnd.get(), &rect);
@@ -233,7 +243,20 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
     case WM_MBUTTONUP:
     case WM_RBUTTONDBLCLK:
     case WM_RBUTTONDOWN:
-    case WM_RBUTTONUP: {
+    case WM_RBUTTONUP:
+    case WM_KEYDOWN:
+    case WM_KEYUP:
+    case WM_SYSKEYDOWN:
+    case WM_SYSKEYUP:
+    case WM_CHAR:
+    case WM_SYSCHAR:
+    case WM_IME_CHAR:
+    case WM_IME_COMPOSITION:
+    case WM_IME_ENDCOMPOSITION:
+    case WM_IME_REQUEST:
+    case WM_IME_NOTIFY:
+    case WM_IME_SETCONTEXT:
+    case WM_IME_STARTCOMPOSITION: {
         MSG msg;
         msg.hwnd    = d_hwnd.get();
         msg.message = uMsg;
@@ -277,10 +300,15 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
             case WM_MOUSELEAVE: {
                 d_mouse_entered = false;
             } break;
-            // Capture on mouse button down:
             case WM_LBUTTONDOWN:
             case WM_MBUTTONDOWN:
             case WM_RBUTTONDOWN: {
+                // Focus on mouse button down:
+                if (!(GetWindowLong(d_hwnd.get(), GWL_EXSTYLE) & WS_EX_NOACTIVATE)) {
+                    SetFocus(d_hwnd.get());
+                }
+
+                // Capture on mouse button down:
                 SetCapture(d_hwnd.get());
             } break;
             // Capture on mouse button up:
@@ -299,6 +327,36 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
                     base::Bind(&GetScreenLocationFromEvent)));
 
             return 0;
+        } break;
+        // Keyboard:
+        case WM_KEYDOWN:
+        case WM_KEYUP:
+        case WM_SYSKEYDOWN:
+        case WM_SYSKEYUP: {
+            ui::KeyEvent event(msg);
+
+            d_input_method->DispatchKeyEvent(&event);
+
+            if (event.handled()) {
+                return 0;
+            }
+        } break;
+        // Input method keyboard:
+        case WM_CHAR:
+        case WM_SYSCHAR:
+        case WM_IME_CHAR:
+        case WM_IME_COMPOSITION:
+        case WM_IME_ENDCOMPOSITION:
+        case WM_IME_REQUEST:
+        case WM_IME_NOTIFY:
+        case WM_IME_SETCONTEXT:
+        case WM_IME_STARTCOMPOSITION: {
+            LRESULT result = 0;
+            auto handled = d_input_method->OnUntranslatedIMEMessage(msg, &result);
+
+            if (handled) {
+                return result;
+            }
         } break;
         }
     } break;
@@ -345,6 +403,30 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         SetCursor(
             LoadCursor(NULL, cursor));
     } return 1;
+    case WM_SETFOCUS: {
+        d_input_method->SetFocusedTextInputClient(this);
+        d_input_method->OnFocus();
+
+        if (d_delegate) {
+            d_delegate->focused(this);
+        }
+
+        d_focused = true;
+
+        updateFocus();
+    } return 0;
+    case WM_KILLFOCUS: {
+        d_input_method->SetFocusedTextInputClient(nullptr);
+        d_input_method->OnBlur();
+
+        if (d_delegate) {
+            d_delegate->blurred(this);
+        }
+
+        d_focused = false;
+
+        updateFocus();
+    } return 0;
     default:
         break;
     }
@@ -388,6 +470,17 @@ void RenderWebView::updateVisibility()
         dispatchToRenderViewImpl(
             ViewMsg_WasHidden(d_renderViewRoutingId));
     }
+}
+
+void RenderWebView::updateFocus()
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    dispatchToRenderViewImpl(
+        InputMsg_SetFocus(d_renderViewRoutingId,
+            d_focused));
 }
 
 void RenderWebView::setPlatformCursor(HCURSOR cursor)
@@ -451,7 +544,14 @@ void RenderWebView::destroy()
     DCHECK(!d_pendingDestroy);
 
     if (d_gotRenderViewInfo) {
-        RenderMessageDelegate::GetInstance()->RemoveRoute(d_renderViewRoutingId);
+        content::RenderView *rv =
+            content::RenderView::FromRoutingID(d_renderViewRoutingId);
+        DCHECK(rv);
+
+        RenderMessageDelegate::GetInstance()->RemoveRoute(
+            rv->GetMainRenderFrame()->GetRoutingID());
+        RenderMessageDelegate::GetInstance()->RemoveRoute(
+            d_renderViewRoutingId);
     }
 
     // Schedule a deletion of this RenderWebView.  The reason we don't delete
@@ -556,6 +656,31 @@ void RenderWebView::stop()
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", stop";
     d_client->proxy()->stop();
 }
+
+#if defined(BLPWTK2_FEATURE_FOCUS)
+void RenderWebView::takeKeyboardFocus()
+{
+    DCHECK(Statics::isInApplicationMainThread());
+    DCHECK(d_hwnd.is_valid());
+    LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", takeKeyboardFocus";
+
+    SetFocus(d_hwnd.get());
+}
+
+void RenderWebView::setLogicalFocus(bool focused)
+{
+    DCHECK(Statics::isInApplicationMainThread());
+    LOG(INFO) << "routingId=" << d_renderViewRoutingId
+              << ", setLogicalFocus " << (focused ? "true" : "false");
+    if (d_gotRenderViewInfo) {
+        // If we have the renderer in-process, then set the logical focus
+        // immediately so that handleInputEvents will work as expected.
+        content::RenderViewImpl* rv = content::RenderViewImpl::FromRoutingID(d_renderViewRoutingId);
+        DCHECK(rv);
+        rv->SetFocus(focused);
+    }
+}
+#endif
 
 void RenderWebView::show()
 {
@@ -911,12 +1036,270 @@ void RenderWebView::notifyRoutingId(int id)
     d_renderViewRoutingId = id;
     LOG(INFO) << "routingId=" << id;
 
-    RenderMessageDelegate::GetInstance()->AddRoute(d_renderViewRoutingId, this);
+    RenderMessageDelegate::GetInstance()->AddRoute(
+        d_renderViewRoutingId, this);
+    RenderMessageDelegate::GetInstance()->AddRoute(
+        rv->GetMainRenderFrame()->GetRoutingID(), this);
 
     d_compositor->Correlate(d_renderViewRoutingId);
 
     updateVisibility();
     updateSize();
+    updateFocus();
+}
+
+// ui::internal::InputMethodDelegate overrides:
+ui::EventDispatchDetails RenderWebView::DispatchKeyEventPostIME(
+    ui::KeyEvent* key_event)
+{
+    if (!key_event->handled()) {
+        dispatchInputEvent(ui::MakeWebKeyboardEvent(*key_event));
+    }
+
+    return ui::EventDispatchDetails();
+}
+
+// ui::TextInputClient overrides:
+void RenderWebView::SetCompositionText(const ui::CompositionText& composition)
+{
+    std::vector<blink::WebCompositionUnderline> underlines(
+        composition.underlines.size());
+    std::transform(
+        composition.underlines.begin(), composition.underlines.end(),
+        underlines.begin(),
+        [=](const auto& underline) -> blink::WebCompositionUnderline {
+            return blink::WebCompositionUnderline(
+                underline.start_offset, underline.end_offset,
+                underline.color,
+                underline.thick,
+                underline.background_color);
+        });
+
+    dispatchToRenderViewImpl(
+        InputMsg_ImeSetComposition(d_renderViewRoutingId,
+            composition.text,
+            underlines,
+            gfx::Range::InvalidRange(),
+            composition.selection.end(), composition.selection.end()));
+
+    d_has_composition_text = !composition.text.empty();
+}
+
+void RenderWebView::ConfirmCompositionText()
+{
+    if (d_has_composition_text) {
+        dispatchToRenderViewImpl(
+            InputMsg_ImeFinishComposingText(d_renderViewRoutingId,
+                false));
+    }
+
+    d_has_composition_text = false;
+}
+
+void RenderWebView::ClearCompositionText()
+{
+    if (d_has_composition_text) {
+        dispatchToRenderViewImpl(
+            InputMsg_ImeSetComposition(d_renderViewRoutingId,
+                base::string16(),
+                std::vector<blink::WebCompositionUnderline>(),
+                gfx::Range::InvalidRange(),
+                0, 0));
+    }
+
+    d_has_composition_text = false;
+}
+
+void RenderWebView::InsertText(const base::string16& text)
+{
+    if (!text.empty()) {
+        dispatchToRenderViewImpl(
+            InputMsg_ImeCommitText(d_renderViewRoutingId,
+                text, gfx::Range::InvalidRange(), 0));
+    }
+    else {
+        dispatchToRenderViewImpl(
+            InputMsg_ImeFinishComposingText(d_renderViewRoutingId,
+                false));
+    }
+
+    d_has_composition_text = false;
+}
+
+void RenderWebView::InsertChar(const ui::KeyEvent& event)
+{
+    dispatchInputEvent(ui::MakeWebKeyboardEvent(event));
+}
+
+ui::TextInputType RenderWebView::GetTextInputType() const
+{
+    return d_text_input_state.type;
+}
+
+ui::TextInputMode RenderWebView::GetTextInputMode() const
+{
+    return d_text_input_state.mode;
+}
+
+base::i18n::TextDirection RenderWebView::GetTextDirection() const
+{
+    NOTIMPLEMENTED();
+    return base::i18n::UNKNOWN_DIRECTION;
+}
+
+int RenderWebView::GetTextInputFlags() const
+{
+    return d_text_input_state.flags;
+}
+
+bool RenderWebView::CanComposeInline() const
+{
+    return d_text_input_state.can_compose_inline;
+}
+
+gfx::Rect RenderWebView::GetCaretBounds() const
+{
+    auto bounds = gfx::RectBetweenSelectionBounds(
+        d_selection_anchor, d_selection_focus).ToRECT();
+
+    MapWindowPoints(
+        d_hwnd.get(),
+        NULL,
+        (LPPOINT)&bounds,
+        2);
+
+    return gfx::Rect(bounds);
+}
+
+bool RenderWebView::GetCompositionCharacterBounds(
+    uint32_t index,
+    gfx::Rect* rect) const
+{
+    if (index >= d_composition_character_bounds.size()) {
+        return false;
+    }
+
+    auto bounds = d_composition_character_bounds[index].ToRECT();
+
+    MapWindowPoints(
+        d_hwnd.get(),
+        NULL,
+        (LPPOINT)&bounds,
+        2);
+
+    *rect = gfx::Rect(bounds);
+
+    return true;
+}
+
+bool RenderWebView::HasCompositionText() const
+{
+    return d_has_composition_text;
+}
+
+bool RenderWebView::GetTextRange(gfx::Range* range) const
+{
+    range->set_start(d_selection_text_offset);
+    range->set_end(d_selection_text_offset + d_selection_text.length());
+    return true;
+}
+
+bool RenderWebView::GetCompositionTextRange(gfx::Range* range) const
+{
+    NOTIMPLEMENTED();
+    return false;
+}
+
+bool RenderWebView::GetSelectionRange(gfx::Range* range) const
+{
+    range->set_start(d_selection_range.start());
+    range->set_end(d_selection_range.end());
+    return true;
+}
+
+bool RenderWebView::SetSelectionRange(const gfx::Range& range)
+{
+    NOTIMPLEMENTED();
+    return false;
+}
+
+bool RenderWebView::DeleteRange(const gfx::Range& range)
+{
+    NOTIMPLEMENTED();
+    return false;
+}
+
+bool RenderWebView::GetTextFromRange(
+    const gfx::Range& range,
+    base::string16* text) const
+{
+    gfx::Range selection_text_range(
+        d_selection_text_offset,
+        d_selection_text_offset + d_selection_text.length());
+
+    if (!selection_text_range.Contains(range)) {
+        text->clear();
+        return false;
+    }
+
+    if (selection_text_range.EqualsIgnoringDirection(range)) {
+        *text = d_selection_text;
+    }
+    else {
+        *text = d_selection_text.substr(
+            range.GetMin() - d_selection_text_offset,
+            range.length());
+    }
+
+    return true;
+}
+
+void RenderWebView::OnInputMethodChanged()
+{
+}
+
+bool RenderWebView::ChangeTextDirectionAndLayoutAlignment(
+    base::i18n::TextDirection direction)
+{
+    dispatchToRenderViewImpl(
+        ViewMsg_SetTextDirection(d_renderViewRoutingId,
+            direction == base::i18n::RIGHT_TO_LEFT?
+                blink::WebTextDirectionRightToLeft :
+                blink::WebTextDirectionLeftToRight));
+
+    return true;
+}
+
+void RenderWebView::ExtendSelectionAndDelete(size_t before, size_t after)
+{
+    //TODO
+}
+
+void RenderWebView::EnsureCaretInRect(const gfx::Rect& rect)
+{
+    //TODO
+}
+
+bool RenderWebView::IsTextEditCommandEnabled(ui::TextEditCommand command) const
+{
+    return false;
+}
+
+void RenderWebView::SetTextEditCommandForNextKeyEvent(ui::TextEditCommand command)
+{
+}
+
+void RenderWebView::OnImeCompositionRangeChanged(
+        const gfx::Range& range,
+        const std::vector<gfx::Rect>& character_bounds)
+{
+    d_composition_character_bounds = character_bounds;
+}
+
+void RenderWebView::OnImeCancelComposition()
+{
+    d_input_method->CancelComposition(this);
+    d_has_composition_text = false;
 }
 
 void RenderWebView::OnInputEventAck(const content::InputEventAck& ack)
@@ -938,6 +1321,63 @@ void RenderWebView::OnLockMouse(
             GetCapture() == d_hwnd.get()));
 }
 
+void RenderWebView::OnSelectionBoundsChanged(
+    const ViewHostMsg_SelectionBounds_Params& params)
+{
+    gfx::SelectionBound anchor_bound, focus_bound;
+    anchor_bound.SetEdge(
+        gfx::PointF(params.anchor_rect.origin()),
+        gfx::PointF(params.anchor_rect.bottom_left()));
+    focus_bound.SetEdge(
+        gfx::PointF(params.focus_rect.origin()),
+        gfx::PointF(params.focus_rect.bottom_left()));
+
+    if (params.anchor_rect == params.focus_rect) {
+        anchor_bound.set_type(gfx::SelectionBound::CENTER);
+        focus_bound.set_type(gfx::SelectionBound::CENTER);
+    } else {
+        // Whether text is LTR at the anchor handle.
+        bool anchor_LTR = params.anchor_dir == blink::WebTextDirectionLeftToRight;
+        // Whether text is LTR at the focus handle.
+        bool focus_LTR = params.focus_dir == blink::WebTextDirectionLeftToRight;
+
+        if ((params.is_anchor_first && anchor_LTR) ||
+            (!params.is_anchor_first && !anchor_LTR)) {
+            anchor_bound.set_type(gfx::SelectionBound::LEFT);
+        }
+        else {
+            anchor_bound.set_type(gfx::SelectionBound::RIGHT);
+        }
+
+        if ((params.is_anchor_first && focus_LTR) ||
+            (!params.is_anchor_first && !focus_LTR)) {
+            focus_bound.set_type(gfx::SelectionBound::RIGHT);
+        }
+        else {
+            focus_bound.set_type(gfx::SelectionBound::LEFT);
+        }
+    }
+
+    if (anchor_bound == d_selection_anchor && focus_bound == d_selection_focus)
+        return;
+
+    d_selection_anchor = anchor_bound;
+    d_selection_focus = focus_bound;
+
+    d_input_method->OnCaretBoundsChanged(this);
+}
+
+void RenderWebView::OnSelectionChanged(
+    const base::string16& text,
+    uint32_t offset,
+    const gfx::Range& range)
+{
+    d_selection_text = text;
+    d_selection_text_offset = offset;
+    d_selection_range.set_start(range.start());
+    d_selection_range.set_end(range.end());
+}
+
 void RenderWebView::OnSetCursor(const content::WebCursor& cursor)
 {
     if (!d_current_cursor.IsEqual(cursor)) {
@@ -952,6 +1392,37 @@ void RenderWebView::OnSetCursor(const content::WebCursor& cursor)
         else {
             setPlatformCursor(d_current_cursor.GetPlatformCursor());
         }
+    }
+}
+
+void RenderWebView::OnTextInputStateChanged(
+    const content::TextInputState& text_input_state)
+{
+    auto changed =
+        (d_text_input_state.type               != text_input_state.type)  ||
+        (d_text_input_state.mode               != text_input_state.mode)  ||
+        (d_text_input_state.flags              != text_input_state.flags) ||
+        (d_text_input_state.can_compose_inline != text_input_state.can_compose_inline);
+
+    d_text_input_state = text_input_state;
+
+    if (changed) {
+        d_input_method->OnTextInputTypeChanged(this);
+    }
+
+    if (d_text_input_state.show_ime_if_needed) {
+        d_input_method->ShowImeIfNeeded();
+    }
+
+    if (d_text_input_state.type != ui::TEXT_INPUT_TYPE_NONE) {
+        dispatchToRenderViewImpl(
+            InputMsg_RequestCompositionUpdate(d_renderViewRoutingId,
+                false, true));
+    }
+    else {
+        dispatchToRenderViewImpl(
+            InputMsg_RequestCompositionUpdate(d_renderViewRoutingId,
+                false, false));
     }
 }
 
@@ -994,14 +1465,24 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
 {
     bool handled = true;
     IPC_BEGIN_MESSAGE_MAP(RenderWebView, message)
+        IPC_MESSAGE_HANDLER(FrameHostMsg_SelectionChanged,
+            OnSelectionChanged)
         IPC_MESSAGE_HANDLER(InputHostMsg_HandleInputEvent_ACK,
             OnInputEventAck)
+        IPC_MESSAGE_HANDLER(InputHostMsg_ImeCancelComposition,
+            OnImeCancelComposition)
+        IPC_MESSAGE_HANDLER(InputHostMsg_ImeCompositionRangeChanged,
+            OnImeCompositionRangeChanged)
         IPC_MESSAGE_HANDLER(ViewHostMsg_LockMouse,
             OnLockMouse)
         IPC_MESSAGE_HANDLER(ViewHostMsg_SetCursor,
             OnSetCursor)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_SelectionBoundsChanged,
+            OnSelectionBoundsChanged)
         IPC_MESSAGE_HANDLER(ViewHostMsg_UnlockMouse,
             OnUnlockMouse)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_TextInputStateChanged,
+            OnTextInputStateChanged)
         IPC_MESSAGE_UNHANDLED(handled = false)
     IPC_END_MESSAGE_MAP()
 

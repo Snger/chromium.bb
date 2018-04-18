@@ -32,8 +32,14 @@
 #include <blpwtk2_webviewproperties.h>
 
 #include <content/common/cursors/webcursor.h>
+#include <content/common/text_input_state.h>
 #include <ipc/ipc_listener.h>
+#include <ui/base/ime/input_method_delegate.h>
+#include <ui/base/ime/text_input_client.h>
+#include <ui/gfx/selection_bound.h>
 #include <ui/gfx/geometry/size.h>
+
+struct ViewHostMsg_SelectionBounds_Params;
 
 namespace blink {
 class WebInputEvent;
@@ -41,6 +47,7 @@ class WebInputEvent;
 
 namespace content {
 struct InputEventAck;
+struct TextInputState;
 class WebCursor;
 }  // close namespace content
 
@@ -50,6 +57,7 @@ class Point;
 
 namespace ui {
 class CursorLoader;
+class InputMethod;
 }  // close namespace ui
 
 namespace blpwtk2 {
@@ -65,6 +73,8 @@ class WebFrameImpl;
 class RenderWebView final : public WebView
                           , public WebViewClientDelegate
                           , private IPC::Listener
+                          , private ui::internal::InputMethodDelegate
+                          , private ui::TextInputClient
 {
     // DATA
     WebViewClient *d_client;
@@ -99,6 +109,17 @@ class RenderWebView final : public WebView
     bool d_is_cursor_overridden = false;
     HCURSOR d_current_platform_cursor = NULL, d_previous_platform_cursor = NULL;
 
+    bool d_focused = false;
+    std::unique_ptr<ui::InputMethod> d_input_method;
+    gfx::Range d_composition_range;
+    std::vector<gfx::Rect> d_composition_character_bounds;
+    bool d_has_composition_text = false;
+    content::TextInputState d_text_input_state;
+    gfx::SelectionBound d_selection_anchor, d_selection_focus;
+    base::string16 d_selection_text;
+    std::size_t d_selection_text_offset = 0;
+    gfx::Range d_selection_range;
+
     static LPCTSTR GetWindowClass();
     static LRESULT CALLBACK WindowProcedure(HWND   hWnd,
                                             UINT   uMsg,
@@ -111,6 +132,7 @@ class RenderWebView final : public WebView
     bool dispatchToRenderViewImpl(const IPC::Message& message);
     void updateVisibility();
     void updateSize();
+    void updateFocus();
     void setPlatformCursor(HCURSOR cursor);
     void dispatchInputEvent(const blink::WebInputEvent& event);
 
@@ -124,6 +146,10 @@ class RenderWebView final : public WebView
     int goForward() override;
     int reload() override;
     void stop() override;
+#if defined(BLPWTK2_FEATURE_FOCUS)
+    void takeKeyboardFocus() override;
+    void setLogicalFocus(bool focused) override;
+#endif
     void show() override;
     void hide() override;
     void setParent(NativeView parent) override;
@@ -157,12 +183,56 @@ class RenderWebView final : public WebView
     // IPC::Listener overrides
     bool OnMessageReceived(const IPC::Message& message) override;
 
+    // ui::internal::InputMethodDelegate overrides:
+    ui::EventDispatchDetails DispatchKeyEventPostIME(
+        ui::KeyEvent* key_event) override;
+
+    // ui::TextInputClient overrides:
+    void SetCompositionText(const ui::CompositionText& composition) override;
+    void ConfirmCompositionText() override;
+    void ClearCompositionText() override;
+    void InsertText(const base::string16& text) override;
+    void InsertChar(const ui::KeyEvent& event) override;
+    ui::TextInputType GetTextInputType() const override;
+    ui::TextInputMode GetTextInputMode() const override;
+    base::i18n::TextDirection GetTextDirection() const override;
+    int GetTextInputFlags() const override;
+    bool CanComposeInline() const override;
+    gfx::Rect GetCaretBounds() const override;
+    bool GetCompositionCharacterBounds(uint32_t index,
+        gfx::Rect* rect) const override;
+    bool HasCompositionText() const override;
+    bool GetTextRange(gfx::Range* range) const override;
+    bool GetCompositionTextRange(gfx::Range* range) const override;
+    bool GetSelectionRange(gfx::Range* range) const override;
+    bool SetSelectionRange(const gfx::Range& range) override;
+    bool DeleteRange(const gfx::Range& range) override;
+    bool GetTextFromRange(const gfx::Range& range,
+        base::string16* text) const override;
+    void OnInputMethodChanged() override;
+    bool ChangeTextDirectionAndLayoutAlignment(
+        base::i18n::TextDirection direction) override;
+    void ExtendSelectionAndDelete(size_t before, size_t after) override;
+    void EnsureCaretInRect(const gfx::Rect& rect) override;
+    bool IsTextEditCommandEnabled(ui::TextEditCommand command) const override;
+    void SetTextEditCommandForNextKeyEvent(ui::TextEditCommand command) override;
+
     // Message handlers
+    void OnImeCompositionRangeChanged(
+        const gfx::Range& range,
+        const std::vector<gfx::Rect>& character_bounds);
+    void OnImeCancelComposition();
     void OnInputEventAck(const content::InputEventAck& ack);
     void OnLockMouse(bool user_gesture,
         bool last_unlocked_by_target,
         bool privileged);
+    void OnSelectionBoundsChanged(
+        const ViewHostMsg_SelectionBounds_Params& params);
+    void OnSelectionChanged(const base::string16& text,
+        uint32_t offset,
+        const gfx::Range& range);
     void OnSetCursor(const content::WebCursor& cursor);
+    void OnTextInputStateChanged(const content::TextInputState& params);
     void OnUnlockMouse();
 
     DISALLOW_COPY_AND_ASSIGN(RenderWebView);
