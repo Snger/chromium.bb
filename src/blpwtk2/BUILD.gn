@@ -161,6 +161,8 @@ shared_library("blpwtk2") {
     "private/blpwtk2_rendererutil.h",
     "private/blpwtk2_renderviewobserverimpl.cc",
     "private/blpwtk2_renderviewobserverimpl.h",
+    "private/blpwtk2_renderwebview.cc",
+    "private/blpwtk2_renderwebview.h",
     "private/blpwtk2_resourcecontextimpl.cc",
     "private/blpwtk2_resourcecontextimpl.h",
     "private/blpwtk2_statics.cc",
@@ -348,7 +350,7 @@ executable("blpwtk2_shell") {
 
   if (is_official_build) {
     configs -= [ "//build/config/compiler:default_optimization" ]
-    configs += [ "//build/config/compiler:optimize_max" ] 
+    configs += [ "//build/config/compiler:optimize_max" ]
   }
 
   deps = [

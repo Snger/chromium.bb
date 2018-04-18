@@ -23,6 +23,7 @@
 #include <blpwtk2_profileimpl.h>
 
 #include <blpwtk2_browsercontextimpl.h>
+#include <blpwtk2_renderwebview.h>
 #include <blpwtk2_webviewproxy.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
@@ -31,6 +32,7 @@
 
 #include <base/bind.h>
 #include <base/message_loop/message_loop.h>
+#include <base/process/process_handle.h>
 #include <ipc/ipc_sender.h>
 #include <ipc/ipc_sync_channel.h>
 #include <content/public/renderer/render_thread.h>
@@ -200,6 +202,37 @@ static void onWebViewCreated(
     delegate->created(proxy);
     delete webViewHostPtr;
 }
+static void onRenderWebViewCreated(
+        RenderWebView               *renderWebView,
+        WebViewDelegate             *delegate,
+        mojom::WebViewHostPtr       *webViewHostPtr,
+        mojom::WebViewClientRequest  webViewClientRequest,
+        int                          status)
+{
+    DCHECK(0 == status);
+    if (status) {
+        static_cast<WebView*>(renderWebView)->destroy();
+        renderWebView = nullptr;
+    }
+    else {
+        // Create a webview client and a render webview.  They both have a
+        // reference to one another so that when one goes away, it can tell
+        // the other to dispose dangling references.
+        std::unique_ptr<WebViewClientImpl> webViewClientImpl =
+            std::make_unique<WebViewClientImpl>(std::move(*webViewHostPtr),
+                                                renderWebView);
+
+        renderWebView->setClient(webViewClientImpl.get());
+
+        // Bind the webview client to the request from process host.  This
+        // will make its lifetime managed by Mojo.
+        mojo::MakeStrongBinding(std::move(webViewClientImpl),
+                                std::move(webViewClientRequest));
+    }
+
+    delegate->created(renderWebView);
+    delete webViewHostPtr;
+}
 
 void ProfileImpl::createWebView(WebViewDelegate            *delegate,
                                 const WebViewCreateParams&  params)
@@ -209,24 +242,50 @@ void ProfileImpl::createWebView(WebViewDelegate            *delegate,
     const mojom::WebViewCreateParams *createParams =
         getWebViewCreateParamsImpl(params);
 
-    // Create a new instance of WebViewProxy.
-    WebViewProxy *proxy = new WebViewProxy(delegate, this);
-
-    // Ask the process host to create a webview host. 
+    // Ask the process host to create a webview host.
     mojom::WebViewHostPtr *webViewHostPtr =
         new mojom::WebViewHostPtr;
 
     auto taskRunner =
         base::MessageLoop::current()->task_runner();
 
-    d_hostPtr->createWebView(
-        mojo::MakeRequest(webViewHostPtr, taskRunner),
-        createParams->Clone(),
-        base::Bind(
-            &onWebViewCreated,
-            proxy,
-            delegate,
-            webViewHostPtr));
+    if (Statics::rendererUIEnabled &&
+        Statics::isInProcessRendererEnabled &&
+        params.rendererAffinity() == (int)base::GetCurrentProcId()) {
+        WebViewProperties properties;
+
+        properties.domPasteEnabled =
+            params.domPasteEnabled();
+        properties.javascriptCanAccessClipboard =
+            params.javascriptCanAccessClipboard();
+        properties.rerouteMouseWheelToAnyRelatedWindow =
+            params.rerouteMouseWheelToAnyRelatedWindow();
+
+        // Create a new instance of RenderWebView.
+        RenderWebView *renderWebView = new RenderWebView(delegate, this, properties);
+
+        d_hostPtr->createWebView(
+            mojo::MakeRequest(webViewHostPtr, taskRunner),
+            createParams->Clone(),
+            base::Bind(
+                &onRenderWebViewCreated,
+                renderWebView,
+                delegate,
+                webViewHostPtr));
+    }
+    else {
+        // Create a new instance of WebViewProxy.
+        WebViewProxy *proxy = new WebViewProxy(delegate, this);
+
+        d_hostPtr->createWebView(
+            mojo::MakeRequest(webViewHostPtr, taskRunner),
+            createParams->Clone(),
+            base::Bind(
+                &onWebViewCreated,
+                proxy,
+                delegate,
+                webViewHostPtr));
+    }
 }
 
 void ProfileImpl::addHttpProxy(ProxyType        type,

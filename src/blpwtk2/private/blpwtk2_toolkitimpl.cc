@@ -34,6 +34,7 @@
 #include <blpwtk2_processhostimpl.h>
 #include <blpwtk2_products.h>
 #include <blpwtk2_profileimpl.h>
+#include <blpwtk2_renderwebview.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
 #include <blpwtk2_webviewcreateparams.h>
