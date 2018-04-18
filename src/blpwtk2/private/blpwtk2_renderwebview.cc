@@ -24,6 +24,7 @@
 
 #include <blpwtk2_webviewclient.h>
 #include <blpwtk2_contextmenuparams.h>
+#include <blpwtk2_dragdrop.h>
 #include <blpwtk2_profileimpl.h>
 #include <blpwtk2_rendercompositor.h>
 #include <blpwtk2_rendermessagedelegate.h>
@@ -37,6 +38,7 @@
 #include <base/win/scoped_gdi_object.h>
 #include <content/browser/renderer_host/display_util.h>
 #include <content/common/frame_messages.h>
+#include <content/common/drag_messages.h>
 #include <content/common/input_messages.h>
 #include <content/common/view_messages.h>
 #include <content/renderer/render_thread_impl.h>
@@ -158,6 +160,8 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
         base::Bind(&RenderWebView::OnSessionChange,
                    base::Unretained(this))
     ));
+
+    d_dragDrop = new DragDrop(d_hwnd.get(), this);
 
     RECT rect;
     GetWindowRect(d_hwnd.get(), &rect);
@@ -1543,6 +1547,92 @@ const std::string& RenderWebView::GetClientSourceInfo() const
     return result;
 }
 
+// DragDropDelegate overrides:
+void RenderWebView::DragTargetEnter(
+    const std::vector<content::DropData::Metadata>& drag_data_metadata,
+    const gfx::PointF& client_pt,
+    const gfx::PointF& screen_pt,
+    blink::WebDragOperationsMask ops_allowed,
+    int key_modifiers)
+{
+    dispatchToRenderViewImpl(
+        DragMsg_TargetDragEnter(d_renderViewRoutingId,
+            drag_data_metadata,
+            client_pt, screen_pt,
+            ops_allowed,
+            key_modifiers));
+}
+
+void RenderWebView::DragTargetOver(
+    const gfx::PointF& client_pt,
+    const gfx::PointF& screen_pt,
+    blink::WebDragOperationsMask ops_allowed,
+    int key_modifiers)
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    dispatchToRenderViewImpl(
+        DragMsg_TargetDragOver(d_renderViewRoutingId,
+            client_pt, screen_pt,
+            ops_allowed,
+            key_modifiers));
+}
+
+void RenderWebView::DragTargetLeave()
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    dispatchToRenderViewImpl(
+        DragMsg_TargetDragLeave(d_renderViewRoutingId,
+            gfx::PointF(), gfx::PointF()));
+}
+
+void RenderWebView::DragTargetDrop(
+    const content::DropData& drop_data,
+    const gfx::PointF& client_pt,
+    const gfx::PointF& screen_pt,
+    int key_modifiers)
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    dispatchToRenderViewImpl(
+        DragMsg_TargetDrop(d_renderViewRoutingId,
+            drop_data,
+            client_pt, screen_pt,
+            key_modifiers));
+}
+
+void RenderWebView::DragSourceEnded(
+    const gfx::PointF& client_pt,
+    const gfx::PointF& screen_pt,
+    blink::WebDragOperation drag_operation)
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    dispatchToRenderViewImpl(
+        DragMsg_SourceEnded(d_renderViewRoutingId,
+            client_pt, screen_pt,
+            drag_operation));
+}
+
+void RenderWebView::DragSourceSystemEnded()
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    dispatchToRenderViewImpl(
+        DragMsg_SourceSystemDragEnded(d_renderViewRoutingId));
+}
+
 void RenderWebView::OnImeCompositionRangeChanged(
         const gfx::Range& range,
         const std::vector<gfx::Rect>& character_bounds)
@@ -1649,6 +1739,17 @@ void RenderWebView::OnSetCursor(const content::WebCursor& cursor)
     }
 }
 
+void RenderWebView::OnStartDragging(
+    const content::DropData& drop_data,
+    blink::WebDragOperationsMask operations_allowed,
+    const SkBitmap& bitmap,
+    const gfx::Vector2d& bitmap_offset_in_dip,
+    const content::DragEventSourceInfo& event_info)
+{
+    d_dragDrop->StartDragging(
+        drop_data, operations_allowed, bitmap, bitmap_offset_in_dip, event_info);
+}
+
 void RenderWebView::OnTextInputStateChanged(
     const content::TextInputState& text_input_state)
 {
@@ -1688,6 +1789,12 @@ void RenderWebView::OnUnlockMouse()
     }
 }
 
+void RenderWebView::OnUpdateDragCursor(
+    blink::WebDragOperation drag_operation)
+{
+    d_dragDrop->UpdateDragCursor(drag_operation);
+}
+
 void RenderWebView::onLoadStatus(int status)
 {
     d_pendingLoadStatus = false;
@@ -1720,6 +1827,10 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
 {
     bool handled = true;
     IPC_BEGIN_MESSAGE_MAP(RenderWebView, message)
+        IPC_MESSAGE_HANDLER(DragHostMsg_StartDragging,
+            OnStartDragging)
+        IPC_MESSAGE_HANDLER(DragHostMsg_UpdateDragCursor,
+            OnUpdateDragCursor)
         IPC_MESSAGE_HANDLER(FrameHostMsg_Detach,
             OnDetach)
         IPC_MESSAGE_HANDLER(FrameHostMsg_SelectionChanged,

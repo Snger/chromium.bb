@@ -33,8 +33,15 @@
 #include <mojo/public/cpp/bindings/sync_call_restrictions.h>
 #include <third_party/blink/public/platform/web_runtime_features.h>
 #include <third_party/blink/public/web/win/web_font_rendering.h>
+#include <ui/base/win/scoped_ole_initializer.h>
 #include <ui/gfx/win/direct_write.h>
 #include <ui/display/win/dpi.h>
+
+namespace {
+
+std::unique_ptr<ui::ScopedOleInitializer> g_oleInitializer;
+
+}
 
 namespace blpwtk2 {
 
@@ -163,6 +170,8 @@ void InProcessRenderer::init(
                                                 Statics::rendererMessageLoop);
 
         DCHECK(Statics::rendererMessageLoop);
+
+        g_oleInitializer.reset(new ui::ScopedOleInitializer());
     }
 }
 
@@ -178,6 +187,8 @@ void InProcessRenderer::cleanup()
     }
     else {
         RenderCompositorContext::Terminate();
+
+        g_oleInitializer.reset();
 
         DCHECK(Statics::rendererMessageLoop);
         DCHECK(!g_inProcessRendererThread);

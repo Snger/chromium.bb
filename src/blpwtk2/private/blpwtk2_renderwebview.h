@@ -26,6 +26,7 @@
 #include <blpwtk2.h>
 #include <blpwtk2_config.h>
 
+#include <blpwtk2_dragdrop.h>
 #include <blpwtk2_scopedhwnd.h>
 #include <blpwtk2_webview.h>
 #include <blpwtk2_webviewclientdelegate.h>
@@ -35,6 +36,7 @@
 #include <content/common/cursors/webcursor.h>
 #include <content/public/renderer/render_view_observer.h>
 #include <ipc/ipc_listener.h>
+#include <third_party/blink/public/platform/web_drag_operation.h>
 #include <ui/base/ime/input_method_delegate.h>
 #include <ui/base/ime/text_input_client.h>
 #include <ui/gfx/selection_bound.h>
@@ -43,12 +45,15 @@
 #include <ui/views/win/windows_session_change_observer.h>
 
 struct ViewHostMsg_SelectionBounds_Params;
+class SkBitmap;
 
 namespace blink {
 class WebInputEvent;
 } // close namespace blink
 
 namespace content {
+struct DragEventSourceInfo;
+struct DropData;
 struct InputEventAck;
 struct TextInputState;
 class WebCursor;
@@ -60,6 +65,7 @@ class Point;
 
 namespace ui {
 class CursorLoader;
+class DropTargetWin;
 class InputMethod;
 }  // close namespace ui
 
@@ -82,6 +88,7 @@ class RenderWebView final : public WebView
                           , private IPC::Listener
                           , private ui::internal::InputMethodDelegate
                           , private ui::TextInputClient
+                          , private DragDropDelegate
 {
     class RenderViewObserver : public content::RenderViewObserver {
       private:
@@ -155,6 +162,8 @@ class RenderWebView final : public WebView
     base::string16 d_selection_text;
     std::size_t d_selection_text_offset = 0;
     gfx::Range d_selection_range;
+
+    scoped_refptr<DragDrop> d_dragDrop;
 
     static LPCTSTR GetWindowClass();
     static LRESULT CALLBACK WindowProcedure(HWND   hWnd,
@@ -263,7 +272,32 @@ class RenderWebView final : public WebView
     void SetTextEditCommandForNextKeyEvent(ui::TextEditCommand command) override;
     const std::string& GetClientSourceInfo() const override;
 
+    // DragDropDelegate overrides:
+    void DragTargetEnter(
+        const std::vector<content::DropData::Metadata>& drop_data,
+        const gfx::PointF& client_pt,
+        const gfx::PointF& screen_pt,
+        blink::WebDragOperationsMask ops_allowed,
+        int key_modifiers) override;
+    void DragTargetOver(
+        const gfx::PointF& client_pt,
+        const gfx::PointF& screen_pt,
+        blink::WebDragOperationsMask ops_allowed,
+        int key_modifiers) override;
+    void DragTargetLeave() override;
+    void DragTargetDrop(
+        const content::DropData& drop_data,
+        const gfx::PointF& client_pt,
+        const gfx::PointF& screen_pt,
+        int key_modifiers) override;
+    void DragSourceEnded(
+        const gfx::PointF& client_pt,
+        const gfx::PointF& screen_pt,
+        blink::WebDragOperation drag_operation) override;
+    void DragSourceSystemEnded() override;
+
     // Message handlers
+    void OnDetach();
     void OnImeCompositionRangeChanged(
         const gfx::Range& range,
         const std::vector<gfx::Rect>& character_bounds);
@@ -278,9 +312,16 @@ class RenderWebView final : public WebView
         uint32_t offset,
         const gfx::Range& range);
     void OnSetCursor(const content::WebCursor& cursor);
+    void OnStartDragging(
+        const content::DropData& drop_data,
+        blink::WebDragOperationsMask operations_allowed,
+        const SkBitmap& bitmap,
+        const gfx::Vector2d& bitmap_offset_in_dip,
+        const content::DragEventSourceInfo& event_info);
     void OnTextInputStateChanged(const content::TextInputState& params);
     void OnUnlockMouse();
-    void OnDetach();
+    void OnUpdateDragCursor(
+        blink::WebDragOperation drag_operation);
     bool OnResizeOrRepaintACK();
 
     DISALLOW_COPY_AND_ASSIGN(RenderWebView);

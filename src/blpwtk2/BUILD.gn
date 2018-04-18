@@ -143,6 +143,8 @@ shared_library("blpwtk2") {
     "private/blpwtk2_devtoolsfrontendhostdelegateimpl.h",
     "private/blpwtk2_devtoolsmanagerdelegateimpl.cc",
     "private/blpwtk2_devtoolsmanagerdelegateimpl.h",
+    "private/blpwtk2_dragdrop.cc",
+    "private/blpwtk2_dragdrop.h",
     "private/blpwtk2_dllmain.cc",
     "private/blpwtk2_findonpage.cc",
     "private/blpwtk2_findonpage.h",
