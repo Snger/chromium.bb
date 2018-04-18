@@ -34,7 +34,9 @@
 #include <blpwtk2_blob.h>
 #include <blpwtk2_rendererutil.h>
 
+#include <base/win/scoped_gdi_object.h>
 #include <content/common/frame_messages.h>
+#include <content/common/input_messages.h>
 #include <content/common/view_messages.h>
 #include <content/renderer/render_thread_impl.h>
 #include <content/renderer/render_view_impl.h>
@@ -42,14 +44,31 @@
 #include <content/public/renderer/render_view.h>
 #include <third_party/WebKit/public/web/WebLocalFrame.h>
 #include <third_party/WebKit/public/web/WebView.h>
+#include <ui/base/cursor/cursor_loader.h>
 #include <ui/base/win/lock_state.h>
+#include <ui/events/blink/web_input_event.h>
+#include "ui/events/blink/web_input_event_traits.h"
+#include <ui/events/event.h>
+#include <ui/events/event_utils.h>
+#include <ui/latency/latency_info.h>
+#include <ui/gfx/icon_util.h>
 
 #include <dwmapi.h>
 #include <windows.h>
+#include <windowsx.h>
 #include <unordered_map>
 #include <unordered_set>
 
 #define GetAValue(argb)      (LOBYTE((argb)>>24))
+
+namespace {
+
+gfx::Point GetScreenLocationFromEvent(const ui::LocatedEvent& event)
+{
+    return event.root_location();
+}
+
+}
 
 namespace blpwtk2 {
 
@@ -70,6 +89,14 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
     , d_isMainFrameAccessible(false)
     , d_pendingDestroy(false)
     , d_properties(properties)
+    , d_cursor_loader(ui::CursorLoader::Create())
+    , d_current_platform_cursor(LoadCursor(NULL, IDC_ARROW))
+    , d_wheel_scroll_latching_enabled(
+          base::FeatureList::IsEnabled(
+              features::kTouchpadAndWheelScrollLatching))
+    , d_raf_aligned_touch_enabled(
+          base::FeatureList::IsEnabled(
+              features::kRafAlignedTouchInputEvents))
 {
     d_profile->incrementWebViewCount();
 
@@ -230,6 +257,135 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
     } return 0;
     case WM_ERASEBKGND:
         return 1;
+    case WM_NCHITTEST: {
+        if (d_nc_hit_test_enabled && d_delegate) {
+            d_nc_hit_test_result = HTCLIENT;
+            d_delegate->requestNCHitTest(this);
+            return d_nc_hit_test_result;
+        }
+    } break;
+    case WM_MOUSEMOVE:
+    case WM_MOUSELEAVE:
+    case WM_LBUTTONDBLCLK:
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONUP:
+    case WM_MBUTTONDBLCLK:
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONUP:
+    case WM_RBUTTONDBLCLK:
+    case WM_RBUTTONDOWN:
+    case WM_RBUTTONUP: {
+        MSG msg;
+        msg.hwnd    = d_hwnd.get();
+        msg.message = uMsg;
+        msg.wParam  = wParam;
+        msg.lParam  = lParam;
+        msg.time    = GetMessageTime();
+
+        auto pt     = GetMessagePos();
+        msg.pt.x    = GET_X_LPARAM(pt);
+        msg.pt.y    = GET_Y_LPARAM(pt);
+
+        switch (uMsg) {
+        // Mouse:
+        case WM_MOUSEMOVE:
+        case WM_MOUSELEAVE:
+        case WM_LBUTTONDBLCLK:
+        case WM_LBUTTONDOWN:
+        case WM_LBUTTONUP:
+        case WM_MBUTTONDBLCLK:
+        case WM_MBUTTONDOWN:
+        case WM_MBUTTONUP:
+        case WM_RBUTTONDBLCLK:
+        case WM_RBUTTONDOWN:
+        case WM_RBUTTONUP: {
+            // Mouse enter/leave:
+            switch (uMsg) {
+            case WM_MOUSEMOVE: {
+                if (!d_mouse_entered) {
+                    TRACKMOUSEEVENT track_mouse_event = {
+                        sizeof(TRACKMOUSEEVENT),
+                        TME_LEAVE,
+                        d_hwnd.get(),
+                        0
+                    };
+
+                    if (TrackMouseEvent(&track_mouse_event)) {
+                        d_mouse_entered = true;
+                    }
+                }
+            } break;
+            case WM_MOUSELEAVE: {
+                d_mouse_entered = false;
+            } break;
+            // Capture on mouse button down:
+            case WM_LBUTTONDOWN:
+            case WM_MBUTTONDOWN:
+            case WM_RBUTTONDOWN: {
+                SetCapture(d_hwnd.get());
+            } break;
+            // Capture on mouse button up:
+            case WM_LBUTTONUP:
+            case WM_MBUTTONUP:
+            case WM_RBUTTONUP: {
+                ReleaseCapture();
+            } break;
+            }
+
+            ui::MouseEvent event(msg);
+
+            dispatchInputEvent(
+                ui::MakeWebMouseEvent(
+                    event,
+                    base::Bind(&GetScreenLocationFromEvent)));
+
+            return 0;
+        } break;
+        }
+    } break;
+    case WM_MOUSEACTIVATE: {
+        if (GetWindowLong(d_hwnd.get(), GWL_EXSTYLE) & WS_EX_NOACTIVATE) {
+            return MA_NOACTIVATE;
+        }
+    } break;
+    case WM_SETCURSOR: {
+        wchar_t *cursor = IDC_ARROW;
+
+        switch (LOWORD(lParam)) {
+        case HTSIZE:
+            cursor = IDC_SIZENWSE;
+            break;
+        case HTLEFT:
+        case HTRIGHT:
+            cursor = IDC_SIZEWE;
+            break;
+        case HTTOP:
+        case HTBOTTOM:
+            cursor = IDC_SIZENS;
+            break;
+        case HTTOPLEFT:
+        case HTBOTTOMRIGHT:
+        case HTOBJECT:
+            cursor = IDC_SIZENWSE;
+            break;
+        case HTTOPRIGHT:
+        case HTBOTTOMLEFT:
+            cursor = IDC_SIZENESW;
+            break;
+        case HTCLIENT:
+            d_is_cursor_overridden = false;
+            setPlatformCursor(d_current_platform_cursor);
+            return 1;
+        case LOWORD(HTERROR):
+            return 0;
+        default:
+            break;
+        }
+
+        d_is_cursor_overridden = true;
+        SetCursor(
+            LoadCursor(NULL, cursor));
+    } return 1;
     default:
         break;
     }
@@ -315,6 +471,23 @@ void RenderWebView::updateVisibility()
     }
 }
 
+void RenderWebView::setPlatformCursor(HCURSOR cursor)
+{
+    if (d_is_cursor_overridden) {
+        d_current_platform_cursor = cursor;
+        return;
+    }
+
+    if (cursor) {
+        d_previous_platform_cursor = SetCursor(cursor);
+        d_current_platform_cursor = cursor;
+    }
+    else if (d_previous_platform_cursor) {
+        SetCursor(d_previous_platform_cursor);
+        d_previous_platform_cursor = NULL;
+    }
+}
+
 void RenderWebView::updateSize()
 {
     if (!d_gotRenderViewInfo) {
@@ -332,6 +505,27 @@ void RenderWebView::updateSize()
     dispatchToRenderViewImpl(
         ViewMsg_Resize(d_renderViewRoutingId,
             resize_params));
+}
+
+
+
+void RenderWebView::dispatchInputEvent(const blink::WebInputEvent& event)
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    ui::LatencyInfo latency_info;
+
+    dispatchToRenderViewImpl(
+        InputMsg_HandleInputEvent(d_renderViewRoutingId,
+            &event,
+            {},
+            latency_info,
+            ui::WebInputEventTraits::ShouldBlockEventStream(
+                event, d_raf_aligned_touch_enabled, d_wheel_scroll_latching_enabled)?
+                content::InputEventDispatchType::DISPATCH_TYPE_BLOCKING :
+                content::InputEventDispatchType::DISPATCH_TYPE_NON_BLOCKING));
 }
 
 void RenderWebView::destroy()
@@ -590,13 +784,13 @@ void RenderWebView::deleteSelection()
 void RenderWebView::enableNCHitTest(bool enabled)
 {
     DCHECK(Statics::isInApplicationMainThread());
-    d_client->proxy()->enableNCHitTest(enabled);
+    d_nc_hit_test_enabled = enabled;
 }
 
 void RenderWebView::onNCHitTestResult(int x, int y, int result)
 {
     DCHECK(Statics::isInApplicationMainThread());
-    d_client->ncHitTestResult(x, y, result);
+    d_nc_hit_test_result = result;
 }
 
 void RenderWebView::performCustomContextMenuAction(int actionId)
@@ -839,6 +1033,48 @@ void RenderWebView::notifyRoutingId(int id)
     updateSize();
 }
 
+void RenderWebView::OnInputEventAck(const content::InputEventAck& ack)
+{
+    //TODO
+}
+
+void RenderWebView::OnLockMouse(
+    bool user_gesture,
+    bool privileged)
+{
+    if (GetCapture() != d_hwnd.get()) {
+        SetCapture(d_hwnd.get());
+    }
+
+    dispatchToRenderViewImpl(
+        ViewMsg_LockMouse_ACK(d_renderViewRoutingId,
+            GetCapture() == d_hwnd.get()));
+}
+
+void RenderWebView::OnSetCursor(const content::WebCursor& cursor)
+{
+    if (!d_current_cursor.IsEqual(cursor)) {
+        d_current_cursor = cursor;
+
+        if (!d_current_cursor.IsCustom()) {
+            auto native_cursor = d_current_cursor.GetNativeCursor();
+            d_cursor_loader->SetPlatformCursor(&native_cursor);
+
+            setPlatformCursor(native_cursor.platform());
+        }
+        else {
+            setPlatformCursor(d_current_cursor.GetPlatformCursor());
+        }
+    }
+}
+
+void RenderWebView::OnUnlockMouse()
+{
+    if (GetCapture() != d_hwnd.get()) {
+        ReleaseCapture();
+    }
+}
+
 void RenderWebView::onLoadStatus(int status)
 {
     d_pendingLoadStatus = false;
@@ -873,8 +1109,16 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
     IPC_BEGIN_MESSAGE_MAP(RenderWebView, message)
         IPC_MESSAGE_HANDLER(FrameHostMsg_Detach,
             OnDetach)
-        IPC_MESSAGE_HANDLER(ViewHostMsg_UpdateRect,
-            OnUpdateRect)
+        IPC_MESSAGE_HANDLER(InputHostMsg_HandleInputEvent_ACK,
+            OnInputEventAck)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_LockMouse,
+            OnLockMouse)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_SetCursor,
+            OnSetCursor)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_UnlockMouse,
+            OnUnlockMouse)
+    	IPC_MESSAGE_HANDLER(ViewHostMsg_UpdateRect,
+    	    OnUpdateRect)
         IPC_MESSAGE_UNHANDLED(handled = false)
     IPC_END_MESSAGE_MAP()
 

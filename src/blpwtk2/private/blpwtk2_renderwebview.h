@@ -31,6 +31,7 @@
 #include <blpwtk2_webviewclientdelegate.h>
 #include <blpwtk2_webviewproperties.h>
 
+#include <content/common/cursors/webcursor.h>
 #include <content/public/renderer/render_view_observer.h>
 #include <ipc/ipc_listener.h>
 #include <ui/gfx/geometry/size.h>
@@ -38,9 +39,22 @@
 
 struct ViewHostMsg_UpdateRect_Params;
 
+namespace blink {
+class WebInputEvent;
+} // close namespace blink
+
+namespace content {
+struct InputEventAck;
+class WebCursor;
+}  // close namespace content
+
 namespace gfx {
 class Point;
 }  // close namespace gfx
+
+namespace ui {
+class CursorLoader;
+}  // close namespace ui
 
 namespace views {
 class WindowsSessionChangeObserver;
@@ -91,14 +105,27 @@ class RenderWebView final : public WebView
     ScopedHWND d_hwnd;
 
     bool d_has_parent = false;
+
+    // Manages observation of Windows Session Change messages.
+    std::unique_ptr<views::WindowsSessionChangeObserver>
+        windows_session_change_observer_;
+
     bool d_shown = false, d_visible = false;
     gfx::Size d_size;
 
     std::unique_ptr<RenderCompositor> d_compositor;
 
-    // Manages observation of Windows Session Change messages.
-    std::unique_ptr<views::WindowsSessionChangeObserver>
-        windows_session_change_observer_;
+    bool d_nc_hit_test_enabled = false;
+    int d_nc_hit_test_result = 0;
+    bool d_mouse_entered = false;
+
+    // Who knew that cursor-setting would be such a hassle?
+    content::WebCursor d_current_cursor;
+    std::unique_ptr<ui::CursorLoader> d_cursor_loader;
+    bool d_is_cursor_overridden = false;
+    HCURSOR d_current_platform_cursor = NULL, d_previous_platform_cursor = NULL;
+    bool d_wheel_scroll_latching_enabled = false,
+         d_raf_aligned_touch_enabled = false;
 
     static LPCTSTR GetWindowClass();
     static LRESULT CALLBACK WindowProcedure(HWND   hWnd,
@@ -109,15 +136,16 @@ class RenderWebView final : public WebView
                             WPARAM wParam,
                             LPARAM lParam);
 
+    // Attempts to force the window to be redrawn, ensuring that it gets
+    // onscreen.
+    void ForceRedrawWindow(int attempts);
+    void OnSessionChange(WPARAM status_code);
     bool dispatchToRenderViewImpl(const IPC::Message& message);
     void OnRenderViewDestruct();
     void updateVisibility();
     void updateSize();
-
-    bool dispatchToRenderViewImpl(const IPC::Message& message);
-    void OnRenderViewDestruct();
-    void updateVisibility();
-    void updateSize();
+    void setPlatformCursor(HCURSOR cursor);
+    void dispatchInputEvent(const blink::WebInputEvent& event);
 
     // blpwtk2::WebView overrides
     void destroy() override;
@@ -165,7 +193,13 @@ class RenderWebView final : public WebView
     // IPC::Listener overrides
     bool OnMessageReceived(const IPC::Message& message) override;
 
-    // IPC message handlers:
+    // Message handlers
+    void OnInputEventAck(const content::InputEventAck& ack);
+    void OnLockMouse(
+        bool user_gesture,
+        bool privileged);
+    void OnSetCursor(const content::WebCursor& cursor);
+    void OnUnlockMouse();
     void OnDetach();
     void OnUpdateRect(const ViewHostMsg_UpdateRect_Params& params);
 
