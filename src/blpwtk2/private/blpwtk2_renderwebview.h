@@ -31,12 +31,26 @@
 #include <blpwtk2_webviewclientdelegate.h>
 #include <blpwtk2_webviewproperties.h>
 
+#include <content/common/cursors/webcursor.h>
 #include <ipc/ipc_listener.h>
 #include <ui/gfx/geometry/size.h>
+
+namespace blink {
+class WebInputEvent;
+} // close namespace blink
+
+namespace content {
+struct InputEventAck;
+class WebCursor;
+}  // close namespace content
 
 namespace gfx {
 class Point;
 }  // close namespace gfx
+
+namespace ui {
+class CursorLoader;
+}  // close namespace ui
 
 namespace blpwtk2 {
 
@@ -75,6 +89,16 @@ class RenderWebView final : public WebView
 
     std::unique_ptr<RenderCompositor> d_compositor;
 
+    bool d_nc_hit_test_enabled = false;
+    int d_nc_hit_test_result = 0;
+    bool d_mouse_entered = false;
+
+    // Who knew that cursor-setting would be such a hassle?
+    content::WebCursor d_current_cursor;
+    std::unique_ptr<ui::CursorLoader> d_cursor_loader;
+    bool d_is_cursor_overridden = false;
+    HCURSOR d_current_platform_cursor = NULL, d_previous_platform_cursor = NULL;
+
     static LPCTSTR GetWindowClass();
     static LRESULT CALLBACK WindowProcedure(HWND   hWnd,
                                             UINT   uMsg,
@@ -85,6 +109,10 @@ class RenderWebView final : public WebView
                             LPARAM lParam);
 
     bool dispatchToRenderViewImpl(const IPC::Message& message);
+    void updateVisibility();
+    void updateSize();
+    void setPlatformCursor(HCURSOR cursor);
+    void dispatchInputEvent(const blink::WebInputEvent& event);
 
     // blpwtk2::WebView overrides
     void destroy() override;
@@ -128,8 +156,14 @@ class RenderWebView final : public WebView
 
     // IPC::Listener overrides
     bool OnMessageReceived(const IPC::Message& message) override;
-    void updateVisibility();
-    void updateSize();
+
+    // Message handlers
+    void OnInputEventAck(const content::InputEventAck& ack);
+    void OnLockMouse(bool user_gesture,
+        bool last_unlocked_by_target,
+        bool privileged);
+    void OnSetCursor(const content::WebCursor& cursor);
+    void OnUnlockMouse();
 
     DISALLOW_COPY_AND_ASSIGN(RenderWebView);
 
