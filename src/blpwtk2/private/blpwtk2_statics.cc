@@ -37,6 +37,7 @@ bool Statics::hasDevTools = false;
 bool Statics::isInProcessRendererEnabled = true;
 bool Statics::inProcessResizeOptimizationDisabled = false;
 WebViewHostObserver* Statics::webViewHostObserver = 0;
+bool Statics::rendererUIEnabled = false;
 
 static int lastRoutingId = 0;
 

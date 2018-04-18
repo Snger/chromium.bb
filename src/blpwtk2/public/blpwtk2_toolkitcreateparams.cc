@@ -62,6 +62,7 @@ struct ToolkitCreateParamsImpl final
     bool d_inProcessResizeOptimizationDisabled;
     std::string d_profileDirectory;
     bool d_isIsolatedProfile;
+    bool d_rendererUIEnabled;
 
     ToolkitCreateParamsImpl();
 };
@@ -87,6 +88,7 @@ ToolkitCreateParamsImpl::ToolkitCreateParamsImpl()
     , d_useDefaultPrintSettings(false)
     , d_inProcessResizeOptimizationDisabled(false)
     , d_isIsolatedProfile(true)
+    , d_rendererUIEnabled(false)
 {
 }
 
@@ -249,6 +251,11 @@ void ToolkitCreateParams::disableIsolatedProfile()
     d_impl->d_isIsolatedProfile = false;
 }
 
+void ToolkitCreateParams::setRendererUIEnabled(bool rendererUIEnabled)
+{
+    d_impl->d_rendererUIEnabled = rendererUIEnabled;
+}
+
 ThreadMode ToolkitCreateParams::threadMode() const
 {
     return d_impl->d_threadMode;
@@ -359,6 +366,11 @@ StringRef ToolkitCreateParams::subProcessModule() const
 bool ToolkitCreateParams::isInProcessResizeOptimizationDisabled() const
 {
     return d_impl->d_inProcessResizeOptimizationDisabled;
+}
+
+bool ToolkitCreateParams::rendererUIEnabled() const
+{
+    return d_impl->d_rendererUIEnabled;
 }
 
 StringRef ToolkitCreateParams::profileDirectory() const
