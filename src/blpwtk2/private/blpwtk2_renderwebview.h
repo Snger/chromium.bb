@@ -25,6 +25,8 @@
 
 #include <blpwtk2.h>
 #include <blpwtk2_config.h>
+
+#include <blpwtk2_scopedhwnd.h>
 #include <blpwtk2_webview.h>
 #include <blpwtk2_webviewclientdelegate.h>
 #include <blpwtk2_webviewproperties.h>
@@ -61,6 +63,19 @@ class RenderWebView final : public WebView
 
     blpwtk2::WebViewProperties d_properties;
 
+    ScopedHWND d_hwnd;
+
+    bool d_has_parent = false;
+    bool d_shown = false, d_visible = false;
+
+    static LPCTSTR GetWindowClass();
+    static LRESULT CALLBACK WindowProcedure(HWND   hWnd,
+                                            UINT   uMsg,
+                                            WPARAM wParam,
+                                            LPARAM lParam);
+    LRESULT windowProcedure(UINT   uMsg,
+                            WPARAM wParam,
+                            LPARAM lParam);
 
     // blpwtk2::WebView overrides
     void destroy() override;
