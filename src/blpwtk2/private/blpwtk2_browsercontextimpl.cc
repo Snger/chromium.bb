@@ -269,6 +269,7 @@ void BrowserContextImpl::createWebView(
                         context? context: this,    // browser context
                         hostId,                    // host affinity
                         false,                     // initially visible
+                        false,                     // rendererUI
                         properties);               // properties
 
     delegate->created(webView);

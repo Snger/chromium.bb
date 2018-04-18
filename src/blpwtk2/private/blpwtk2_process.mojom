@@ -60,7 +60,7 @@ interface ProcessHost {
         // to associate the connection of the incoming request with the
         // correct instance of process host.
 
-    createWebView(WebViewHost& host, WebViewCreateParams params) => (WebViewClient& client, int32 status);
+    createWebView(WebViewHost& host, WebViewCreateParams params, bool rendererUI) => (WebViewClient& client, int32 status);
         // Create a new webview.
 
     [Sync]
@@ -90,7 +90,7 @@ interface ProcessHost {
 
     clearHttpProxies();
         // Clear the registered HTTP proxies.
-    
+
     clearHttpsProxies();
         // Clear the registered HTTPS proxies.
 
