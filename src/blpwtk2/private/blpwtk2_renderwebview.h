@@ -25,13 +25,21 @@
 
 #include <blpwtk2.h>
 #include <blpwtk2_config.h>
+
+#include <blpwtk2_scopedhwnd.h>
 #include <blpwtk2_webview.h>
 #include <blpwtk2_webviewclientdelegate.h>
 #include <blpwtk2_webviewproperties.h>
 
+#include <ui/views/win/windows_session_change_observer.h>
+
 namespace gfx {
 class Point;
 }  // close namespace gfx
+
+namespace views {
+class WindowsSessionChangeObserver;
+}  // close namespace views
 
 namespace blpwtk2 {
 
@@ -61,6 +69,28 @@ class RenderWebView final : public WebView
 
     blpwtk2::WebViewProperties d_properties;
 
+    ScopedHWND d_hwnd;
+
+    bool d_has_parent = false;
+    bool d_shown = false, d_visible = false;
+
+    // Manages observation of Windows Session Change messages.
+    std::unique_ptr<views::WindowsSessionChangeObserver>
+        windows_session_change_observer_;
+
+    static LPCTSTR GetWindowClass();
+    static LRESULT CALLBACK WindowProcedure(HWND   hWnd,
+                                            UINT   uMsg,
+                                            WPARAM wParam,
+                                            LPARAM lParam);
+    LRESULT windowProcedure(UINT   uMsg,
+                            WPARAM wParam,
+                            LPARAM lParam);
+
+    bool dispatchToRenderViewImpl(const IPC::Message& message);
+    void OnRenderViewDestruct();
+    void updateVisibility();
+    void updateSize();
 
     // blpwtk2::WebView overrides
     void destroy() override;

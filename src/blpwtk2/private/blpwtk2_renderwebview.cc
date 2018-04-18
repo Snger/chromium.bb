@@ -36,6 +36,7 @@
 #include <content/public/renderer/render_view.h>
 #include <third_party/WebKit/public/web/WebLocalFrame.h>
 #include <third_party/WebKit/public/web/WebView.h>
+#include <ui/base/win/lock_state.h>
 
 #include <dwmapi.h>
 #include <windows.h>
@@ -64,6 +65,119 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
     , d_properties(properties)
 {
     d_profile->incrementWebViewCount();
+
+    d_hwnd.reset(CreateWindowEx(
+        0,
+        GetWindowClass(),
+        L"blpwtk2-RenderWebView",
+        WS_OVERLAPPED | WS_CLIPCHILDREN | WS_CLIPSIBLINGS,
+        CW_USEDEFAULT,
+        CW_USEDEFAULT,
+        1,
+        1,
+        NULL,
+        NULL,
+        NULL,
+        NULL));
+    DCHECK(d_hwnd.is_valid());
+
+    SetWindowLongPtr(d_hwnd.get(), GWLP_USERDATA, reinterpret_cast<LONG>(this));
+
+    SetWindowLong(
+        d_hwnd.get(),
+        GWL_STYLE,
+        GetWindowLong(d_hwnd.get(), GWL_STYLE) & ~WS_CAPTION);
+
+    d_has_parent = false;
+
+    windows_session_change_observer_.reset(new views::WindowsSessionChangeObserver(
+        base::Bind(&RenderWebView::OnSessionChange,
+                   base::Unretained(this))
+    ));
+}
+
+LPCTSTR RenderWebView::GetWindowClass()
+{
+    static const LPCTSTR s_className    = L"blpwtk2-RenderWebView";
+    static ATOM          s_atom         = 0;
+
+    if (s_atom == 0) {
+        static WNDCLASSEX s_class = {};
+
+        s_class.cbSize        = sizeof(WNDCLASSEX);
+        s_class.style         = 0;
+        s_class.lpfnWndProc   = WindowProcedure;
+        s_class.cbClsExtra    = 0;
+        s_class.cbWndExtra    = 0;
+        s_class.hInstance     = GetModuleHandle(NULL);
+        s_class.hIcon         = NULL;
+        s_class.hCursor       = NULL;
+        s_class.hbrBackground = NULL;
+        s_class.lpszMenuName  = NULL;
+        s_class.lpszClassName = s_className;
+        s_class.hIconSm       = NULL;
+
+        s_atom = RegisterClassEx(&s_class);
+        DCHECK(s_atom);
+    }
+
+    return s_className;
+}
+
+LRESULT CALLBACK RenderWebView::WindowProcedure(HWND      hWnd,
+                                                UINT      uMsg,
+                                                WPARAM    wParam,
+                                                LPARAM    lParam)
+{
+    RenderWebView *that = reinterpret_cast<RenderWebView *>(
+        GetWindowLongPtr(hWnd, GWLP_USERDATA)
+    );
+
+    // GWL_USERDATA hasn't been set to anything yet:
+    if (!that) {
+        return DefWindowProc(hWnd, uMsg, wParam, lParam);
+    }
+    else {
+        // Otherwise:
+        DCHECK(that->d_hwnd == hWnd);
+
+        return that->windowProcedure(uMsg, wParam, lParam);
+    }
+}
+
+LRESULT RenderWebView::windowProcedure(UINT   uMsg,
+                                       WPARAM wParam,
+                                       LPARAM lParam)
+{
+    switch (uMsg) {
+    case WM_NCDESTROY: {
+        d_hwnd.release();
+    } return 0;
+    case WM_WINDOWPOSCHANGED: {
+        auto windowpos = reinterpret_cast<WINDOWPOS *>(lParam);
+
+        if (windowpos->flags & (SWP_SHOWWINDOW | SWP_HIDEWINDOW)) {
+            d_visible = (windowpos->flags & SWP_SHOWWINDOW)?
+                true : false;
+        }
+
+        if (!(windowpos->flags & SWP_NOSIZE)) {
+            gfx::Size size(windowpos->cx, windowpos->cy);
+        }
+    } return 0;
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        BeginPaint(d_hwnd.get(), &ps);
+
+        EndPaint(d_hwnd.get(), &ps);
+    } return 0;
+    case WM_ERASEBKGND:
+        return 1;
+    default:
+        break;
+    }
+
+    return DefWindowProc(d_hwnd.get(), uMsg, wParam, lParam);
 }
 
 RenderWebView::~RenderWebView()
@@ -78,10 +192,36 @@ RenderWebView::~RenderWebView()
     }
 }
 
+void RenderWebView::ForceRedrawWindow(int attempts) {
+    if (ui::IsWorkstationLocked()) {
+        // Presents will continue to fail as long as the input desktop is
+        // unavailable.
+        if (--attempts <= 0)
+            return;
+        base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+            FROM_HERE, base::Bind(&RenderWebView::ForceRedrawWindow,
+                                    base::Unretained(this), attempts),
+            base::TimeDelta::FromMilliseconds(500));
+        return;
+    }
+    InvalidateRect(d_hwnd.get(), NULL, FALSE);
+}
+
+void RenderWebView::OnSessionChange(WPARAM status_code) {
+    // Direct3D presents are ignored while the screen is locked, so force the
+    // window to be redrawn on unlock.
+    if (status_code == WTS_SESSION_UNLOCK)
+        ForceRedrawWindow(10);
+}
+
 void RenderWebView::destroy()
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(!d_pendingDestroy);
+
+    if (d_hwnd.is_valid()) {
+        d_hwnd.reset();
+    }
 
     // Schedule a deletion of this RenderWebView.  The reason we don't delete
     // the object right here right now is because there may be a callback
@@ -189,27 +329,113 @@ void RenderWebView::stop()
 void RenderWebView::show()
 {
     DCHECK(Statics::isInApplicationMainThread());
+    DCHECK(d_hwnd.is_valid());
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", show";
-    d_client->proxy()->show();
+
+    if (d_shown) {
+        return;
+    }
+
+    d_shown = true;
+
+    if (d_has_parent) {
+        SetWindowPos(
+            d_hwnd.get(),
+            0,
+            0, 0, 0, 0,
+            SWP_SHOWWINDOW |
+            SWP_NOMOVE | SWP_NOSIZE |
+            SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+    }
 }
 
 void RenderWebView::hide()
 {
     DCHECK(Statics::isInApplicationMainThread());
+    DCHECK(d_hwnd.is_valid());
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", hide";
-    d_client->proxy()->hide();
+
+    if (!d_shown) {
+        return;
+    }
+
+    d_shown = false;
+
+    if (d_has_parent) {
+        SetWindowPos(
+            d_hwnd.get(),
+            0,
+            0, 0, 0, 0,
+            SWP_HIDEWINDOW |
+            SWP_NOMOVE | SWP_NOSIZE |
+            SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+    }
 }
 
 void RenderWebView::setParent(NativeView parent)
 {
     DCHECK(Statics::isInApplicationMainThread());
-    d_client->setParent(parent);
+    DCHECK(d_hwnd.is_valid());
+    LOG(INFO) << "routingId=" << d_renderViewRoutingId
+              << ", setParent=" << (void*)parent;
+
+    auto shown = d_shown;
+
+    // The window is losing its parent:
+    if (!parent && d_has_parent) {
+        if (shown) {
+            SetWindowPos(
+                d_hwnd.get(),
+                0,
+                0, 0, 0, 0,
+                SWP_HIDEWINDOW |
+                SWP_NOMOVE | SWP_NOSIZE |
+                SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+        }
+    }
+    else if (parent && !d_has_parent) {
+        SetWindowLong(
+            d_hwnd.get(),
+            GWL_STYLE,
+            (GetWindowLong(d_hwnd.get(), GWL_STYLE) & ~WS_OVERLAPPED) | WS_CHILD);
+    }
+
+    SetParent(d_hwnd.get(), parent);
+
+    // The window is gaining a parent:
+    if (parent && !d_has_parent) {
+        if (shown) {
+            SetWindowPos(
+                d_hwnd.get(),
+                0,
+                0, 0, 0, 0,
+                SWP_SHOWWINDOW |
+                SWP_NOMOVE | SWP_NOSIZE |
+                SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
+        }
+    }
+    else if (!parent && d_has_parent) {
+        SetWindowLong(
+            d_hwnd.get(),
+            GWL_STYLE,
+            (GetWindowLong(d_hwnd.get(), GWL_STYLE) & ~WS_CHILD) | WS_OVERLAPPED);
+    }
+
+    d_has_parent = !!parent;
 }
 
 void RenderWebView::move(int left, int top, int width, int height)
 {
     DCHECK(Statics::isInApplicationMainThread());
-    d_client->move(gfx::Rect(left, top, width, height));
+    DCHECK(0 <= width);
+    DCHECK(0 <= height);
+    DCHECK(d_hwnd.is_valid());
+
+    SetWindowPos(
+        d_hwnd.get(),
+        0,
+        left, top, width, height,
+        SWP_NOACTIVATE | SWP_NOZORDER | SWP_NOOWNERZORDER);
 }
 
 void RenderWebView::cutSelection()
