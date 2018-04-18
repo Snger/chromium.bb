@@ -25,13 +25,21 @@
 
 #include <blpwtk2.h>
 #include <blpwtk2_config.h>
+
+#include <blpwtk2_scopedhwnd.h>
 #include <blpwtk2_webview.h>
 #include <blpwtk2_webviewclientdelegate.h>
 #include <blpwtk2_webviewproperties.h>
 
+#include <ui/views/win/windows_session_change_observer.h>
+
 namespace gfx {
 class Point;
 }  // close namespace gfx
+
+namespace views {
+class WindowsSessionChangeObserver;
+}  // close namespace views
 
 namespace blpwtk2 {
 
@@ -49,6 +57,10 @@ class RenderWebView final : public WebView
     // DATA
     WebViewClient *d_client;
     WebViewDelegate *d_delegate;
+#if defined(BLPWTK2_FEATURE_FOCUS) ||
+    defined(BLPWTK2_FEATURE_REROUTEMOUSEWHEEL)
+    WebViewProperties d_properties;
+#endif
 
     ProfileImpl *d_profile;
     int d_renderViewRoutingId;
@@ -58,6 +70,31 @@ class RenderWebView final : public WebView
     bool d_pendingDestroy;
     std::string d_url;
     std::unique_ptr<WebFrameImpl> d_mainFrame;
+
+    ScopedHWND d_hwnd;
+
+    bool d_has_parent = false;
+    bool d_shown = false, d_visible = false;
+
+    // Manages observation of Windows Session Change messages.
+    std::unique_ptr<views::WindowsSessionChangeObserver>
+        windows_session_change_observer_;
+
+    static LPCTSTR GetWindowClass();
+    static LRESULT CALLBACK WindowProcedure(HWND   hWnd,
+                                            UINT   uMsg,
+                                            WPARAM wParam,
+                                            LPARAM lParam);
+    LRESULT windowProcedure(UINT   uMsg,
+                            WPARAM wParam,
+                            LPARAM lParam);
+
+    bool dispatchToRenderViewImpl(const IPC::Message& message);
+    void OnRenderViewDestruct();
+    void updateVisibility();
+    void updateSize();
+    void ForceRedrawWindow(int attempts);
+    void OnSessionChange(WPARAM status_code);
 
     // blpwtk2::WebView overrides
     void destroy() override;
