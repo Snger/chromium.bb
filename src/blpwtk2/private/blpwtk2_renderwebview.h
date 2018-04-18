@@ -59,9 +59,6 @@ class RenderWebView final : public WebView
     std::string d_url;
     std::unique_ptr<WebFrameImpl> d_mainFrame;
 
-    blpwtk2::WebViewProperties d_properties;
-
-
     // blpwtk2::WebView overrides
     void destroy() override;
     WebFrame *mainFrame() override;
@@ -112,7 +109,7 @@ class RenderWebView final : public WebView
     explicit RenderWebView(WebViewDelegate          *delegate,
                            ProfileImpl              *profile,
                            const WebViewProperties&  properties);
-    ~RenderWebView();
+    ~RenderWebView() final;
 
     // blpwtk2::WebViewClientDelegate overrides
     void setClient(WebViewClient *client) override;

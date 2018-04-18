@@ -267,6 +267,7 @@ void ProfileImpl::createWebView(WebViewDelegate            *delegate,
         d_hostPtr->createWebView(
             mojo::MakeRequest(webViewHostPtr, taskRunner),
             createParams->Clone(),
+            true,
             base::Bind(
                 &onRenderWebViewCreated,
                 renderWebView,
@@ -280,6 +281,7 @@ void ProfileImpl::createWebView(WebViewDelegate            *delegate,
         d_hostPtr->createWebView(
             mojo::MakeRequest(webViewHostPtr, taskRunner),
             createParams->Clone(),
+            false,
             base::Bind(
                 &onWebViewCreated,
                 proxy,

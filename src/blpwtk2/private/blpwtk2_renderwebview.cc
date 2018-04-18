@@ -34,8 +34,8 @@
 
 #include <content/renderer/render_view_impl.h>
 #include <content/public/renderer/render_view.h>
-#include <third_party/WebKit/public/web/WebLocalFrame.h>
-#include <third_party/WebKit/public/web/WebView.h>
+#include <third_party/blink/public/web/web_local_frame.h>
+#include <third_party/blink/public/web/web_view.h>
 
 #include <dwmapi.h>
 #include <windows.h>
@@ -61,7 +61,6 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
     , d_pendingLoadStatus(false)
     , d_isMainFrameAccessible(false)
     , d_pendingDestroy(false)
-    , d_properties(properties)
 {
     d_profile->incrementWebViewCount();
 }
@@ -72,7 +71,7 @@ RenderWebView::~RenderWebView()
     d_profile->decrementWebViewCount();
 
     if (d_client) {
-        auto client = d_client;
+        WebViewClient *client = d_client;
         d_client = nullptr;
         client->releaseHost();
     }
@@ -360,10 +359,7 @@ v8::MaybeLocal<v8::Value> RenderWebView::callFunction(
     DCHECK(webFrame->IsWebLocalFrame());
     blink::WebLocalFrame* localWebFrame = webFrame->ToWebLocalFrame();
 
-    v8::Local<v8::Value> result =
-        localWebFrame->CallFunctionEvenIfScriptDisabled(func, recv, argc, argv);
-
-    return v8::MaybeLocal<v8::Value>(result);
+    return localWebFrame->CallFunctionEvenIfScriptDisabled(func, recv, argc, argv);
 }
 
 #if defined(BLPWTK2_FEATURE_PRINTPDF)
