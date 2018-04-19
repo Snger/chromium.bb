@@ -70,6 +70,10 @@ namespace ui {
 class CursorLoader;
 class DropTargetWin;
 class InputMethod;
+
+#if defined(BLPWTK2_FEATURE_RUBBERBAND)
+class RubberbandOutline;
+#endif
 }  // close namespace ui
 
 namespace views {
@@ -162,6 +166,11 @@ class RenderWebView final : public WebView
 
     std::unique_ptr<content::MouseWheelEventQueue> d_mouseWheelEventQueue;
 
+#if defined(BLPWTK2_FEATURE_RUBBERBAND)
+    bool d_enableAltDragRubberBanding = false;
+    std::unique_ptr<ui::RubberbandOutline> d_rubberbandOutline;
+#endif
+
     static LPCTSTR GetWindowClass();
     static LRESULT CALLBACK WindowProcedure(HWND   hWnd,
                                             UINT   uMsg,
@@ -182,6 +191,10 @@ class RenderWebView final : public WebView
     void updateFocus();
     void setPlatformCursor(HCURSOR cursor);
     void dispatchInputEvent(const blink::WebInputEvent& event);
+
+#if defined(BLPWTK2_FEATURE_RUBBERBAND)
+    void updateAltDragRubberBanding();
+#endif
 
     // blpwtk2::WebView overrides
     void destroy() override;
@@ -208,6 +221,13 @@ class RenderWebView final : public WebView
     void enableNCHitTest(bool enabled) override;
     void onNCHitTestResult(int x, int y, int result) override;
     void performCustomContextMenuAction(int actionId) override;
+#if defined(BLPWTK2_FEATURE_RUBBERBAND)
+    void enableAltDragRubberbanding(bool enabled) override;
+    bool forceStartRubberbanding(int x, int y) override;
+    bool isRubberbanding() const override;
+    void abortRubberbanding() override;
+    String getTextInRubberband(const NativeRect&) override;
+#endif
     void find(const StringRef& text, bool matchCase, bool forward) override;
     void stopFind(bool preserveSelection) override;
     void replaceMisspelledRange(const StringRef& text) override;
@@ -328,6 +348,10 @@ class RenderWebView final : public WebView
     void OnUpdateDragCursor(
         blink::WebDragOperation drag_operation);
     void OnUpdateRect(const ViewHostMsg_UpdateRect_Params& params);
+#if defined(BLPWTK2_FEATURE_RUBBERBAND)
+    void OnHideRubberbandRect();
+    void OnSetRubberbandRect(const gfx::Rect& rect);
+#endif
 
     DISALLOW_COPY_AND_ASSIGN(RenderWebView);
 

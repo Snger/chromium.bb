@@ -58,6 +58,10 @@
 #include <ui/latency/latency_info.h>
 #include <ui/gfx/icon_util.h>
 
+#if defined(BLPWTK2_FEATURE_RUBBERBAND)
+#include <ui/base/win/rubberband_windows.h>
+#endif
+
 #include <dwmapi.h>
 #include <windows.h>
 #include <windowsx.h>
@@ -640,7 +644,18 @@ void RenderWebView::updateSize()
             resize_params));
 }
 
+#if defined(BLPWTK2_FEATURE_RUBBERBAND)
+void RenderWebView::updateAltDragRubberBanding()
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
 
+    dispatchToRenderViewImpl(
+        ViewMsg_EnableAltDragRubberbanding(d_renderViewRoutingId,
+            d_enableAltDragRubberBanding));
+}
+#endif
 
 void RenderWebView::dispatchInputEvent(const blink::WebInputEvent& event)
 {
@@ -976,6 +991,53 @@ void RenderWebView::replaceMisspelledRange(const StringRef& text)
     d_client->proxy()->replaceMisspelledRange(stext);
 }
 
+#if defined(BLPWTK2_FEATURE_RUBBERBAND)
+void RenderWebView::enableAltDragRubberbanding(bool enabled)
+{
+    DCHECK(Statics::isInApplicationMainThread());
+    d_enableAltDragRubberBanding = enabled;
+    updateAltDragRubberBanding();
+}
+
+bool RenderWebView::forceStartRubberbanding(int x, int y)
+{
+    DCHECK(Statics::isRendererMainThreadMode());
+    DCHECK(Statics::isInApplicationMainThread());
+    content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    blink::WebView* webView = rv->GetWebView();
+    return webView->ForceStartRubberbanding(x, y);
+}
+
+bool RenderWebView::isRubberbanding() const
+{
+    DCHECK(Statics::isRendererMainThreadMode());
+    DCHECK(Statics::isInApplicationMainThread());
+    content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    blink::WebView* webView = rv->GetWebView();
+    return webView->IsRubberbanding();
+}
+
+void RenderWebView::abortRubberbanding()
+{
+    DCHECK(Statics::isRendererMainThreadMode());
+    DCHECK(Statics::isInApplicationMainThread());
+    content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    blink::WebView* webView = rv->GetWebView();
+    webView->AbortRubberbanding();
+}
+
+String RenderWebView::getTextInRubberband(const NativeRect& rect)
+{
+    DCHECK(Statics::isRendererMainThreadMode());
+    DCHECK(Statics::isInApplicationMainThread());
+    content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    blink::WebView* webView = rv->GetWebView();
+    blink::WebRect webRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
+    std::string str = webView->GetTextInRubberband(webRect).Utf8();
+    return String(str.data(), str.size());
+}
+#endif
+
 void RenderWebView::rootWindowPositionChanged()
 {
     DCHECK(Statics::isInApplicationMainThread());
@@ -1190,6 +1252,9 @@ void RenderWebView::notifyRoutingId(int id)
     updateVisibility();
     updateSize();
     updateFocus();
+#if defined(BLPWTK2_FEATURE_RUBBERBAND)
+    updateAltDragRubberBanding();
+#endif
 }
 
 // ui::internal::InputMethodDelegate overrides:
@@ -1555,6 +1620,7 @@ void RenderWebView::OnMouseWheelEventAck(
 {
 }
 
+// Message handlers
 void RenderWebView::OnImeCompositionRangeChanged(
         const gfx::Range& range,
         const std::vector<gfx::Rect>& character_bounds)
@@ -1722,6 +1788,22 @@ void RenderWebView::OnUpdateDragCursor(
     d_dragDrop->UpdateDragCursor(drag_operation);
 }
 
+#if defined(BLPWTK2_FEATURE_RUBBERBAND)
+void RenderWebView::OnHideRubberbandRect()
+{
+    d_rubberbandOutline.reset();
+}
+
+void RenderWebView::OnSetRubberbandRect(const gfx::Rect& rect)
+{
+    if (!d_rubberbandOutline.get()) {
+        d_rubberbandOutline.reset(new ui::RubberbandOutline());
+    }
+
+    d_rubberbandOutline->SetRect(d_hwnd.get(), rect.ToRECT());
+}
+#endif
+
 void RenderWebView::onLoadStatus(int status)
 {
     d_pendingLoadStatus = false;
@@ -1780,6 +1862,12 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
     	    OnUpdateRect)
         IPC_MESSAGE_HANDLER(ViewHostMsg_TextInputStateChanged,
             OnTextInputStateChanged)
+#if defined(BLPWTK2_FEATURE_RUBBERBAND)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_HideRubberbandRect,
+            OnHideRubberbandRect)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_SetRubberbandRect,
+            OnSetRubberbandRect)
+#endif
         IPC_MESSAGE_UNHANDLED(handled = false)
     IPC_END_MESSAGE_MAP()
 
