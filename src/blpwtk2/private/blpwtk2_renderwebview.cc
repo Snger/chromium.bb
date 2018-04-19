@@ -54,6 +54,7 @@
 #include "ui/events/blink/web_input_event_traits.h"
 #include <ui/base/ime/input_method.h>
 #include <ui/base/ime/input_method_factory.h>
+#include <ui/base/win/mouse_wheel_util.h>
 #include <ui/events/event.h>
 #include <ui/events/event_utils.h>
 #include <ui/latency/latency_info.h>
@@ -124,6 +125,9 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
     , d_wheel_scroll_latching_enabled(
           base::FeatureList::IsEnabled(
               features::kTouchpadAndWheelScrollLatching))
+    , d_mouseWheelEventQueue(
+	new content::MouseWheelEventQueue(
+	    this, false))
 {
     d_profile->incrementWebViewCount();
 
@@ -329,6 +333,8 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
     case WM_RBUTTONDBLCLK:
     case WM_RBUTTONDOWN:
     case WM_RBUTTONUP:
+    case WM_MOUSEWHEEL:
+    case WM_MOUSEHWHEEL:
     case WM_KEYDOWN:
     case WM_KEYUP:
     case WM_SYSKEYDOWN:
@@ -442,6 +448,35 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
             }
 
             dispatchInputEvent(event);
+
+            return 0;
+        } break;
+        // Mousewheel:
+        case WM_MOUSEWHEEL:
+        case WM_MOUSEHWHEEL: {
+#if defined(BLPWTK2_FEATURE_REROUTEMOUSEWHEEL)
+            if (ui::RerouteMouseWheel(
+                d_hwnd.get(),
+                wParam, lParam,
+                d_properties.rerouteMouseWheelToAnyRelatedWindow)) {
+                return 0;
+            }
+#else
+            if (ui::RerouteMouseWheel(
+                d_hwnd.get(),
+                wParam, lParam)) {
+                return 0;
+            }
+#endif
+
+            ui::MouseWheelEvent event(msg);
+
+            d_mouseWheelEventQueue->QueueEvent(
+                content::MouseWheelEventWithLatencyInfo(
+                    ui::MakeWebMouseWheelEvent(
+                        event,
+                        base::Bind(&GetScreenLocationFromEvent)),
+                    ui::LatencyInfo()));
 
             return 0;
         } break;
@@ -1633,6 +1668,27 @@ void RenderWebView::DragSourceSystemEnded()
         DragMsg_SourceSystemDragEnded(d_renderViewRoutingId));
 }
 
+// content::MouseWheelEventQueueClient:
+void RenderWebView::SendMouseWheelEventImmediately(
+    const content::MouseWheelEventWithLatencyInfo& event)
+{
+    dispatchInputEvent(event.event);
+}
+
+void RenderWebView::ForwardGestureEventWithLatencyInfo(
+    const blink::WebGestureEvent& event,
+    const ui::LatencyInfo& latency_info)
+{
+    dispatchInputEvent(event);
+}
+
+void RenderWebView::OnMouseWheelEventAck(
+    const content::MouseWheelEventWithLatencyInfo& event,
+    content::InputEventAckSource ack_source,
+    content::InputEventAckState ack_result)
+{
+}
+
 void RenderWebView::OnImeCompositionRangeChanged(
         const gfx::Range& range,
         const std::vector<gfx::Rect>& character_bounds)
@@ -1648,7 +1704,14 @@ void RenderWebView::OnImeCancelComposition()
 
 void RenderWebView::OnInputEventAck(const content::InputEventAck& ack)
 {
-    //TODO
+    switch (ack.type) {
+    case blink::WebInputEvent::kMouseWheel: {
+        d_mouseWheelEventQueue->ProcessMouseWheelAck(
+            ack.source, ack.state, ack.latency);
+    } break;
+    default:
+        break;
+    }
 }
 
 void RenderWebView::OnLockMouse(
