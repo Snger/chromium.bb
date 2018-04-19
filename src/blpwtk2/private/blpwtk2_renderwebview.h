@@ -32,6 +32,7 @@
 #include <blpwtk2_webviewclientdelegate.h>
 #include <blpwtk2_webviewproperties.h>
 
+#include <content/browser/renderer_host/input/mouse_wheel_event_queue.h>
 #include <content/common/text_input_state.h>
 #include <content/common/cursors/webcursor.h>
 #include <content/public/renderer/render_view_observer.h>
@@ -57,6 +58,7 @@ struct DragEventSourceInfo;
 struct DropData;
 struct InputEventAck;
 struct TextInputState;
+class MouseWheelEventQueue;
 class WebCursor;
 }  // close namespace content
 
@@ -90,6 +92,7 @@ class RenderWebView final : public WebView
                           , private ui::internal::InputMethodDelegate
                           , private ui::TextInputClient
                           , private DragDropDelegate
+                          , private content::MouseWheelEventQueueClient
 {
     class RenderViewObserver : public content::RenderViewObserver {
       private:
@@ -156,6 +159,8 @@ class RenderWebView final : public WebView
     gfx::Range d_selection_range;
 
     scoped_refptr<DragDrop> d_dragDrop;
+
+    std::unique_ptr<content::MouseWheelEventQueue> d_mouseWheelEventQueue;
 
     static LPCTSTR GetWindowClass();
     static LRESULT CALLBACK WindowProcedure(HWND   hWnd,
@@ -285,6 +290,16 @@ class RenderWebView final : public WebView
         const gfx::Point& screen_pt,
         blink::WebDragOperation drag_operation) override;
     void DragSourceSystemEnded() override;
+
+    // content::MouseWheelEventQueueClient:
+    void SendMouseWheelEventImmediately(
+        const content::MouseWheelEventWithLatencyInfo& event) override;
+    void ForwardGestureEventWithLatencyInfo(
+        const blink::WebGestureEvent& event,
+        const ui::LatencyInfo& latency_info) override;
+    void OnMouseWheelEventAck(
+        const content::MouseWheelEventWithLatencyInfo& event,
+        content::InputEventAckState ack_result) override;
 
     // Message handlers
     void OnDetach();
