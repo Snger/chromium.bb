@@ -59,6 +59,7 @@ PrintMsg_Print_Params::PrintMsg_Print_Params()
     print_scaling_option(blink::WebPrintScalingOptionSourceSize),
     print_to_pdf(false),
     display_header_footer(false),
+    header_footer_html(),
     title(),
     url(),
     should_print_backgrounds(false) {}
@@ -86,6 +87,7 @@ void PrintMsg_Print_Params::Reset() {
   print_scaling_option = blink::WebPrintScalingOptionSourceSize;
   print_to_pdf = false;
   display_header_footer = false;
+  header_footer_html = base::string16();
   title = base::string16();
   url = base::string16();
   should_print_backgrounds = false;

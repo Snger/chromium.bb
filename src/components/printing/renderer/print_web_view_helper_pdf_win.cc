@@ -11,8 +11,14 @@
 #include "components/printing/common/print_messages.h"
 #include "printing/features/features.h"
 #include "printing/metafile_skia_wrapper.h"
+#include "printing/pdf_metafile_skia.h"
+#include "printing/units.h"
+#include "skia/ext/platform_device.h"
+#include "third_party/WebKit/public/web/WebLocalFrame.h"
 
 namespace printing {
+
+using blink::WebFrame;
 
 #if BUILDFLAG(ENABLE_BASIC_PRINTING)
 bool PrintWebViewHelper::PrintPagesNative(blink::WebLocalFrame* frame,
@@ -36,7 +42,7 @@ bool PrintWebViewHelper::PrintPagesNative(blink::WebLocalFrame* frame,
                       frame,
                       &metafile,
                       &page_size_in_dpi[i],
-                      &content_area_in_dpi[i]);
+                      &content_area_in_dpi[i], page_count);
   }
 
   // blink::printEnd() for PDF should be called before metafile is closed.

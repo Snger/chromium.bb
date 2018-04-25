@@ -28,8 +28,10 @@
 #include <blpwtk2_stringref.h>
 
 #include <base/strings/utf_string_conversions.h>
+#include <components/printing/renderer/print_web_view_helper.h>
 #include <content/child/font_warmup_win.h>
 #include <content/public/renderer/render_thread.h>
+#include <content/public/renderer/render_view.h>
 #include <net/base/net_errors.h>
 #include <skia/ext/fontmgr_default_win.h>
 #include <third_party/skia/include/ports/SkFontMgr.h>
@@ -61,6 +63,11 @@ void ContentRendererClientImpl::RenderViewCreated(
     // Note that RenderViewObserverImpl automatically gets deleted when the
     // RenderView is destroyed.
     new RenderViewObserverImpl(render_view);
+
+    new printing::PrintWebViewHelper(
+            render_view->GetMainRenderFrame(),
+            std::unique_ptr<printing::PrintWebViewHelper::Delegate>(
+                printing::PrintWebViewHelper::CreateEmptyDelegate()));
 }
 
 void ContentRendererClientImpl::GetNavigationErrorStrings(
