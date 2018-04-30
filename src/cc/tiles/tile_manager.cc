@@ -98,7 +98,7 @@ class RasterTaskImpl : public TileTask {
         raster_source_(std::move(raster_source)),
         content_rect_(tile->content_rect()),
         invalid_content_rect_(invalidated_rect),
-        raster_scales_(tile->raster_scales()),
+        raster_transform_(tile->raster_transform()),
         playback_settings_(playback_settings),
         tile_resolution_(tile_resolution),
         layer_id_(tile->layer_id()),
@@ -128,7 +128,7 @@ class RasterTaskImpl : public TileTask {
 
     raster_buffer_->Playback(raster_source_.get(), content_rect_,
                              invalid_content_rect_, new_content_id_,
-                             raster_scales_, playback_settings_);
+                             raster_transform_, playback_settings_);
   }
 
   // Overridden from TileTask:
@@ -162,7 +162,7 @@ class RasterTaskImpl : public TileTask {
   scoped_refptr<RasterSource> raster_source_;
   gfx::Rect content_rect_;
   gfx::Rect invalid_content_rect_;
-  gfx::SizeF raster_scales_;
+  gfx::AxisTransform2d raster_transform_;
   RasterSource::PlaybackSettings playback_settings_;
   TileResolution tile_resolution_;
   int layer_id_;

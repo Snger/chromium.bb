@@ -21,6 +21,7 @@
 #include "cc/tiles/tile.h"
 #include "cc/tiles/tile_priority.h"
 #include "cc/trees/occlusion.h"
+#include "ui/gfx/geometry/axis_transform2d.h"
 #include "ui/gfx/geometry/rect.h"
 
 namespace base {
@@ -81,7 +82,7 @@ class CC_EXPORT PictureLayerTiling {
   static const int kBorderTexels = 1;
 
   PictureLayerTiling(WhichTree tree,
-                     const gfx::SizeF& raster_scales,
+                     const gfx::AxisTransform2d& raster_transform,
                      scoped_refptr<RasterSource> raster_source,
                      PictureLayerTilingClient* client,
                      float min_preraster_distance,
@@ -120,8 +121,9 @@ class CC_EXPORT PictureLayerTiling {
   gfx::Size tiling_size() const { return tiling_data_.tiling_size(); }
   gfx::Rect live_tiles_rect() const { return live_tiles_rect_; }
   gfx::Size tile_size() const { return tiling_data_.max_texture_size(); }
-  float contents_scale_key() const { return raster_scales_.width(); }
-  const gfx::SizeF& raster_scales() const { return raster_scales_; }
+  float contents_scale_key() const { return raster_transform_.scale().width(); }
+  const gfx::SizeF& raster_scales() const { return raster_transform_.scale(); }
+  const gfx::AxisTransform2d& raster_transform() const { return raster_transform_; }
   const TilingData* tiling_data() const { return &tiling_data_; }
 
   Tile* TileAt(int i, int j) const {
@@ -166,8 +168,8 @@ class CC_EXPORT PictureLayerTiling {
 
   void SetAllTilesOccludedForTesting() {
     gfx::Rect viewport_in_layer_space = ScaleToEnclosingRect(
-        current_visible_rect_, 1.f / raster_scales_.width(),
-        1.f / raster_scales_.height());
+        current_visible_rect_, 1.f / raster_transform_.scale().width(),
+        1.f / raster_transform_.scale().height());
     current_occlusion_in_layer_space_ =
         Occlusion(gfx::Transform(),
                   SimpleEnclosedRegion(viewport_in_layer_space),
@@ -219,7 +221,7 @@ class CC_EXPORT PictureLayerTiling {
     const PictureLayerTiling* tiling_ = nullptr;
     gfx::Size coverage_rect_max_bounds_;
     gfx::Rect coverage_rect_;
-    gfx::SizeF coverage_to_content_scale_;
+    gfx::AxisTransform2d coverage_to_content_;
 
     Tile* current_tile_ = nullptr;
     gfx::Rect current_geometry_rect_;
@@ -327,8 +329,13 @@ class CC_EXPORT PictureLayerTiling {
   }
   void RemoveTilesInRegion(const Region& layer_region, bool recreate_tiles);
 
+  gfx::Rect EnclosingContentsRectFromLayerRect(
+      const gfx::Rect& layer_rect) const;
+  gfx::Rect EnclosingLayerRectFromContentsRect(
+      const gfx::Rect& contents_rect) const;
+
   // Given properties.
-  const gfx::SizeF raster_scales_;
+  const gfx::AxisTransform2d raster_transform_;
   PictureLayerTilingClient* const client_;
   const WhichTree tree_;
   scoped_refptr<RasterSource> raster_source_;
