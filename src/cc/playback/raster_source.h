@@ -17,6 +17,10 @@
 #include "skia/ext/analysis_canvas.h"
 #include "third_party/skia/include/core/SkPicture.h"
 
+namespace gfx {
+class AxisTransform2d;
+}  // namespace gfx
+
 namespace cc {
 class DisplayItemList;
 class DrawImage;
@@ -47,7 +51,7 @@ class CC_EXPORT RasterSource : public base::RefCountedThreadSafe<RasterSource> {
   void PlaybackToCanvas(SkCanvas* canvas,
                         const gfx::Rect& canvas_bitmap_rect,
                         const gfx::Rect& canvas_playback_rect,
-                        const gfx::SizeF& raster_scales,
+                        const gfx::AxisTransform2d& raster_transform,
                         const PlaybackSettings& settings) const;
 
   // Raster this RasterSource into the given canvas. Canvas states such as
