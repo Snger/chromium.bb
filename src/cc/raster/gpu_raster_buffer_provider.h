@@ -11,6 +11,7 @@
 #include "cc/raster/raster_buffer_provider.h"
 #include "cc/resources/layer_tree_resource_provider.h"
 #include "gpu/command_buffer/common/sync_token.h"
+#include "ui/gfx/geometry/axis_transform2d.h"
 
 namespace viz {
 class ContextProvider;
