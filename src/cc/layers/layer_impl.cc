@@ -1042,7 +1042,7 @@ bool LayerImpl::CanUseLCDText() const {
   if (!layer_tree_impl()
            ->property_trees()
            ->transform_tree.Node(transform_tree_index())
-           ->node_and_ancestors_have_only_integer_translation)
+           ->node_and_ancestors_have_only_axis_aligned_transform)
     return false;
   if (static_cast<int>(offset_to_transform_parent().x()) !=
       offset_to_transform_parent().x())
