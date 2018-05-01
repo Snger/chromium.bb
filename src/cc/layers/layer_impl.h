@@ -36,6 +36,7 @@
 #include "cc/trees/target_property.h"
 #include "third_party/skia/include/core/SkColor.h"
 #include "third_party/skia/include/core/SkXfermode.h"
+#include "ui/gfx/geometry/axis_transform2d.h"
 #include "ui/gfx/geometry/point3_f.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
@@ -134,6 +135,7 @@ class CC_EXPORT LayerImpl {
 
   void PopulateSharedQuadState(SharedQuadState* state) const;
   void PopulateScaledSharedQuadState(SharedQuadState* state, float scale) const;
+  void PopulateTransformedSharedQuadState(SharedQuadState* state, const gfx::AxisTransform2d& transform) const;
   // WillDraw must be called before AppendQuads. If WillDraw returns false,
   // AppendQuads and DidDraw will not be called. If WillDraw returns true,
   // DidDraw is guaranteed to be called before another WillDraw or before
@@ -423,6 +425,7 @@ class CC_EXPORT LayerImpl {
 
   bool IsHidden() const;
 
+  std::pair<float, float> GetIdealContentsScaleAndAspectRatio() const;
   float GetIdealContentsScale() const;
 
   bool was_ever_ready_since_last_transform_animation() const {

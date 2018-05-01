@@ -193,6 +193,23 @@ void LayerImpl::PopulateScaledSharedQuadState(SharedQuadState* state,
                 sorting_context_id_);
 }
 
+void LayerImpl::PopulateTransformedSharedQuadState(SharedQuadState* state,
+                                                   const gfx::AxisTransform2d& transform) const {
+  gfx::Transform scaled_draw_transform =
+      draw_properties_.target_space_transform;
+  scaled_draw_transform.Scale(SK_MScalar1 / transform.scale().width(), SK_MScalar1 / transform.scale().height());
+  scaled_draw_transform.Translate(-transform.translation().x(), -transform.translation().y());
+  gfx::Size scaled_bounds = gfx::ScaleToCeiledSize(bounds(), transform.scale().width(), transform.scale().height());
+  gfx::Rect scaled_visible_layer_rect =
+      gfx::ScaleToEnclosingRect(visible_layer_rect(), transform.scale().width(), transform.scale().height());
+  scaled_visible_layer_rect.Intersect(gfx::Rect(scaled_bounds));
+
+  state->SetAll(scaled_draw_transform, scaled_bounds, scaled_visible_layer_rect,
+                draw_properties().clip_rect, draw_properties().is_clipped,
+                draw_properties().opacity, draw_blend_mode_,
+                sorting_context_id_);
+}
+
 bool LayerImpl::WillDraw(DrawMode draw_mode,
                          ResourceProvider* resource_provider) {
   // WillDraw/DidDraw must be matched.
@@ -1087,7 +1104,7 @@ bool LayerImpl::IsHidden() const {
   return node->screen_space_opacity == 0.f;
 }
 
-float LayerImpl::GetIdealContentsScale() const {
+std::pair<float, float> LayerImpl::GetIdealContentsScaleAndAspectRatio() const {
   float page_scale = IsAffectedByPageScale()
                          ? layer_tree_impl()->current_page_scale_factor()
                          : 1.f;
@@ -1097,12 +1114,17 @@ float LayerImpl::GetIdealContentsScale() const {
   if (!layer_tree_impl()
            ->settings()
            .layer_transforms_should_scale_layer_contents) {
-    return default_scale;
+    return std::make_pair(default_scale, 1.0);
   }
 
   gfx::Vector2dF transform_scales = MathUtil::ComputeTransform2dScaleComponents(
       ScreenSpaceTransform(), default_scale);
-  return std::max(transform_scales.x(), transform_scales.y());
+  return std::make_pair(
+      transform_scales.x(), transform_scales.y() / transform_scales.x());
+}
+
+float LayerImpl::GetIdealContentsScale() const {
+  return GetIdealContentsScaleAndAspectRatio().first;
 }
 
 }  // namespace cc
