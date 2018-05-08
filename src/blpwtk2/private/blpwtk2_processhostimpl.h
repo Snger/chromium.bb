@@ -125,6 +125,7 @@ class ProcessHostImpl final : public mojom::ProcessHost
     void registerNativeViewForStreaming(
             int                                           view,
             const registerNativeViewForStreamingCallback& callback) override;
+    void dumpDiagnostics(int type, const std::string& path) override;
     void addHttpProxy(mojom::ProxyConfigType type,
                       const std::string&     host,
                       int                    port) override;
