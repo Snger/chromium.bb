@@ -87,7 +87,7 @@ bool RenderWidgetHostViewBase::OnMessageReceived(const IPC::Message& msg){
 }
 
 void RenderWidgetHostViewBase::SetBackgroundColorToDefault() {
-  SetBackgroundColor(SK_ColorWHITE);
+  SetBackgroundColor(default_background_color_);
 }
 
 gfx::Size RenderWidgetHostViewBase::GetPhysicalBackingSize() const {

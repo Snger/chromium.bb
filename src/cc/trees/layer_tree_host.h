@@ -625,7 +625,7 @@ class CC_EXPORT LayerTreeHost : public viz::SurfaceReferenceOwner,
   viz::LocalSurfaceId local_surface_id_;
   bool defer_commits_ = false;
 
-  SkColor background_color_ = SK_ColorWHITE;
+  SkColor background_color_ = SK_ColorBLACK;
   bool has_transparent_background_ = false;
 
   LayerSelection selection_;
