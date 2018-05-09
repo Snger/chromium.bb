@@ -99,7 +99,9 @@ ContextResult CommandBufferProxyImpl::Initialize(
   shared_state_shm_ = AllocateAndMapSharedMemory(sizeof(*shared_state()));
   if (!shared_state_shm_) {
     LOG(ERROR) << "ContextResult::kFatalFailure: "
-                  "AllocateAndMapSharedMemory failed";
+                  "AllocateAndMapSharedMemory failed"
+               << "; Could not allocate shared memory of "
+               << sizeof(*shared_state()) << " bytes.";
     return ContextResult::kFatalFailure;
   }
 
@@ -112,7 +114,8 @@ ContextResult CommandBufferProxyImpl::Initialize(
       channel->ShareToGpuProcess(shared_state_shm_->handle());
   if (!base::SharedMemory::IsHandleValid(handle)) {
     LOG(ERROR) << "ContextResult::kFatalFailure: "
-                  "Shared memory handle is not valid";
+                  "Shared memory handle is not valid"
+               << "Failed to share handle with GPU process.";
     return ContextResult::kFatalFailure;
   }
 
