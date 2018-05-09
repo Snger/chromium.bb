@@ -172,6 +172,7 @@ class ChannelWin : public Channel,
           AddRef();
           return;
         case ERROR_NO_DATA:
+          LOG(ERROR) << "ChannelWind::StartOnIOThread: ERROR_NO_DATA";
           OnError(Error::kConnectionFailed);
           return;
       }
@@ -218,6 +219,7 @@ class ChannelWin : public Channel,
                      DWORD bytes_transfered,
                      DWORD error) override {
     if (error != ERROR_SUCCESS) {
+      LOG(ERROR) << "ChannelWind::OnIOComplete: not success";
       OnError(Error::kDisconnected);
     } else if (context == &connect_context_) {
       DCHECK(wait_for_connect_);
@@ -244,9 +246,11 @@ class ChannelWin : public Channel,
       if (OnReadComplete(bytes_read, &next_read_size)) {
         ReadMore(next_read_size);
       } else {
+        LOG(ERROR) << "ChannelWind: OnReadComplete failed";
         OnError(Error::kReceivedMalformedData);
       }
     } else if (bytes_read == 0) {
+      LOG(ERROR) << "ChannelWind: bytes_read == 0";
       OnError(Error::kDisconnected);
     }
   }
@@ -277,6 +281,8 @@ class ChannelWin : public Channel,
         reject_writes_ = write_error = true;
     }
     if (write_error)
+      // Don't invoke LOG(ERROR) because write may fail iteratively
+      // LOG(ERROR) << "ChannelWind: write error";
       OnError(Error::kDisconnected);
   }
 
@@ -294,6 +300,7 @@ class ChannelWin : public Channel,
     if (ok || GetLastError() == ERROR_IO_PENDING) {
       AddRef();  // Will be balanced in OnIOCompleted
     } else {
+      LOG(ERROR) << "ChannelWind: ReadMore failed";
       OnError(Error::kDisconnected);
     }
   }
