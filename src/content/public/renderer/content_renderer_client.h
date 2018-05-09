@@ -58,6 +58,10 @@ struct WebPluginParams;
 struct WebURLError;
 }  // namespace blink
 
+namespace IPC {
+class Message;
+}
+
 namespace media {
 class KeySystemProperties;
 }
@@ -433,6 +437,12 @@ class CONTENT_EXPORT ContentRendererClient {
   // from outside of the browsing instance.
   virtual blink::WebFrame* FindFrame(blink::WebLocalFrame* relative_to_frame,
                                      const std::string& name);
+
+  // Allows the embedder to intercept IPC messages before they are sent to
+  // the browser. If the function handles the message, it should delete
+  // 'msg' and return 'true'. If the function does not handle the message,
+  // it should return 'false' without deleting 'msg'.
+  virtual bool Dispatch(IPC::Message* msg);
 };
 
 }  // namespace content

@@ -283,4 +283,8 @@ blink::WebFrame* ContentRendererClient::FindFrame(
   return nullptr;
 }
 
+bool ContentRendererClient::Dispatch(IPC::Message* msg) {
+  return false;
+}
+
 }  // namespace content
