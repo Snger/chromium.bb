@@ -62,6 +62,10 @@ namespace media {
 class KeySystemProperties;
 }
 
+namespace IPC {
+class Message;
+}
+
 namespace content {
 class BrowserPluginDelegate;
 class MediaStreamRendererFactory;
@@ -392,6 +396,12 @@ class CONTENT_EXPORT ContentRendererClient {
   // Whether the renderer allows idle media players to be automatically
   // suspended after a period of inactivity.
   virtual bool AllowIdleMediaSuspend();
+
+  // Allows the embedder to intercept IPC messages before they are sent to
+  // the browser. If the function handles the message, it should delete
+  // 'msg' and return 'true'. If the function does not handle the message,
+  // it should return 'false' without deleting 'msg'.
+  virtual bool Dispatch(IPC::Message* msg) { return false; }
 };
 
 }  // namespace content
