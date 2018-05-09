@@ -34,6 +34,7 @@
 
 #include <content/renderer/render_view_impl.h>
 #include <content/public/renderer/render_view.h>
+#include <content/renderer/render_thread_impl.h>
 #include <third_party/WebKit/public/web/WebView.h>
 
 #include <dwmapi.h>
