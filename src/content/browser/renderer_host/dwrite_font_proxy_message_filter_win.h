@@ -38,6 +38,10 @@ class CONTENT_EXPORT DWriteFontProxyMessageFilter
   void OverrideThreadForMessage(const IPC::Message& message,
                                 content::BrowserThread::ID* thread) override;
 
+#if defined(OS_WIN)
+  void SetFontCollection(FontCollection* collection);
+#endif
+
   void SetWindowsFontsPathForTesting(base::string16 path);
 
  protected:
@@ -83,6 +87,10 @@ class CONTENT_EXPORT DWriteFontProxyMessageFilter
 
   // Temp code to help track down crbug.com/561873
   std::vector<uint32_t> last_resort_fonts_;
+
+#if defined(OS_WIN)
+  FontCollection* font_collection_ = nullptr;
+#endif
 
   DISALLOW_COPY_AND_ASSIGN(DWriteFontProxyMessageFilter);
 };

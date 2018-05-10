@@ -205,6 +205,13 @@ void DWriteFontProxyMessageFilter::OverrideThreadForMessage(
     *thread = BrowserThread::FILE_USER_BLOCKING;
 }
 
+#if defined(OS_WIN)
+void DWriteFontProxyMessageFilter::SetFontCollection(FontCollection* collection)
+{
+  font_collection_= collection;
+}
+#endif
+
 void DWriteFontProxyMessageFilter::SetWindowsFontsPathForTesting(
     base::string16 path) {
   windows_fonts_path_.swap(path);
@@ -475,7 +482,20 @@ void DWriteFontProxyMessageFilter::InitializeDirectWrite() {
   // running an older version of DirectWrite (earlier than Win8.1).
   factory.As<IDWriteFactory2>(&factory2_);
 
-  HRESULT hr = factory->GetSystemFontCollection(&collection_);
+  HRESULT hr;
+
+#if defined(OS_WIN)
+  if (font_collection_) {
+    hr = font_collection_->GetFontCollection(factory.Get(),
+                                             collection_.GetAddressOf());
+  }
+  else {
+    hr = factory->GetSystemFontCollection(&collection_);
+  }
+#else
+  hr = factory->GetSystemFontCollection(&collection_);
+#endif
+
   DCHECK(SUCCEEDED(hr));
 
   if (!collection_) {
