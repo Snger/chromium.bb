@@ -70,6 +70,13 @@ BLINK_EXPORT bool fontAntialiasingEnabledForTest();
 // second at most.  This API changes that alignment interval.
 BLINK_EXPORT void setTimerHiddenPageAlignmentInterval(double);
 
+// Set the highlight color for text searches.
+BLINK_EXPORT void setTextSearchHighlightColor(int activeR, int activeG, int activeB,
+                                              int inactiveR, int inactiveG, int inactiveB);
+
+// Set the text color for text searches.
+BLINK_EXPORT void setTextSearchColor(int activeR, int activeG, int activeB);
+
 // Purge the plugin list cache. If |reloadPages| is true, any pages
 // containing plugins will be reloaded after refreshing the plugin list.
 BLINK_EXPORT void resetPluginCache(bool reloadPages = false);

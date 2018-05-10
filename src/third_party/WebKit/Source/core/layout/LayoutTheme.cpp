@@ -788,14 +788,48 @@ Color LayoutTheme::systemColor(CSSValueID cssValueId) const {
   return Color();
 }
 
+// Orange.
+static int s_activeTextSearchHighlightR = 255;
+static int s_activeTextSearchHighlightG = 150;
+static int s_activeTextSearchHighlightB = 50;
+
+// Yellow.
+static int s_inactiveTextSearchHighlightR = 255;
+static int s_inactiveTextSearchHighlightG = 255;
+static int s_inactiveTextSearchHighlightB = 0;
+
+// Black.
+static int s_activeTextSearchR = 0;
+static int s_activeTextSearchG = 0;
+static int s_activeTextSearchB = 0;
+
+// static
+void LayoutTheme::setTextSearchHighlightColor(int activeR, int activeG, int activeB,
+                                              int inactiveR, int inactiveG, int inactiveB)
+{
+    s_activeTextSearchHighlightR = activeR;
+    s_activeTextSearchHighlightB = activeB;
+    s_activeTextSearchHighlightG = activeG;
+    s_inactiveTextSearchHighlightR = inactiveR;
+    s_inactiveTextSearchHighlightG = inactiveG;
+    s_inactiveTextSearchHighlightB = inactiveB;
+}
+
+void LayoutTheme::setTextSearchColor(int activeR, int activeG, int activeB)
+{
+    s_activeTextSearchR = activeR;
+    s_activeTextSearchG = activeG;
+    s_activeTextSearchB = activeB;
+}
+
 Color LayoutTheme::platformTextSearchHighlightColor(bool activeMatch) const {
   if (activeMatch)
-    return Color(255, 150, 50);  // Orange.
-  return Color(255, 255, 0);     // Yellow.
+        return Color(s_activeTextSearchHighlightR, s_activeTextSearchHighlightG, s_activeTextSearchHighlightB);
+    return Color(s_inactiveTextSearchHighlightR, s_inactiveTextSearchHighlightG, s_inactiveTextSearchHighlightB);
 }
 
 Color LayoutTheme::platformTextSearchColor(bool activeMatch) const {
-  return Color::black;
+    return Color(s_activeTextSearchR, s_activeTextSearchG, s_activeTextSearchB);
 }
 
 Color LayoutTheme::tapHighlightColor() {
