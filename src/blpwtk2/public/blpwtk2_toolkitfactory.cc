@@ -119,6 +119,8 @@ Toolkit* ToolkitFactory::create(const ToolkitCreateParams& params)
         env->SetVar(subProcessModuleEnvVar, subProcessModule);
     }
 
+    views::corewm::TooltipWin::SetTooltipStyle(params.tooltipFont());
+
     base::win::SetWinProcExceptionFilter(params.winProcExceptionFilter());
 
     DCHECK(!Statics::inProcessResourceLoader ||
