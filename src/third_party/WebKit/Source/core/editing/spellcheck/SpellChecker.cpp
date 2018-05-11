@@ -361,6 +361,11 @@ void SpellChecker::showSpellingGuessPanel() {
   spellCheckerClient().showSpellingUI(true);
 }
 
+void SpellChecker::clearMisspellingsAndBadGrammar(const VisibleSelection &movingSelection)
+{
+    removeMarkers(movingSelection, DocumentMarker::MisspellingMarkers());
+}
+
 void SpellChecker::clearMisspellingsForMovingParagraphs(
     const VisibleSelection& movingSelection) {
   removeMarkers(movingSelection, DocumentMarker::MisspellingMarkers());
