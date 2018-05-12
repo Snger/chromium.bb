@@ -169,6 +169,11 @@ namespace v8 {
 #define RETURN_ESCAPED(value) return handle_scope.Escape(value);
 
 
+// blpwtk2: Prevent the linker from stripping out these symbols from the
+// shared library export table in Release builds.
+#pragma comment(linker, "/include:?CreateJSONTraceWriter@TraceWriter@tracing@platform@v8@@SAPAV1234@AAV?$basic_ostream@DU?$char_traits@D@std@@@std@@@Z")
+#pragma comment(linker, "/include:?CreateTraceBufferRingBuffer@TraceBuffer@tracing@platform@v8@@SAPAV1234@IPAVTraceWriter@234@@Z")
+
 namespace {
 
 Local<Context> ContextFromHeapObject(i::Handle<i::Object> obj) {
