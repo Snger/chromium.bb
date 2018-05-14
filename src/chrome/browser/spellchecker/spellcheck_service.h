@@ -42,7 +42,8 @@ class NotificationSource;
 }
 
 namespace spellcheck {
-class FeedbackSender;
+// SHEZ: Remove feedback sender
+// class FeedbackSender;
 }
 
 // Encapsulates the browser side spellcheck service. There is one of these per
@@ -125,7 +126,8 @@ class SpellcheckService : public KeyedService,
   const ScopedVector<SpellcheckHunspellDictionary>& GetHunspellDictionaries();
 
   // Returns the instance of the spelling service feedback sender.
-  spellcheck::FeedbackSender* GetFeedbackSender();
+  // SHEZ: Remove feedback sender
+  // spellcheck::FeedbackSender* GetFeedbackSender();
 
   // Load a dictionary from a given path. Format specifies how the dictionary
   // is stored. Return value is true if successful.
@@ -190,7 +192,8 @@ class SpellcheckService : public KeyedService,
 
   // Enables the feedback sender if spelling server is available and enabled.
   // Otherwise disables the feedback sender.
-  void UpdateFeedbackSenderState();
+  // SHEZ: Remove feedback sender
+  // void UpdateFeedbackSenderState();
 
   PrefChangeRegistrar pref_change_registrar_;
   content::NotificationRegistrar registrar_;
@@ -201,8 +204,6 @@ class SpellcheckService : public KeyedService,
   std::unique_ptr<SpellCheckHostMetrics> metrics_;
 
   ScopedVector<SpellcheckHunspellDictionary> hunspell_dictionaries_;
-
-  std::unique_ptr<spellcheck::FeedbackSender> feedback_sender_;
 
   base::WeakPtrFactory<SpellcheckService> weak_ptr_factory_;
 

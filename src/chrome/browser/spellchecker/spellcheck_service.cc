@@ -87,10 +87,6 @@ SpellcheckService::SpellcheckService(content::BrowserContext* context)
   std::string country_code;
   spellcheck::GetISOLanguageCountryCodeFromLocale(
       first_of_dictionaries, &language_code, &country_code);
-  feedback_sender_.reset(new spellcheck::FeedbackSender(
-      content::BrowserContext::GetDefaultStoragePartition(context)->
-            GetURLRequestContext(),
-      language_code, country_code));
 
   pref_change_registrar_.Add(
       spellcheck::prefs::kSpellCheckDictionaries,
@@ -130,7 +126,9 @@ SpellcheckService::SpellcheckService(content::BrowserContext* context)
                  content::NotificationService::AllSources());
 
   LoadHunspellDictionaries();
-  UpdateFeedbackSenderState();
+
+  // blpwtk2:: Remove feedback sender
+  // UpdateFeedbackSenderState();
 }
 
 SpellcheckService::~SpellcheckService() {
@@ -272,9 +270,10 @@ SpellcheckService::GetHunspellDictionaries() {
   return hunspell_dictionaries_;
 }
 
-spellcheck::FeedbackSender* SpellcheckService::GetFeedbackSender() {
-  return feedback_sender_.get();
-}
+// SHEZ: Remove feedback sender
+// spellcheck::FeedbackSender* SpellcheckService::GetFeedbackSender() {
+//   return feedback_sender_.get();
+// }
 
 bool SpellcheckService::LoadExternalDictionary(std::string language,
                                                std::string locale,
@@ -389,7 +388,9 @@ void SpellcheckService::OnSpellCheckDictionariesChanged() {
   // If there are hunspell dictionaries, then fire off notifications to the
   // renderers after the dictionaries are finished loading.
   LoadHunspellDictionaries();
-  UpdateFeedbackSenderState();
+
+  // blpwtk2:: Remove feedback sender
+  // UpdateFeedbackSenderState();
 
   // If there are no hunspell dictionaries to load, then immediately let the
   // renderers know the new state.
@@ -402,7 +403,8 @@ void SpellcheckService::OnUseSpellingServiceChanged() {
       spellcheck::prefs::kSpellCheckUseSpellingService);
   if (metrics_)
     metrics_->RecordSpellingServiceStats(enabled);
-  UpdateFeedbackSenderState();
+  // SHEZ: Remove feedback sender
+  // UpdateFeedbackSenderState();
 }
 
 void SpellcheckService::OnAcceptLanguagesChanged() {
@@ -429,6 +431,8 @@ void SpellcheckService::OnAcceptLanguagesChanged() {
   dictionaries_pref.SetValue(filtered_dictionaries);
 }
 
+// blpwtk2:: Remove feedback sender
+#if 0
 void SpellcheckService::UpdateFeedbackSenderState() {
   std::string feedback_language;
   if (!hunspell_dictionaries_.empty())
@@ -445,3 +449,5 @@ void SpellcheckService::UpdateFeedbackSenderState() {
     feedback_sender_->StopFeedbackCollection();
   }
 }
+#endif
+
