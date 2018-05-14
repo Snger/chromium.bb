@@ -154,6 +154,7 @@ static inline bool isColorPropertyID(CSSPropertyID propertyId) {
     case CSSPropertyWebkitBorderBeforeColor:
     case CSSPropertyWebkitBorderEndColor:
     case CSSPropertyWebkitBorderStartColor:
+	case CSSPropertyWebkitCaretColor:
     case CSSPropertyColumnRuleColor:
     case CSSPropertyWebkitTextEmphasisColor:
     case CSSPropertyWebkitTextFillColor:

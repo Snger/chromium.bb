@@ -386,6 +386,7 @@ y interpolable, svg, converter=convertLength
 -webkit-box-orient
 -webkit-box-pack
 -webkit-box-reflect converter=convertBoxReflect
+-webkit-caret-color inherited, custom_value
 column-count interpolable, type_name=unsigned short, custom_all
 column-gap interpolable, converter=convertComputedLength<float>, custom_all
 column-rule-color interpolable, custom_all

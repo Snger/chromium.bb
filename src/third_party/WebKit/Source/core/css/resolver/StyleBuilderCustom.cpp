@@ -648,6 +648,14 @@ void StyleBuilderFunctions::applyValueCSSPropertyWebkitBorderImage(
   state.style()->setBorderImage(image);
 }
 
+void StyleBuilderFunctions::applyValueCSSPropertyWebkitCaretColor(StyleResolverState& state, const CSSValue& value)
+{
+    if (value.isPrimitiveValue() || value.isColorValue()) {
+        Color col = state.document().textLinkColors().colorFromCSSValue(value, state.style()->visitedDependentColor(CSSPropertyWebkitCaretColor));
+        state.style()->setCaretColor(col);
+    }
+}
+
 void StyleBuilderFunctions::applyInitialCSSPropertyWebkitTextEmphasisStyle(
     StyleResolverState& state) {
   state.style()->setTextEmphasisFill(ComputedStyle::initialTextEmphasisFill());
