@@ -225,6 +225,9 @@ class WebPlugin {
   // Rotates the plugin's view of its content.
   virtual void rotateView(RotationType type) {}
 
+  virtual void addedToParent() {}
+  virtual void removedFromParent() {}
+
   virtual bool isPlaceholder() { return true; }
 
  protected:

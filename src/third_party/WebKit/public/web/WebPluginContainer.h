@@ -47,6 +47,7 @@ class WebURL;
 class WebURLRequest;
 class WebLayer;
 class WebDOMMessageEvent;
+class WebDOMEvent;
 struct WebPoint;
 struct WebRect;
 
@@ -74,6 +75,8 @@ class WebPluginContainer {
   // Enqueue's a task to dispatch the event.
   // TODO(esprehn): Why are progress events sync and message events async!?
   virtual void enqueueMessageEvent(const WebDOMMessageEvent&) = 0;
+
+  virtual void enqueueEvent(const WebDOMEvent& event) = 0;
 
   virtual void invalidate() = 0;
   virtual void invalidateRect(const WebRect&) = 0;

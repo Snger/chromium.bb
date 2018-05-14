@@ -92,6 +92,7 @@
 // feature 23
 #define BLPWTK2_FEATURE_NO_INTERNET_DICTIONARY
 // feature 24
+#define BLPWTK2_FEATURE_PLUGIN_CLIPRECT_N_EVENTS_FIX
 // feature 25
 // feature 26
 // feature 27
