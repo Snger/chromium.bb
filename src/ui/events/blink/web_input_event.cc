@@ -406,7 +406,11 @@ blink::WebMouseEvent MakeWebMouseEventFromUiEvent(const MouseEvent& event) {
       webkit_event.type = blink::WebInputEvent::MouseLeave;
       break;
 #endif
+      webkit_event.type = blink::WebInputEvent::MouseLeave;
+      break;
     case ET_MOUSE_ENTERED:
+      webkit_event.type = blink::WebInputEvent::MouseEnter;
+      break;
     case ET_MOUSE_MOVED:
     case ET_MOUSE_DRAGGED:
       webkit_event.type = blink::WebInputEvent::MouseMove;
