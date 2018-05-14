@@ -92,7 +92,8 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     d_requestContextGetter =
         new URLRequestContextGetterImpl(path, false, false);
 
-    {
+    //TODO: fix this - bb56/blpwtk2/docprinter
+    if (false) {
         // Initialize prefs for this context.
         d_prefRegistry = new user_prefs::PrefRegistrySyncable();
 
