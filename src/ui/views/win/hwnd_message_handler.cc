@@ -328,6 +328,7 @@ HWNDMessageHandler::HWNDMessageHandler(HWNDMessageHandlerDelegate* delegate)
       use_system_default_icon_(false),
       is_cursor_overridden_(false),
       restored_enabled_(false),
+      handled_wm_destroy_(false),
       current_cursor_(NULL),
       previous_cursor_(NULL),
       dpi_(0),
