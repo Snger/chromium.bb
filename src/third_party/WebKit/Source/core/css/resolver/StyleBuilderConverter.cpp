@@ -181,10 +181,20 @@ static bool convertFontFamilyName(
     StyleResolverState& state,
     const CSSValue& value,
     FontDescription::GenericFamilyType& genericFamily,
-    AtomicString& familyName) {
+    AtomicString& familyName,
+    bool& boldOverride, bool& italicOverride) {
   if (value.isFontFamilyValue()) {
     genericFamily = FontDescription::NoFamily;
-    familyName = AtomicString(toCSSFontFamilyValue(value).value());
+    WTF::String wtfFace = toCSSFontFamilyValue(value).value();
+    if (wtfFace.endsWith(" Italic")) {
+      italicOverride = true;
+      wtfFace = wtfFace.substring(0, wtfFace.length() - 7);
+    }
+    if (wtfFace.endsWith(" Bold")) {
+      boldOverride = true;
+      wtfFace = wtfFace.substring(0, wtfFace.length() - 5);
+    }
+    familyName = AtomicString(wtfFace);
 #if OS(MACOSX)
     if (familyName == FontCache::legacySystemFontFamily()) {
       UseCounter::count(state.document(), UseCounter::BlinkMacSystemFont);
@@ -213,7 +223,7 @@ FontDescription::FamilyDescription StyleBuilderConverter::convertFontFamily(
         FontDescription::NoFamily;
     AtomicString familyName;
 
-    if (!convertFontFamilyName(state, *family, genericFamily, familyName))
+    if (!convertFontFamilyName(state, *family, genericFamily, familyName, desc.boldOverride, desc.italicOverride))
       continue;
 
     if (!currFamily) {
