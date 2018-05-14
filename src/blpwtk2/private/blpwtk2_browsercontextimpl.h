@@ -114,6 +114,7 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     void clearFallbackProxies() override;
     void addBypassRule(const StringRef& rule) override;
     void clearBypassRules() override;
+    void clearWebCache() override;
     void setPacUrl(const StringRef& url) override;
     void setDefaultPrinter(const StringRef& name) override;
     void dumpDiagnostics(DiagnosticInfoType type,

@@ -1760,6 +1760,7 @@ bool RenderThreadImpl::OnControlMessageReceived(const IPC::Message& msg) {
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP(RenderThreadImpl, msg)
     IPC_MESSAGE_HANDLER(WorkerProcessMsg_CreateWorker, OnCreateNewSharedWorker)
+    IPC_MESSAGE_HANDLER(ViewMsg_ClearWebCache, OnClearWebCache)
     IPC_MESSAGE_UNHANDLED(handled = false)
   IPC_END_MESSAGE_MAP()
   return handled;
@@ -2266,6 +2267,10 @@ void RenderThreadImpl::PurgePluginListCache(bool reload_pages) {
 #else
   NOTREACHED();
 #endif
+}
+
+void RenderThreadImpl::OnClearWebCache() {
+  blink::WebCache::clear();
 }
 
 void RenderThreadImpl::OnCreateNewSharedWorker(

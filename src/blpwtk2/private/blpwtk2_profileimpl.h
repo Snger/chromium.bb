@@ -176,6 +176,8 @@ class ProfileImpl : public Profile {
     void clearBypassRules() override;
         // Requires browser context
 
+    void clearWebCache() override;
+
     void setPacUrl(const StringRef& url) override;
 
     void setDefaultPrinter(const StringRef& name) override;
