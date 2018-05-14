@@ -37,8 +37,10 @@
 #include "core/animation/AnimationClock.h"
 #include "core/frame/DOMTimer.h"
 #include "core/page/Page.h"
+#include "core/layout/LayoutTheme.h"
 #include "core/workers/WorkerBackingThread.h"
-#include "gin/public/v8_platform.h"
+// commented out due to the duplicate include of trace_event_common.h from LayoutTheme.h
+//#include "gin/public/v8_platform.h"
 #include "modules/ModulesInitializer.h"
 #include "platform/LayoutTestSupport.h"
 #include "platform/heap/Heap.h"
@@ -146,6 +148,17 @@ void setTimerHiddenPageAlignmentInterval(double interval) {
 
 void decommitFreeableMemory() {
   WTF::Partitions::decommitFreeableMemory();
+}
+
+void setTextSearchHighlightColor(int activeR, int activeG, int activeB,
+                                 int inactiveR, int inactiveG, int inactiveB)
+{
+    LayoutTheme::setTextSearchHighlightColor(activeR, activeG, activeB, inactiveR, inactiveG, inactiveB);
+}
+
+void setTextSearchColor(int activeR, int activeG, int activeB)
+{
+    LayoutTheme::setTextSearchColor(activeR, activeG, activeB);
 }
 
 void MemoryPressureNotificationToWorkerThreadIsolates(

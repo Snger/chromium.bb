@@ -125,7 +125,12 @@ class CORE_EXPORT LayoutTheme : public RefCounted<LayoutTheme> {
   Color inactiveListBoxSelectionBackgroundColor() const;
   Color inactiveListBoxSelectionForegroundColor() const;
 
+  // Highlighting colors for TextMatches.
+  static void setTextSearchHighlightColor(int activeR, int activeG, int activeB,
+                                          int inactiveR, int inactiveG, int inactiveB);
   // Highlight and text colors for TextMatches.
+  static void setTextSearchColor(int activeR, int activeG, int activeB);
+
   Color platformTextSearchHighlightColor(bool activeMatch) const;
   Color platformTextSearchColor(bool activeMatch) const;
 

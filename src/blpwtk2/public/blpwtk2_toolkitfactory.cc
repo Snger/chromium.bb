@@ -171,6 +171,13 @@ Toolkit* ToolkitFactory::create(const ToolkitCreateParams& params)
     if (g_consoleLogMessageHandler) {
         content::RenderFrameImpl::SetConsoleLogMessageHandler(wtk2ConsoleLogMessageHandlerFunction);
     }
+    NativeColor activeSearchColor = params.activeTextSearchHighlightColor();
+    NativeColor inactiveSearchColor = params.inactiveTextSearchHighlightColor();
+    blink::setTextSearchHighlightColor(GetRValue(activeSearchColor), GetGValue(activeSearchColor), GetBValue(activeSearchColor),
+                                       GetRValue(inactiveSearchColor), GetGValue(inactiveSearchColor), GetBValue(inactiveSearchColor));
+
+    NativeColor activeSearchTextColor = params.activeTextSearchColor();
+    blink::setTextSearchColor(GetRValue(activeSearchTextColor), GetGValue(activeSearchTextColor), GetBValue(activeSearchTextColor));
 
     base::win::SetWinProcExceptionFilter(params.winProcExceptionFilter());
 

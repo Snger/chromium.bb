@@ -74,6 +74,7 @@
 // feature 14
 // feature 15
 // feature 16
+#define BLPWTK2_FEATURE_SEARCHHIGHLIGHT
 // feature 17
 #define BLPWTK2_FEATURE_REMOVE_SPELLING_MARKER
 // feature 18
