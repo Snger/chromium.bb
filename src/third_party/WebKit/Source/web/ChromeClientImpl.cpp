@@ -453,14 +453,15 @@ void ChromeClientImpl::addMessageToConsole(LocalFrame* localFrame,
                                            MessageLevel level,
                                            const String& message,
                                            unsigned lineNumber,
+                                           unsigned columnNumber,
                                            const String& sourceID,
                                            const String& stackTrace) {
   WebLocalFrameImpl* frame = WebLocalFrameImpl::fromFrame(localFrame);
   if (frame && frame->client()) {
-    frame->client()->didAddMessageToConsole(
+    frame->client()->didAddMessageToConsoleWithCol(
         WebConsoleMessage(static_cast<WebConsoleMessage::Level>(level),
                           message),
-        sourceID, lineNumber, stackTrace);
+        sourceID, lineNumber, columnNumber, stackTrace);
   }
 }
 

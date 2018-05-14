@@ -746,6 +746,48 @@ void runHost()
     ::CloseHandle(g_hJob);
 }
 
+void logMessageHandler(blpwtk2::ToolkitCreateParams::LogMessageSeverity severity,
+                       const char* file,
+                       int line,
+                       const char* message)
+{
+    char buf[1024];
+    sprintf_s(buf, sizeof(buf), "[%s:%d] ", file, line);
+
+    std::string outputStr;
+    outputStr.reserve(strlen(buf) + strlen(message) + 10);
+    outputStr.append(buf);
+    outputStr.append(message);
+    outputStr.append("\n");
+
+    OutputDebugStringA(outputStr.c_str());
+}
+
+void consoleLogMessageHandler(blpwtk2::ToolkitCreateParams::LogMessageSeverity severity,
+                              const blpwtk2::StringRef& file,
+                              unsigned line,
+                              unsigned column,
+                              const blpwtk2::StringRef& message,
+                              const blpwtk2::StringRef& stack_trace)
+{
+    std::string fileStr(file.data(), file.length());
+
+    char buf[1024];
+    sprintf_s(buf, sizeof(buf), "[%s:%d:%d] ", fileStr.c_str(), line, column);
+
+    std::string outputStr;
+    outputStr.reserve(strlen(buf) + message.length() + stack_trace.length() + 20);
+    outputStr.append(buf);
+    outputStr.append(message.data(), message.length());
+    if (!stack_trace.isEmpty()) {
+        outputStr.append("\nStack Trace:");
+        outputStr.append(stack_trace.data(), stack_trace.length());
+    }
+    outputStr.append("\n");
+
+    OutputDebugStringA(outputStr.c_str());
+}
+
 int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int)
 {
     g_instance = instance;
@@ -856,6 +898,8 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int)
     toolkitParams.setHeaderFooterHTML(getHeaderFooterHTMLContent());
     toolkitParams.enablePrintBackgroundGraphics();
     toolkitParams.setDictionaryPath(g_dictDir);
+    toolkitParams.setLogMessageHandler(logMessageHandler);
+    toolkitParams.setConsoleLogMessageHandler(consoleLogMessageHandler);
 
     g_toolkit = blpwtk2::ToolkitFactory::create(toolkitParams);
 

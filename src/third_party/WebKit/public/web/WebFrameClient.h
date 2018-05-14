@@ -262,6 +262,12 @@ class BLINK_EXPORT WebFrameClient {
                                       unsigned sourceLine,
                                       const WebString& stackTrace) {}
 
+  virtual void didAddMessageToConsoleWithCol(const WebConsoleMessage&,
+                                             const WebString& sourceName,
+                                             unsigned sourceLine,
+                                             unsigned sourceColumn,
+                                             const WebString& stackTrace) {}
+
   // Load commands -------------------------------------------------------
 
   // The client should handle the navigation externally.

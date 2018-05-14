@@ -164,6 +164,13 @@ namespace {
 class CreateFrameWidgetParams;
 }
 
+typedef void(*ConsoleLogMessageHandlerFunction)(int severity,
+                                                const std::string& file,
+                                                int line,
+                                                int column,
+                                                const std::string& message,
+                                                const std::string& stack_trace);
+
 class CONTENT_EXPORT RenderFrameImpl
     : public RenderFrame,
       NON_EXPORTED_BASE(mojom::Frame),
@@ -224,6 +231,9 @@ class CONTENT_EXPORT RenderFrameImpl
       RenderFrameImpl* (*)(const CreateParams&);
   static void InstallCreateHook(
       CreateRenderFrameImplFunction create_render_frame_impl);
+
+  static void SetConsoleLogMessageHandler(
+      ConsoleLogMessageHandlerFunction handler);
 
   // Looks up and returns the WebFrame corresponding to a given opener frame
   // routing ID.  Also stores the opener's RenderView routing ID into
@@ -506,10 +516,11 @@ class CONTENT_EXPORT RenderFrameImpl
       override;
   bool shouldReportDetailedMessageForSource(
       const blink::WebString& source) override;
-  void didAddMessageToConsole(const blink::WebConsoleMessage& message,
-                              const blink::WebString& source_name,
-                              unsigned source_line,
-                              const blink::WebString& stack_trace) override;
+  void didAddMessageToConsoleWithCol(const blink::WebConsoleMessage& message,
+                                     const blink::WebString& source_name,
+                                     unsigned source_line,
+                                     unsigned source_column_number,
+                                     const blink::WebString& stack_trace) override;
   void loadURLExternally(const blink::WebURLRequest& request,
                          blink::WebNavigationPolicy policy,
                          const blink::WebString& suggested_name,
