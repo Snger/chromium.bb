@@ -68,6 +68,7 @@
 // feature 18
 // feature 19
 // feature 20
+#define BLPWTK2_FEATURE_NOADJUST_DPI
 // feature 21
 // feature 22
 // feature 23
