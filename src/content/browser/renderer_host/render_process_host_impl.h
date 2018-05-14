@@ -101,7 +101,9 @@ class CONTENT_EXPORT RenderProcessHostImpl
       public NON_EXPORTED_BASE(mojom::RouteProvider),
       public NON_EXPORTED_BASE(mojom::AssociatedInterfaceProvider) {
  public:
-  RenderProcessHostImpl(BrowserContext* browser_context,
+  RenderProcessHostImpl(int host_id,
+                        base::ProcessHandle externally_managed_handle,
+                        BrowserContext* browser_context,
                         StoragePartitionImpl* storage_partition_impl,
                         bool is_for_guests_only);
   ~RenderProcessHostImpl() override;
@@ -114,6 +116,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void RemoveRoute(int32_t routing_id) override;
   void AddObserver(RenderProcessHostObserver* observer) override;
   void RemoveObserver(RenderProcessHostObserver* observer) override;
+  size_t NumListeners() override;
   void ShutdownForBadMessage(CrashReportMode crash_report_mode) override;
   void WidgetRestored() override;
   void WidgetHidden() override;
@@ -137,6 +140,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void SetSuddenTerminationAllowed(bool enabled) override;
   bool SuddenTerminationAllowed() const override;
   IPC::ChannelProxy* GetChannel() override;
+  std::string GetChildToken() const override;
   void AddFilter(BrowserMessageFilter* filter) override;
   bool FastShutdownForPageCount(size_t count) override;
   bool FastShutdownStarted() const override;
@@ -157,6 +161,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
 #endif
   void ResumeDeferredNavigation(const GlobalRequestID& request_id) override;
   service_manager::InterfaceProvider* GetRemoteInterfaces() override;
+  bool IsProcessManagedExternally() const override;
   std::unique_ptr<base::SharedPersistentMemoryAllocator> TakeMetricsAllocator()
       override;
   const base::TimeTicks& GetInitTimeForNavigationMetrics() const override;
@@ -170,6 +175,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void PurgeAndSuspend() override;
   void Resume() override;
   mojom::Renderer* GetRendererInterface() override;
+  void AdjustCommandLineForRenderer(base::CommandLine* command_line) override;
 
   mojom::RouteProvider* GetRemoteRouteProvider();
 
@@ -193,6 +199,12 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void mark_child_process_activity_time() {
     child_process_activity_time_ = base::TimeTicks::Now();
   }
+
+  // This value is guaranteed to never be returned by GenerateUniqueId() below.
+  static int kInvalidId;
+
+  // Generate a new unique host id.
+  static int GenerateUniqueId();
 
   // Used to extend the lifetime of the sessions until the render view
   // in the renderer is fully closed. This is static because its also called
@@ -480,6 +492,11 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   // Used to launch and terminate the process without blocking the UI thread.
   std::unique_ptr<ChildProcessLauncher> child_process_launcher_;
+
+  // Handle for the renderer process if it is managed externally, otherwise
+  // this will be set to base::kNullProcessHandle (which means the
+  // RenderProcessHostImpl is the one that launches the process).
+  base::ProcessHandle externally_managed_handle_;
 
   // The globally-unique identifier for this RPH.
   const int id_;

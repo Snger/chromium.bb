@@ -35,6 +35,7 @@
 #include "bindings/core/v8/V8GCController.h"
 #include "bindings/core/v8/V8Initializer.h"
 #include "core/animation/AnimationClock.h"
+#include "core/frame/DOMTimer.h"
 #include "core/page/Page.h"
 #include "core/workers/WorkerBackingThread.h"
 #include "gin/public/v8_platform.h"
@@ -137,6 +138,10 @@ bool fontAntialiasingEnabledForTest() {
 void resetPluginCache(bool reloadPages) {
   DCHECK(!reloadPages);
   Page::refreshPlugins();
+}
+
+void setTimerHiddenPageAlignmentInterval(double interval) {
+  DOMTimer::setHiddenPageAlignmentInterval(interval);
 }
 
 void decommitFreeableMemory() {

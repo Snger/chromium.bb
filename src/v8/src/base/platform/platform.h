@@ -212,7 +212,7 @@ class V8_BASE_EXPORT OS {
     char text[kStackWalkMaxTextLen];
   };
 
-  class V8_BASE_EXPORT MemoryMappedFile {
+  class BLPV8_BASE_EXPORT MemoryMappedFile {
    public:
     virtual ~MemoryMappedFile() {}
     virtual void* memory() const = 0;
@@ -419,7 +419,7 @@ class V8_BASE_EXPORT VirtualMemory {
 // thread. The Thread object should not be deallocated before the thread has
 // terminated.
 
-class V8_BASE_EXPORT Thread {
+class BLPV8_BASE_EXPORT Thread {
  public:
   // Opaque data type for thread-local storage keys.
   typedef int32_t LocalStorageKey;

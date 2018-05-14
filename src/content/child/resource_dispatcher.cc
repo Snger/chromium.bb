@@ -36,9 +36,11 @@
 #include "content/public/child/fixed_received_data.h"
 #include "content/public/child/request_peer.h"
 #include "content/public/child/resource_dispatcher_delegate.h"
+#include "content/public/common/content_client.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/resource_response.h"
 #include "content/public/common/resource_type.h"
+#include "content/public/renderer/content_renderer_client.h"
 #include "mojo/public/cpp/bindings/associated_binding.h"
 #include "mojo/public/cpp/bindings/associated_group.h"
 #include "mojo/public/cpp/bindings/associated_interface_ptr_info.h"
@@ -484,10 +486,14 @@ bool ResourceDispatcher::RemovePendingRequest(int request_id) {
   // process.
   it->second->url_loader_client = nullptr;
 
+  if (it->second.get()->bridge)
+    it->second.get()->bridge.reset(nullptr);
+
   // Always delete the pending_request asyncly so that cancelling the request
   // doesn't delete the request context info while its response is still being
   // handled.
   main_thread_task_runner_->DeleteSoon(FROM_HERE, it->second.release());
+
   pending_requests_.erase(it);
 
   if (release_downloaded_file) {
@@ -531,10 +537,18 @@ void ResourceDispatcher::Cancel(int request_id) {
       should_dump = false;
     }
   }
+
+  if (it->second.get()->bridge) {
+    it->second.get()->bridge->Cancel();
+    RemovePendingRequest(request_id);
+    return;
+  }
+
   // Cancel the request if it didn't complete, and clean it up so the bridge
   // will receive no more messages.
   if (info.completion_time.is_null())
     message_sender_->Send(new ResourceHostMsg_CancelRequest(request_id));
+
   RemovePendingRequest(request_id);
 }
 
@@ -568,12 +582,14 @@ void ResourceDispatcher::DidChangePriority(int request_id,
 
 ResourceDispatcher::PendingRequestInfo::PendingRequestInfo(
     std::unique_ptr<RequestPeer> peer,
+    std::unique_ptr<ResourceLoaderBridge> bridge,
     ResourceType resource_type,
     int origin_pid,
     const GURL& frame_origin,
     const GURL& request_url,
     bool download_to_file)
     : peer(std::move(peer)),
+      bridge(std::move(bridge)),
       resource_type(resource_type),
       origin_pid(origin_pid),
       url(request_url),
@@ -639,8 +655,17 @@ void ResourceDispatcher::StartSync(
     SyncLoadResponse* response,
     blink::WebURLRequest::LoadingIPCType ipc_type,
     mojom::URLLoaderFactory* url_loader_factory) {
-  CheckSchemeForReferrerPolicy(*request);
 
+  std::unique_ptr<ResourceLoaderBridge> bridge(
+      GetContentClient()->renderer()->OverrideResourceLoaderBridge(
+        request.get()));
+
+  if (bridge.get()) {
+    bridge->SyncLoad(response);
+    return;
+  }
+
+  CheckSchemeForReferrerPolicy(*request);
   SyncLoadResult result;
 
   if (ipc_type == blink::WebURLRequest::LoadingIPCType::Mojo) {
@@ -685,12 +710,31 @@ int ResourceDispatcher::StartAsync(
     blink::WebURLRequest::LoadingIPCType ipc_type,
     mojom::URLLoaderFactory* url_loader_factory,
     mojo::AssociatedGroup* associated_group) {
-  CheckSchemeForReferrerPolicy(*request);
 
   // Compute a unique request_id for this renderer process.
   int request_id = MakeRequestID();
+
+  std::unique_ptr<ResourceLoaderBridge> bridge(
+      GetContentClient()->renderer()->OverrideResourceLoaderBridge(
+        request.get()));
+
+  if (bridge) {
+      bridge->Start(peer.get());
+      pending_requests_[request_id] =
+          base::WrapUnique(new PendingRequestInfo(std::move(peer),
+                             std::move(bridge),
+                             request->resource_type,
+                             request->origin_pid,
+                             frame_origin,
+                             request->url,
+                             request->download_to_file));
+      return request_id;
+  }
+
+  CheckSchemeForReferrerPolicy(*request);
+
   pending_requests_[request_id] = base::MakeUnique<PendingRequestInfo>(
-      std::move(peer), request->resource_type, request->origin_pid,
+      std::move(peer), std::move(bridge), request->resource_type, request->origin_pid,
       frame_origin, request->url, request->download_to_file);
 
   if (resource_scheduling_filter_.get() && loading_task_runner) {

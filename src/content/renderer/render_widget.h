@@ -389,6 +389,8 @@ class CONTENT_EXPORT RenderWidget
   // the browser even if the composition info is not changed.
   void UpdateCompositionInfo(bool immediate_request);
 
+  void bbHandleInputEvent(const blink::WebInputEvent& event);
+
   // Change the device ICC color profile while running a layout test.
   void SetDeviceColorProfileForTesting(const std::vector<char>& color_profile);
 
@@ -858,6 +860,8 @@ class CONTENT_EXPORT RenderWidget
   // being handled. If the current event results in starting a drag/drop
   // session, this info is sent to the browser along with other drag/drop info.
   DragEventSourceInfo possible_drag_event_info_;
+
+  bool bb_OnHandleInputEvent_no_ack_;
 
   DISALLOW_COPY_AND_ASSIGN(RenderWidget);
 };

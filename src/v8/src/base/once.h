@@ -80,7 +80,7 @@ struct OneArgFunction {
   typedef void (*type)(T);
 };
 
-V8_BASE_EXPORT void CallOnceImpl(OnceType* once, PointerArgFunction init_func,
+BLPV8_BASE_EXPORT void CallOnceImpl(OnceType* once, PointerArgFunction init_func,
                                  void* arg);
 
 inline void CallOnce(OnceType* once, NoArgFunction init_func) {

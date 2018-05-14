@@ -487,6 +487,7 @@ component("media") {
     ":shared_memory_support",
     "//media/audio",
     "//media/base",
+    "//blpwtk2:blpwtk2_generate_sources"
   ]
 
   deps += [
@@ -505,6 +506,10 @@ component("media") {
     "//ui/gfx/geometry",
     "//ui/gl:gl",
     "//url",
+  ]
+
+  public_configs += [
+    "//blpwtk2:blpwtk2_public"
   ]
 }
 

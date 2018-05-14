@@ -61,6 +61,10 @@ size_t WinHeapGetSizeEstimate(void* ptr) {
   // Get the user size of the allocation.
   size_t size = HeapSize(get_heap_handle(), 0, ptr);
 
+  return WinHeapGetSizeEstimateFromUserSize(size);
+}
+
+size_t WinHeapGetSizeEstimateFromUserSize(size_t size) {
   // Account for the 8-byte HEAP_HEADER preceding the block.
   size += 8;
 

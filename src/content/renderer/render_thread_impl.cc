@@ -72,6 +72,7 @@
 #include "content/common/dom_storage/dom_storage_messages.h"
 #include "content/common/frame_messages.h"
 #include "content/common/frame_owner_properties.h"
+#include "content/common/in_process_child_thread_params.h"
 #include "content/common/gpu/client/context_provider_command_buffer.h"
 #include "content/common/render_process_messages.h"
 #include "content/common/resource_messages.h"
@@ -396,6 +397,8 @@ void CreateEmbeddedWorkerSetup(mojom::EmbeddedWorkerSetupRequest request) {
                           std::move(request));
 }
 
+RenderProcessImpl* g_render_process = 0;
+
 scoped_refptr<ContextProviderCommandBuffer> CreateOffscreenContext(
     scoped_refptr<gpu::GpuChannelHost> gpu_channel_host,
     const gpu::SharedMemoryLimits& limits,
@@ -447,6 +450,31 @@ class MemoryObserver : public base::MessageLoop::TaskObserver {
  private:
   DISALLOW_COPY_AND_ASSIGN(MemoryObserver);
 };
+
+// static
+void RenderThread::InitInProcessRenderer(const InProcessChildThreadParams& params)
+{
+  g_render_process = new RenderProcessImpl();
+  RenderThreadImpl::Create(params);
+}
+
+// static
+scoped_refptr<base::SingleThreadTaskRunner> RenderThread::IOTaskRunner()
+{
+  RenderThreadImpl* thread = RenderThreadImpl::current();
+  scoped_refptr<base::SequencedTaskRunner> str = thread->GetIOTaskRunner();
+  // TODO(SHEZ): Make thread->GetIOTaskRunner return SingleThreadTaskRunner to avoid this downcast?
+  return static_cast<base::SingleThreadTaskRunner*>(str.get());
+}
+
+// static
+void RenderThread::CleanUpInProcessRenderer()
+{
+  if (g_render_process) {
+    delete g_render_process;
+    g_render_process = 0;
+  }
+}
 
 RenderThreadImpl::HistogramCustomizer::HistogramCustomizer() {
   custom_histograms_.insert("V8.MemoryExternalFragmentationTotal");

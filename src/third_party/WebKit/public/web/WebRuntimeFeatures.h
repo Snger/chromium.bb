@@ -61,6 +61,10 @@ class WebRuntimeFeatures {
   BLINK_EXPORT static void enableCompositedSelectionUpdate(bool);
   BLINK_EXPORT static bool isCompositedSelectionUpdateEnabled();
 
+  BLINK_EXPORT static void enableCSS3TextDecorations(bool);
+  BLINK_EXPORT static void enableCSS3Text(bool);
+  BLINK_EXPORT static void enableCSSGridLayout(bool);
+
   BLINK_EXPORT static void enableDisplayList2dCanvas(bool);
   BLINK_EXPORT static void forceDisplayList2dCanvas(bool);
   BLINK_EXPORT static void forceDisable2dCanvasCopyOnWrite(bool);

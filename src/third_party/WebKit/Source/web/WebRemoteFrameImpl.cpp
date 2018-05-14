@@ -230,6 +230,12 @@ v8::Local<v8::Context> WebRemoteFrameImpl::deprecatedMainWorldScriptContext()
   return toV8Context(frame(), DOMWrapperWorld::mainWorld());
 }
 
+v8::Isolate* WebRemoteFrameImpl::scriptIsolate() const
+{
+  NOTREACHED();
+  return nullptr;
+}
+
 void WebRemoteFrameImpl::reload(WebFrameLoadType) {
   NOTREACHED();
 }

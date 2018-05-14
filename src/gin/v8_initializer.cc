@@ -36,6 +36,8 @@
 #include "base/path_service.h"
 #endif  // V8_USE_EXTERNAL_STARTUP_DATA
 
+#include <blpv8_products.h>  // For BLPV8_NATIVES_BLOB_NAME, BLPV8_SNAPSHOT_BLOB_NAME
+
 namespace gin {
 
 namespace {
@@ -64,7 +66,7 @@ OpenedFileMap::mapped_type& GetOpenedFile(const char* file) {
   return opened_files[file];
 }
 
-const char kNativesFileName[] = "natives_blob.bin";
+const char kNativesFileName[] = BLPV8_NATIVES_BLOB_NAME;
 
 #if defined(OS_ANDROID)
 const char kSnapshotFileName64[] = "snapshot_blob_64.bin";
@@ -77,7 +79,7 @@ const char kSnapshotFileName32[] = "snapshot_blob_32.bin";
 #endif
 
 #else  // defined(OS_ANDROID)
-const char kSnapshotFileName[] = "snapshot_blob.bin";
+const char kSnapshotFileName[] = BLPV8_SNAPSHOT_BLOB_NAME;
 #endif  // defined(OS_ANDROID)
 
 void GetV8FilePath(const char* file_name, base::FilePath* path_out) {
@@ -233,8 +235,10 @@ bool GenerateEntropy(unsigned char* buffer, size_t amount) {
 #if defined(V8_USE_EXTERNAL_STARTUP_DATA)
 #if defined(V8_VERIFY_EXTERNAL_STARTUP_DATA)
 // Defined in gen/gin/v8_snapshot_fingerprint.cc
-extern const unsigned char g_natives_fingerprint[];
-extern const unsigned char g_snapshot_fingerprint[];
+extern "C" {
+    const unsigned char* GetV8NativesFingerprint();
+    const unsigned char* GetV8SnapshotFingerprint();
+}
 #endif  // V8_VERIFY_EXTERNAL_STARTUP_DATA
 
 enum LoadV8FileResult {
@@ -269,7 +273,7 @@ void V8Initializer::LoadV8Snapshot() {
   OpenFileIfNecessary(kSnapshotFileName);
   LoadV8FileResult result = MapVerify(GetOpenedFile(kSnapshotFileName),
 #if defined(V8_VERIFY_EXTERNAL_STARTUP_DATA)
-                                      g_snapshot_fingerprint,
+                                      GetV8SnapshotFingerprint(),
 #endif
                                       &g_mapped_snapshot);
   // V8 can't start up without the source of the natives, but it can
@@ -285,7 +289,7 @@ void V8Initializer::LoadV8Natives() {
   OpenFileIfNecessary(kNativesFileName);
   LoadV8FileResult result = MapVerify(GetOpenedFile(kNativesFileName),
 #if defined(V8_VERIFY_EXTERNAL_STARTUP_DATA)
-                                      g_natives_fingerprint,
+                                      GetV8NativesFingerprint(),
 #endif
                                       &g_mapped_natives);
   if (result != V8_LOAD_SUCCESS) {
@@ -315,7 +319,7 @@ void V8Initializer::LoadV8SnapshotFromFD(base::PlatformFile snapshot_pf,
   if (!MapV8File(snapshot_pf, snapshot_region, &g_mapped_snapshot))
     result = V8_LOAD_FAILED_MAP;
 #if defined(V8_VERIFY_EXTERNAL_STARTUP_DATA)
-  if (!VerifyV8StartupFile(&g_mapped_snapshot, g_snapshot_fingerprint))
+  if (!VerifyV8StartupFile(&g_mapped_snapshot, GetV8SnapshotFingerprint()))
     result = V8_LOAD_FAILED_VERIFY;
 #endif  // V8_VERIFY_EXTERNAL_STARTUP_DATA
   if (result == V8_LOAD_SUCCESS) {
@@ -346,7 +350,7 @@ void V8Initializer::LoadV8NativesFromFD(base::PlatformFile natives_pf,
     LOG(FATAL) << "Couldn't mmap v8 natives data file";
   }
 #if defined(V8_VERIFY_EXTERNAL_STARTUP_DATA)
-  if (!VerifyV8StartupFile(&g_mapped_natives, g_natives_fingerprint)) {
+  if (!VerifyV8StartupFile(&g_mapped_natives, GetV8NativesFingerprint())) {
     LOG(FATAL) << "Couldn't verify contents of v8 natives data file";
   }
 #endif  // V8_VERIFY_EXTERNAL_STARTUP_DATA

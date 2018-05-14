@@ -6,16 +6,23 @@
 
 #include "base/files/file_path.h"
 #include "base/guid.h"
+#include "base/strings/utf_string_conversions.h"
 #include "build/build_config.h"
 #include "content/public/browser/client_certificate_delegate.h"
 #include "content/public/browser/memory_coordinator_delegate.h"
 #include "content/public/browser/navigation_ui_data.h"
 #include "content/public/browser/vpn_service_proxy.h"
 #include "content/public/common/sandbox_type.h"
+#include "content/shell/common/shell_switches.h"
 #include "media/base/cdm_factory.h"
 #include "storage/browser/quota/quota_manager.h"
 #include "ui/gfx/image/image_skia.h"
 #include "url/gurl.h"
+
+#if defined(OS_WIN)
+#include "content/common/sandbox_win.h"
+#include "sandbox/win/src/sandbox.h"
+#endif
 
 namespace content {
 
@@ -310,6 +317,10 @@ SpeechRecognitionManagerDelegate*
 
 net::NetLog* ContentBrowserClient::GetNetLog() {
   return nullptr;
+}
+
+bool ContentBrowserClient::SupportsInProcessRenderer() {
+  return false;
 }
 
 base::FilePath ContentBrowserClient::GetDefaultDownloadDirectory() {

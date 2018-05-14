@@ -19,7 +19,8 @@ namespace content {
 class CONTENT_EXPORT InProcessChildThreadParams {
  public:
   InProcessChildThreadParams(scoped_refptr<base::SequencedTaskRunner> io_runner,
-                             const std::string& service_request_token);
+                             const std::string& service_request_token,
+                             int mojo_controller_handle = 0);
   InProcessChildThreadParams(const InProcessChildThreadParams& other);
   ~InProcessChildThreadParams();
 
@@ -30,9 +31,14 @@ class CONTENT_EXPORT InProcessChildThreadParams {
     return service_request_token_;
   }
 
+  int mojo_controller_handle() const {
+    return mojo_controller_handle_;
+  }
+
  private:
   scoped_refptr<base::SequencedTaskRunner> io_runner_;
   std::string service_request_token_;
+  int mojo_controller_handle_;
 };
 
 }  // namespace content

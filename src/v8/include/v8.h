@@ -1149,6 +1149,15 @@ class V8_EXPORT ScriptCompiler {
       BufferOwned
     };
 
+    // blpwtk2: These static functions need to be defined within V8 because we
+    // use a separate heap for V8 and Blink.
+    static CachedData* create();
+    static CachedData* create(const uint8_t* data, int length,
+                              BufferPolicy buffer_policy = BufferNotOwned);
+    static void dispose(CachedData* cd);
+
+    // blpwtk2: These are made private to prevent their usage outside V8.
+  private:
     CachedData()
         : data(NULL),
           length(0),
@@ -1164,6 +1173,8 @@ class V8_EXPORT ScriptCompiler {
     ~CachedData();
     // TODO(marja): Async compilation; add constructors which take a callback
     // which will be called when V8 no longer needs the data.
+
+  public:
     const uint8_t* data;
     int length;
     bool rejected;
@@ -1292,9 +1303,14 @@ class V8_EXPORT ScriptCompiler {
    * stream scripts into V8. Returned by ScriptCompiler::StartStreamingScript.
    */
   class ScriptStreamingTask {
+    // blpwtk2: The destructor is made 'protected' to prevent the caller from
+    // directly deleting the object.  The caller should invoke the Dispose()
+    // function to let v8 delete the object with its associated allocator.
    public:
-    virtual ~ScriptStreamingTask() {}
     virtual void Run() = 0;
+    virtual void Dispose() = 0;
+   protected:
+    virtual ~ScriptStreamingTask() {}
   };
 
   enum CompileOptions {
@@ -7497,6 +7513,11 @@ class V8_EXPORT V8 {
                                            const char* icu_data_file = nullptr);
 
   /**
+   * Initialize the ICU library bundled with V8 using the specified icu data.
+  */
+  static bool InitializeICUWithData(const void* icu_data);
+
+  /**
    * Initialize the external startup data. The embedder only needs to
    * invoke this method when external startup data was enabled in a build.
    *
@@ -8906,7 +8927,7 @@ ScriptCompiler::Source::Source(Local<String> string,
 
 
 ScriptCompiler::Source::~Source() {
-  delete cached_data;
+  CachedData::dispose(cached_data);
 }
 
 

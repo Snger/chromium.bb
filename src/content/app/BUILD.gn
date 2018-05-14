@@ -32,6 +32,10 @@ template("implement_content_app") {
     "//ui/base",
     "//ui/gfx",
     "//ui/gfx/geometry",
+
+    # blpwtk2: Added this so that we can initialize V8's ICU in
+    #          content_main_runner.
+    "//v8",
   ]
 
   if (is_win) {

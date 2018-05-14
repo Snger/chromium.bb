@@ -9,6 +9,7 @@ import("//build/config/ui.gni")
 import("//testing/libfuzzer/fuzzer_test.gni")
 import("//third_party/angle/gni/angle.gni")
 import("//ui/ozone/ozone.gni")
+import("//blpwtk2/blpwtk2.gni")
 
 if (ozone_platform_gbm) {
   pkg_config("libdrm") {
@@ -416,6 +417,12 @@ config("shared_library_public_config") {
 }
 
 shared_library("libGLESv2") {
+  if (bb_version != "") {
+    output_name = "blpcr_glesv2.$bb_version"
+  } else {
+    output_name = "blpcr_glesv2"
+  }
+
   sources = rebase_path(gles_gypi.libglesv2_sources, ".", "src")
 
   if (is_win) {
@@ -438,6 +445,12 @@ shared_library("libGLESv2") {
     ":debug_annotations_config",
     ":libANGLE_config",
   ]
+  if (bb_generate_map_files) {
+    configs += [ "//blpwtk2:blpwtk2_gen_map" ]
+  }
+  public_configs = [
+    "//blpwtk2:blpwtk2_public"
+  ]
 
   defines = [ "LIBGLESV2_IMPLEMENTATION" ]
 
@@ -445,9 +458,18 @@ shared_library("libGLESv2") {
     ":includes",
     ":libANGLE",
   ]
+  public_deps = [
+    "//blpwtk2:blpwtk2_generate_sources",
+  ]
 }
 
 shared_library("libEGL") {
+  if (bb_version != "") {
+    output_name = "blpcr_egl.$bb_version"
+  } else {
+    output_name = "blpcr_egl"
+  }
+
   sources = rebase_path(gles_gypi.libegl_sources, ".", "src")
 
   if (is_win) {
@@ -470,6 +492,9 @@ shared_library("libEGL") {
     ":internal_config",
     ":libANGLE_config",
   ]
+  if (bb_generate_map_files) {
+    configs += [ "//blpwtk2:blpwtk2_gen_map" ]
+  }
 
   defines = [ "LIBEGL_IMPLEMENTATION" ]
 

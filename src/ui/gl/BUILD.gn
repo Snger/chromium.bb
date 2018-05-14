@@ -139,7 +139,10 @@ component("gl") {
 
   all_dependent_configs = [ ":gl_config" ]
 
-  public_configs = [ "//third_party/khronos:khronos_headers" ]
+  public_configs = [
+    "//third_party/khronos:khronos_headers",
+    "//blpwtk2:blpwtk2_public",
+  ]
 
   deps = [
     "//base/third_party/dynamic_annotations",
@@ -150,6 +153,7 @@ component("gl") {
     "//ui/events/platform",
     "//ui/gfx",
     "//ui/gfx/geometry",
+    "//blpwtk2:blpwtk2_generate_sources",
   ]
 
   if (use_egl) {

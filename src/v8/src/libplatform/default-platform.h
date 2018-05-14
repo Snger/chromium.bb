@@ -92,6 +92,8 @@ class V8_PLATFORM_EXPORT DefaultPlatform : public NON_EXPORTED_BASE(Platform) {
   DISALLOW_COPY_AND_ASSIGN(DefaultPlatform);
 };
 
+V8_PLATFORM_EXPORT v8::Platform* CreateDefaultPlatformImpl(int thread_pool_size);
+V8_PLATFORM_EXPORT bool PumpMessageLoopImpl(v8::Platform* platform, v8::Isolate* isolate);
 
 }  // namespace platform
 }  // namespace v8

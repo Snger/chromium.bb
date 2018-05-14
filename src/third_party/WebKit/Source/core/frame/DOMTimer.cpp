@@ -69,6 +69,18 @@ int DOMTimer::install(ExecutionContext* context,
   return timeoutID;
 }
 
+static double s_hiddenPageAlignmentInterval = 1.0;
+void DOMTimer::setHiddenPageAlignmentInterval(double interval) {
+  s_hiddenPageAlignmentInterval = interval;
+}
+
+double DOMTimer::hiddenPageAlignmentInterval() {
+  // Timers on hidden pages are aligned so that they fire once per
+  // second at most.
+  // SHEZ: made this configurable from outside
+  return s_hiddenPageAlignmentInterval;
+}
+
 void DOMTimer::removeByID(ExecutionContext* context, int timeoutID) {
   DOMTimer* timer = context->timers()->removeTimeoutByID(timeoutID);
   TRACE_EVENT_INSTANT1("devtools.timeline", "TimerRemove",

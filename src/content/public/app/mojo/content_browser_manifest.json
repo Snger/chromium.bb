@@ -10,6 +10,7 @@
         "plugin": [
           "device::mojom::PowerMonitor"
         ],
+
         "renderer": [
           "blink::mojom::BackgroundSyncService",
           "blink::mojom::BroadcastChannelProvider",
@@ -22,6 +23,7 @@
           "blink::mojom::PermissionService",
           "blink::mojom::ShapeDetection",
           "blink::mojom::WebSocket",
+          "blpwtk2::mojom::ProcessHost",
           "content::mojom::MemoryCoordinatorHandle",
           "content::mojom::ServiceWorkerDispatcherHost",
           "content::mojom::StoragePartitionService",

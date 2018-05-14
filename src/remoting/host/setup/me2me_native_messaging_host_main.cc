@@ -67,7 +67,8 @@ int StartMe2MeNativeMessagingHost() {
 #endif  // defined(OS_LINUX)
 
   // Required to find the ICU data file, used by some file_util routines.
-  base::i18n::InitializeICU();
+  const void *icu_data;
+  base::i18n::InitializeICU(&icu_data);
 
 #if defined(REMOTING_ENABLE_BREAKPAD)
   // Initialize Breakpad as early as possible. On Mac the command-line needs to

@@ -470,9 +470,19 @@ void ScriptStreamer::notifyAppendData(ScriptResource* resource) {
         new v8::ScriptCompiler::StreamedSource(m_stream, m_encoding));
 
     ScriptState::Scope scope(m_scriptState.get());
-    std::unique_ptr<v8::ScriptCompiler::ScriptStreamingTask>
-        scriptStreamingTask(wrapUnique(v8::ScriptCompiler::StartStreamingScript(
-            m_scriptState->isolate(), m_source.get(), m_compileOptions)));
+
+
+    v8::ScriptCompiler::ScriptStreamingTask *scriptStreamingTaskPtr =
+        v8::ScriptCompiler::StartStreamingScript(m_scriptState->isolate(),
+                                                 m_source.get(),
+                                                 m_compileOptions);
+
+    std::unique_ptr<v8::ScriptCompiler::ScriptStreamingTask,
+                    std::function<void(v8::ScriptCompiler::ScriptStreamingTask*)>>
+        scriptStreamingTask(scriptStreamingTaskPtr,
+                            std::bind(&v8::ScriptCompiler::ScriptStreamingTask::Dispose,
+                                      scriptStreamingTaskPtr));
+
     if (!scriptStreamingTask) {
       // V8 cannot stream the script.
       suppressStreaming();
