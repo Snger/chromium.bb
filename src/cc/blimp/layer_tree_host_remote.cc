@@ -76,6 +76,7 @@ LayerTreeHostRemote::LayerTreeHostRemote(InitParams* params,
                                      nullptr)),
       remote_compositor_bridge_(std::move(params->remote_compositor_bridge)),
       engine_picture_cache_(std::move(params->engine_picture_cache)),
+      routing_id_(params->routing_id),
       settings_(*params->settings),
       layer_tree_(std::move(layer_tree)),
       weak_factory_(this) {
@@ -90,6 +91,10 @@ LayerTreeHostRemote::~LayerTreeHostRemote() = default;
 
 int LayerTreeHostRemote::GetId() const {
   return id_;
+}
+
+int LayerTreeHostRemote::GetRoutingId() const {
+  return routing_id_;
 }
 
 int LayerTreeHostRemote::SourceFrameNumber() const {

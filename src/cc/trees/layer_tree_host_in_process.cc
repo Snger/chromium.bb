@@ -118,6 +118,7 @@ LayerTreeHostInProcess::LayerTreeHostInProcess(
       gpu_rasterization_histogram_recorded_(false),
       did_complete_scale_animation_(false),
       id_(s_layer_tree_host_sequence_number.GetNext() + 1),
+      routing_id_(params->routing_id),
       task_graph_runner_(params->task_graph_runner),
       image_serialization_processor_(params->image_serialization_processor) {
   DCHECK(task_graph_runner_);
@@ -209,6 +210,10 @@ LayerTreeHostInProcess::~LayerTreeHostInProcess() {
 
 int LayerTreeHostInProcess::GetId() const {
   return id_;
+}
+
+int LayerTreeHostInProcess::GetRoutingId() const {
+  return routing_id_;
 }
 
 int LayerTreeHostInProcess::SourceFrameNumber() const {
