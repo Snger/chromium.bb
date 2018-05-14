@@ -178,16 +178,17 @@ class CORE_EXPORT CompositeEditCommand : public EditCommand {
   HTMLSpanElement* replaceElementWithSpanPreservingChildrenAndAttributes(
       HTMLElement*);
   void removeNodePreservingChildren(
-      Node*,
-      EditingState*,
-      ShouldAssumeContentIsAlwaysEditable = DoNotAssumeContentIsAlwaysEditable);
-  void removeNodeAndPruneAncestors(Node*,
-                                   EditingState*,
-                                   Node* excludeNode = nullptr);
+	Node* node,
+        EditingState* editingState,
+        ShouldAssumeContentIsAlwaysEditable shouldAssumeContentIsAlwaysEditable = DoNotAssumeContentIsAlwaysEditable);
+  void removeNodeAndPruneAncestors(Node* node,
+		                   EditingState* editingState,
+				   Node* excludeNode = nullptr);
   void moveRemainingSiblingsToNewParent(Node*,
-                                        Node* pastLastNodeToMove,
-                                        Element* newParent,
-                                        EditingState*);
+		                        Node* pastLastNodeToMove,
+					Element* newParent,
+					EditingState*,
+					Node* prpRefChild = nullptr);
   void updatePositionForNodeRemovalPreservingChildren(Position&, Node&);
   void prune(Node*, EditingState*, Node* excludeNode = nullptr);
   void replaceTextInNode(Text*,
@@ -257,6 +258,12 @@ class CORE_EXPORT CompositeEditCommand : public EditCommand {
 
   Position positionAvoidingSpecialElementBoundary(const Position&,
                                                   EditingState*);
+  bool prepareForBlockCommand(VisiblePosition& startOfSelection, VisiblePosition& endOfSelection,
+                              ContainerNode*& startScope, ContainerNode*& endScope,
+                              int& startIndex, int& endIndex,
+                              bool includeEmptyParagraphAtEnd);
+  void finishBlockCommand(ContainerNode* startScope, ContainerNode* endScope,
+                          int startIndex, int endIndex);
 
   Node* splitTreeToNode(Node*, Node*, bool splitAncestor = false);
 

@@ -245,7 +245,7 @@ EditCommandComposition* CompositeEditCommand::ensureComposition() {
   if (!command->m_composition)
     command->m_composition = EditCommandComposition::create(
         &document(), startingSelection(), endingSelection(), inputType());
-  return command->m_composition.get();
+  return command->m_composition;
 }
 
 bool CompositeEditCommand::preservesTypingStyle() const {
@@ -461,7 +461,7 @@ void CompositeEditCommand::removeChildrenInRange(Node* node,
 
   size_t size = children.size();
   for (size_t i = 0; i < size; ++i) {
-    removeNode(children[i].release(), editingState);
+    removeNode(children[i], editingState);
     if (editingState->isAborted())
       return;
   }
@@ -505,8 +505,11 @@ void CompositeEditCommand::moveRemainingSiblingsToNewParent(
     Node* node,
     Node* pastLastNodeToMove,
     Element* newParent,
-    EditingState* editingState) {
+    EditingState* editingState,
+    Node* prpRefChild) {
+  ASSERT(!prpRefChild || prpRefChild->parentNode() == newParent);
   NodeVector nodesToRemove;
+  Node* refChild = prpRefChild;
 
   for (; node && node != pastLastNodeToMove; node = node->nextSibling())
     nodesToRemove.append(node);
@@ -515,7 +518,12 @@ void CompositeEditCommand::moveRemainingSiblingsToNewParent(
     removeNode(nodesToRemove[i], editingState);
     if (editingState->isAborted())
       return;
-    appendNode(nodesToRemove[i], newParent, editingState);
+
+    if (refChild)
+      insertNodeBefore(nodesToRemove[i], refChild, editingState);
+    else
+      appendNode(nodesToRemove[i], newParent, editingState);
+
     if (editingState->isAborted())
       return;
   }
@@ -1291,7 +1299,7 @@ void CompositeEditCommand::cloneParagraphUnderNewElement(
     // Clone every node between start.anchorNode() and outerBlock.
 
     for (size_t i = ancestors.size(); i != 0; --i) {
-      Node* item = ancestors[i - 1].get();
+      Node* item = ancestors[i - 1];
       Node* child = item->cloneNode(isDisplayInsideTable(item));
       appendNode(child, toElement(lastNode), editingState);
       if (editingState->isAborted())
@@ -1624,9 +1632,10 @@ void CompositeEditCommand::moveParagraphs(
       createVisiblePosition(beforeParagraphPosition.position());
   VisiblePosition afterParagraph =
       createVisiblePosition(afterParagraphPosition.position());
-  if (beforeParagraph.isNotNull() &&
-      (!isEndOfParagraph(beforeParagraph) ||
-       beforeParagraph.deepEquivalent() == afterParagraph.deepEquivalent())) {
+  if (beforeParagraph.isNotNull() && 
+      ((!isStartOfParagraph(beforeParagraph) && !isEndOfParagraph(beforeParagraph))
+       || beforeParagraph.deepEquivalent() == afterParagraph.deepEquivalent())) {
+
     // FIXME: Trim text between beforeParagraph and afterParagraph if they
     // aren't equal.
     insertNodeAt(HTMLBRElement::create(document()),
@@ -1982,6 +1991,72 @@ Position CompositeEditCommand::positionAvoidingSpecialElementBoundary(
     result = original;
 
   return result;
+}
+
+bool CompositeEditCommand::prepareForBlockCommand(VisiblePosition& startOfSelection, VisiblePosition& endOfSelection,
+                                                  ContainerNode*& startScope, ContainerNode*& endScope,
+                                                  int& startIndex, int& endIndex,
+                                                  bool includeEmptyParagraphAtEnd)
+{
+    if (!endingSelection().rootEditableElement())
+        return false;
+
+    VisiblePosition visibleEnd = endingSelection().visibleEnd();
+    VisiblePosition visibleStart = endingSelection().visibleStart();
+    if (visibleStart.isNull() || visibleStart.isOrphan() || visibleEnd.isNull() || visibleEnd.isOrphan())
+        return false;
+
+    // When a selection ends at the start of a paragraph, we rarely paint
+    // the selection gap before that paragraph, because there often is no gap.
+    // In a case like this, it's not obvious to the user that the selection
+    // ends "inside" that paragraph, so it would be confusing if Indent/Outdent
+    // operated on that paragraph.
+    // FIXME: We paint the gap before some paragraphs that are indented with left
+    // margin/padding, but not others.  We should make the gap painting more
+    // consistent and then use a left margin/padding rule here.
+    if (visibleEnd.deepEquivalent() != visibleStart.deepEquivalent() &&
+        isStartOfParagraph(visibleEnd) &&
+	(!includeEmptyParagraphAtEnd || !isEndOfParagraph(visibleEnd))) {
+
+	setEndingSelection(
+          SelectionInDOMTree::Builder()
+	      .collapse(visibleStart.deepEquivalent())
+	      .extend(previousPositionOf(visibleEnd, CannotCrossEditingBoundary).deepEquivalent())
+	      .setIsDirectional(endingSelection().isDirectional())
+	      .build());
+    }
+
+    VisibleSelection selection = selectionForParagraphIteration(endingSelection());
+    startOfSelection = selection.visibleStart();
+    endOfSelection = selection.visibleEnd();
+    ASSERT(!startOfSelection.isNull());
+    ASSERT(!endOfSelection.isNull());
+    startIndex = indexForVisiblePosition(startOfSelection, startScope);
+    endIndex = indexForVisiblePosition(endOfSelection, endScope);
+    return true;
+}
+
+void CompositeEditCommand::finishBlockCommand(ContainerNode* startScope, ContainerNode* endScope,
+                                              int startIndex, int endIndex)
+{
+    document().updateStyleAndLayoutIgnorePendingStylesheets();
+
+    ASSERT(startScope == endScope);
+    ASSERT(startIndex >= 0);
+    ASSERT(startIndex <= endIndex);
+    if (startScope == endScope && startIndex >= 0 && startIndex <= endIndex) {
+        VisiblePosition start(visiblePositionForIndex(startIndex, startScope));
+        VisiblePosition end(visiblePositionForIndex(endIndex, endScope));
+        if (start.isNotNull() && end.isNotNull())
+
+	  setEndingSelection(
+            SelectionInDOMTree::Builder()
+	      .collapse(start.deepEquivalent())
+	      .extend(end.deepEquivalent())
+	      .setIsDirectional(endingSelection().isDirectional())
+	      .build());
+ 	
+    }
 }
 
 // Splits the tree parent by parent until we reach the specified ancestor. We

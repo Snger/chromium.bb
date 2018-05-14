@@ -54,75 +54,22 @@ ApplyBlockElementCommand::ApplyBlockElementCommand(Document& document,
     : CompositeEditCommand(document), m_tagName(tagName) {}
 
 void ApplyBlockElementCommand::doApply(EditingState* editingState) {
-  if (!endingSelection().rootEditableElement())
-    return;
-
-  // ApplyBlockElementCommands are only created directly by editor commands'
-  // execution, which updates layout before entering doApply().
-  DCHECK(!document().needsLayoutTreeUpdate());
-
-  VisiblePosition visibleEnd = endingSelection().visibleEnd();
-  VisiblePosition visibleStart = endingSelection().visibleStart();
-  if (visibleStart.isNull() || visibleStart.isOrphan() || visibleEnd.isNull() ||
-      visibleEnd.isOrphan())
-    return;
-
-  // When a selection ends at the start of a paragraph, we rarely paint
-  // the selection gap before that paragraph, because there often is no gap.
-  // In a case like this, it's not obvious to the user that the selection
-  // ends "inside" that paragraph, so it would be confusing if Indent/Outdent
-  // operated on that paragraph.
-  // FIXME: We paint the gap before some paragraphs that are indented with left
-  // margin/padding, but not others.  We should make the gap painting more
-  // consistent and then use a left margin/padding rule here.
-  if (visibleEnd.deepEquivalent() != visibleStart.deepEquivalent() &&
-      isStartOfParagraph(visibleEnd)) {
-    const Position& newEnd =
-        previousPositionOf(visibleEnd, CannotCrossEditingBoundary)
-            .deepEquivalent();
-    SelectionInDOMTree::Builder builder;
-    builder.collapse(visibleStart.toPositionWithAffinity());
-    if (newEnd.isNotNull())
-      builder.extend(newEnd);
-    builder.setIsDirectional(endingSelection().isDirectional());
-    const SelectionInDOMTree& newSelection = builder.build();
-    if (newSelection.isNone())
-      return;
-    setEndingSelection(newSelection);
-  }
-
-  VisibleSelection selection =
-      selectionForParagraphIteration(endingSelection());
-  VisiblePosition startOfSelection = selection.visibleStart();
-  VisiblePosition endOfSelection = selection.visibleEnd();
-  DCHECK(!startOfSelection.isNull());
-  DCHECK(!endOfSelection.isNull());
+  VisiblePosition startOfSelection;
+  VisiblePosition endOfSelection;
   ContainerNode* startScope = nullptr;
-  int startIndex = indexForVisiblePosition(startOfSelection, startScope);
   ContainerNode* endScope = nullptr;
-  int endIndex = indexForVisiblePosition(endOfSelection, endScope);
+  int startIndex;
+  int endIndex;
+
+  if (!prepareForBlockCommand(startOfSelection, endOfSelection, startScope, endScope, startIndex, endIndex, false))
+      return;
 
   formatSelection(startOfSelection, endOfSelection, editingState);
+
   if (editingState->isAborted())
-    return;
+      return;
 
-  document().updateStyleAndLayoutIgnorePendingStylesheets();
-
-  DCHECK_EQ(startScope, endScope);
-  DCHECK_GE(startIndex, 0);
-  DCHECK_LE(startIndex, endIndex);
-  if (startScope == endScope && startIndex >= 0 && startIndex <= endIndex) {
-    VisiblePosition start(visiblePositionForIndex(startIndex, startScope));
-    VisiblePosition end(visiblePositionForIndex(endIndex, endScope));
-    if (start.isNotNull() && end.isNotNull()) {
-      setEndingSelection(
-          SelectionInDOMTree::Builder()
-              .collapse(start.toPositionWithAffinity())
-              .extend(end.deepEquivalent())
-              .setIsDirectional(endingSelection().isDirectional())
-              .build());
-    }
-  }
+  finishBlockCommand(startScope, endScope, startIndex, endIndex);
 }
 
 static bool isAtUnsplittableElement(const Position& pos) {
