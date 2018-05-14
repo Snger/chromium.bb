@@ -240,6 +240,7 @@ class WebViewImpl final : public WebView,
     void setBackgroundColor(NativeColor color) override;
     void setRegion(NativeRegion region) override;
     void clearTooltip() override;
+    void rootWindowCompositionChanged() override;
 };
 
 }  // close namespace blpwtk2

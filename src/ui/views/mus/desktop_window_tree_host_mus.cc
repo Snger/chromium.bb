@@ -375,6 +375,10 @@ void DesktopWindowTreeHostMus::SetFullscreen(bool fullscreen) {
       fullscreen ? ui::SHOW_STATE_FULLSCREEN : fullscreen_restore_state_);
 }
 
+void DesktopWindowTreeHostMus::CompositionChanged() {
+  NOTIMPLEMENTED();
+}
+
 bool DesktopWindowTreeHostMus::IsFullscreen() const {
   return window()->GetProperty(aura::client::kShowStateKey) ==
          ui::SHOW_STATE_FULLSCREEN;
