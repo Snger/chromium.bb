@@ -410,7 +410,6 @@ void BrowserContextImpl::setPacUrl(const StringRef& url)
     d_requestContextGetter->setProxyConfig(*d_proxyConfig);
 }
 
-<<<<<<< HEAD
 void BrowserContextImpl::setDefaultPrinter(const StringRef& name)
 {
     printing::PrintBackend::SetUserDefaultPrinterName(
@@ -423,7 +422,8 @@ void BrowserContextImpl::dumpDiagnostics(DiagnosticInfoType type,
     if (DiagnosticInfoType::GPU == type) {
         DumpGpuInfo(std::string(path.data(), path.size()));
     }
-=======
+}
+
 void BrowserContextImpl::enableSpellCheck(bool enabled)
 {
     DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
@@ -478,7 +478,6 @@ void BrowserContextImpl::removeCustomWords(const StringRef *words,
     content::SpellcheckData::FromContext(this)->AdjustCustomWords(
         std::vector<base::StringPiece>(),
         wordsVector);
->>>>>>> upstream/bb56/blpwtk2/spellcheck
 }
 
 // content::BrowserContext overrides

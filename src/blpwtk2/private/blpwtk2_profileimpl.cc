@@ -285,7 +285,6 @@ void ProfileImpl::setPacUrl(const StringRef& url)
     d_hostPtr->setPacUrl(std::string(url.data(), url.size()));
 }
 
-<<<<<<< HEAD
 void ProfileImpl::setDefaultPrinter(const StringRef& name)
 {
     d_hostPtr->setDefaultPrinter(std::string(name.data(), name.size()));
