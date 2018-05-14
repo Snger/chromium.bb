@@ -75,6 +75,7 @@
 #define BLPWTK2_FEATURE_REMOVE_SPELLING_MARKER
 // feature 18
 // feature 19
+#define BLPWTK2_FEATURE_REROUTE_MOUSEWHEEL
 // feature 20
 #define BLPWTK2_FEATURE_NOADJUST_DPI
 // feature 21

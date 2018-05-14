@@ -213,6 +213,10 @@ class VIEWS_EXPORT HWNDMessageHandler :
   // to this window.
   bool HasChildRenderingWindow();
 
+  void set_reroute_mouse_wheel_to_any_related_window(bool reroute_mouse_wheel_to_any_related_window) {
+    reroute_mouse_wheel_to_any_related_window_ = reroute_mouse_wheel_to_any_related_window;
+  }
+
  private:
   typedef std::set<DWORD> TouchIDs;
   enum class DwmFrameState { OFF, ON };
@@ -557,9 +561,20 @@ class VIEWS_EXPORT HWNDMessageHandler :
 
   bool use_system_default_icon_;
 
+  // Whether or not the cursor has been overridden by WM_SETCURSOR.  When this
+  // is true, |SetCursor| will be a no-op.
+  bool is_cursor_overridden_;
+
   // Whether all ancestors have been enabled. This is only used if is_modal_ is
   // true.
   bool restored_enabled_;
+
+  // Set when OnDestroy gets called (i.e. when WM_DESTROY is handled).  This is
+  // necessary to handle the odd case where WM_NCDESTROY is received without
+  // first receiving WM_DESTROY (can happen in cases where the process that
+  // owns the parent window is killed unexpectedly, and the child HWND receives
+  // WM_NCDESTROY without first getting WM_DESTROY).
+  bool handled_wm_destroy_;
 
   // The current cursor.
   HCURSOR current_cursor_;
@@ -706,6 +721,8 @@ class VIEWS_EXPORT HWNDMessageHandler :
 
   // The factory used with BEGIN_SAFE_MSG_MAP_EX.
   base::WeakPtrFactory<HWNDMessageHandler> weak_factory_;
+
+  bool reroute_mouse_wheel_to_any_related_window_;
 
   DISALLOW_COPY_AND_ASSIGN(HWNDMessageHandler);
 };
