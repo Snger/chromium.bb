@@ -155,6 +155,7 @@ class CORE_EXPORT ChromeClient : public HostWindow {
                                    MessageLevel,
                                    const String& message,
                                    unsigned lineNumber,
+                                   unsigned columnNumber,
                                    const String& sourceID,
                                    const String& stackTrace) = 0;
 

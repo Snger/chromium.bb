@@ -72,7 +72,8 @@ void FrameConsole::reportMessageToClient(MessageSource source,
   if (source == ConsoleAPIMessageSource) {
     if (!m_frame->host())
       return;
-    if (m_frame->chromeClient().shouldReportDetailedMessageForSource(*m_frame,
+    if (level >= ErrorMessageLevel ||
+        m_frame->chromeClient().shouldReportDetailedMessageForSource(*m_frame,
                                                                      url)) {
       std::unique_ptr<SourceLocation> fullLocation =
           SourceLocation::captureWithFullStackTrace();
@@ -81,13 +82,15 @@ void FrameConsole::reportMessageToClient(MessageSource source,
     }
   } else {
     if (!location->isUnknown() &&
-        m_frame->chromeClient().shouldReportDetailedMessageForSource(*m_frame,
-                                                                     url))
+        (level >= ErrorMessageLevel ||
+         m_frame->chromeClient().shouldReportDetailedMessageForSource(*m_frame,
+                                                                     url)))
       stackTrace = location->toString();
   }
 
   m_frame->chromeClient().addMessageToConsole(
-      m_frame, source, level, message, location->lineNumber(), url, stackTrace);
+      m_frame, source, level, message, location->lineNumber(),
+      location->columnNumber(), url, stackTrace);
 }
 
 void FrameConsole::addMessageFromWorker(

@@ -341,6 +341,8 @@ static base::LazyInstance<RoutingIDFrameMap> g_routing_id_frame_map =
 typedef std::map<blink::WebFrame*, RenderFrameImpl*> FrameMap;
 base::LazyInstance<FrameMap> g_frame_map = LAZY_INSTANCE_INITIALIZER;
 
+ConsoleLogMessageHandlerFunction g_console_log_message_handler = nullptr;
+
 int64_t ExtractPostId(const WebHistoryItem& item) {
   if (item.isNull() || item.httpBody().isNull())
     return -1;
@@ -1034,6 +1036,11 @@ void RenderFrameImpl::InstallCreateHook(
     CreateRenderFrameImplFunction create_render_frame_impl) {
   CHECK(!g_create_render_frame_impl);
   g_create_render_frame_impl = create_render_frame_impl;
+}
+
+// static
+void RenderFrameImpl::SetConsoleLogMessageHandler(ConsoleLogMessageHandlerFunction handler) {
+  g_console_log_message_handler = handler;
 }
 
 // static
@@ -3189,10 +3196,11 @@ bool RenderFrameImpl::shouldReportDetailedMessageForSource(
       source);
 }
 
-void RenderFrameImpl::didAddMessageToConsole(
+void RenderFrameImpl::didAddMessageToConsoleWithCol(
     const blink::WebConsoleMessage& message,
     const blink::WebString& source_name,
     unsigned source_line,
+    unsigned source_column_number,
     const blink::WebString& stack_trace) {
   logging::LogSeverity log_severity = logging::LOG_VERBOSE;
   switch (message.level) {
@@ -3219,6 +3227,15 @@ void RenderFrameImpl::didAddMessageToConsole(
                                            stack_trace, source_line,
                                            static_cast<uint32_t>(log_severity));
     }
+  }
+
+  if (g_console_log_message_handler) {
+    g_console_log_message_handler(static_cast<int32_t>(log_severity),
+                                  source_name.utf8(),
+                                  static_cast<int32_t>(source_line),
+                                  static_cast<int32_t>(source_column_number),
+                                  message.text.utf8(),
+                                  stack_trace.utf8());
   }
 
   Send(new FrameHostMsg_DidAddMessageToConsole(

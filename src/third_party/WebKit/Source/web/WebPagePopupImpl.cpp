@@ -108,6 +108,7 @@ class PagePopupChromeClient final : public EmptyChromeClient {
                            MessageLevel,
                            const String& message,
                            unsigned lineNumber,
+                           unsigned columnNumber,
                            const String&,
                            const String&) override {
 #ifndef NDEBUG

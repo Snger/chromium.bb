@@ -95,6 +95,7 @@ class WEB_EXPORT ChromeClientImpl final : public ChromeClient {
                            MessageLevel,
                            const String& message,
                            unsigned lineNumber,
+                           unsigned columnNumber,
                            const String& sourceID,
                            const String& stackTrace) override;
   bool canOpenBeforeUnloadConfirmPanel() override;
