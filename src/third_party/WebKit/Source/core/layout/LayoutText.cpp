@@ -1180,7 +1180,7 @@ void LayoutText::computePreferredLogicalWidths(
         break;
       c = uncheckedCharacterAt(j);
       if (breakIterator.isBreakable(j, nextBreakable) &&
-          characterAt(j - 1) != softHyphenCharacter)
+        characterAt(j - 1) != softHyphenCharacter)
         break;
     }
 
@@ -1458,12 +1458,28 @@ void LayoutText::setSelectionState(SelectionState state) {
     containingBlock->setSelectionState(state);
 }
 
+extern bool g_bbNoRelayoutOnSetCharacterData;
+
+bool shouldSkipRelayoutOnSetText(const LayoutText* lt)
+{
+  return g_bbNoRelayoutOnSetCharacterData
+    && lt->firstTextBox()
+    && lt->firstTextBox() == lt->lastTextBox();
+}
+
 void LayoutText::setTextWithOffset(PassRefPtr<StringImpl> text,
                                    unsigned offset,
                                    unsigned len,
                                    bool force) {
   if (!force && equal(m_text.impl(), text.get()))
     return;
+
+  if (shouldSkipRelayoutOnSetText(this)) {
+	firstTextBox()->setStartAndLen(0, text->length());
+	m_linesDirty = false;
+	setText(std::move(text), force);
+	return;
+  }
 
   unsigned oldLen = textLength();
   unsigned newLen = text->length();
@@ -1660,9 +1676,13 @@ void LayoutText::setText(PassRefPtr<StringImpl> text, bool force) {
   // LayoutObjectChildList::insertChildNode() fails to set true to owner.
   // To avoid that, we call setNeedsLayoutAndPrefWidthsRecalc() only if this
   // LayoutText has parent.
-  if (parent())
-    setNeedsLayoutAndPrefWidthsRecalcAndFullPaintInvalidation(
-        LayoutInvalidationReason::TextChanged);
+  if (parent()) {
+    if (shouldSkipRelayoutOnSetText(this))
+      setShouldDoFullPaintInvalidation();
+    else
+      setNeedsLayoutAndPrefWidthsRecalcAndFullPaintInvalidation(LayoutInvalidationReason::TextChanged);
+  }
+  
   m_knownToHaveNoOverflowAndNoFallbackFonts = false;
 
   if (AXObjectCache* cache = document().existingAXObjectCache())
