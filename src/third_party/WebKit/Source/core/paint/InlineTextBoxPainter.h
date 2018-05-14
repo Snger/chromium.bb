@@ -91,6 +91,8 @@ class InlineTextBoxPainter {
   unsigned underlinePaintEnd(const CompositionUnderline&);
   bool shouldPaintTextBox(const PaintInfo&);
   void expandToIncludeNewlineForSelection(LayoutRect&);
+  void paintHighlightMarkerForeground(const PaintInfo&, const LayoutPoint& boxOrigin, DocumentMarker*, const ComputedStyle&, const Font&);
+  void paintHighlightMarkerBackground(const PaintInfo&, const LayoutPoint& boxOrigin, DocumentMarker*, const ComputedStyle&, const Font&);
   LayoutObject& inlineLayoutObject() const;
 
   const InlineTextBox& m_inlineTextBox;

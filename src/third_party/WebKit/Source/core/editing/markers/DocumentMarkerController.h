@@ -72,7 +72,10 @@ class CORE_EXPORT DocumentMarkerController final
                             Color underlineColor,
                             bool thick,
                             Color backgroundColor);
-
+  void addHighlightMarker(const Position& start,
+                          const Position& end,
+                          Color foregroundColor,
+                          Color backgroundColor);
   void copyMarkers(Node* srcNode,
                    unsigned startOffset,
                    int length,
