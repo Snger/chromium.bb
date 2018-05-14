@@ -30,7 +30,7 @@ LayerTree::Inputs::Inputs()
       page_scale_factor(1.f),
       min_page_scale_factor(1.f),
       max_page_scale_factor(1.f),
-      background_color(SK_ColorWHITE),
+      background_color(SK_ColorBLACK),
       has_transparent_background(false),
       have_scroll_event_handlers(false),
       event_listener_properties() {}
