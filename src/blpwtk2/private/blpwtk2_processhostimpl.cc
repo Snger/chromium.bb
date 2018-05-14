@@ -486,6 +486,12 @@ void ProcessHostImpl::setDefaultPrinter(const std::string& name)
     d_impl->context().setDefaultPrinter(StringRef(name));
 }
 
+void ProcessHostImpl::dumpDiagnostics(int type, const std::string& path)
+{
+    d_impl->context().dumpDiagnostics(
+            static_cast<Profile::DiagnosticInfoType>(type), StringRef(path));
+}
+
 void ProcessHostImpl::addHttpProxy(mojom::ProxyConfigType type,
                                    const std::string&     host,
                                    int                    port)

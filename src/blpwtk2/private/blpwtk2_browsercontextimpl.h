@@ -116,6 +116,8 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     void clearBypassRules() override;
     void setPacUrl(const StringRef& url) override;
     void setDefaultPrinter(const StringRef& name) override;
+    void dumpDiagnostics(DiagnosticInfoType type,
+                         const StringRef&   path) override;
 
     // content::BrowserContext overrides
     std::unique_ptr<content::ZoomLevelDelegate> CreateZoomLevelDelegate(

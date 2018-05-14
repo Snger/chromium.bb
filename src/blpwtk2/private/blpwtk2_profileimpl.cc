@@ -285,6 +285,13 @@ void ProfileImpl::setDefaultPrinter(const StringRef& name)
     d_hostPtr->setDefaultPrinter(std::string(name.data(), name.size()));
 }
 
+void ProfileImpl::dumpDiagnostics(DiagnosticInfoType type,
+                                  const StringRef&   path)
+{
+    d_hostPtr->dumpDiagnostics(static_cast<int>(type),
+                               std::string(path.data(), path.size()));
+}
+
 }  // close namespace blpwtk2
 
 // vim: ts=4 et

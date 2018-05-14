@@ -179,6 +179,9 @@ class ProfileImpl : public Profile {
     void setPacUrl(const StringRef& url) override;
 
     void setDefaultPrinter(const StringRef& name) override;
+
+    void dumpDiagnostics(DiagnosticInfoType type,
+                         const StringRef&   path) override;
 };
 
 }  // close namespace blpwtk2

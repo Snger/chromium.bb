@@ -61,6 +61,11 @@ enum class ProxyType {
 class Profile
 {
   public:
+    // TYPES
+    enum class DiagnosticInfoType {
+        GPU
+    };
+
     virtual void destroy() = 0;
         // Destroy this profile.  Note that all WebViews created from this
         // profile must be destroyed before the profile is destroyed.  The
@@ -134,6 +139,11 @@ class Profile
 
     virtual void setDefaultPrinter(const StringRef& name) = 0;
         // Sets the printer to use by default
+
+    virtual void dumpDiagnostics(DiagnosticInfoType type,
+                                 const StringRef&   path) = 0;
+        // Write diagnostic information of the specified 'type' onto the
+        // file 'filepath'
 
   protected:
     virtual ~Profile();
