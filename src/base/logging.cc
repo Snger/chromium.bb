@@ -539,7 +539,7 @@ LogMessage::LogMessage(const char* file, int line, LogSeverity severity,
 
 LogMessage::~LogMessage() {
 #if !defined(OFFICIAL_BUILD) && !defined(OS_NACL) && !defined(__UCLIBC__)
-  if (severity_ == LOG_FATAL && !base::debug::BeingDebugged()) {
+  if (severity_ == LOG_FATAL && !base::debug::BeingDebugged() && base::AtExitManager::IsInitialized()) {
     // Include a stack trace on a fatal, unless a debugger is attached.
     base::debug::StackTrace trace;
     stream_ << std::endl;  // Newline to separate from log message.
