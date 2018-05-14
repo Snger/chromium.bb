@@ -6,6 +6,7 @@
 
 #include "core/layout/api/LineLayoutAPIShim.h"
 #include "core/layout/line/RootInlineBox.h"
+#include "core/layout/line/InlineTextBox.h"
 #include "core/paint/BoxPainter.h"
 #include "core/paint/PaintInfo.h"
 #include "core/paint/PaintLayer.h"
@@ -26,6 +27,26 @@ void InlineFlowBoxPainter::paint(const PaintInfo& paintInfo,
   m_inlineFlowBox.flipForWritingMode(overflowRect);
   overflowRect.moveBy(paintOffset);
 
+  // SHEZ: This logic was copied from InlineTextBox::localSelectionRect
+  // It should probably be refactored to avoid the code duplication,
+  // but let's see how this issue is fixed upstream:
+  // https://code.google.com/p/chromium/issues/detail?id=568663
+  if (m_inlineFlowBox.firstChild() && m_inlineFlowBox.firstChild() == m_inlineFlowBox.lastChild() && m_inlineFlowBox.firstChild()->isLineBreak()) {
+      // If we have an empty line, then expand the overflowRect to include
+      // the end of line selection.
+      InlineTextBox& emptyLine = toInlineTextBox(*m_inlineFlowBox.firstChild());
+      if (emptyLine.hasWrappedSelectionNewline()) {
+          if (emptyLine.isHorizontal()) {
+              if (!emptyLine.isLeftToRightDirection())
+                  overflowRect.setX(LayoutUnit(overflowRect.x() - emptyLine.newlineSpaceWidth()));
+              overflowRect.setWidth(LayoutUnit(overflowRect.width() + emptyLine.newlineSpaceWidth()));
+          }
+          else {
+              overflowRect.setHeight(LayoutUnit(overflowRect.height() + emptyLine.newlineSpaceWidth()));
+          }
+      }
+  }
+    
   if (!paintInfo.cullRect().intersectsCullRect(overflowRect))
     return;
 
