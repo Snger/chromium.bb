@@ -42,7 +42,7 @@ class ContextMenuClientImpl final : public ContextMenuClient {
  public:
   explicit ContextMenuClientImpl(WebViewImpl* webView) : m_webView(webView) {}
   ~ContextMenuClientImpl() override {}
-  bool showContextMenu(const ContextMenu*, bool fromTouch) override;
+  bool showContextMenu(const ContextMenu*, bool fromTouch, bool fromContextMenuKey) override;
   void clearContextMenu() override;
 
  private:

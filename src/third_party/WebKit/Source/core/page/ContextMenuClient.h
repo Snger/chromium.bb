@@ -35,7 +35,7 @@ class ContextMenuClient {
   virtual ~ContextMenuClient() {}
 
   // Returns whether a Context Menu was actually shown.
-  virtual bool showContextMenu(const ContextMenu*, bool fromTouch) = 0;
+  virtual bool showContextMenu(const ContextMenu*, bool fromTouch, bool fromContextMenuKey) = 0;
   virtual void clearContextMenu() = 0;
 };
 

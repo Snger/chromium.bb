@@ -1870,7 +1870,7 @@ WebInputEventResult EventHandler::sendContextMenuEventForKey(
   PlatformMouseEvent mouseEvent(
       locationInRootFrame, globalPosition,
       WebPointerProperties::Button::NoButton, eventType, /* clickCount */ 0,
-      PlatformEvent::NoModifiers, PlatformMouseEvent::RealOrIndistinguishable,
+      PlatformEvent::NoModifiers, PlatformMouseEvent::FromContextMenuKey,
       WTF::monotonicallyIncreasingTime(),
       WebPointerProperties::PointerType::Mouse);
 
