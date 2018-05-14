@@ -113,7 +113,10 @@ WebMouseEvent WebMouseEventBuilder::Build(
     case WM_NCMOUSELEAVE:
       // TODO(rbyers): This should be MouseLeave but is disabled temporarily.
       // See http://crbug.com/450631
-      result.type = WebInputEvent::MouseMove;
+      // SHEZ: Undo the above temporary change.  It was made to make behavior
+      //       consistent across all OSes, but we want the correct behavior
+      //       for Windows.
+      result.type = WebInputEvent::MouseLeave;
       result.button = WebMouseEvent::Button::NoButton;
       // set the current mouse position (relative to the client area of the
       // current window) since none is specified for this event
