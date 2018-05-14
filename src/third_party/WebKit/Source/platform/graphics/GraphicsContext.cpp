@@ -49,6 +49,7 @@
 #include "third_party/skia/include/utils/SkNullCanvas.h"
 #include "wtf/Assertions.h"
 #include "wtf/MathExtras.h"
+#include <map>
 #include <memory>
 
 namespace blink {
@@ -503,19 +504,37 @@ void GraphicsContext::drawLine(const IntPoint& point1, const IntPoint& point2) {
 
 void GraphicsContext::drawLineForDocumentMarker(const FloatPoint& pt,
                                                 float width,
-                                                DocumentMarkerLineStyle style) {
-  if (contextDisabled())
+                                                const Color& markerColor) {
+  if (contextDisabled() || markerColor.alpha() == 0)
     return;
 
   // Use 2x resources for a device scale factor of 1.5 or above.
   int deviceScaleFactor = m_deviceScaleFactor > 1.5f ? 2 : 1;
 
   // Create the pattern we'll use to draw the underline.
-  int index = style == DocumentMarkerGrammarLineStyle ? 1 : 0;
-  static SkBitmap* misspellBitmap1x[2] = {0, 0};
-  static SkBitmap* misspellBitmap2x[2] = {0, 0};
-  SkBitmap** misspellBitmap =
-      deviceScaleFactor == 2 ? misspellBitmap2x : misspellBitmap1x;
+  // SHEZ: the rendering becomes weird if alpha is non-opaque.. force it to
+  // SHEZ: be opaque for now, ignoring the alpha component in markerColor
+  const uint32_t lineColor = 0xFF << SK_A32_SHIFT
+                              | markerColor.red() << SK_R32_SHIFT
+                              | markerColor.green() << SK_G32_SHIFT
+                              | markerColor.blue() << SK_B32_SHIFT;
+  const uint32_t antiAlpha = 0x60;
+  const uint32_t antiRed = uint32_t(float(markerColor.red()) * 0.375);
+  const uint32_t antiGreen = uint32_t(float(markerColor.green()) * 0.375);
+  const uint32_t antiBlue = uint32_t(float(markerColor.blue()) * 0.375);
+  const uint32_t antiColor = antiAlpha << SK_A32_SHIFT
+                              | antiRed << SK_R32_SHIFT
+                              | antiGreen << SK_G32_SHIFT
+                              | antiBlue << SK_B32_SHIFT;
+
+  static std::map<uint32_t, SkBitmap*> misspellBitmaps1x;
+  static std::map<uint32_t, SkBitmap*> misspellBitmaps2x;
+  std::map<uint32_t, SkBitmap*>* misspellBitmaps = deviceScaleFactor == 2 ? &misspellBitmaps2x : &misspellBitmaps1x;
+  SkBitmap* misspellBitmapTmp = (*misspellBitmaps)[lineColor];
+
+  int index = 0;
+  SkBitmap* misspellBitmap[2] = { misspellBitmapTmp, 0 };
+
   if (!misspellBitmap[index]) {
 #if OS(MACOSX)
     // Match the artwork used by the Mac.
@@ -574,8 +593,8 @@ void GraphicsContext::drawLineForDocumentMarker(const FloatPoint& pt,
       }
     } else
       ASSERT_NOT_REACHED();
-
     misspellBitmap[index] = new SkBitmap(bitmap);
+    (*misspellBitmaps)[lineColor] = misspellBitmap[index];
 #else
     // We use a 2-pixel-high misspelling indicator because that seems to be
     // what WebKit is designed for, and how much room there is in a typical
@@ -589,13 +608,15 @@ void GraphicsContext::drawLineForDocumentMarker(const FloatPoint& pt,
 
     bitmap.eraseARGB(0, 0, 0, 0);
     if (deviceScaleFactor == 1)
-      draw1xMarker(&bitmap, index);
+      draw1xMarker(&bitmap, lineColor, antiColor);
     else if (deviceScaleFactor == 2)
+      // TODO(shez): support custom color markers in 2x scale factor
       draw2xMarker(&bitmap, index);
     else
       ASSERT_NOT_REACHED();
 
     misspellBitmap[index] = new SkBitmap(bitmap);
+    (*misspellBitmaps)[lineColor] = misspellBitmap[index];
 #endif
   }
 
@@ -1361,10 +1382,7 @@ void GraphicsContext::draw2xMarker(SkBitmap* bitmap, int index) {
   }
 }
 
-void GraphicsContext::draw1xMarker(SkBitmap* bitmap, int index) {
-  const uint32_t lineColor = lineColors(index);
-  const uint32_t antiColor = antiColors2(index);
-
+void GraphicsContext::draw1xMarker(SkBitmap* bitmap, const uint32_t lineColor, const uint32_t antiColor) {
   // Pattern: X o   o X o   o X
   //            o X o   o X o
   uint32_t* row1 = bitmap->getAddr32(0, 0);
