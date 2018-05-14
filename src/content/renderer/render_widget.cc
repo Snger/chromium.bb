@@ -804,7 +804,9 @@ void RenderWidget::OnHandleInputEvent(const blink::WebInputEvent* input_event,
   if (!input_event)
     return;
 
+  input_handler_->set_on_handle_input_event_no_ack(bb_OnHandleInputEvent_no_ack_);
   input_handler_->HandleInputEvent(*input_event, latency_info, dispatch_type);
+  input_handler_->set_on_handle_input_event_no_ack(false);
 }
 
 void RenderWidget::OnCursorVisibilityChange(bool is_visible) {

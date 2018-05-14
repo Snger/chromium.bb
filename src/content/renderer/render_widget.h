@@ -867,6 +867,9 @@ class CONTENT_EXPORT RenderWidget
   bool bb_OnHandleInputEvent_no_ack_;
 
   DISALLOW_COPY_AND_ASSIGN(RenderWidget);
+
+ private:
+  bool bb_OnHandleInputEvent_no_ack_;
 };
 
 }  // namespace content
