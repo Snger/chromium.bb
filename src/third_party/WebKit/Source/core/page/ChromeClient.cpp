@@ -155,7 +155,7 @@ void ChromeClient::mouseDidMoveOverElement(LocalFrame& frame,
       result.innerNode()->document().isDNSPrefetchEnabled())
     prefetchDNS(result.absoluteLinkURL().host());
 
-  showMouseOverURL(result);
+  showMouseOverURL(frame, result);
 
   if (result.scrollbar())
     clearToolTip(frame);

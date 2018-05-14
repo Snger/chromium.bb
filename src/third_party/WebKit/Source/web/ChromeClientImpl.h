@@ -121,7 +121,7 @@ class WEB_EXPORT ChromeClientImpl final : public ChromeClient {
   float clampPageScaleFactorToLimits(float scale) const override;
   void mainFrameScrollOffsetChanged() const override;
   void layoutUpdated(LocalFrame*) const override;
-  void showMouseOverURL(const HitTestResult&) override;
+  void showMouseOverURL(LocalFrame&, const HitTestResult&) override;
   void setToolTip(LocalFrame&, const String&, TextDirection) override;
   void dispatchViewportPropertiesDidChange(
       const ViewportDescription&) const override;
@@ -231,6 +231,8 @@ class WEB_EXPORT ChromeClientImpl final : public ChromeClient {
 
   WebViewImpl* m_webView;  // Weak pointer.
   WindowFeatures m_windowFeatures;
+  Node* m_lastMouseOverNode; // weak pointer
+  bool m_lastTooltipHadText;
   Vector<PopupOpeningObserver*> m_popupOpeningObservers;
   Cursor m_lastSetMouseCursorForTesting;
   bool m_cursorOverridden;

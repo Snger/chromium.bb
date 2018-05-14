@@ -339,7 +339,7 @@ class CORE_EXPORT ChromeClient : public HostWindow {
  protected:
   ~ChromeClient() override {}
 
-  virtual void showMouseOverURL(const HitTestResult&) = 0;
+  virtual void showMouseOverURL(LocalFrame&, const HitTestResult&) = 0;
   virtual void setWindowRect(const IntRect&, LocalFrame&) = 0;
   virtual bool openBeforeUnloadConfirmPanelDelegate(LocalFrame*,
                                                     bool isReload) = 0;
