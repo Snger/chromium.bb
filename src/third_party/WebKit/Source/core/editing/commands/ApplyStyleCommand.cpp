@@ -189,9 +189,13 @@ void ApplyStyleCommand::updateStartEnd(const Position& newStart,
   if (!m_useEndingSelection && (newStart != m_start || newEnd != m_end))
     m_useEndingSelection = true;
 
+    bool wasBaseFirst = startingSelection().isBaseFirst() && startingSelection().isDirectional();
+    Position base = wasBaseFirst ? newStart : newEnd;
+    Position extent = wasBaseFirst ? newEnd : newStart;
+
   setEndingSelection(SelectionInDOMTree::Builder()
-                         .collapse(newStart)
-                         .extend(newEnd)
+                         .collapse(base)
+                         .extend(extent)
                          .setIsDirectional(endingSelection().isDirectional())
                          .build());
   m_start = newStart;
