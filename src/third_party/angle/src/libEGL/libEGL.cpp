@@ -6,6 +6,8 @@
 
 // libEGL.cpp: Implements the exported EGL functions.
 
+#include <locale.h>
+
 #include "libGLESv2/entry_points_egl.h"
 #include "libGLESv2/entry_points_egl_ext.h"
 
@@ -366,4 +368,21 @@ EGLBoolean EGLAPIENTRY eglSwapBuffersWithDamageEXT(EGLDisplay dpy,
 {
     return egl::SwapBuffersWithDamageEXT(dpy, surface, rects, n_rects);
 }
+
+#ifdef ANGLE_PLATFORM_WINDOWS
+
+extern "C" BOOL WINAPI DllMain(HINSTANCE, DWORD reason, LPVOID)
+{
+    switch (reason)
+    {
+      case DLL_PROCESS_ATTACH:
+        setlocale(LC_ALL, NULL);
+
+        break;
+    }
+
+    return TRUE;
+}
+#endif
+
 }
