@@ -6,7 +6,10 @@
 
 #include "chrome/browser/profiles/incognito_helpers.h"
 #include "chrome/browser/spellchecker/spellcheck_service.h"
-#include "chrome/grit/locale_settings.h"
+
+// SHEZ: Remove dependency on chrome's grit.
+// #include "chrome/grit/locale_settings.h"
+
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/pref_registry/pref_registry_syncable.h"
 #include "components/prefs/pref_service.h"
@@ -72,9 +75,12 @@ void SpellcheckServiceFactory::RegisterProfilePrefs(
                                new base::ListValue);
   // Continue registering kSpellCheckDictionary for preference migration.
   // TODO(estade): IDS_SPELLCHECK_DICTIONARY should be an ASCII string.
+  // SHEZ: replace IDS_SPELLCHECK_DICTIONARY with hardcoded "en-US"
+  // SHEZ: TODO: make this configurable
+
   user_prefs->RegisterStringPref(
       spellcheck::prefs::kSpellCheckDictionary,
-      l10n_util::GetStringUTF8(IDS_SPELLCHECK_DICTIONARY));
+      "en-US");
   user_prefs->RegisterBooleanPref(
       spellcheck::prefs::kSpellCheckUseSpellingService, false);
 #if defined(OS_IOS) || defined(OS_ANDROID)
@@ -83,12 +89,12 @@ void SpellcheckServiceFactory::RegisterProfilePrefs(
   uint32_t flags = user_prefs::PrefRegistrySyncable::SYNCABLE_PREF;
 #endif
   user_prefs->RegisterBooleanPref(
-      spellcheck::prefs::kEnableSpellcheck, true, flags);
+      spellcheck::prefs::kEnableSpellcheck, false, flags);
 }
 
 content::BrowserContext* SpellcheckServiceFactory::GetBrowserContextToUse(
     content::BrowserContext* context) const {
-  return chrome::GetBrowserContextRedirectedInIncognito(context);
+  return context;
 }
 
 bool SpellcheckServiceFactory::ServiceIsNULLWhileTesting() const {

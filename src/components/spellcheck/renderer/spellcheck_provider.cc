@@ -92,6 +92,12 @@ void SpellCheckProvider::RequestTextChecking(
 #endif  // !USE_BROWSER_SPELLCHECKER
 }
 
+void SpellCheckProvider::DidFinishLoad(blink::WebLocalFrame* frame) {
+  if (spellcheck_->IsSpellcheckEnabled()) {
+    frame->document().documentElement().requestSpellCheck();
+  }
+}
+
 bool SpellCheckProvider::OnMessageReceived(const IPC::Message& message) {
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP(SpellCheckProvider, message)
@@ -132,7 +138,7 @@ void SpellCheckProvider::spellCheck(
   const int kWordStart = 0;
   spellcheck_->SpellCheckWord(
       word.c_str(), kWordStart, word.size(), routing_id(),
-      &offset, &length, optional_suggestions ? & suggestions : NULL);
+      &offset, &length, true, optional_suggestions ? & suggestions : NULL);
   if (optional_suggestions) {
     *optional_suggestions = suggestions;
     UMA_HISTOGRAM_COUNTS("SpellCheck.api.check.suggestions", word.size());
@@ -154,7 +160,9 @@ void SpellCheckProvider::requestCheckingOfText(
     spellcheck_markers.push_back(
         SpellCheckMarker(markers[i], marker_offsets[i]));
   }
-  RequestTextChecking(text, completion, spellcheck_markers);
+  // SHEZ: check text locally for now
+  //RequestTextChecking(text, completion, spellcheck_markers);
+  spellcheck_->RequestTextChecking(text, completion);
   UMA_HISTOGRAM_COUNTS("SpellCheck.api.async", text.length());
 }
 
@@ -288,8 +296,35 @@ void SpellCheckProvider::EnableSpellcheck(bool enable) {
     return;
 
   frame->enableSpellChecking(enable);
-  if (!enable)
+  if (!enable) {
     frame->removeSpellingMarkers();
+  }
+  else {
+    blink::WebDocument document = frame->document();
+    if (document.isNull())
+      return;
+    blink::WebElement documentElement = document.documentElement();
+    if (documentElement.isNull())
+      return;
+    documentElement.requestSpellCheck();
+  }
+}
+
+void SpellCheckProvider::RequestSpellcheck() {
+  if (!render_view()->GetWebView())
+    return;
+
+  WebLocalFrame* frame = render_view()->GetWebView()->focusedFrame();
+  if (!frame)
+    return;
+  DCHECK(frame->isSpellCheckingEnabled());
+  blink::WebDocument document = frame->document();
+  if (document.isNull())
+      return;
+  blink::WebElement documentElement = document.documentElement();
+  if (documentElement.isNull())
+      return;
+  documentElement.requestSpellCheck();
 }
 
 bool SpellCheckProvider::SatisfyRequestFromCache(

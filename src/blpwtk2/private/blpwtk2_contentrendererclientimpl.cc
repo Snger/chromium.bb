@@ -29,6 +29,8 @@
 
 #include <base/strings/utf_string_conversions.h>
 #include <components/printing/renderer/print_web_view_helper.h>
+#include <components/spellcheck/renderer/spellcheck.h>
+#include <components/spellcheck/renderer/spellcheck_provider.h>
 #include <content/child/font_warmup_win.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/public/renderer/render_view.h>
@@ -57,6 +59,16 @@ ContentRendererClientImpl::~ContentRendererClientImpl()
 {
 }
 
+void ContentRendererClientImpl::RenderThreadStarted()
+{
+    content::RenderThread* thread = content::RenderThread::Get();
+
+    if (!d_spellcheck) {
+        d_spellcheck.reset(new SpellCheck());
+        thread->AddObserver(d_spellcheck.get());
+    }
+}
+
 void ContentRendererClientImpl::RenderViewCreated(
     content::RenderView* render_view)
 {
@@ -68,6 +80,8 @@ void ContentRendererClientImpl::RenderViewCreated(
             render_view->GetMainRenderFrame(),
             std::unique_ptr<printing::PrintWebViewHelper::Delegate>(
                 printing::PrintWebViewHelper::CreateEmptyDelegate()));
+
+    new SpellCheckProvider(render_view, d_spellcheck.get());
 }
 
 void ContentRendererClientImpl::GetNavigationErrorStrings(

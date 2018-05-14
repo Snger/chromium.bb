@@ -41,6 +41,7 @@
 #include <content/public/browser/web_contents.h>
 #include <content/public/common/url_constants.h>
 #include <chrome/browser/printing/printing_message_filter.h>
+#include <chrome/browser/spellchecker/spellcheck_message_filter.h>
 
 namespace blpwtk2 {
 namespace {
@@ -90,6 +91,7 @@ void ContentBrowserClientImpl::RenderProcessWillLaunch(
 
     int id = host->GetID();
     host->AddFilter(new printing::PrintingMessageFilter(id));
+    host->AddFilter(new SpellCheckMessageFilter(id));
 }
 
 void ContentBrowserClientImpl::OverrideWebkitPrefs(

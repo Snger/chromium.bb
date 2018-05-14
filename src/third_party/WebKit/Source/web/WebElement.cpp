@@ -129,6 +129,13 @@ WebRect WebElement::boundsInViewport() const {
   return constUnwrap<Element>()->boundsInViewport();
 }
 
+void WebElement::requestSpellCheck()
+{
+#ifdef BB_HAS_ELEMENT_EXTENSIONS
+    unwrap<Element>()->bbRequestSpellCheck();
+#endif
+}
+
 WebImage WebElement::imageContents() {
   if (isNull())
     return WebImage();

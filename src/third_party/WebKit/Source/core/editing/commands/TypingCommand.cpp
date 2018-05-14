@@ -559,9 +559,17 @@ void TypingCommand::deleteKeyPressed(TextGranularity granularity,
         selectionModifier.modify(FrameSelection::AlterationExtend,
                                  DirectionBackward, CharacterGranularity);
 
+      VisiblePosition previousPosition = previousPositionOf(endingSelection().
+                                                            visibleStart(),
+                                                            CannotCrossEditingBoundary);
       VisiblePosition visibleStart(endingSelection().visibleStart());
-      if (previousPositionOf(visibleStart, CannotCrossEditingBoundary)
-              .isNull()) {
+
+      Node* enclosingTableCell = enclosingNodeOfType(visibleStart.deepEquivalent(), &isTableCell);
+      Node* enclosingTableCellForPreviousPosition = 
+              enclosingNodeOfType(previousPosition.deepEquivalent(), &isTableCell);
+
+      if (previousPositionOf(visibleStart, CannotCrossEditingBoundary).isNull() ||
+          enclosingTableCell != enclosingTableCellForPreviousPosition) {
         // When the caret is at the start of the editable area in an empty list
         // item, break out of the list item.
         bool breakOutOfEmptyListItemResult =
@@ -572,43 +580,31 @@ void TypingCommand::deleteKeyPressed(TextGranularity granularity,
           typingAddedToOpenCommand(DeleteKey);
           return;
         }
-        // When there are no visible positions in the editing root, delete its
-        // entire contents.
-        if (nextPositionOf(visibleStart, CannotCrossEditingBoundary).isNull() &&
-            makeEditableRootEmpty(editingState)) {
-          typingAddedToOpenCommand(DeleteKey);
-          return;
+        
+        if (previousPosition.isNull()) {
+          // When there are no visible positions in the editing root, delete its
+          // entire contents.
+          if (nextPositionOf(visibleStart, CannotCrossEditingBoundary).isNull() &&
+              makeEditableRootEmpty(editingState)) {
+            typingAddedToOpenCommand(DeleteKey);
+            return;
+          }
+          if (editingState->isAborted())
+            return;
         }
-        if (editingState->isAborted())
-          return;
       }
 
       // If we have a caret selection at the beginning of a cell, we have
       // nothing to do.
-      Node* enclosingTableCell =
-          enclosingNodeOfType(visibleStart.deepEquivalent(), &isTableCell);
       if (enclosingTableCell &&
           visibleStart.deepEquivalent() ==
               VisiblePosition::firstPositionInNode(enclosingTableCell)
                   .deepEquivalent())
         return;
 
-      // If the caret is at the start of a paragraph after a table, move content
-      // into the last table cell.
-      if (isStartOfParagraph(visibleStart) &&
-          tableElementJustBefore(
-              previousPositionOf(visibleStart, CannotCrossEditingBoundary))) {
-        // Unless the caret is just before a table.  We don't want to move a
-        // table into the last table cell.
-        if (tableElementJustAfter(visibleStart))
-          return;
-        // Extend the selection backward into the last cell, then deletion will
-        // handle the move.
-        selectionModifier.modify(FrameSelection::AlterationExtend,
-                                 DirectionBackward, granularity);
-        // If the caret is just after a table, select the table and don't delete
-        // anything.
-      } else if (Element* table = tableElementJustBefore(visibleStart)) {
+      // If the caret is just after a table, select the table and don't delete
+      // anything.
+      if (Element* table = tableElementJustBefore(visibleStart)) {
         setEndingSelection(
             SelectionInDOMTree::Builder()
                 .collapse(Position::beforeNode(table))

@@ -103,8 +103,12 @@ void SpellCheckMessageFilter::OnRespondDocumentMarkers(
   // shutting down.
   if (!spellcheck)
     return;
+
+  // blpwtk2: Remove dependency on feedback sender
+#if 0
   spellcheck->GetFeedbackSender()->OnReceiveDocumentMarkers(
       render_process_id_, markers);
+#endif
 }
 
 #if !BUILDFLAG(USE_BROWSER_SPELLCHECKER)
@@ -138,8 +142,12 @@ void SpellCheckMessageFilter::OnTextCheckComplete(
   if (!spellcheck)
     return;
   std::vector<SpellCheckResult> results_copy = results;
+
+  // blpwtk2: Remove dependency on feedback sender
+#if 0 
   spellcheck->GetFeedbackSender()->OnSpellcheckResults(
       render_process_id_, text, markers, &results_copy);
+#endif
 
   // Erase custom dictionary words from the spellcheck results and record
   // in-dictionary feedback.
@@ -149,14 +157,22 @@ void SpellCheckMessageFilter::OnTextCheckComplete(
   for (iter = write_iter = results_copy.begin();
        iter != results_copy.end();
        ++iter) {
+
+// blpwtk2: Remove dependency on Chrome's custom dictionary
+#if 0
     if (spellcheck->GetCustomDictionary()->HasWord(
             text_copy.substr(iter->location, iter->length))) {
       spellcheck->GetFeedbackSender()->RecordInDictionary(iter->hash);
     } else {
+#endif
       if (write_iter != iter)
         *write_iter = *iter;
       ++write_iter;
+
+// blpwtk2: Remove dependency on Chrome's custom dictionary
+#if 0
     }
+#endif
   }
   results_copy.erase(write_iter, results_copy.end());
 
