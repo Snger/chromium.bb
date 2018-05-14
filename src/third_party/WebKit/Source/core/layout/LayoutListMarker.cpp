@@ -142,7 +142,7 @@ void LayoutListMarker::layout() {
   if (isImage()) {
     updateMarginsAndContent();
     LayoutSize imageSize(imageBulletSize());
-    setWidth(imageSize.width());
+    setWidth(minPreferredLogicalWidth());
     setHeight(imageSize.height());
   } else {
     const SimpleFontData* fontData = style()->font().primaryFont();
@@ -172,7 +172,7 @@ void LayoutListMarker::imageChanged(WrappedImagePtr o, const IntRect*) {
     return;
 
   LayoutSize imageSize = isImage() ? imageBulletSize() : LayoutSize();
-  if (size() != imageSize || m_image->errorOccurred())
+  if (size() != imageSize + LayoutSize(cMarkerPaddingPx, 0) || m_image->errorOccurred())
     setNeedsLayoutAndPrefWidthsRecalcAndFullPaintInvalidation(
         LayoutInvalidationReason::ImageChanged);
   else
@@ -217,11 +217,9 @@ LayoutUnit LayoutListMarker::getWidthOfTextWithSuffix() const {
   LayoutUnit itemWidth = LayoutUnit(font.width(TextRun(m_text)));
   // TODO(wkorman): Look into constructing a text run for both text and suffix
   // and painting them together.
-  UChar suffix[2] = {
-      ListMarkerText::suffix(style()->listStyleType(), m_listItem->value()),
-      ' '};
-  TextRun run =
-      constructTextRun(font, suffix, 2, styleRef(), style()->direction());
+  UChar suffix[1] =
+    { ListMarkerText::suffix(style()->listStyleType(), m_listItem->value()) };
+  TextRun run = constructTextRun(font, suffix, 1, styleRef(), style()->direction());
   LayoutUnit suffixSpaceWidth = LayoutUnit(font.width(run));
   return itemWidth + suffixSpaceWidth;
 }
@@ -235,6 +233,8 @@ void LayoutListMarker::computePreferredLogicalWidths() {
     m_minPreferredLogicalWidth = m_maxPreferredLogicalWidth =
         style()->isHorizontalWritingMode() ? imageSize.width()
                                            : imageSize.height();
+    m_minPreferredLogicalWidth += cMarkerPaddingPx;
+    m_maxPreferredLogicalWidth += cMarkerPaddingPx;
     clearPreferredLogicalWidthsDirty();
     updateMargins();
     return;
@@ -253,9 +253,13 @@ void LayoutListMarker::computePreferredLogicalWidths() {
     case ListStyleCategory::Symbol:
       logicalWidth =
           LayoutUnit((fontData->getFontMetrics().ascent() * 2 / 3 + 1) / 2 + 2);
+      logicalWidth += cMarkerPaddingPx;
       break;
     case ListStyleCategory::Language:
       logicalWidth = getWidthOfTextWithSuffix();
+      if (!m_text.isEmpty()) {
+          logicalWidth += cMarkerPaddingPx;
+      }
       break;
   }
 
@@ -272,12 +276,16 @@ void LayoutListMarker::updateMargins() {
   DCHECK(fontData);
   if (!fontData)
     return;
+  
+#if 0
   const FontMetrics& fontMetrics = fontData->getFontMetrics();
+#endif
 
   LayoutUnit marginStart;
   LayoutUnit marginEnd;
 
   if (isInside()) {
+#if 0
     if (isImage()) {
       marginEnd = LayoutUnit(cMarkerPaddingPx);
     } else {
@@ -292,7 +300,9 @@ void LayoutListMarker::updateMargins() {
           break;
       }
     }
+#endif
   } else {
+#if 0
     if (style()->isLeftToRightDirection()) {
       if (isImage()) {
         marginStart = -minPreferredLogicalWidth() - cMarkerPaddingPx;
@@ -328,6 +338,8 @@ void LayoutListMarker::updateMargins() {
       }
       marginStart = -marginEnd - minPreferredLogicalWidth();
     }
+#endif
+    marginStart = -minPreferredLogicalWidth();
   }
 
   mutableStyleRef().setMarginStart(Length(marginStart, Fixed));
@@ -431,12 +443,17 @@ bool LayoutListMarker::isInside() const {
 }
 
 IntRect LayoutListMarker::getRelativeMarkerRect() const {
+  IntRect relativeRect;
+
   if (isImage()) {
     IntSize imageSize = flooredIntSize(imageBulletSize());
-    return IntRect(0, 0, imageSize.width(), imageSize.height());
+    relativeRect = IntRect(0, 0, imageSize.width(), imageSize.height());
+    if (!style()->isLeftToRightDirection()) {
+      relativeRect.move(cMarkerPaddingPx, 0);
+    }
+    return relativeRect;
   }
 
-  IntRect relativeRect;
   const SimpleFontData* fontData = style()->font().primaryFont();
   DCHECK(fontData);
   if (!fontData)
@@ -458,6 +475,10 @@ IntRect LayoutListMarker::getRelativeMarkerRect() const {
       relativeRect = IntRect(0, 0, getWidthOfTextWithSuffix().toInt(),
                              fontData->getFontMetrics().height());
       break;
+  }
+
+  if (!style()->isLeftToRightDirection()) {
+    relativeRect.move(cMarkerPaddingPx, 0);
   }
 
   if (!style()->isHorizontalWritingMode()) {

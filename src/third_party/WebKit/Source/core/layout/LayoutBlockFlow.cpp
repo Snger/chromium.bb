@@ -4140,7 +4140,7 @@ void LayoutBlockFlow::moveChildrenTo(LayoutBoxModelObject* toBoxModelObject,
 LayoutUnit LayoutBlockFlow::logicalLeftSelectionOffset(
     const LayoutBlock* rootBlock,
     LayoutUnit position) const {
-  LayoutUnit logicalLeft = logicalLeftOffsetForLine(position, DoNotIndentText);
+    LayoutUnit logicalLeft = logicalLeftOffsetForLine(position, DoNotIndentText);
     if (logicalLeft == logicalLeftOffsetForContent()) {
         logicalLeft = LayoutBlock::logicalLeftSelectionOffset(rootBlock, position);
         if (isListItem() && style()->isLeftToRightDirection()) {
@@ -4149,15 +4149,15 @@ LayoutUnit LayoutBlockFlow::logicalLeftSelectionOffset(
         return logicalLeft;
     }
 
-  const LayoutBlock* cb = this;
-  while (cb != rootBlock) {
+    const LayoutBlock* cb = this;
+    while (cb != rootBlock) {
         if (cb->isListItem() && cb->style()->isLeftToRightDirection()) {
             logicalLeft += cb->additionalMarginStart();
         }
-    logicalLeft += cb->logicalLeft();
-    cb = cb->containingBlock();
-  }
-  return logicalLeft;
+        logicalLeft += cb->logicalLeft();
+        cb = cb->containingBlock();
+    }
+    return logicalLeft;
 }
 
 LayoutUnit LayoutBlockFlow::logicalRightSelectionOffset(
@@ -4173,15 +4173,15 @@ LayoutUnit LayoutBlockFlow::logicalRightSelectionOffset(
         return logicalRight;
 	}
 
-  const LayoutBlock* cb = this;
-  while (cb != rootBlock) {
+    const LayoutBlock* cb = this;
+    while (cb != rootBlock) {
         if (cb->isListItem() && !cb->style()->isLeftToRightDirection()) {
             logicalRight -= cb->additionalMarginStart();
         }
-    logicalRight += cb->logicalLeft();
-    cb = cb->containingBlock();
-  }
-  return logicalRight;
+        logicalRight += cb->logicalLeft();
+        cb = cb->containingBlock();
+    }
+    return logicalRight;
 }
 
 RootInlineBox* LayoutBlockFlow::createRootInlineBox() {

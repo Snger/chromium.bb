@@ -77,13 +77,6 @@ void ListMarkerPainter::paint(const PaintInfo& paintInfo,
                                   m_layoutListMarker.styleRef().effectiveZoom())
                           .get(),
                       marker);
-    if (m_layoutListMarker.getSelectionState() != SelectionNone) {
-      LayoutRect selRect = m_layoutListMarker.localSelectionRect();
-      selRect.moveBy(boxOrigin);
-      context.fillRect(
-          pixelSnappedIntRect(selRect),
-          m_layoutListMarker.listItem()->selectionBackgroundColor());
-    }
     return;
   }
 
@@ -153,9 +146,9 @@ void ListMarkerPainter::paint(const PaintInfo& paintInfo,
 
   const UChar suffix =
       ListMarkerText::suffix(listStyle, m_layoutListMarker.listItem()->value());
-  UChar suffixStr[2] = {suffix, static_cast<UChar>(' ')};
+  UChar suffixStr[1] = { suffix };
   TextRun suffixRun =
-      constructTextRun(font, suffixStr, 2, m_layoutListMarker.styleRef(),
+      constructTextRun(font, suffixStr, 1, m_layoutListMarker.styleRef(),
                        m_layoutListMarker.style()->direction());
   TextRunPaintInfo suffixRunInfo(suffixRun);
   suffixRunInfo.bounds = marker;
