@@ -452,6 +452,12 @@ class WebFrame {
     return const_cast<WebFrame*>(this)->toImplBase();
   }
 
+  // Draws the contents of the web frame at the specified region onto the
+  // specified canvas
+  virtual void drawInCanvas(const WebRect& rect,
+                            const WebString& customCSS,
+                            WebCanvas* canvas) const = 0;
+
   // Returns the frame inside a given frame or iframe element. Returns 0 if
   // the given element is not a frame, iframe or if the frame is empty.
   BLINK_EXPORT static WebFrame* fromFrameOwnerElement(const WebElement&);

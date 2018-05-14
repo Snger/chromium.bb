@@ -42,6 +42,10 @@ struct RendererUtil
                                   const WebView::InputEvent *events,
                                   size_t                     eventsCount);
 
+    static void drawContentsToBlob(content::RenderView        *rv,
+                                   Blob                       *blob,
+                                   const WebView::DrawParams&  params);
+
 };
 
 }  // close namespace blpwtk2
