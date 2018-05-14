@@ -326,6 +326,7 @@ HWNDMessageHandler::HWNDMessageHandler(HWNDMessageHandlerDelegate* delegate)
       fullscreen_handler_(new FullscreenHandler),
       waiting_for_close_now_(false),
       use_system_default_icon_(false),
+      is_cursor_overridden_(false),
       restored_enabled_(false),
       current_cursor_(NULL),
       previous_cursor_(NULL),
@@ -1392,6 +1393,7 @@ LRESULT HWNDMessageHandler::OnCreate(CREATESTRUCT* create_struct) {
 void HWNDMessageHandler::OnDestroy() {
   windows_session_change_observer_.reset(nullptr);
   delegate_->HandleDestroying();
+
   // If the window going away is a fullscreen window then remove its references
   // from the full screen window map.
   for (auto iter = fullscreen_monitor_map_.Get().begin();
