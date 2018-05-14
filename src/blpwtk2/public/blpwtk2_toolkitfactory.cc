@@ -178,6 +178,7 @@ Toolkit* ToolkitFactory::create(const ToolkitCreateParams& params)
 
     NativeColor activeSearchTextColor = params.activeTextSearchColor();
     blink::setTextSearchColor(GetRValue(activeSearchTextColor), GetGValue(activeSearchTextColor), GetBValue(activeSearchTextColor));
+    views::corewm::TooltipWin::SetTooltipStyle(params.tooltipFont());
 
     base::win::SetWinProcExceptionFilter(params.winProcExceptionFilter());
 
