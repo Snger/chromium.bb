@@ -60,6 +60,7 @@
 // feature 7
 // feature 8
 // feature 9
+#define BLPWTK2_FEATURE_FASTRESIZE
 // feature 10
 // feature 11
 #define BLPWTK2_FEATURE_DOCPRINTER
