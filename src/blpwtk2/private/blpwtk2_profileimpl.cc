@@ -280,6 +280,11 @@ void ProfileImpl::setPacUrl(const StringRef& url)
     d_hostPtr->setPacUrl(std::string(url.data(), url.size()));
 }
 
+void ProfileImpl::setDefaultPrinter(const StringRef& name)
+{
+    d_hostPtr->setDefaultPrinter(std::string(name.data(), name.size()));
+}
+
 }  // close namespace blpwtk2
 
 // vim: ts=4 et

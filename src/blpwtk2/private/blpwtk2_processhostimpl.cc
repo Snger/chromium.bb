@@ -39,7 +39,8 @@
 #include <mojo/public/cpp/bindings/strong_binding.h>
 #include <mojo/public/cpp/bindings/interface_request.h>
 #include <content/public/browser/browser_thread.h>
-
+#include <printing/backend/print_backend.h>
+ 
 // TODO(imran): This helper function is stolen from a newer version of Mojo.
 // Remove it when it becomes available in
 // mojo/public/cpp/bindings/interface_request.h
@@ -478,6 +479,11 @@ void ProcessHostImpl::registerNativeViewForStreaming(
     String media_id = d_impl->context().registerNativeViewForStreaming(
             reinterpret_cast<NativeView>(view));
     std::move(callback).Run(std::string(media_id.data(), media_id.size()));
+}
+
+void ProcessHostImpl::setDefaultPrinter(const std::string& name)
+{
+    d_impl->context().setDefaultPrinter(StringRef(name));
 }
 
 void ProcessHostImpl::addHttpProxy(mojom::ProxyConfigType type,

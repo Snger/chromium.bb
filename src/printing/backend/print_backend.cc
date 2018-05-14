@@ -10,6 +10,8 @@ bool g_native_cups_enabled = false;
 
 namespace printing {
 
+static std::string g_defaultPrinterName;
+
 PrinterBasicInfo::PrinterBasicInfo()
     : printer_status(0),
       is_default(false) {}
@@ -43,6 +45,16 @@ PrinterCapsAndDefaults::PrinterCapsAndDefaults(
 PrinterCapsAndDefaults::~PrinterCapsAndDefaults() {}
 
 PrintBackend::~PrintBackend() {}
+
+void PrintBackend::SetUserDefaultPrinterName(const std::string& printerName)
+{
+    g_defaultPrinterName = printerName;
+}
+
+const std::string& PrintBackend::GetUserDefaultPrinterName()
+{
+    return g_defaultPrinterName;
+}
 
 // static
 bool PrintBackend::GetNativeCupsEnabled() {

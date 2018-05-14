@@ -86,6 +86,28 @@ const double kMinDpi = 1.0;
 // Also set in third_party/WebKit/Source/core/page/PrintContext.cpp
 const float kPrintingMinimumShrinkFactor = 1.333f;
 
+bool g_use_default_print_settings_ = false;
+
+class EmptyPrintWebViewHelperDelegate : public PrintWebViewHelper::Delegate {
+ public:
+  EmptyPrintWebViewHelperDelegate() {}
+  bool CancelPrerender(content::RenderFrame* render_frame) override {
+    return false;
+  }
+  blink::WebElement GetPdfElement(blink::WebLocalFrame* frame) override {
+    return blink::WebElement();
+  }
+  bool IsPrintPreviewEnabled() override {
+    return false;
+  }
+  bool OverridePrint(blink::WebLocalFrame* frame) override {
+    return false;
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(EmptyPrintWebViewHelperDelegate);
+};
+
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
 bool g_is_preview_enabled = true;
 
@@ -587,8 +609,7 @@ void PrintWebViewHelper::PrintHeaderAndFooter(
   web_view->setMainFrame(frame);
   blink::WebFrameWidget::create(nullptr, web_view, frame);
 
-  base::StringValue html(ResourceBundle::GetSharedInstance().GetLocalizedString(
-      IDR_PRINT_PREVIEW_PAGE));
+  base::StringValue html(params.header_footer_html);
   // Load page with script to avoid async operations.
   ExecuteScript(frame, kPageLoadScriptFormat, html);
 
@@ -605,6 +626,13 @@ void PrintWebViewHelper::PrintHeaderAndFooter(
   options->SetString("url", params.url);
   base::string16 title = source_frame.document().title();
   options->SetString("title", title.empty() ? params.title : title);
+
+#ifdef BB_HAS_WEB_DOCUMENT_EXTENSIONS
+  // Bloomberg-specific extensions
+  options->SetString("headerText", source_frame.document().bbHeaderText());
+  options->SetString("footerText", source_frame.document().bbFooterText());
+  options->SetBoolean("printPageNumbers", source_frame.document().bbPrintPageNumbers());
+#endif
 
   ExecuteScript(frame, kPageSetupScriptFormat, *options);
 
@@ -883,7 +911,7 @@ void PrepareFrameAndViewForPrint::FinishPrinting() {
 }
 
 bool PrintWebViewHelper::Delegate::IsAskPrintSettingsEnabled() {
-  return true;
+  return !g_use_default_print_settings_;
 }
 
 bool PrintWebViewHelper::Delegate::IsScriptedPrintEnabled() {
@@ -916,6 +944,16 @@ PrintWebViewHelper::~PrintWebViewHelper() {
 // static
 void PrintWebViewHelper::DisablePreview() {
   g_is_preview_enabled = false;
+}
+
+// static
+void PrintWebViewHelper::UseDefaultPrintSettings() {
+  g_use_default_print_settings_ = true;
+}
+
+// static
+PrintWebViewHelper::Delegate* PrintWebViewHelper::CreateEmptyDelegate() {
+  return new EmptyPrintWebViewHelperDelegate();
 }
 
 bool PrintWebViewHelper::IsScriptInitiatedPrintAllowed(blink::WebFrame* frame,
@@ -1328,7 +1366,7 @@ bool PrintWebViewHelper::RenderPreviewPage(
 
   base::TimeTicks begin_time = base::TimeTicks::Now();
   PrintPageInternal(page_params, print_preview_context_.prepared_frame(),
-                    initial_render_metafile, nullptr, nullptr);
+                    initial_render_metafile, nullptr, nullptr,page_number);
   print_preview_context_.RenderedPreviewPage(
       base::TimeTicks::Now() - begin_time);
   if (draft_metafile.get()) {
@@ -1829,7 +1867,8 @@ void PrintWebViewHelper::PrintPageInternal(
     blink::WebLocalFrame* frame,
     PdfMetafileSkia* metafile,
     gfx::Size* page_size_in_dpi,
-    gfx::Rect* content_area_in_dpi) {
+    gfx::Rect* content_area_in_dpi,
+    int page_count) {
   PageSizeMargins page_layout_in_points;
 
   double css_scale_factor = 1.0f;
@@ -1890,7 +1929,9 @@ void PrintWebViewHelper::PrintPageInternal(
 #endif
     // |page_number| is 0-based, so 1 is added.
     PrintHeaderAndFooter(canvas, params.page_number + 1,
-                         print_preview_context_.total_page_count(), *frame,
+                         // print_preview_context is initialized only when print
+                         page_count, //print_preview_context_.total_page_count(), 
+                         *frame,
                          scale_factor / fudge_factor, page_layout_in_points,
                          params.params);
   }

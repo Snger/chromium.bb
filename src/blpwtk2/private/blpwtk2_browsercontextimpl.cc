@@ -91,6 +91,16 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     d_requestContextGetter =
         new URLRequestContextGetterImpl(path, false, false);
 
+    {
+        // Initialize prefs for this context.
+        d_prefRegistry = new user_prefs::PrefRegistrySyncable();
+
+        PrefServiceFactory factory;
+        d_prefService = factory.Create(d_prefRegistry.get());
+        user_prefs::UserPrefs::Set(this, d_prefService.get());
+        d_prefRegistry->RegisterBooleanPref(prefs::kPrintingEnabled, true);
+    }
+
     BrowserContextDependencyManager::GetInstance()->CreateBrowserContextServices(this);
     content::BrowserContext::Initialize(this, base::FilePath());
 
@@ -378,6 +388,12 @@ void BrowserContextImpl::setPacUrl(const StringRef& url)
 
     d_proxyConfig->set_pac_url(GURL(std::string(url.data(), url.size())));
     d_requestContextGetter->setProxyConfig(*d_proxyConfig);
+}
+
+void BrowserContextImpl::setDefaultPrinter(const StringRef& name)
+{
+    printing::PrintBackend::SetUserDefaultPrinterName(
+            std::string(name.data(), name.size()));
 }
 
 // content::BrowserContext overrides
