@@ -29,11 +29,20 @@
  */
 
 #include "public/web/WebDOMEvent.h"
+#include "public/web/WebSerializedScriptValue.h"
 
 #include "core/events/Event.h"
+#include "core/events/CustomEvent.h"
 #include "wtf/PassRefPtr.h"
 
 namespace blink {
+
+WebDOMEvent WebDOMEvent::createCustomEvent(const char* name, bool canBubble, bool cancelable, const WebSerializedScriptValue& detail)
+{
+    CustomEvent* customEvent = CustomEvent::create();
+    customEvent->initCustomEvent(name, canBubble, cancelable, detail);
+    return WebDOMEvent(customEvent);
+}
 
 void WebDOMEvent::reset() {
   assign(nullptr);

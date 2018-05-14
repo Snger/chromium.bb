@@ -172,6 +172,19 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate {
     virtual ~NestingObserver();
   };
 
+  // A variant on PostTask that deletes the given object.  This is useful
+  // if the object needs to live until the next run of the MessageLoop (for
+  // example, deleting a RenderProcessHost from within an IPC callback is not
+  // good).
+  //
+  // NOTE: This method may be called on any thread.  The object will be deleted
+  // on the thread that executes MessageLoop::Run().
+  template <class T>
+  void DeleteSoon(const tracked_objects::Location& from_here, const T* object) {
+    base::subtle::DeleteHelperInternal<T, void>::DeleteViaSequencedTaskRunner(
+        this, from_here, object);
+  }
+
   void AddNestingObserver(NestingObserver* observer);
   void RemoveNestingObserver(NestingObserver* observer);
 
@@ -485,6 +498,12 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate {
 
   // Whether task observers are allowed.
   bool allow_task_observers_ = true;
+
+public:
+  void DeleteSoonInternal(const tracked_objects::Location& from_here,
+                          void(*deleter)(const void*),
+                          const void* object);
+
 
   DISALLOW_COPY_AND_ASSIGN(MessageLoop);
 };

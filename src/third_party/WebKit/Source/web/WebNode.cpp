@@ -39,6 +39,7 @@
 #include "core/dom/TagCollection.h"
 #include "core/editing/EditingUtilities.h"
 #include "core/editing/serializers/Serialization.h"
+#include "core/events/EventQueue.h"
 #include "core/events/Event.h"
 #include "core/html/HTMLCollection.h"
 #include "core/html/HTMLElement.h"
@@ -63,6 +64,29 @@
 namespace blink {
 
 namespace {
+
+class NodeDispatchEventTask: public SuspendableTask {
+    WTF_MAKE_NONCOPYABLE(NodeDispatchEventTask);
+public:
+    NodeDispatchEventTask(const WebPrivatePtr<Node>& node, WebDOMEvent event)
+        : m_event(event)
+    {
+        m_node = node;
+    }
+
+    ~NodeDispatchEventTask()
+    {
+        m_node.reset();
+    }
+
+    void run() override
+    {
+        m_node->dispatchEvent(m_event);
+    }
+private:
+    WebPrivatePtr<Node> m_node;
+    WebDOMEvent m_event;
+};
 
 class NodeDispatchSimulatedClickTask : public SuspendableTask {
   WTF_MAKE_NONCOPYABLE(NodeDispatchSimulatedClickTask);
@@ -165,6 +189,15 @@ bool WebNode::isDocumentNode() const {
 
 bool WebNode::isDocumentTypeNode() const {
   return m_private->getNodeType() == Node::kDocumentTypeNode;
+}
+
+void WebNode::dispatchEvent(const WebDOMEvent& event)
+{
+    if (!event.isNull() && m_private->getExecutionContext()) {
+        //static_cast<Event*>(event)->setTarget(this);
+        //m_private->getExecutionContext()->getEventQueue()->enqueueEvent(event);
+        m_private->getExecutionContext()->postSuspendableTask(wrapUnique(new NodeDispatchEventTask(m_private, event)));
+    }
 }
 
 void WebNode::simulateClick() {

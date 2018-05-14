@@ -561,6 +561,12 @@ bool MessageLoop::DoDelayedWork(TimeTicks* next_delayed_work_time) {
   return DeferOrRunPendingTask(std::move(pending_task));
 }
 
+void MessageLoop::DeleteSoonInternal(const tracked_objects::Location& from_here,
+                                     void(*deleter)(const void*),
+                                     const void* object) {
+  task_runner()->PostNonNestableTask(from_here, Bind(deleter, object));
+}
+
 bool MessageLoop::DoIdleWork() {
   if (ProcessNextDelayedNonNestableTask())
     return true;

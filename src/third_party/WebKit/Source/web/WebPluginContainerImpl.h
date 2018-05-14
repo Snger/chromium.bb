@@ -94,6 +94,7 @@ class WEB_EXPORT WebPluginContainerImpl final
   void handleEvent(Event*) override;
   void frameRectsChanged() override;
   void setParentVisible(bool) override;
+  void setParent(Widget*) override;
   void widgetGeometryMayHaveChanged() override;
   bool isPluginContainer() const override { return true; }
   void eventListenersRemoved() override;
@@ -107,6 +108,7 @@ class WEB_EXPORT WebPluginContainerImpl final
                              unsigned long long total,
                              const WebString& url) override;
   void enqueueMessageEvent(const WebDOMMessageEvent&) override;
+  void enqueueEvent(const WebDOMEvent& event) override;
   void invalidate() override;
   void invalidateRect(const WebRect&) override;
   void scrollRect(const WebRect&) override;

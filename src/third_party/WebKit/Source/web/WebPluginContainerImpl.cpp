@@ -262,6 +262,19 @@ void WebPluginContainerImpl::setParentVisible(bool parentVisible) {
     m_webPlugin->updateVisibility(isVisible());
 }
 
+void WebPluginContainerImpl::setParent(Widget* parent)
+{
+    if (Widget::parent() && m_webPlugin) {
+        m_webPlugin->removedFromParent();
+    }
+
+    Widget::setParent(parent);
+
+    if (Widget::parent() && m_webPlugin) {
+        m_webPlugin->addedToParent();
+    }
+}
+
 void WebPluginContainerImpl::setPlugin(WebPlugin* plugin) {
   if (plugin == m_webPlugin)
     return;
@@ -408,6 +421,16 @@ void WebPluginContainerImpl::enqueueMessageEvent(
     const WebDOMMessageEvent& event) {
   static_cast<Event*>(event)->setTarget(m_element);
   m_element->getExecutionContext()->getEventQueue()->enqueueEvent(event);
+}
+
+void WebPluginContainerImpl::enqueueEvent(const WebDOMEvent& event)
+{
+    if (!m_element->document().isActive()) {
+        return;
+    }
+
+    static_cast<Event*>(event)->setTarget(m_element);
+    m_element->getExecutionContext()->getEventQueue()->enqueueEvent(event);
 }
 
 void WebPluginContainerImpl::invalidate() {
@@ -924,9 +947,6 @@ void WebPluginContainerImpl::computeClipRectsForPlugin(
   LayoutRect unclippedAbsoluteRect(box->contentBoxRect());
   box->mapToVisualRectInAncestorSpace(rootView, unclippedAbsoluteRect);
 
-  // The frameRect is already in absolute space of the local frame to the
-  // plugin.
-  windowRect = frameRect();
   // Map up to the root frame.
   LayoutRect layoutWindowRect =
       LayoutRect(m_element->document()
@@ -935,9 +955,6 @@ void WebPluginContainerImpl::computeClipRectsForPlugin(
                      .localToAbsoluteQuad(FloatQuad(FloatRect(frameRect())),
                                           TraverseDocumentBoundaries)
                      .boundingBox());
-  // Finally, adjust for scrolling of the root frame, which the above does not
-  // take into account.
-  layoutWindowRect.moveBy(-rootView->viewRect().location());
   windowRect = pixelSnappedIntRect(layoutWindowRect);
 
   LayoutRect layoutClippedLocalRect = unclippedAbsoluteRect;
@@ -945,19 +962,16 @@ void WebPluginContainerImpl::computeClipRectsForPlugin(
   layoutClippedLocalRect.intersect(
       LayoutRect(rootView->frameView()->visibleContentRect()));
 
-  unclippedIntLocalRect =
-      box->absoluteToLocalQuad(FloatRect(unclippedLayoutLocalRect),
-                               TraverseDocumentBoundaries | UseTransforms)
-          .enclosingBoundingBox();
-  // As a performance optimization, map the clipped rect separately if is
-  // different than the unclipped rect.
-  if (layoutClippedLocalRect != unclippedLayoutLocalRect)
-    clippedLocalRect =
-        box->absoluteToLocalQuad(FloatRect(layoutClippedLocalRect),
-                                 TraverseDocumentBoundaries | UseTransforms)
-            .enclosingBoundingBox();
-  else
-    clippedLocalRect = unclippedIntLocalRect;
+  // Although the clip rect is in absolute space, its origin is the top-left
+  // of the frame rect
+  layoutClippedLocalRect.moveBy(-windowRect.location());
+  unclippedLayoutLocalRect.moveBy(-windowRect.location());
+
+  clippedLocalRect = IntRect(layoutClippedLocalRect);
+  unclippedIntLocalRect = IntRect(unclippedLayoutLocalRect);
+
+  // Finally, adjust for scrolling of the root frame, which the above does not take into account.
+  windowRect.moveBy(roundedIntPoint(-rootView->viewRect().location()));
 }
 
 void WebPluginContainerImpl::calculateGeometry(IntRect& windowRect,
