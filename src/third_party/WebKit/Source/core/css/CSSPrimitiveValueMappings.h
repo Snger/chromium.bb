@@ -2626,6 +2626,9 @@ inline CSSIdentifierValue::CSSIdentifierValue(EWhiteSpace e)
     case PRE_WRAP:
       m_valueID = CSSValuePreWrap;
       break;
+    case BB_PRE_WRAP_TEXT:
+      m_valueID = CSSValueBbPreWrapText;
+      break;
     case PRE_LINE:
       m_valueID = CSSValuePreLine;
       break;
@@ -2649,6 +2652,8 @@ inline EWhiteSpace CSSIdentifierValue::convertTo() const {
       return PRE;
     case CSSValuePreWrap:
       return PRE_WRAP;
+    case CSSValueBbPreWrapText:
+        return BB_PRE_WRAP_TEXT;
     case CSSValuePreLine:
       return PRE_LINE;
     case CSSValueNormal:
@@ -2677,6 +2682,9 @@ inline CSSIdentifierValue::CSSIdentifierValue(EWordBreak e)
     case KeepAllWordBreak:
       m_valueID = CSSValueKeepAll;
       break;
+    case KeepAllIfKoreanWordBreak:
+      m_valueID = CSSValueBbKeepAllIfKorean;
+      break;
   }
 }
 
@@ -2691,6 +2699,8 @@ inline EWordBreak CSSIdentifierValue::convertTo() const {
       return NormalWordBreak;
     case CSSValueKeepAll:
       return KeepAllWordBreak;
+    case CSSValueBbKeepAllIfKorean:
+        return KeepAllIfKoreanWordBreak;
     default:
       break;
   }

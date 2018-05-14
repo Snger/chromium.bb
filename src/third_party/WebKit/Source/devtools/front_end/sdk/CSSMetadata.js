@@ -608,13 +608,13 @@ SDK.CSSMetadata._propertyDataMap = {
     values:
         ['baseline', 'middle', 'sub', 'super', 'text-top', 'text-bottom', 'top', 'bottom', '-webkit-baseline-middle']
   },
-  'white-space': {values: ['normal', 'nowrap', 'pre', 'pre-line', 'pre-wrap']},
+  'white-space': {values: ['normal', 'nowrap', 'pre', 'pre-line', 'pre-wrap', '-bb-pre-wrap-text']},
   'box-lines': {values: ['single', 'multiple']},
   'page-break-after': {values: ['left', 'right', 'auto', 'always', 'avoid']},
   'clip-path': {values: ['none']},
   'margin': {values: ['auto']},
   'margin-right': {values: ['auto']},
-  'word-break': {values: ['normal', 'break-all', 'break-word']},
+  'word-break': {values: ['normal', 'break-all', 'keep-all', '-bb-keep-all-if-korean', 'break-word']},
   'word-spacing': {values: ['normal']},
   '-webkit-text-emphasis-style': {values: ['circle', 'filled', 'open', 'dot', 'double-circle', 'triangle', 'sesame']},
   'transform': {

@@ -257,6 +257,7 @@ enum EWordBreak {
   NormalWordBreak,
   BreakAllWordBreak,
   KeepAllWordBreak,
+  KeepAllIfKoreanWordBreak,
   BreakWordBreak
 };
 
@@ -337,7 +338,7 @@ enum QuoteType { OPEN_QUOTE, CLOSE_QUOTE, NO_OPEN_QUOTE, NO_CLOSE_QUOTE };
 
 enum EAnimPlayState { AnimPlayStatePlaying, AnimPlayStatePaused };
 
-enum EWhiteSpace { NORMAL, PRE, PRE_WRAP, PRE_LINE, NOWRAP, KHTML_NOWRAP };
+enum EWhiteSpace { NORMAL, PRE, PRE_WRAP, BB_PRE_WRAP_TEXT, PRE_LINE, NOWRAP, KHTML_NOWRAP };
 
 // The order of this enum must match the order of the text align values in
 // CSSValueKeywords.in.

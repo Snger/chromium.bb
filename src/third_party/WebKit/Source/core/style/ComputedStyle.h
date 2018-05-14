@@ -3772,8 +3772,8 @@ class CORE_EXPORT ComputedStyle : public ComputedStyleBase,
   bool preserveNewline() const { return preserveNewline(whiteSpace()); }
 
   static bool collapseWhiteSpace(EWhiteSpace ws) {
-    // Pre and prewrap do not collapse whitespace.
-    return ws != PRE && ws != PRE_WRAP;
+    // Pre, prewrap and -bb-pre-wrap-text do not collapse whitespace.
+    return ws != PRE && ws != PRE_WRAP && ws != BB_PRE_WRAP_TEXT;
   }
 
   bool collapseWhiteSpace() const { return collapseWhiteSpace(whiteSpace()); }
@@ -3789,7 +3789,7 @@ class CORE_EXPORT ComputedStyle : public ComputedStyleBase,
     return false;
   }
   bool breakOnlyAfterWhiteSpace() const {
-    return whiteSpace() == PRE_WRAP ||
+    return whiteSpace() == PRE_WRAP || whiteSpace() == BB_PRE_WRAP_TEXT ||
            getLineBreak() == LineBreakAfterWhiteSpace;
   }
 

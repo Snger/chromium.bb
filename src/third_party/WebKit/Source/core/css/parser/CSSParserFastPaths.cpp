@@ -820,10 +820,10 @@ bool CSSParserFastPaths::isValidKeywordPropertyAndValue(
              valueID == CSSValueTb;
     case CSSPropertyWhiteSpace:
       return valueID == CSSValueNormal || valueID == CSSValuePre ||
-             valueID == CSSValuePreWrap || valueID == CSSValuePreLine ||
+             valueID == CSSValuePreWrap || valueID == CSSValueBbPreWrapText || valueID == CSSValuePreLine ||
              valueID == CSSValueNowrap;
     case CSSPropertyWordBreak:
-      return valueID == CSSValueNormal || valueID == CSSValueBreakAll ||
+      return valueID == CSSValueNormal || valueID == CSSValueBreakAll || valueID == CSSValueBbKeepAllIfKorean || 
              valueID == CSSValueKeepAll || valueID == CSSValueBreakWord;
     case CSSPropertyScrollSnapType:
       ASSERT(RuntimeEnabledFeatures::cssScrollSnapPointsEnabled());
