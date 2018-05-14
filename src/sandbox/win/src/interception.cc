@@ -533,8 +533,8 @@ ResultCode InterceptionManager::PatchClientFunctions(
   char* interceptor_base = NULL;
 
 #if defined(SANDBOX_EXPORTS)
-  interceptor_base = reinterpret_cast<char*>(child_->MainModule());
-  base::ScopedNativeLibrary local_interceptor(::LoadLibrary(child_->Name()));
+  interceptor_base = reinterpret_cast<char*>(child_->SandboxModule());
+  base::ScopedNativeLibrary local_interceptor(::LoadLibrary(child_->SandboxModuleName()));
 #endif  // defined(SANDBOX_EXPORTS)
 
   std::unique_ptr<ServiceResolverThunk> thunk;
