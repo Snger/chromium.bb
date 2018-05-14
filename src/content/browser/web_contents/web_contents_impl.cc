@@ -1942,6 +1942,14 @@ void WebContentsImpl::ExitFullscreenMode(bool will_cause_resize) {
   }
 }
 
+bool WebContentsImpl::ShouldSetKeyboardFocusOnMouseDown() {
+  return !delegate_ || delegate_->ShouldSetKeyboardFocusOnMouseDown();
+}
+
+bool WebContentsImpl::ShouldSetLogicalFocusOnMouseDown() {
+  return !delegate_ || delegate_->ShouldSetLogicalFocusOnMouseDown();
+}
+
 bool WebContentsImpl::IsFullscreenForCurrentTab() const {
   return delegate_ ? delegate_->IsFullscreenForTabOrPending(this) : false;
 }
@@ -3043,6 +3051,11 @@ void WebContentsImpl::DidGetRedirectForResourceRequest(
 void WebContentsImpl::NotifyWebContentsFocused() {
   for (auto& observer : observers_)
     observer.OnWebContentsFocused();
+}
+
+void WebContentsImpl::NotifyWebContentsBlurred() {
+  for (auto& observer : observers_)
+    observer.OnWebContentsBlurred();
 }
 
 void WebContentsImpl::SystemDragEnded(RenderWidgetHost* source_rwh) {

@@ -130,6 +130,10 @@ class WebViewImpl final : public WebView,
         // (e.g. which of audio and/or video devices are requested, and lists
         // of available devices).
 
+    // Return true if the RWHV should take focus on mouse-down.
+    bool ShouldSetKeyboardFocusOnMouseDown() override;
+    bool ShouldSetLogicalFocusOnMouseDown() override;
+
     void FindReply(content::WebContents *source_contents,
                    int                   request_id,
                    int                   number_of_matches,
@@ -169,6 +173,12 @@ class WebViewImpl final : public WebView,
         // This method is like DidFinishLoad, but when the load failed or was
         // cancelled, e.g. window.stop() is invoked.
 
+    void OnWebContentsFocused() override;
+        // Notification that |contents| has gained focus.
+
+    void OnWebContentsBlurred() override;
+        // Invoked when focus is lost.
+
     DISALLOW_COPY_AND_ASSIGN(WebViewImpl);
 
   public:
@@ -205,6 +215,8 @@ class WebViewImpl final : public WebView,
     int goForward() override;
     int reload() override;
     void stop() override;
+    void takeKeyboardFocus() override;
+    void setLogicalFocus(bool focused) override;
     void show() override;
     void hide() override;
     void setParent(NativeView parent) override;

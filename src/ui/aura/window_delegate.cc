@@ -6,6 +6,11 @@
 
 namespace aura {
 
-void WindowDelegate::OnRequestClose() {}
+void WindowDelegate::OnRequestClose() {
+}
+
+bool WindowDelegate::ShouldTryFocusOnMouseDown() const {
+  return true;
+}
 
 }  // namespace aura

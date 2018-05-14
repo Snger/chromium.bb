@@ -207,6 +207,9 @@ class CONTENT_EXPORT WebContentsImpl
   // Notify observers that the web contents has been focused.
   void NotifyWebContentsFocused();
 
+  // Notify observers that the web contents has lost focus.
+  void NotifyWebContentsBlurred();
+
   WebContentsView* GetView() const;
 
   ScreenOrientationDispatcherHost* screen_orientation_dispatcher_host() {
@@ -636,6 +639,8 @@ class CONTENT_EXPORT WebContentsImpl
   void HandleKeyboardEvent(const NativeWebKeyboardEvent& event) override;
   bool HandleWheelEvent(const blink::WebMouseWheelEvent& event) override;
   bool PreHandleGestureEvent(const blink::WebGestureEvent& event) override;
+  bool ShouldSetKeyboardFocusOnMouseDown() override;
+  bool ShouldSetLogicalFocusOnMouseDown() override;
   BrowserAccessibilityManager* GetRootBrowserAccessibilityManager() override;
   BrowserAccessibilityManager* GetOrCreateRootBrowserAccessibilityManager()
       override;

@@ -59,6 +59,7 @@
 #include "third_party/WebKit/public/platform/WebInputEvent.h"
 #include "third_party/WebKit/public/web/WebCompositionUnderline.h"
 #include "ui/aura/client/aura_constants.h"
+#include "ui/aura/client/capture_client.h"
 #include "ui/aura/client/cursor_client.h"
 #include "ui/aura/client/cursor_client_observer.h"
 #include "ui/aura/client/focus_client.h"
@@ -737,8 +738,23 @@ void RenderWidgetHostViewAura::Focus() {
   // situations we may not yet be in a valid Window hierarchy (such as reloading
   // after out of memory discarded the tab).
   aura::client::FocusClient* client = aura::client::GetFocusClient(window_);
-  if (client)
+  if (client) {
+    bool should_recapture = false;
+
+    if (event_handler_->has_capture_from_mouse_down() && aura::client::GetCaptureWindow(window_) == window_) {
+      should_recapture = true;
+      window_->ReleaseCapture();
+    }
     window_->Focus();
+    if (should_recapture)
+      window_->SetCapture();
+  }
+}
+
+void RenderWidgetHostViewAura::Blur() {
+  aura::client::FocusClient* client = aura::client::GetFocusClient(window_);
+  if (client)
+    client->FocusWindow(NULL);
 }
 
 bool RenderWidgetHostViewAura::HasFocus() const {
@@ -1502,6 +1518,10 @@ int RenderWidgetHostViewAura::GetNonClientComponent(
   return HTCLIENT;
 }
 
+bool RenderWidgetHostViewAura::ShouldTryFocusOnMouseDown() const {
+  return !host_ || host_->ShouldSetLogicalFocusOnMouseDown();
+}
+
 bool RenderWidgetHostViewAura::ShouldDescendIntoChildForEventHandling(
     aura::Window* child,
     const gfx::Point& location) {
@@ -1752,7 +1772,7 @@ void RenderWidgetHostViewAura::OnWindowFocused(aura::Window* gained_focus,
       manager->OnWindowFocused();
   } else if (window_ == lost_focus) {
     host_->SetActive(false);
-    host_->Blur();
+    host_->LostFocus();
 
     DetachFromInputMethod();
 
@@ -2072,7 +2092,7 @@ void RenderWidgetHostViewAura::UpdateLegacyWin() {
         LegacyRenderWidgetHostHWND::Create(GetHostWindowHWND());
   }
 
-  if (legacy_render_widget_host_HWND_) {
+  if (legacy_render_widget_host_HWND_ && GetNativeView()->GetHost()) {
     legacy_render_widget_host_HWND_->set_host(this);
     legacy_render_widget_host_HWND_->UpdateParent(GetHostWindowHWND());
     legacy_render_widget_host_HWND_->SetBounds(

@@ -737,6 +737,12 @@ void RenderWidgetHostImpl::GotFocus() {
     delegate_->RenderWidgetGotFocus(this);
 }
 
+void RenderWidgetHostImpl::LostFocus() {
+  Blur();
+  if (owner_delegate_)
+	  owner_delegate_->RenderWidgetLostFocus();
+}
+
 void RenderWidgetHostImpl::Focus() {
   RenderWidgetHostImpl* focused_widget =
       delegate_ ? delegate_->GetRenderWidgetHostWithPageFocus() : nullptr;
@@ -2232,6 +2238,14 @@ void RenderWidgetHostImpl::OnSyntheticGestureCompleted(
 
 bool RenderWidgetHostImpl::ShouldDropInputEvents() const {
   return ignore_input_events_ || process_->IgnoreInputEvents() || !delegate_;
+}
+
+bool RenderWidgetHostImpl::ShouldSetKeyboardFocusOnMouseDown() const {
+  return !delegate_ || delegate_->ShouldSetKeyboardFocusOnMouseDown();
+}
+
+bool RenderWidgetHostImpl::ShouldSetLogicalFocusOnMouseDown() const {
+  return !delegate_ || delegate_->ShouldSetLogicalFocusOnMouseDown();
 }
 
 void RenderWidgetHostImpl::SetBackgroundOpaque(bool opaque) {
