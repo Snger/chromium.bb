@@ -50,6 +50,7 @@ class ShellBrowserContext : public BrowserContext {
   storage::SpecialStoragePolicy* GetSpecialStoragePolicy() override;
   PushMessagingService* GetPushMessagingService() override;
   SSLHostStateDelegate* GetSSLHostStateDelegate() override;
+  bool AllowDictionaryDownloads() override;
   PermissionManager* GetPermissionManager() override;
   BackgroundSyncController* GetBackgroundSyncController() override;
   net::URLRequestContextGetter* CreateRequestContext(
