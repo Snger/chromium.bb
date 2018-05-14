@@ -648,11 +648,6 @@ class CORE_EXPORT LayoutBox : public LayoutBoxModelObject {
     m_marginBoxOutsets.setEnd(styleToUse->getWritingMode(),
                               styleToUse->direction(), value);
   }
-  
-  // This is overridden in RenderListItem to indent the list item by the width
-  // of the list marker.  It is also overridden in RenderBlock to shift non-li
-  // blocks under list nodes by the margin of the previous list item.
-  virtual LayoutUnit additionalMarginStart() const { return LayoutUnit(0); }
 
     // This is overridden in RenderListItem to indent the list item by the width
     // of the list marker.  It is also overridden in RenderBlock to shift non-li
