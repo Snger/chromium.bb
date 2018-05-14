@@ -50,17 +50,24 @@ bool canAccessFrameInternal(const LocalDOMWindow* accessingWindow,
   SECURITY_CHECK(!(targetWindow && targetWindow->frame()) ||
                  targetWindow == targetWindow->frame()->domWindow());
 
+  if (accessingWindow) {
   // It's important to check that targetWindow is a LocalDOMWindow: it's
   // possible for a remote frame and local frame to have the same security
   // origin, depending on the model being used to allocate Frames between
   // processes. See https://crbug.com/601629.
-  if (!(accessingWindow && targetWindow && targetWindow->isLocalDOMWindow()))
-    return false;
+		if (!(targetWindow && targetWindow->isLocalDOMWindow()))
+        return false;
 
-  const SecurityOrigin* accessingOrigin =
-      accessingWindow->document()->getSecurityOrigin();
-  if (!accessingOrigin->canAccessCheckSuborigins(targetFrameOrigin))
-    return false;
+    const SecurityOrigin* accessingOrigin =
+        accessingWindow->document()->getSecurityOrigin();
+    if (!accessingOrigin->canAccessCheckSuborigins(targetFrameOrigin))
+        return false;
+	}
+	else {
+		if (!(targetFrameOrigin && targetFrameOrigin->hasUniversalAccess())) {
+			return false;
+		}
+	}
 
   // Notify the loader's client if the initial document has been accessed.
   LocalFrame* targetFrame = toLocalDOMWindow(targetWindow)->frame();

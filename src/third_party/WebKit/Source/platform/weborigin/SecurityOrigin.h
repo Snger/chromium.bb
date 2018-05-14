@@ -172,6 +172,9 @@ class PLATFORM_EXPORT SecurityOrigin : public RefCounted<SecurityOrigin> {
   //       with older versions of WebKit.
   void grantLoadLocalResources();
 
+  // Returns true if this SecurityOrigin can be accessed from every other SecurityOrigin.
+  bool hasUniversalAccess() const { return m_universalAccess; }
+
   // Explicitly grant the ability to access every other SecurityOrigin.
   //
   // WARNING: This is an extremely powerful ability. Use with caution!
