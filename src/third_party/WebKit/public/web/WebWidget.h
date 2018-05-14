@@ -199,6 +199,9 @@ class WebWidget {
   virtual void didAcquirePointerLock() {}
   virtual void didNotAcquirePointerLock() {}
 
+  // Informs the WebWidget that the window rect has changed.
+  virtual void didChangeWindowRect() { }
+
   // Pointer lock was held, but has been lost. This may be due to a
   // request via WebWidgetClient::requestPointerUnlock(), or for other
   // reasons such as the user exiting lock, window focus changing, etc.

@@ -46,6 +46,7 @@
 #include "core/editing/markers/DocumentMarkerController.h"
 #include "core/editing/serializers/HTMLInterchange.h"
 #include "core/editing/serializers/Serialization.h"
+#include "core/events/CustomEvent.h"
 #include "core/events/KeyboardEvent.h"
 #include "core/events/UIEventWithKeyState.h"
 #include "core/events/WheelEvent.h"
@@ -2551,6 +2552,21 @@ void WebViewImpl::didAcquirePointerLock() {
 void WebViewImpl::didNotAcquirePointerLock() {
   if (page())
     page()->pointerLockController().didNotAcquirePointerLock();
+}
+
+void WebViewImpl::didChangeWindowRect()
+{
+    if (!mainFrameImpl()
+        || !mainFrameImpl()->frame()
+        || !mainFrameImpl()->frame()->document()) {
+        return;
+    }
+
+    CustomEventInit eventInit;
+    eventInit.setBubbles(false);
+    eventInit.setCancelable(false);
+    CustomEvent* event = CustomEvent::create("bbWindowRectChanged", eventInit);
+    mainFrameImpl()->frame()->domWindow()->dispatchEvent(event);
 }
 
 void WebViewImpl::didLosePointerLock() {

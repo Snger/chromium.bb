@@ -1650,6 +1650,10 @@ void RenderWidget::OnUpdateScreenRects(const gfx::Rect& view_screen_rect,
   } else {
     SetScreenRects(view_screen_rect, window_screen_rect);
   }
+
+  if (GetWebWidget())
+    GetWebWidget()->didChangeWindowRect();
+
   Send(new ViewHostMsg_UpdateScreenRects_ACK(routing_id()));
 }
 
