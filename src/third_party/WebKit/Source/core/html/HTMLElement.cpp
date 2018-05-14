@@ -46,8 +46,11 @@
 #include "core/dom/shadow/ShadowRoot.h"
 #include "core/editing/EditingUtilities.h"
 #include "core/editing/serializers/Serialization.h"
+#include "core/editing/spellcheck/SpellChecker.h"
+#include "core/editing/Position.h"
 #include "core/events/EventListener.h"
 #include "core/events/KeyboardEvent.h"
+#include "core/frame/LocalFrame.h"
 #include "core/frame/Settings.h"
 #include "core/frame/UseCounter.h"
 #include "core/html/HTMLBRElement.h"
@@ -437,6 +440,19 @@ void HTMLElement::parseAttribute(const QualifiedName& name,
   } else if (name == langAttr) {
     pseudoStateChanged(CSSSelector::PseudoLang);
   } else {
+    if (name == contenteditableAttr) {
+        if (value.isNull() || equalIgnoringCase(value, "false")) {
+            if (document().frame()) {
+                VisiblePosition startPos = createVisiblePosition(PositionTemplate<EditingStrategy>::firstPositionInNode(this));
+                VisiblePosition endPos = createVisiblePosition(PositionTemplate<EditingStrategy>::lastPositionInNode(this));
+                EphemeralRange range(startPos.deepEquivalent(), endPos.deepEquivalent());
+                VisibleSelection newSelection = createVisibleSelection(
+                              SelectionInDOMTree::Builder().setBaseAndExtent(range).build());
+                document().frame()->spellChecker().clearMisspellingsAndBadGrammar(newSelection);
+            }
+        }
+    }
+
     const AtomicString& eventName = eventNameForAttributeName(name);
     if (!eventName.isNull())
       setAttributeEventListener(

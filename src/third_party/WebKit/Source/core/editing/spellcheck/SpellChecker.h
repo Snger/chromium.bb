@@ -66,6 +66,7 @@ class CORE_EXPORT SpellChecker final : public GarbageCollected<SpellChecker> {
   void advanceToNextMisspelling(bool startBeforeSelection = false);
   void showSpellingGuessPanel();
   void didBeginEditing(Element*);
+  void clearMisspellingsAndBadGrammar(const VisibleSelection&);
   void clearMisspellingsForMovingParagraphs(const VisibleSelection&);
   void markMisspellingsForMovingParagraphs(const VisibleSelection&);
   void respondToChangedSelection(const Position& oldSelectionStart,
