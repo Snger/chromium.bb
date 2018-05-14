@@ -55,6 +55,20 @@ static inline bool shouldForwardUserGesture(int interval, int nestingLevel) {
              1;  // Gestures should not be forwarded to nested timers.
 }
 
+static double s_hiddenPageAlignmentInterval = 1.0;
+void DOMTimer::setHiddenPageAlignmentInterval(double interval)
+{
+    s_hiddenPageAlignmentInterval = interval;
+}
+
+double DOMTimer::hiddenPageAlignmentInterval()
+{
+    // Timers on hidden pages are aligned so that they fire once per
+    // second at most.
+    // SHEZ: made this configurable from outside
+    return s_hiddenPageAlignmentInterval;
+}
+
 int DOMTimer::install(ExecutionContext* context,
                       ScheduledAction* action,
                       int timeout,

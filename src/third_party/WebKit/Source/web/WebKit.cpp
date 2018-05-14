@@ -137,6 +137,11 @@ bool fontAntialiasingEnabledForTest() {
   return LayoutTestSupport::isFontAntialiasingEnabledForTest();
 }
 
+void setTimerHiddenPageAlignmentInterval(double interval)
+{
+    DOMTimer::setHiddenPageAlignmentInterval(interval);
+}
+
 void resetPluginCache(bool reloadPages) {
   DCHECK(!reloadPages);
   Page::refreshPlugins();
