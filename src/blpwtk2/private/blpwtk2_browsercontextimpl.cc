@@ -429,16 +429,16 @@ void BrowserContextImpl::enableSpellCheck(bool enabled)
     DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
     DCHECK(!d_isDestroyed);
 
-    PrefService *prefs = user_prefs::UserPrefs::Get(this);
-    bool wasEnabled = prefs->GetBoolean(spellcheck::prefs::kEnableSpellcheck);
+    //PrefService *prefs = user_prefs::UserPrefs::Get(this);
+    //bool wasEnabled = prefs->GetBoolean(spellcheck::prefs::kEnableSpellcheck);
 
-    prefs->SetBoolean(spellcheck::prefs::kEnableSpellcheck, enabled);
+    //prefs->SetBoolean(spellcheck::prefs::kEnableSpellcheck, enabled);
 
-    if (!wasEnabled && enabled) {
-        // Ensure the spellcheck service is created for this context if we just
-        // turned it on.
-        SpellcheckServiceFactory::GetForContext(this);
-    }
+    //if (!wasEnabled && enabled) {
+    //    // Ensure the spellcheck service is created for this context if we just
+    //    // turned it on.
+    //    SpellcheckServiceFactory::GetForContext(this);
+    //}
 }
 
 void BrowserContextImpl::setLanguages(const StringRef *languages,
