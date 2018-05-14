@@ -444,7 +444,8 @@ ReplaceSelectionCommand::ReplaceSelectionCommand(
       m_movingParagraph(options & MovingParagraph),
       m_inputType(inputType),
       m_sanitizeFragment(options & SanitizeFragment),
-      m_shouldMergeEnd(false) {}
+      m_shouldMergeEnd(false),
+      m_insertNested(options & InsertNested) {}
 
 static bool hasMatchingQuoteLevel(VisiblePosition endOfExistingContent,
                                   VisiblePosition endOfInsertedContent) {
@@ -1164,10 +1165,12 @@ void ReplaceSelectionCommand::doApply(EditingState* editingState) {
     m_insertionStyle->mergeTypingStyle(&document());
   }
 
-  const VisiblePosition visibleStart = selection.visibleStart();
+  VisiblePosition visibleStart = selection.visibleStart();
   const VisiblePosition visibleEnd = selection.visibleEnd();
 
   const bool selectionEndWasEndOfParagraph = isEndOfParagraph(visibleEnd);
+  const bool selectionEndWasEndOfBlock = isEndOfBlock(visibleEnd);
+  const bool selectionEndWasStartOfBlock = isStartOfBlock(nextPositionOf(visibleEnd));
   const bool selectionStartWasStartOfParagraph =
       isStartOfParagraph(visibleStart);
 
@@ -1217,6 +1220,22 @@ void ReplaceSelectionCommand::doApply(EditingState* editingState) {
       }
       if (editingState->isAborted())
         return;
+    }
+
+    // If the selection included an entire paragraph, then the previous deleteSelection
+    // command would have deleted the end of the paragraph separator.  If we are inserting
+    // in nested mode, then we should add back a paragraph separator.
+    if (m_insertNested && selectionStartWasStartOfParagraph && selectionEndWasEndOfParagraph && !selectionEndWasEndOfBlock &&
+        (selectionEndWasStartOfBlock || !isHTMLBRElement(endingSelection().start().anchorNode())) &&
+            // ^ Do not add new line if the selection ends at the end of a textnode whose nextSibling is <br>
+        previousPositionOf(visibleEnd).deepEquivalent().computeContainerNode() != visibleEnd.deepEquivalent().computeContainerNode()
+            // ^ Do not add new line if the selection is followed by a '\n'
+        ) {
+      insertParagraphSeparator(editingState);
+      setEndingSelection(SelectionInDOMTree::Builder()
+                               .collapse(previousPositionOf(endingSelection().visibleStart()).deepEquivalent())
+                               .build());
+      visibleStart = endingSelection().visibleStart();
     }
   } else {
     DCHECK(selection.isCaret());
@@ -1352,7 +1371,8 @@ void ReplaceSelectionCommand::doApply(EditingState* editingState) {
   // To avoid that, we move the position forward without changing the visible
   // position so we're still at the same visible location, but outside of
   // preceding tags.
-  insertionPos = positionAvoidingPrecedingNodes(insertionPos);
+  if (!m_insertNested)
+    insertionPos = positionAvoidingPrecedingNodes(insertionPos);
 
   // Paste into run of tabs splits the tab span.
   insertionPos = positionOutsideTabSpan(insertionPos);
@@ -1370,7 +1390,7 @@ void ReplaceSelectionCommand::doApply(EditingState* editingState) {
   // We can skip this optimization for fragments not wrapped in one of
   // our style spans and for positions inside list items
   // since insertAsListItems already does the right thing.
-  if (!m_matchStyle && !enclosingList(insertionPos.computeContainerNode())) {
+  if (!m_matchStyle && !enclosingList(insertionPos.computeContainerNode()) && !m_insertNested) {
     if (insertionPos.computeContainerNode()->isTextNode() &&
         insertionPos.offsetInContainerNode() &&
         !insertionPos.atLastEditingPositionForNode()) {

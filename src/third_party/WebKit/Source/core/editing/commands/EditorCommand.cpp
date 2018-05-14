@@ -859,6 +859,18 @@ static bool executeInsertHTML(LocalFrame& frame,
       frame, createFragmentFromMarkup(*frame.document(), value, ""));
 }
 
+static bool executeInsertHTMLNested(LocalFrame& frame,
+                                    Event*,
+                                    EditorCommandSource,
+                                    const String& value) {
+  ASSERT(frame.document());
+  ReplaceSelectionCommand::create(*frame.document(),
+                                  createFragmentFromMarkup(*frame.document(), value, ""),
+                                  ReplaceSelectionCommand::InsertNested,
+                                  InputEvent::InputType::None)->apply();
+  return true;
+}
+
 static bool executeInsertImage(LocalFrame& frame,
                                Event*,
                                EditorCommandSource,
@@ -2540,6 +2552,7 @@ static const EditorInternalCommand* internalCommand(const String& commandName) {
       {WebEditingCommandType::AlignCenter, executeJustifyCenter,
        supportedFromMenuOrKeyBinding, enabledInRichlyEditableText, stateNone,
        valueNull, notTextInsertion, doNotAllowExecutionWhenDisabled},
+        { WebEditingCommandType::InsertHTMLNested, executeInsertHTMLNested, supported, enabledInEditableText, stateNone, valueNull, notTextInsertion, doNotAllowExecutionWhenDisabled },
   };
   // Handles all commands except WebEditingCommandType::Invalid.
   static_assert(

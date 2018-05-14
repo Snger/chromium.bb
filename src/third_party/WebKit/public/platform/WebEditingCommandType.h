@@ -153,6 +153,9 @@ enum class WebEditingCommandType {
   YankAndSelect = 138,
   AlignCenter = 139,
 
+  // Bloomberg-specific commands
+  InsertHTMLNested = 140,
+
   // Add new commands immediately above this line.
   NumberOfCommandTypes,
 
