@@ -201,6 +201,10 @@ SharedMemoryHandle SharedMemory::DuplicateHandle(
     handle.SetOwnershipPassesToIPC(true);
     return handle;
   }
+
+  PLOG(ERROR) << "DuplicateHandle failed"
+              << ", handle = " << handle.GetHandle();
+
   return SharedMemoryHandle();
 }
 
@@ -261,6 +265,10 @@ bool SharedMemory::Create(const SharedMemoryCreateOptions& options) {
       &sa, rounded_size, name_.empty() ? nullptr : name_.c_str()));
   if (!mapped_file_.IsValid()) {
     // The error is logged within CreateFileMappingWithReducedPermissions().
+    PLOG(ERROR) << "CreateFileMapping failed"
+                << ", name = " << name_
+                << ", rounded_size = " << rounded_size;
+
     return false;
   }
 
@@ -330,6 +338,10 @@ bool SharedMemory::MapAt(off_t offset, size_t bytes) {
     mapped_size_ = GetMemorySectionSize(memory_);
     return true;
   }
+  PLOG(ERROR) << "MapViewOfFile failed"
+              << ", offset = " << offset
+              << ", bytes = " << bytes
+              << ", requested_size_ = " << requested_size_;
   return false;
 }
 
@@ -368,6 +380,11 @@ bool SharedMemory::ShareToProcessCommon(ProcessHandle process,
 
   if (!::DuplicateHandle(GetCurrentProcess(), mapped_file, process, &result,
                          access, FALSE, options)) {
+    PLOG(ERROR) << "DuplicateHandle failed"
+                << ", mapped_file = " << mapped_file
+                << ", process = " << process
+                << ", access = " << access
+                << ", options = " << options;
     return false;
   }
   *new_handle = SharedMemoryHandle(result, base::GetProcId(process));
