@@ -63,6 +63,10 @@ class NativeViewWidget : private views::WidgetDelegateView {
     void WindowClosing() override;
     views::View* GetContentsView() override;
     aura::Window* GetDefaultActivationWindow() override;
+    bool OnNCHitTest(int* result, const gfx::Point& point) override;
+    bool OnNCDragBegin(int hit_test_code) override;
+    void OnNCDragMove() override;
+    void OnNCDragEnd() override;
 
   private:
     NativeViewWidgetDelegate* d_delegate;  // held, not owned

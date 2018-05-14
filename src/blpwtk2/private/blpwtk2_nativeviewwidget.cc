@@ -169,6 +169,32 @@ aura::Window* NativeViewWidget::GetDefaultActivationWindow()
     return NULL;
 }
 
+bool NativeViewWidget::OnNCHitTest(int* result, const gfx::Point& point)
+{
+    if (d_delegate)
+        return d_delegate->OnNCHitTest(result);
+    return false;
+}
+
+bool NativeViewWidget::OnNCDragBegin(int hit_test_code)
+{
+    if (d_delegate)
+        return d_delegate->OnNCDragBegin(hit_test_code);
+    return false;
+}
+
+void NativeViewWidget::OnNCDragMove()
+{
+    if (d_delegate)
+        d_delegate->OnNCDragMove();
+}
+
+void NativeViewWidget::OnNCDragEnd()
+{
+    if (d_delegate)
+        d_delegate->OnNCDragEnd();
+}
+
 }  // close namespace blpwtk2
 
 // vim: ts=4 et

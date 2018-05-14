@@ -75,6 +75,7 @@
 // feature 19
 // feature 20
 // feature 21
+#define BLPWTK2_FEATURE_NCHITTEST_DRAGGING
 // feature 22
 #define BLPWTK2_FEATURE_LOGMESSAGEHANDLER
 // feature 23
