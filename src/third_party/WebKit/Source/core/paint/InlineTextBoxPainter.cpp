@@ -10,6 +10,7 @@
 #include "core/editing/markers/DocumentMarkerController.h"
 #include "core/frame/LocalFrame.h"
 #include "core/editing/EditingUtilities.h"
+#include "core/layout/LayoutTableCell.h"
 #include "core/layout/LayoutTextCombine.h"
 #include "core/layout/LayoutTheme.h"
 #include "core/layout/api/LineLayoutAPIShim.h"
@@ -623,6 +624,15 @@ void InlineTextBoxPainter::paintSelection(GraphicsContext& context,
                                           const Font& font,
                                           Color textColor,
                                           LayoutTextCombine* combinedText) {
+    // If any table cell in our container hierarchy is fully selected,
+    // then don't paint the selection highlight.
+    LayoutBlock* cb = m_inlineTextBox.containingBlock();
+    while (cb) {
+        if (cb->isTableCell() && toLayoutTableCell(cb)->isFullySelected())
+            return;
+        cb = cb->containingBlock();
+    }
+
   // See if we have a selection to paint at all.
   int sPos, ePos;
   m_inlineTextBox.selectionStartEnd(sPos, ePos);

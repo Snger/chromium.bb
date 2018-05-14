@@ -8,6 +8,7 @@
 #include "core/editing/FrameSelection.h"
 #include "core/layout/LayoutFlexibleBox.h"
 #include "core/layout/LayoutInline.h"
+#include "core/layout/LayoutTableCell.h"
 #include "core/layout/api/LineLayoutAPIShim.h"
 #include "core/layout/api/LineLayoutBox.h"
 #include "core/page/Page.h"
@@ -169,7 +170,7 @@ void BlockPainter::paintObject(const PaintInfo& paintInfo,
 
   if (shouldPaintSelfBlockBackground(paintPhase)) {
     if (m_layoutBlock.style()->visibility() == EVisibility::Visible &&
-        m_layoutBlock.hasBoxDecorationBackground())
+        (m_layoutBlock.hasBoxDecorationBackground() || (m_layoutBlock.isTableCell() && toLayoutTableCell(m_layoutBlock).isFullySelected())))
       m_layoutBlock.paintBoxDecorationBackground(paintInfo, paintOffset);
     // We're done. We don't bother painting any children.
     if (paintPhase == PaintPhaseSelfBlockBackgroundOnly)

@@ -333,9 +333,9 @@ class LineLayoutItem {
 
 #endif
 
-//wtk2: InlineBox.h needs to call this
+// wtk2: InlineBox.h needs to call this
 //protected:
-public:
+ public:
   LayoutObject* layoutObject() { return m_layoutObject; }
   const LayoutObject* layoutObject() const { return m_layoutObject; }
 
