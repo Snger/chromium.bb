@@ -383,10 +383,6 @@ class CORE_EXPORT InlineBox : public DisplayItemClient {
   void setDirOverride(bool dirOverride) {
     m_bitfields.setDirOverride(dirOverride);
   }
-  
-  Node* node() const { return m_lineLayoutItem.layoutObject()->node(); }
-  const ComputedStyle& styleRef(bool firstLine) const { return m_lineLayoutItem.layoutObject()->styleRef(firstLine); }
-  LayoutBlock* containingBlock() const { return m_lineLayoutItem.layoutObject()->containingBlock(); }
 
   Node* node() const { return m_lineLayoutItem.layoutObject()->node(); }
   const ComputedStyle& styleRef(bool firstLine) const {
@@ -395,10 +391,6 @@ class CORE_EXPORT InlineBox : public DisplayItemClient {
   LayoutBlock* containingBlock() const {
     return m_lineLayoutItem.layoutObject()->containingBlock();
   }
-
-    Node* node() const { return m_lineLayoutItem.layoutObject()->node(); }
-    const ComputedStyle& styleRef(bool firstLine) const { return m_lineLayoutItem.layoutObject()->styleRef(firstLine); }
-    LayoutBlock* containingBlock() const { return m_lineLayoutItem.layoutObject()->containingBlock(); }
 
   // Set all LineLayoutItems in the inline box subtree should do full paint
   // invalidation.
