@@ -2481,6 +2481,40 @@ inline EUserSelect CSSIdentifierValue::convertTo() const {
   return SELECT_TEXT;
 }
 
+template<>
+inline CSSIdentifierValue::CSSIdentifierValue(ERubberbandable e)
+    : CSSValue(IdentifierClass) {
+    switch (e) {
+        case RUBBERBANDABLE_NONE:
+            m_valueID = CSSValueNone;
+            break;
+        case RUBBERBANDABLE_TEXT:
+            m_valueID = CSSValueText;
+            break;
+        case RUBBERBANDABLE_TEXT_WITH_LEADING_TAB:
+            m_valueID = CSSValueTextWithLeadingTab;
+            break;
+    }
+}
+
+template<>
+inline ERubberbandable CSSIdentifierValue::convertTo() const {
+    ASSERT(isValueID());
+    switch (m_valueID) {
+        case CSSValueAuto:
+            return RUBBERBANDABLE_TEXT;
+        case CSSValueNone:
+            return RUBBERBANDABLE_NONE;
+        case CSSValueText:
+            return RUBBERBANDABLE_TEXT;
+        case CSSValueTextWithLeadingTab:
+            return RUBBERBANDABLE_TEXT_WITH_LEADING_TAB;
+    }
+
+    ASSERT_NOT_REACHED();
+    return RUBBERBANDABLE_TEXT;
+}
+
 template <>
 inline CSSIdentifierValue::CSSIdentifierValue(EVerticalAlign a)
     : CSSValue(IdentifierClass) {

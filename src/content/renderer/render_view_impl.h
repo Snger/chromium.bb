@@ -324,6 +324,8 @@ class CONTENT_EXPORT RenderViewImpl
       const blink::WebVector<blink::WebRect>& target_rects) override;
 #endif
   blink::WebString acceptLanguages() override;
+  void setRubberbandRect(const blink::WebRect&) override;
+  void hideRubberbandRect() override;
   void navigateBackForwardSoon(int offset) override;
   int historyBackListCount() override;
   int historyForwardListCount() override;
@@ -554,6 +556,7 @@ class CONTENT_EXPORT RenderViewImpl
   void OnSetPageScale(float page_scale_factor);
   void OnZoom(PageZoom zoom);
   void OnForceRedraw(const ui::LatencyInfo& latency_info);
+  void OnEnableAltDragRubberbanding(bool enable);
   void OnSelectWordAroundCaret();
   void OnAudioStateChanged(bool is_audio_playing);
 #if defined(OS_ANDROID)

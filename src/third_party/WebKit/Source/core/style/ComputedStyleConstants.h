@@ -238,6 +238,10 @@ enum EUserDrag { DRAG_AUTO, DRAG_NONE, DRAG_ELEMENT };
 
 enum EUserSelect { SELECT_NONE, SELECT_TEXT, SELECT_ALL };
 
+enum ERubberbandable {
+    RUBBERBANDABLE_NONE, RUBBERBANDABLE_TEXT, RUBBERBANDABLE_TEXT_WITH_LEADING_TAB
+};
+
 // CSS3 Image Values
 enum ObjectFit {
   ObjectFitFill,

@@ -1018,6 +1018,10 @@ void RenderViewHostImpl::OnDidZoomURL(double zoom_level,
                                      net::GetHostOrSpecFromURL(url));
 }
 
+void RenderViewHostImpl::EnableAltDragRubberbanding(bool enable) {
+  Send(new ViewMsg_EnableAltDragRubberbanding(GetRoutingID(), enable));
+}
+
 void RenderViewHostImpl::SelectWordAroundCaret() {
   Send(new ViewMsg_SelectWordAroundCaret(GetRoutingID()));
 }

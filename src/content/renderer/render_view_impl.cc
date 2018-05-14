@@ -1207,6 +1207,7 @@ bool RenderViewImpl::OnMessageReceived(const IPC::Message& message) {
     IPC_MESSAGE_HANDLER(ViewMsg_PluginActionAt, OnPluginActionAt)
     IPC_MESSAGE_HANDLER(ViewMsg_SetActive, OnSetActive)
     IPC_MESSAGE_HANDLER(ViewMsg_ShowContextMenu, OnShowContextMenu)
+    IPC_MESSAGE_HANDLER(ViewMsg_EnableAltDragRubberbanding, OnEnableAltDragRubberbanding)
     IPC_MESSAGE_HANDLER(ViewMsg_ReleaseDisambiguationPopupBitmap,
                         OnReleaseDisambiguationPopupBitmap)
     IPC_MESSAGE_HANDLER(ViewMsg_ForceRedraw, OnForceRedraw)
@@ -1360,6 +1361,10 @@ void RenderViewImpl::OnForceRedraw(const ui::LatencyInfo& latency_info) {
   ScheduleCompositeWithForcedRedraw();
 }
 
+void RenderViewImpl::OnEnableAltDragRubberbanding(bool enable) {
+  webview()->enableAltDragRubberbanding(enable);
+}
+
 // blink::WebViewClient ------------------------------------------------------
 
 WebView* RenderViewImpl::createView(WebLocalFrame* creator,
@@ -1375,6 +1380,7 @@ WebView* RenderViewImpl::createView(WebLocalFrame* creator,
     params->user_gesture = true;
   params->window_container_type = WindowFeaturesToContainerType(features);
   params->session_storage_namespace_id = session_storage_namespace_id_;
+
   if (frame_name != "_blank")
     params->frame_name = base::UTF16ToUTF8(base::StringPiece16(frame_name));
   params->opener_render_frame_id =
@@ -1738,6 +1744,14 @@ void RenderViewImpl::didUpdateLayout() {
 
 void RenderViewImpl::navigateBackForwardSoon(int offset) {
   Send(new ViewHostMsg_GoToEntryAtOffset(GetRoutingID(), offset));
+}
+
+void RenderViewImpl::setRubberbandRect(const WebRect& rect) {
+  Send(new ViewHostMsg_SetRubberbandRect(routing_id_, rect));
+}
+
+void RenderViewImpl::hideRubberbandRect() {
+  Send(new ViewHostMsg_HideRubberbandRect(routing_id_));
 }
 
 int RenderViewImpl::historyBackListCount() {

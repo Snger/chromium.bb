@@ -63,6 +63,7 @@ class Rect;
 namespace ui {
 class InputMethod;
 class LocatedEvent;
+class RubberbandOutline;
 #if defined(OS_WIN)
 class OnScreenKeyboardObserver;
 #endif
@@ -172,6 +173,8 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   bool LockMouse() override;
   void UnlockMouse() override;
 
+  void SetRubberbandRect(const gfx::Rect& rect) override;
+  void HideRubberbandRect() override;
   void OnSwapCompositorFrame(uint32_t compositor_frame_sink_id,
                              cc::CompositorFrame frame) override;
   void ClearCompositorFrame() override;
@@ -587,6 +590,9 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   gfx::Vector2dF last_scroll_offset_;
 
   gfx::Insets insets_;
+
+  // The rect to draw the rubberband highlight.
+  std::unique_ptr<ui::RubberbandOutline> rubberband_outline_;
 
   std::vector<ui::LatencyInfo> software_latency_info_;
 

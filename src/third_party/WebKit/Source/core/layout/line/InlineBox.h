@@ -384,6 +384,10 @@ class CORE_EXPORT InlineBox : public DisplayItemClient {
     m_bitfields.setDirOverride(dirOverride);
   }
 
+  Node* node() const { return m_lineLayoutItem.layoutObject()->node(); }
+  const ComputedStyle& styleRef(bool firstLine) const { return m_lineLayoutItem.layoutObject()->styleRef(firstLine); }
+  LayoutBlock* containingBlock() const { return m_lineLayoutItem.layoutObject()->containingBlock(); }
+
   // Set all LineLayoutItems in the inline box subtree should do full paint
   // invalidation.
   void setShouldDoFullPaintInvalidationRecursively();

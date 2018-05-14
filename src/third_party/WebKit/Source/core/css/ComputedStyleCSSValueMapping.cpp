@@ -3054,6 +3054,8 @@ const CSSValue* ComputedStyleCSSValueMapping::get(
       return CSSIdentifierValue::create(style.userDrag());
     case CSSPropertyUserSelect:
       return CSSIdentifierValue::create(style.userSelect());
+    case CSSPropertyBbRubberbandable:
+        return CSSIdentifierValue::create(style.rubberbandable());
     case CSSPropertyBorderBottomLeftRadius:
       return &valueForBorderRadiusCorner(style.borderBottomLeftRadius(), style);
     case CSSPropertyBorderBottomRightRadius:

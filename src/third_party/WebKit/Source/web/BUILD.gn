@@ -255,6 +255,7 @@ component("web") {
     "WebViewFrameWidget.h",
     "WebViewImpl.cpp",
     "WebViewImpl.h",
+    "WebViewImplRubberband.cpp",
     "WorkerContentSettingsClient.cpp",
     "WorkerContentSettingsClient.h",
     "linux/WebFontRendering.cpp",

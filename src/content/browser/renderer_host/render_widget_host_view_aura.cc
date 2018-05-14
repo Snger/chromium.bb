@@ -75,6 +75,7 @@
 #include "ui/base/hit_test.h"
 #include "ui/base/ime/input_method.h"
 #include "ui/base/ui_base_types.h"
+#include "ui/base/win/rubberband_windows.h"
 #include "ui/compositor/compositor_vsync_manager.h"
 #include "ui/compositor/dip_util.h"
 #include "ui/display/display.h"
@@ -1162,6 +1163,20 @@ bool RenderWidgetHostViewAura::LockMouse() {
 
 void RenderWidgetHostViewAura::UnlockMouse() {
   event_handler_->UnlockMouse();
+}
+
+void RenderWidgetHostViewAura::SetRubberbandRect(const gfx::Rect& rect) {
+  if (!rubberband_outline_.get())
+    rubberband_outline_.reset(new ui::RubberbandOutline());
+
+  // TODO(SHEZ): Replace this windows-specific code with an Aura view
+  HWND hwnd = window_->GetHost()->GetAcceleratedWidget();
+  RECT wrect = rect.ToRECT();
+  rubberband_outline_->SetRect(hwnd, wrect);
+}
+
+void RenderWidgetHostViewAura::HideRubberbandRect() {
+  rubberband_outline_.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
