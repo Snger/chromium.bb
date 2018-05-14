@@ -96,6 +96,8 @@ class CORE_EXPORT DOMSelection final : public GarbageCollected<DOMSelection>,
   bool containsNode(const Node*, bool partlyContained) const;
   void selectAllChildren(Node*, ExceptionState&);
 
+  String getClipboardCopyString() const;
+  
   String toString();
 
   // Microsoft Selection Object API
