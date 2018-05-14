@@ -242,6 +242,15 @@ class CORE_EXPORT Element : public ContainerNode {
   void scrollTo(double x, double y);
   virtual void scrollTo(const ScrollToOptions&);
 
+#define BB_HAS_ELEMENT_EXTENSIONS
+  // Bloomberg-specific extensions
+  virtual int bbScrollLeftNoZoomAdjust();
+  virtual int bbScrollTopNoZoomAdjust();
+  virtual void setBbScrollLeftNoZoomAdjust(int);
+  virtual void setBbScrollTopNoZoomAdjust(int);
+  virtual int bbScrollWidthNoZoomAdjust();
+  virtual int bbScrollHeightNoZoomAdjust();
+
   IntRect boundsInViewport() const;
   // Returns an intersection rectangle of the bounds rectangle and the
   // viewport rectangle, in the visual viewport coordinate. This function is
