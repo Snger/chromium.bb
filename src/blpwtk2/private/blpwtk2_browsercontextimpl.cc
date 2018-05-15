@@ -93,8 +93,10 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     {
         // Initialize prefs for this context.
         d_prefRegistry = new user_prefs::PrefRegistrySyncable();
+        d_userPrefs = new PrefStore();
 
         PrefServiceFactory factory;
+        factory.set_user_prefs(d_userPrefs);
         d_prefService = factory.Create(d_prefRegistry.get());
         user_prefs::UserPrefs::Set(this, d_prefService.get());
         d_prefRegistry->RegisterBooleanPref(prefs::kPrintingEnabled, true);
@@ -122,6 +124,7 @@ BrowserContextImpl::~BrowserContextImpl()
 
     BrowserContextDependencyManager::GetInstance()->DestroyBrowserContextServices(this);
 
+    d_userPrefs = 0;
     d_prefRegistry = 0;
 
     content::BrowserThread::DeleteSoon(content::BrowserThread::UI,

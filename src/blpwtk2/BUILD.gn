@@ -149,6 +149,8 @@ shared_library("blpwtk2") {
     "private/blpwtk2_nativeviewwidgetdelegate.h",
     "private/blpwtk2_networkdelegateimpl.cc",
     "private/blpwtk2_networkdelegateimpl.h",
+    "private/blpwtk2_prefstore.cc",
+    "private/blpwtk2_prefstore.h",
     "private/blpwtk2_processhostimpl.cc",
     "private/blpwtk2_processhostimpl.h",
     "private/blpwtk2_profileimpl.cc",
