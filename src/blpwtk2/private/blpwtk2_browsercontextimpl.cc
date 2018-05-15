@@ -449,13 +449,13 @@ void BrowserContextImpl::setLanguages(const StringRef *languages,
     DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
     DCHECK(!d_isDestroyed);
 
-    //PrefService* prefs = user_prefs::UserPrefs::Get(this);
-    //base::ListValue languageList;
+    PrefService* prefs = user_prefs::UserPrefs::Get(this);
+    base::ListValue languageList;
 
-    //for (size_t i = 0; i < numLanguages; ++i) {
-    //    languageList.AppendString(languages[i].toStdString());
-    //}
-    //prefs->Set(spellcheck::prefs::kSpellCheckDictionaries, languageList);
+    for (size_t i = 0; i < numLanguages; ++i) {
+        languageList.AppendString(languages[i].toStdString());
+    }
+    prefs->Set(spellcheck::prefs::kSpellCheckDictionaries, languageList);
 }
 
 void BrowserContextImpl::addCustomWords(const StringRef *words,
