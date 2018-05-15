@@ -99,6 +99,10 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
         base::Bind(&RenderWebView::OnSessionChange,
                    base::Unretained(this))
     ));
+
+    RECT rect;
+    GetWindowRect(d_hwnd.get(), &rect);
+    d_size = gfx::Rect(rect).size();
 }
 
 RenderWebView::RenderViewObserver::RenderViewObserver(
@@ -178,10 +182,14 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         if (windowpos->flags & (SWP_SHOWWINDOW | SWP_HIDEWINDOW)) {
             d_visible = (windowpos->flags & SWP_SHOWWINDOW)?
                 true : false;
+
+            updateVisibility();
         }
 
         if (!(windowpos->flags & SWP_NOSIZE)) {
-            gfx::Size size(windowpos->cx, windowpos->cy);
+            d_size = gfx::Size(windowpos->cx, windowpos->cy);
+
+            updateSize();
         }
     } return 0;
     case WM_PAINT: {
@@ -256,6 +264,40 @@ void RenderWebView::OnSessionChange(WPARAM status_code) {
     // window to be redrawn on unlock.
     if (status_code == WTS_SESSION_UNLOCK)
         ForceRedrawWindow(10);
+}
+
+void RenderWebView::updateVisibility()
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    if (d_visible) {
+        dispatchToRenderViewImpl(
+            ViewMsg_WasShown(d_renderViewRoutingId,
+                true, ui::LatencyInfo()));
+    }
+    else {
+        dispatchToRenderViewImpl(
+            ViewMsg_WasHidden(d_renderViewRoutingId));
+    }
+}
+
+void RenderWebView::updateSize()
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    content::ResizeParams resize_params = {};
+    resize_params.new_size = d_size;
+    resize_params.physical_backing_size = d_size;
+    resize_params.visible_viewport_size = d_size;
+    resize_params.display_mode = blink::kWebDisplayModeBrowser;
+
+    dispatchToRenderViewImpl(
+        ViewMsg_Resize(d_renderViewRoutingId,
+            resize_params));
 }
 
 void RenderWebView::destroy()
@@ -750,6 +792,9 @@ void RenderWebView::notifyRoutingId(int id)
         d_mainFrameRoutingId, this);
 
     new RenderViewObserver(rv, this);
+
+    updateVisibility();
+    updateSize();
 }
 
 void RenderWebView::onLoadStatus(int status)
@@ -786,6 +831,8 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
     IPC_BEGIN_MESSAGE_MAP(RenderWebView, message)
         IPC_MESSAGE_HANDLER(FrameHostMsg_Detach,
             OnDetach)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_UpdateRect,
+            OnUpdateRect)
         IPC_MESSAGE_UNHANDLED(handled = false)
     IPC_END_MESSAGE_MAP()
 
@@ -794,6 +841,10 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
 
 // IPC message handlers
 void RenderWebView::OnDetach()
+{
+}
+
+void RenderWebView::OnUpdateRect(const ViewHostMsg_UpdateRect_Params& params)
 {
 }
 

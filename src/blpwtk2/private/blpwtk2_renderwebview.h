@@ -33,7 +33,10 @@
 
 #include <content/public/renderer/render_view_observer.h>
 #include <ipc/ipc_listener.h>
+#include <ui/gfx/geometry/size.h>
 #include <ui/views/win/windows_session_change_observer.h>
+
+struct ViewHostMsg_UpdateRect_Params;
 
 namespace gfx {
 class Point;
@@ -89,6 +92,7 @@ class RenderWebView final : public WebView
 
     bool d_has_parent = false;
     bool d_shown = false, d_visible = false;
+    gfx::Size d_size;
 
     // Manages observation of Windows Session Change messages.
     std::unique_ptr<views::WindowsSessionChangeObserver>
@@ -110,6 +114,8 @@ class RenderWebView final : public WebView
 
     bool dispatchToRenderViewImpl(const IPC::Message& message);
     void OnRenderViewDestruct();
+    void updateVisibility();
+    void updateSize();
 
     // blpwtk2::WebView overrides
     void destroy() override;
@@ -157,8 +163,9 @@ class RenderWebView final : public WebView
     // IPC::Listener overrides
     bool OnMessageReceived(const IPC::Message& message) override;
 
-    // Message handlers
+    // IPC message handlers:
     void OnDetach();
+    void OnUpdateRect(const ViewHostMsg_UpdateRect_Params& params);
 
     DISALLOW_COPY_AND_ASSIGN(RenderWebView);
 
