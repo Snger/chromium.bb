@@ -25,6 +25,7 @@
 #include <blpwtk2_webviewclient.h>
 #include <blpwtk2_contextmenuparams.h>
 #include <blpwtk2_profileimpl.h>
+#include <blpwtk2_rendermessagedelegate.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
 #include <blpwtk2_webframeimpl.h>
@@ -194,10 +195,21 @@ RenderWebView::~RenderWebView()
     }
 }
 
+bool RenderWebView::dispatchToRenderViewImpl(const IPC::Message& message)
+{
+    return static_cast<IPC::Listener *>(
+        content::RenderThreadImpl::current())
+            ->OnMessageReceived(message);
+}
+
 void RenderWebView::destroy()
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(!d_pendingDestroy);
+
+    if (d_gotRenderViewInfo) {
+        RenderMessageDelegate::GetInstance()->RemoveRoute(d_renderViewRoutingId);
+    }
 
     // Schedule a deletion of this RenderWebView.  The reason we don't delete
     // the object right here right now is because there may be a callback
@@ -655,6 +667,8 @@ void RenderWebView::notifyRoutingId(int id)
 
     d_renderViewRoutingId = id;
     LOG(INFO) << "routingId=" << id;
+
+    RenderMessageDelegate::GetInstance()->AddRoute(d_renderViewRoutingId, this);
 }
 
 void RenderWebView::onLoadStatus(int status)
@@ -682,6 +696,14 @@ void RenderWebView::onLoadStatus(int status)
             d_delegate->didFailLoad(this, StringRef(d_url));
         }
     }
+}
+
+// IPC::Listener overrides
+bool RenderWebView::OnMessageReceived(const IPC::Message& message)
+{
+    bool handled = true;
+
+    return handled;
 }
 
 }  // close namespace blpwtk2

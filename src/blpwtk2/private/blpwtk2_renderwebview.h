@@ -31,6 +31,8 @@
 #include <blpwtk2_webviewclientdelegate.h>
 #include <blpwtk2_webviewproperties.h>
 
+#include <ipc/ipc_listener.h>
+
 namespace gfx {
 class Point;
 }  // close namespace gfx
@@ -47,6 +49,7 @@ struct WebViewProperties;
 
 class RenderWebView final : public WebView
                           , public WebViewClientDelegate
+                          , private IPC::Listener
 {
     // DATA
     WebViewClient *d_client;
@@ -76,6 +79,8 @@ class RenderWebView final : public WebView
     LRESULT windowProcedure(UINT   uMsg,
                             WPARAM wParam,
                             LPARAM lParam);
+
+    bool dispatchToRenderViewImpl(const IPC::Message& message);
 
     // blpwtk2::WebView overrides
     void destroy() override;
@@ -117,6 +122,8 @@ class RenderWebView final : public WebView
             int                      argc,
             v8::Local<v8::Value>    *argv) override;
 
+    // IPC::Listener overrides
+    bool OnMessageReceived(const IPC::Message& message) override;
 
     DISALLOW_COPY_AND_ASSIGN(RenderWebView);
 
