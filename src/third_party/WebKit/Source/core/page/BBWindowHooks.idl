@@ -21,6 +21,7 @@
  */
 
 [
+    NoInterfaceObject
 ] interface BBWindowHooks {
 
     boolean isBlock(Node node);

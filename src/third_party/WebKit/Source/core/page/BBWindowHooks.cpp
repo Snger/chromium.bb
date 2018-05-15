@@ -61,7 +61,7 @@ void BBWindowHooks::appendTextContent(Node *node, StringBuilder& content,
 {
     if (matchSelector(node, excluder)) {
         content.append(mask);
-    } else if (node->getNodeType() == Node::TEXT_NODE) {
+    } else if (node->getNodeType() == Node::kTextNode) {
         content.append((static_cast<CharacterData*>(node))->data());
     } else {
         if (node->hasTagName(HTMLNames::brTag)) {
@@ -116,10 +116,11 @@ bool BBWindowHooks::checkSpellingForRange(Range* range)
         return false;
     }
 
-    LocalFrame *frame = range->ownerDocument().frame();
-    VisibleSelection s(range->startPosition(), range->endPosition());
-    frame->spellChecker().clearMisspellingsAndBadGrammar(s);
-    frame->spellChecker().markMisspellingsAndBadGrammar(s, false, s);
+    //TODO: fix this!
+    //LocalFrame *frame = range->ownerDocument().frame();
+    //VisibleSelection s(range->startPosition(), range->endPosition());
+    //frame->spellChecker().clearMisspellingsAndBadGrammar(s);
+    //frame->spellChecker().markMisspellingsAndBadGrammar(s, false, s);
     return true;
 }
 
@@ -166,13 +167,14 @@ bool BBWindowHooks::checkSpellingForNode(Node* node)
     if (e && e->isSpellCheckingEnabled()) {
         LocalFrame *frame = e->document().frame();
         if (frame) {
-            VisibleSelection s(
-                firstPositionInOrBeforeNode(e),
-                lastPositionInOrAfterNode(e));
-            if (frame->settings() && !frame->settings()->asynchronousSpellCheckingEnabled()) {
-                frame->spellChecker().clearMisspellingsAndBadGrammar(s);
-            }
-            frame->spellChecker().markMisspellingsAndBadGrammar(s, false, s);
+            //TODO: fix this!:
+            //VisibleSelection s(
+            //    firstPositionInOrBeforeNode(e),
+            //    lastPositionInOrAfterNode(e));
+            //if (frame->settings() && !frame->settings()->asynchronousSpellCheckingEnabled()) {
+            //    frame->spellChecker().clearMisspellingsAndBadGrammar(s);
+            //}
+            //frame->spellChecker().markMisspellingsAndBadGrammar(s, false, s);
         }
         return true;
     }
