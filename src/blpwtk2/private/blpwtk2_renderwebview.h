@@ -31,6 +31,8 @@
 #include <blpwtk2_webviewclientdelegate.h>
 #include <blpwtk2_webviewproperties.h>
 
+#include <content/public/renderer/render_view_observer.h>
+#include <ipc/ipc_listener.h>
 #include <ui/views/win/windows_session_change_observer.h>
 
 namespace gfx {
@@ -53,13 +55,27 @@ struct WebViewProperties;
 
 class RenderWebView final : public WebView
                           , public WebViewClientDelegate
+                          , private IPC::Listener
 {
+    class RenderViewObserver : public content::RenderViewObserver {
+      private:
+
+        RenderWebView *d_renderWebView;
+
+      public:
+
+        RenderViewObserver(
+            content::RenderView *renderView, RenderWebView *renderWebView);
+
+        void OnDestruct() override;
+    };
+
     // DATA
     WebViewClient *d_client;
     WebViewDelegate *d_delegate;
 
     ProfileImpl *d_profile;
-    int d_renderViewRoutingId;
+    int d_renderViewRoutingId, d_mainFrameRoutingId;
     bool d_gotRenderViewInfo;
     bool d_pendingLoadStatus;
     bool d_isMainFrameAccessible;
@@ -91,6 +107,9 @@ class RenderWebView final : public WebView
     void OnRenderViewDestruct();
     void updateVisibility();
     void updateSize();
+
+    bool dispatchToRenderViewImpl(const IPC::Message& message);
+    void OnRenderViewDestruct();
 
     // blpwtk2::WebView overrides
     void destroy() override;
@@ -135,6 +154,11 @@ class RenderWebView final : public WebView
     String printToPDF(const StringRef& propertyName) override;
 #endif
 
+    // IPC::Listener overrides
+    bool OnMessageReceived(const IPC::Message& message) override;
+
+    // Message handlers
+    void OnDetach();
 
     DISALLOW_COPY_AND_ASSIGN(RenderWebView);
 

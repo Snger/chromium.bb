@@ -25,6 +25,7 @@
 #include <blpwtk2_webviewclient.h>
 #include <blpwtk2_contextmenuparams.h>
 #include <blpwtk2_profileimpl.h>
+#include <blpwtk2_rendermessagedelegate.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
 #include <blpwtk2_webframeimpl.h>
@@ -32,6 +33,9 @@
 #include <blpwtk2_blob.h>
 #include <blpwtk2_rendererutil.h>
 
+#include <content/common/frame_messages.h>
+#include <content/common/view_messages.h>
+#include <content/renderer/render_thread_impl.h>
 #include <content/renderer/render_view_impl.h>
 #include <content/public/renderer/render_view.h>
 #include <third_party/WebKit/public/web/WebLocalFrame.h>
@@ -58,6 +62,7 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
     , d_delegate(delegate)
     , d_profile(profile)
     , d_renderViewRoutingId(0)
+    , d_mainFrameRoutingId(0)
     , d_gotRenderViewInfo(false)
     , d_pendingLoadStatus(false)
     , d_isMainFrameAccessible(false)
@@ -94,6 +99,20 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
         base::Bind(&RenderWebView::OnSessionChange,
                    base::Unretained(this))
     ));
+}
+
+RenderWebView::RenderViewObserver::RenderViewObserver(
+    content::RenderView *renderView,
+    RenderWebView *renderWebView)
+: content::RenderViewObserver(renderView)
+, d_renderWebView(renderWebView)
+{
+}
+
+void RenderWebView::RenderViewObserver::OnDestruct()
+{
+    d_renderWebView->OnRenderViewDestruct();
+    delete this;
 }
 
 LPCTSTR RenderWebView::GetWindowClass()
@@ -192,6 +211,31 @@ RenderWebView::~RenderWebView()
     }
 }
 
+bool RenderWebView::dispatchToRenderViewImpl(const IPC::Message& message)
+{
+    return static_cast<IPC::Listener *>(
+        content::RenderThreadImpl::current())
+            ->OnMessageReceived(message);
+}
+
+void RenderWebView::OnRenderViewDestruct()
+{
+    DCHECK(d_gotRenderViewInfo);
+
+    d_mainFrame.release();
+    d_isMainFrameAccessible = false;
+
+    RenderMessageDelegate::GetInstance()->RemoveRoute(
+        d_mainFrameRoutingId);
+    RenderMessageDelegate::GetInstance()->RemoveRoute(
+        d_renderViewRoutingId);
+
+    d_mainFrameRoutingId = 0;
+    d_renderViewRoutingId = 0;
+
+    d_gotRenderViewInfo = false;
+}
+
 void RenderWebView::ForceRedrawWindow(int attempts) {
     if (ui::IsWorkstationLocked()) {
         // Presents will continue to fail as long as the input desktop is
@@ -221,6 +265,11 @@ void RenderWebView::destroy()
 
     if (d_hwnd.is_valid()) {
         d_hwnd.reset();
+    }
+
+    if (d_gotRenderViewInfo) {
+        dispatchToRenderViewImpl(
+            ViewMsg_Close(d_renderViewRoutingId));
     }
 
     // Schedule a deletion of this RenderWebView.  The reason we don't delete
@@ -665,13 +714,17 @@ void RenderWebView::preResize(const gfx::Size& size)
 
 void RenderWebView::notifyRoutingId(int id)
 {
+    if (d_gotRenderViewInfo) {
+        return;
+    }
+
     if (d_pendingDestroy) {
         LOG(INFO) << "WebView destroyed before we got a reference to a RenderView";
         return;
     }
 
-    content::RenderView *rv =
-        content::RenderView::FromRoutingID(id);
+    content::RenderViewImpl *rv =
+        content::RenderViewImpl::FromRoutingID(id);
 
     if (!rv) {
         // The RenderView has not been created yet.  Keep reposting this task
@@ -688,6 +741,15 @@ void RenderWebView::notifyRoutingId(int id)
 
     d_renderViewRoutingId = id;
     LOG(INFO) << "routingId=" << id;
+
+    d_mainFrameRoutingId = rv->GetMainRenderFrame()->GetRoutingID();
+
+    RenderMessageDelegate::GetInstance()->AddRoute(
+        d_renderViewRoutingId, this);
+    RenderMessageDelegate::GetInstance()->AddRoute(
+        d_mainFrameRoutingId, this);
+
+    new RenderViewObserver(rv, this);
 }
 
 void RenderWebView::onLoadStatus(int status)
@@ -715,6 +777,24 @@ void RenderWebView::onLoadStatus(int status)
             d_delegate->didFailLoad(this, StringRef(d_url));
         }
     }
+}
+
+// IPC::Listener overrides
+bool RenderWebView::OnMessageReceived(const IPC::Message& message)
+{
+    bool handled = true;
+    IPC_BEGIN_MESSAGE_MAP(RenderWebView, message)
+        IPC_MESSAGE_HANDLER(FrameHostMsg_Detach,
+            OnDetach)
+        IPC_MESSAGE_UNHANDLED(handled = false)
+    IPC_END_MESSAGE_MAP()
+
+    return handled;
+}
+
+// IPC message handlers
+void RenderWebView::OnDetach()
+{
 }
 
 }  // close namespace blpwtk2
