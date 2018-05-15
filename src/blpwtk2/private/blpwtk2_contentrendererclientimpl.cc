@@ -22,6 +22,7 @@
 
 #include <blpwtk2_contentrendererclientimpl.h>
 #include <blpwtk2_inprocessresourceloaderbridge.h>
+#include <blpwtk2_rendercompositor.h>
 #include <blpwtk2_rendermessagedelegate.h>
 #include <blpwtk2_renderviewobserverimpl.h>
 #include <blpwtk2_resourceloader.h>
@@ -29,6 +30,7 @@
 #include <blpwtk2_stringref.h>
 
 #include <base/strings/utf_string_conversions.h>
+#include <cc/output/compositor_frame_sink.h>
 #include <content/child/font_warmup_win.h>
 #include <content/public/renderer/render_thread.h>
 #include <net/base/net_errors.h>
@@ -152,6 +154,13 @@ bool ContentRendererClientImpl::Dispatch(IPC::Message *msg)
     }
 
     return false;
+}
+
+std::unique_ptr<cc::CompositorFrameSink> ContentRendererClientImpl::CreateCompositorFrameSink(
+    bool use_software, int routing_id)
+{
+    return RenderCompositorContext::GetInstance()->CreateCompositorFrameSink(
+        routing_id);
 }
 
 }  // close namespace blpwtk2

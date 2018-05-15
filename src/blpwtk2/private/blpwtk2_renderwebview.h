@@ -40,9 +40,9 @@ class Point;
 
 namespace blpwtk2 {
 
-class WebFrameImpl;
 class ProfileImpl;
-struct WebViewProperties;
+class RenderCompositor;
+class WebFrameImpl;
 
                         // ===================
                         // class RenderWebView
@@ -72,6 +72,8 @@ class RenderWebView final : public WebView
     bool d_has_parent = false;
     bool d_shown = false, d_visible = false;
     gfx::Size d_size;
+
+    std::unique_ptr<RenderCompositor> d_compositor;
 
     static LPCTSTR GetWindowClass();
     static LRESULT CALLBACK WindowProcedure(HWND   hWnd,

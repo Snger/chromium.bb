@@ -79,6 +79,9 @@ class ContentRendererClientImpl : public content::ContentRendererClient
         // the plugin.
 
     bool Dispatch(IPC::Message *msg) override;
+
+    std::unique_ptr<cc::CompositorFrameSink> CreateCompositorFrameSink(
+        bool use_software, int routing_id) override;
 };
 
 }  // close namespace blpwtk2

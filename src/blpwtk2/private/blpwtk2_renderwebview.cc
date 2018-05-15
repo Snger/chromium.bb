@@ -25,6 +25,7 @@
 #include <blpwtk2_webviewclient.h>
 #include <blpwtk2_contextmenuparams.h>
 #include <blpwtk2_profileimpl.h>
+#include <blpwtk2_rendercompositor.h>
 #include <blpwtk2_rendermessagedelegate.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
@@ -94,6 +95,9 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
     RECT rect;
     GetWindowRect(d_hwnd.get(), &rect);
     d_size = gfx::Rect(rect).size();
+
+    d_compositor = RenderCompositorContext::GetInstance()->CreateCompositor(
+        d_hwnd.get());
 }
 
 LPCTSTR RenderWebView::GetWindowClass()
@@ -181,6 +185,12 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         PAINTSTRUCT ps;
         BeginPaint(d_hwnd.get(), &ps);
 
+        if (d_gotRenderViewInfo) {
+            dispatchToRenderViewImpl(
+                ViewMsg_Repaint(d_renderViewRoutingId,
+                    gfx::Size(ps.rcPaint.right, ps.rcPaint.bottom)));
+        }
+
         EndPaint(d_hwnd.get(), &ps);
     } return 0;
     case WM_ERASEBKGND:
@@ -217,6 +227,8 @@ void RenderWebView::updateVisibility()
         return;
     }
 
+    d_compositor->SetVisible(d_visible);
+
     if (d_visible) {
         dispatchToRenderViewImpl(
             ViewMsg_WasShown(d_renderViewRoutingId,
@@ -233,6 +245,8 @@ void RenderWebView::updateSize()
     if (!d_gotRenderViewInfo) {
         return;
     }
+
+    d_compositor->Resize(d_size);
 
     content::ResizeParams resize_params = {};
     resize_params.new_size = d_size;
@@ -712,6 +726,8 @@ void RenderWebView::notifyRoutingId(int id)
     LOG(INFO) << "routingId=" << id;
 
     RenderMessageDelegate::GetInstance()->AddRoute(d_renderViewRoutingId, this);
+
+    d_compositor->Correlate(d_renderViewRoutingId);
 
     updateVisibility();
     updateSize();
