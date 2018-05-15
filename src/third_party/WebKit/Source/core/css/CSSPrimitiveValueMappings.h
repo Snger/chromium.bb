@@ -2499,7 +2499,6 @@ inline CSSIdentifierValue::CSSIdentifierValue(ERubberbandable e)
 
 template<>
 inline ERubberbandable CSSIdentifierValue::convertTo() const {
-    ASSERT(isValueID());
     switch (m_valueID) {
         case CSSValueAuto:
             return RUBBERBANDABLE_TEXT;
