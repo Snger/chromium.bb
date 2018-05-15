@@ -429,7 +429,8 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
     // and leave the dummy message behind.  Since our app is already running
     // and we don't need this hack, we can simply disable it.
     content::ContentMainRunner::DisablePeekMessageHack();
-
+    blink::WebScriptController::setStackCaptureControlledByInspector(false);
+    
     // Setup sandbox
     sandbox::SandboxInterfaceInfo sandboxInfo;
     setupSandbox(&sandboxInfo, &args, isHost);

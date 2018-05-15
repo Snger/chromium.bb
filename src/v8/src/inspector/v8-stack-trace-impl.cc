@@ -98,7 +98,8 @@ V8StackTraceImpl::Frame V8StackTraceImpl::Frame::clone() const {
 }
 
 // static
-void V8StackTraceImpl::setCaptureStackTraceForUncaughtExceptions(
+// SHEZ: Renamed this to prevent new upstream code from calling it.
+void V8StackTraceImpl::setCaptureStackTraceForUncaughtExceptions_bb(
     v8::Isolate* isolate, bool capture) {
   isolate->SetCaptureStackTraceForUncaughtExceptions(
       capture, V8StackTraceImpl::maxCallStackSizeToCapture, stackTraceOptions);
@@ -189,6 +190,9 @@ std::unique_ptr<V8StackTrace> V8StackTraceImpl::clone() {
       new V8StackTraceImpl(m_contextGroupId, m_description, frames, nullptr));
 }
 
+static bool s_enabledStackCaptureInConstructor = false;
+bool V8StackTrace::s_stackCaptureControlledByInspector = true;
+
 V8StackTraceImpl::V8StackTraceImpl(int contextGroupId,
                                    const String16& description,
                                    std::vector<Frame>& frames,
@@ -197,6 +201,13 @@ V8StackTraceImpl::V8StackTraceImpl(int contextGroupId,
       m_description(description),
       m_parent(std::move(parent)) {
   m_frames.swap(frames);
+
+  // If this is true, then callstack capturing will be enabled by
+  // InspectorConsoleAgent.
+  if (!s_stackCaptureControlledByInspector && !s_enabledStackCaptureInConstructor) {
+      v8::V8::SetCaptureStackTraceForUncaughtExceptions(true, V8StackTraceImpl::maxCallStackSizeToCapture, stackTraceOptions);
+      s_enabledStackCaptureInConstructor = true;
+  }
 }
 
 V8StackTraceImpl::~V8StackTraceImpl() {}

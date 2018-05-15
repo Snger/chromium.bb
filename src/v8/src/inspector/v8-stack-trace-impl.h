@@ -52,7 +52,7 @@ class V8StackTraceImpl final : public V8StackTrace {
     int m_columnNumber;
   };
 
-  static void setCaptureStackTraceForUncaughtExceptions(v8::Isolate*,
+  static void setCaptureStackTraceForUncaughtExceptions_bb(v8::Isolate*,
                                                         bool capture);
   static std::unique_ptr<V8StackTraceImpl> create(
       V8Debugger*, int contextGroupId, v8::Local<v8::StackTrace>,
