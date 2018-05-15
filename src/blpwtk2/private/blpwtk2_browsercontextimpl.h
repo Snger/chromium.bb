@@ -25,6 +25,7 @@
 
 #include <blpwtk2_config.h>
 #include <blpwtk2_profile.h>
+#include <blpwtk2_prefstore.h>
 
 #include <base/memory/ref_counted.h>
 #include <content/public/browser/browser_context.h>
@@ -66,6 +67,7 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     scoped_refptr<URLRequestContextGetterImpl> d_requestContextGetter;
     scoped_refptr<user_prefs::PrefRegistrySyncable> d_prefRegistry;
     std::unique_ptr<PrefService> d_prefService;
+    scoped_refptr<PrefStore> d_userPrefs;
     std::unique_ptr<net::ProxyConfig> d_proxyConfig;
     int d_numWebViews;
     bool d_isDestroyed;
