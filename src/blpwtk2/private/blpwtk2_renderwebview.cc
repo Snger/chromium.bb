@@ -25,6 +25,7 @@
 #include <blpwtk2_webviewclient.h>
 #include <blpwtk2_contextmenuparams.h>
 #include <blpwtk2_profileimpl.h>
+#include <blpwtk2_rendercompositor.h>
 #include <blpwtk2_rendermessagedelegate.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
@@ -38,6 +39,7 @@
 #include <content/common/view_messages.h>
 #include <content/renderer/render_thread_impl.h>
 #include <content/renderer/render_view_impl.h>
+#include <content/renderer/gpu/render_widget_compositor.h>
 #include <content/public/renderer/render_view.h>
 #include <third_party/blink/public/web/web_local_frame.h>
 #include <third_party/blink/public/web/web_view.h>
@@ -133,6 +135,9 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
     RECT rect;
     GetWindowRect(d_hwnd.get(), &rect);
     d_size = gfx::Rect(rect).size();
+
+    d_compositor = RenderCompositorContext::GetInstance()->CreateCompositor(
+        d_hwnd.get());
 }
 
 RenderWebView::RenderViewObserver::RenderViewObserver(
@@ -147,6 +152,19 @@ void RenderWebView::RenderViewObserver::OnDestruct()
 {
     d_renderWebView->OnRenderViewDestruct();
     delete this;
+}
+
+bool RenderWebView::RenderViewObserver::OnMessageReceived(const IPC::Message& message)
+{
+    bool handled = true;
+    IPC_BEGIN_MESSAGE_MAP(RenderViewObserver, message)
+        IPC_MESSAGE_HANDLER_GENERIC(ViewMsg_Resize, {
+            handled = d_renderWebView->OnRenderViewResize();
+        })
+        IPC_MESSAGE_UNHANDLED(handled = false)
+    IPC_END_MESSAGE_MAP()
+
+    return handled;
 }
 
 LPCTSTR RenderWebView::GetWindowClass()
@@ -204,6 +222,12 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
 {
     switch (uMsg) {
     case WM_NCDESTROY: {
+        d_compositor->SetVisible(false);
+        d_compositor.reset();
+
+        dispatchToRenderViewImpl(
+            ViewMsg_WasHidden(d_renderViewRoutingId));
+
         #pragma clang diagnostic push
         #pragma clang diagnostic ignored "-Wunused"
 
@@ -211,6 +235,16 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
 
         #pragma clang diagnostic pop
     } return 0;
+    case WM_WINDOWPOSCHANGING: {
+        WINDOWPOS *windowpos = reinterpret_cast<WINDOWPOS *>(lParam);
+
+        gfx::Size size(windowpos->cx, windowpos->cy);
+
+        if ((size != d_size && !(windowpos->flags & SWP_NOSIZE)) ||
+             windowpos->flags & SWP_FRAMECHANGED) {
+            d_compositor->Resize(gfx::Size());
+        }
+    } break;
     case WM_WINDOWPOSCHANGED: {
         WINDOWPOS *windowpos = reinterpret_cast<WINDOWPOS *>(lParam);
 
@@ -221,8 +255,11 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
             updateVisibility();
         }
 
-        if (!(windowpos->flags & SWP_NOSIZE)) {
-            d_size = gfx::Size(windowpos->cx, windowpos->cy);
+        gfx::Size size(windowpos->cx, windowpos->cy);
+
+        if ((size != d_size && !(windowpos->flags & SWP_NOSIZE)) ||
+            windowpos->flags & SWP_FRAMECHANGED) {
+            d_size = size;
 
             updateSize();
         }
@@ -230,6 +267,12 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
     case WM_PAINT: {
         PAINTSTRUCT ps;
         BeginPaint(d_hwnd.get(), &ps);
+
+        if (d_gotRenderViewInfo) {
+            dispatchToRenderViewImpl(
+                ViewMsg_Repaint(d_renderViewRoutingId,
+                    gfx::Size(ps.rcPaint.right, ps.rcPaint.bottom)));
+        }
 
         EndPaint(d_hwnd.get(), &ps);
     } return 0;
@@ -279,6 +322,16 @@ void RenderWebView::OnRenderViewDestruct()
     d_gotRenderViewInfo = false;
 }
 
+bool RenderWebView::OnRenderViewResize()
+{
+    if (d_dispatchingResize) {
+        return false;
+    }
+
+    updateSize();
+    return true;
+}
+
 void RenderWebView::ForceRedrawWindow(int attempts) {
     if (ui::IsWorkstationLocked()) {
         // Presents will continue to fail as long as the input desktop is
@@ -307,6 +360,8 @@ void RenderWebView::updateVisibility()
         return;
     }
 
+    d_compositor->SetVisible(d_visible);
+
     if (d_visible) {
         dispatchToRenderViewImpl(
             ViewMsg_WasShown(d_renderViewRoutingId,
@@ -324,16 +379,32 @@ void RenderWebView::updateSize()
         return;
     }
 
+    content::RenderWidget *rw =
+        content::RenderViewImpl::FromRoutingID(d_renderViewRoutingId);
+    DCHECK(rw);
+
+    d_compositor->Resize(d_size);
+
     content::ResizeParams resize_params = {};
     resize_params.new_size = d_size;
     resize_params.compositor_viewport_pixel_size = d_size;
     resize_params.visible_viewport_size = d_size;
     resize_params.display_mode = blink::kWebDisplayModeBrowser;
+    resize_params.local_surface_id = d_compositor->GetLocalSurfaceId();
+    resize_params.content_source_id = rw->GetContentSourceId();
     GetNativeViewScreenInfo(&resize_params.screen_info, d_hwnd.get());
+
+    // Prevent ViewMsg_Resize from being handled by the RenderViewObserver:
+    d_dispatchingResize = true;
+
+    // Block subsequent ViewHostMsg_ResizeOrRepaint_ACK:
+    d_ignoreResizeACK = true;
 
     dispatchToRenderViewImpl(
         ViewMsg_Resize(d_renderViewRoutingId,
             resize_params));
+
+    d_dispatchingResize = false;
 }
 
 void RenderWebView::destroy()
@@ -826,6 +897,14 @@ void RenderWebView::notifyRoutingId(int id)
 
     new RenderViewObserver(rv, this);
 
+    d_compositor->Correlate(d_renderViewRoutingId);
+
+    // A (no-op) frame sink may have been created for the RenderWidget before
+    // the call to 'Correlate()' above. So, force the creation of a new
+    // frame sink:
+    rv->compositor()->SetVisible(false);
+    rv->compositor()->ReleaseLayerTreeFrameSink();
+
     updateVisibility();
     updateSize();
 }
@@ -864,6 +943,8 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
     IPC_BEGIN_MESSAGE_MAP(RenderWebView, message)
         IPC_MESSAGE_HANDLER(FrameHostMsg_Detach,
             OnDetach)
+        IPC_MESSAGE_HANDLER_GENERIC(ViewHostMsg_ResizeOrRepaint_ACK,
+			return OnResizeOrRepaintACK())
         IPC_MESSAGE_UNHANDLED(handled = false)
     IPC_END_MESSAGE_MAP()
 
@@ -873,6 +954,15 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
 // IPC message handlers
 void RenderWebView::OnDetach()
 {
+}
+
+bool RenderWebView::OnResizeOrRepaintACK()
+{
+    if (d_ignoreResizeACK) {
+        d_ignoreResizeACK = false;
+    }
+
+    return true;
 }
 
 }  // close namespace blpwtk2

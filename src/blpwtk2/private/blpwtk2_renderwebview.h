@@ -36,8 +36,6 @@
 #include <ui/gfx/geometry/size.h>
 #include <ui/views/win/windows_session_change_observer.h>
 
-struct ViewHostMsg_UpdateRect_Params;
-
 namespace gfx {
 class Point;
 }  // close namespace gfx
@@ -48,9 +46,9 @@ class WindowsSessionChangeObserver;
 
 namespace blpwtk2 {
 
-class WebFrameImpl;
 class ProfileImpl;
-struct WebViewProperties;
+class RenderCompositor;
+class WebFrameImpl;
 
                         // ===================
                         // class RenderWebView
@@ -71,6 +69,9 @@ class RenderWebView final : public WebView
             content::RenderView *renderView, RenderWebView *renderWebView);
 
         void OnDestruct() override;
+
+        // IPC::Listener implementation.
+        bool OnMessageReceived(const IPC::Message& message) override;
     };
 
     // DATA
@@ -95,6 +96,9 @@ class RenderWebView final : public WebView
     bool d_has_parent = false;
     bool d_shown = false, d_visible = false;
     gfx::Size d_size;
+    bool d_dispatchingResize = false, d_ignoreResizeACK = false;
+
+    std::unique_ptr<RenderCompositor> d_compositor;
 
     // Manages observation of Windows Session Change messages.
     std::unique_ptr<views::WindowsSessionChangeObserver>
@@ -111,6 +115,7 @@ class RenderWebView final : public WebView
 
     bool dispatchToRenderViewImpl(const IPC::Message& message);
     void OnRenderViewDestruct();
+    bool OnRenderViewResize();
     void updateVisibility();
     void updateSize();
     void ForceRedrawWindow(int attempts);
@@ -164,6 +169,7 @@ class RenderWebView final : public WebView
 
     // IPC message handlers:
     void OnDetach();
+    bool OnResizeOrRepaintACK();
 
     DISALLOW_COPY_AND_ASSIGN(RenderWebView);
 
