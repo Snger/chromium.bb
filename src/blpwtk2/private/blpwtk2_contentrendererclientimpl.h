@@ -78,6 +78,10 @@ class ContentRendererClientImpl : public content::ContentRendererClient
         // the plugin.
 
     bool Dispatch(IPC::Message *msg) override;
+
+    bool RequestNewLayerTreeFrameSink(
+        bool use_software, int routing_id,
+        const LayerTreeFrameSinkCallback& callback) override;
 };
 
 }  // close namespace blpwtk2
