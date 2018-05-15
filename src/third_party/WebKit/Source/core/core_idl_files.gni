@@ -288,6 +288,7 @@ core_idl_files = get_path_info([
                                  "observer/ResizeObserver.idl",
                                  "observer/ResizeObserverCallback.idl",
                                  "observer/ResizeObserverEntry.idl",
+                                 "page/BBWindowHooks.idl",
                                  "page/PagePopupController.idl",
                                  "page/scrolling/ScrollState.idl",
                                  "page/scrolling/ScrollStateCallback.idl",
