@@ -1221,7 +1221,7 @@ void InlineTextBoxPainter::paintHighlightMarkerForeground(const PaintInfo& paint
     // TODO(ramya.v): Extract this into a helper function and share many copies of this code.
     int sPos = std::max(marker->startOffset() - m_inlineTextBox.start(), (unsigned)0);
     int ePos = std::min(marker->endOffset() - m_inlineTextBox.start(), m_inlineTextBox.len());
-    TextRun run = m_inlineTextBox.constructTextRun(style, font);
+    TextRun run = m_inlineTextBox.constructTextRun(style);
 
     Color textColor = marker->foregroundColor();
     if (style.visitedDependentColor(CSSPropertyColor) == textColor)
@@ -1231,8 +1231,11 @@ void InlineTextBoxPainter::paintHighlightMarkerForeground(const PaintInfo& paint
     textStyle.strokeWidth = style.textStrokeWidth();
     textStyle.shadow = 0;
 
+    const SimpleFontData* fontData = font.primaryFont();
+    DCHECK(fontData);
+
     LayoutRect boxRect(boxOrigin, LayoutSize(m_inlineTextBox.logicalWidth(), m_inlineTextBox.logicalHeight()));
-    LayoutPoint textOrigin(boxOrigin.x(), boxOrigin.y() + font.getFontMetrics().ascent());
+    LayoutPoint textOrigin(boxOrigin.x(), boxOrigin.y() + fontData->getFontMetrics().ascent());
     TextPainter textPainter(paintInfo.context, font, run, textOrigin, boxRect, m_inlineTextBox.isHorizontal());
 
     textPainter.paint(sPos, ePos, m_inlineTextBox.len(), textStyle, 0);
@@ -1245,7 +1248,7 @@ void InlineTextBoxPainter::paintHighlightMarkerBackground(const PaintInfo& paint
 
     int sPos = std::max(marker->startOffset() - m_inlineTextBox.start(), (unsigned)0);
     int ePos = std::min(marker->endOffset() - m_inlineTextBox.start(), m_inlineTextBox.len());
-    TextRun run = m_inlineTextBox.constructTextRun(style, font);
+    TextRun run = m_inlineTextBox.constructTextRun(style);
 
     Color color = marker->backgroundColor();
     GraphicsContext& context = paintInfo.context;
@@ -1253,7 +1256,7 @@ void InlineTextBoxPainter::paintHighlightMarkerBackground(const PaintInfo& paint
 
     LayoutRect boxRect(boxOrigin, LayoutSize(m_inlineTextBox.logicalWidth(), m_inlineTextBox.logicalHeight()));
     context.clip(FloatRect(boxRect));
-    context.drawHighlightForText(font, run, FloatPoint(boxOrigin), boxRect.height(), color, sPos, ePos);
+    context.drawHighlightForText(font, run, FloatPoint(boxOrigin), boxRect.height().toInt(), color, sPos, ePos);
 }
 
 }  // namespace blink
