@@ -25,6 +25,7 @@
 #include <blpwtk2_webviewclient.h>
 #include <blpwtk2_contextmenuparams.h>
 #include <blpwtk2_profileimpl.h>
+#include <blpwtk2_rendercompositor.h>
 #include <blpwtk2_rendermessagedelegate.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
@@ -37,6 +38,7 @@
 #include <content/common/view_messages.h>
 #include <content/renderer/render_thread_impl.h>
 #include <content/renderer/render_view_impl.h>
+#include <content/renderer/gpu/render_widget_compositor.h>
 #include <content/public/renderer/render_view.h>
 #include <third_party/WebKit/public/web/WebLocalFrame.h>
 #include <third_party/WebKit/public/web/WebView.h>
@@ -103,6 +105,9 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
     RECT rect;
     GetWindowRect(d_hwnd.get(), &rect);
     d_size = gfx::Rect(rect).size();
+
+    d_compositor = RenderCompositorContext::GetInstance()->CreateCompositor(
+        d_hwnd.get());
 }
 
 RenderWebView::RenderViewObserver::RenderViewObserver(
@@ -174,8 +179,24 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
 {
     switch (uMsg) {
     case WM_NCDESTROY: {
+        d_compositor->SetVisible(false);
+        d_compositor.reset();
+
+        dispatchToRenderViewImpl(
+            ViewMsg_WasHidden(d_renderViewRoutingId));
+
         d_hwnd.release();
     } return 0;
+    case WM_WINDOWPOSCHANGING: {
+        auto windowpos = reinterpret_cast<WINDOWPOS *>(lParam);
+
+        gfx::Size size(windowpos->cx, windowpos->cy);
+
+        if ((size != d_size && !(windowpos->flags & SWP_NOSIZE)) ||
+             windowpos->flags & SWP_FRAMECHANGED) {
+            d_compositor->Resize(gfx::Size());
+        }
+    } break;
     case WM_WINDOWPOSCHANGED: {
         auto windowpos = reinterpret_cast<WINDOWPOS *>(lParam);
 
@@ -186,8 +207,11 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
             updateVisibility();
         }
 
-        if (!(windowpos->flags & SWP_NOSIZE)) {
-            d_size = gfx::Size(windowpos->cx, windowpos->cy);
+        gfx::Size size(windowpos->cx, windowpos->cy);
+
+        if ((size != d_size && !(windowpos->flags & SWP_NOSIZE)) ||
+            windowpos->flags & SWP_FRAMECHANGED) {
+            d_size = size;
 
             updateSize();
         }
@@ -195,6 +219,12 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
     case WM_PAINT: {
         PAINTSTRUCT ps;
         BeginPaint(d_hwnd.get(), &ps);
+
+        if (d_gotRenderViewInfo) {
+            dispatchToRenderViewImpl(
+                ViewMsg_Repaint(d_renderViewRoutingId,
+                    gfx::Size(ps.rcPaint.right, ps.rcPaint.bottom)));
+        }
 
         EndPaint(d_hwnd.get(), &ps);
     } return 0;
@@ -272,6 +302,8 @@ void RenderWebView::updateVisibility()
         return;
     }
 
+    d_compositor->SetVisible(d_visible);
+
     if (d_visible) {
         dispatchToRenderViewImpl(
             ViewMsg_WasShown(d_renderViewRoutingId,
@@ -288,6 +320,8 @@ void RenderWebView::updateSize()
     if (!d_gotRenderViewInfo) {
         return;
     }
+
+    d_compositor->Resize(d_size);
 
     content::ResizeParams resize_params = {};
     resize_params.new_size = d_size;
@@ -792,6 +826,14 @@ void RenderWebView::notifyRoutingId(int id)
         d_mainFrameRoutingId, this);
 
     new RenderViewObserver(rv, this);
+
+    d_compositor->Correlate(d_renderViewRoutingId);
+
+    // A (no-op) frame sink may have been created for the RenderWidget before
+    // the call to 'Correlate()' above. So, force the creation of a new
+    // frame sink:
+    rv->compositor()->SetVisible(false);
+    rv->compositor()->ReleaseLayerTreeFrameSink();
 
     updateVisibility();
     updateSize();
