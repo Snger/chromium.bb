@@ -32,6 +32,7 @@
 #include <blpwtk2_webviewproperties.h>
 
 #include <ipc/ipc_listener.h>
+#include <ui/gfx/geometry/size.h>
 
 namespace gfx {
 class Point;
@@ -70,6 +71,7 @@ class RenderWebView final : public WebView
 
     bool d_has_parent = false;
     bool d_shown = false, d_visible = false;
+    gfx::Size d_size;
 
     static LPCTSTR GetWindowClass();
     static LRESULT CALLBACK WindowProcedure(HWND   hWnd,
@@ -124,6 +126,8 @@ class RenderWebView final : public WebView
 
     // IPC::Listener overrides
     bool OnMessageReceived(const IPC::Message& message) override;
+    void updateVisibility();
+    void updateSize();
 
     DISALLOW_COPY_AND_ASSIGN(RenderWebView);
 

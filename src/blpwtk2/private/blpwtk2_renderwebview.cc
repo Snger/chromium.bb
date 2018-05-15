@@ -33,6 +33,7 @@
 #include <blpwtk2_blob.h>
 #include <blpwtk2_rendererutil.h>
 
+#include <content/common/view_messages.h>
 #include <content/renderer/render_view_impl.h>
 #include <content/public/renderer/render_view.h>
 #include <content/renderer/render_thread_impl.h>
@@ -89,6 +90,10 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
         GetWindowLong(d_hwnd.get(), GWL_STYLE) & ~WS_CAPTION);
 
     d_has_parent = false;
+
+    RECT rect;
+    GetWindowRect(d_hwnd.get(), &rect);
+    d_size = gfx::Rect(rect).size();
 }
 
 LPCTSTR RenderWebView::GetWindowClass()
@@ -162,10 +167,14 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         if (windowpos->flags & (SWP_SHOWWINDOW | SWP_HIDEWINDOW)) {
             d_visible = (windowpos->flags & SWP_SHOWWINDOW)?
                 true : false;
+
+            updateVisibility();
         }
 
         if (!(windowpos->flags & SWP_NOSIZE)) {
-            gfx::Size size(windowpos->cx, windowpos->cy);
+            d_size = gfx::Size(windowpos->cx, windowpos->cy);
+
+            updateSize();
         }
     } return 0;
     case WM_PAINT: {
@@ -200,6 +209,40 @@ bool RenderWebView::dispatchToRenderViewImpl(const IPC::Message& message)
     return static_cast<IPC::Listener *>(
         content::RenderThreadImpl::current())
             ->OnMessageReceived(message);
+}
+
+void RenderWebView::updateVisibility()
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    if (d_visible) {
+        dispatchToRenderViewImpl(
+            ViewMsg_WasShown(d_renderViewRoutingId,
+                true, ui::LatencyInfo()));
+    }
+    else {
+        dispatchToRenderViewImpl(
+            ViewMsg_WasHidden(d_renderViewRoutingId));
+    }
+}
+
+void RenderWebView::updateSize()
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    content::ResizeParams resize_params = {};
+    resize_params.new_size = d_size;
+    resize_params.physical_backing_size = d_size;
+    resize_params.visible_viewport_size = d_size;
+    resize_params.display_mode = blink::WebDisplayModeBrowser;
+
+    dispatchToRenderViewImpl(
+        ViewMsg_Resize(d_renderViewRoutingId,
+            resize_params));
 }
 
 void RenderWebView::destroy()
@@ -669,6 +712,9 @@ void RenderWebView::notifyRoutingId(int id)
     LOG(INFO) << "routingId=" << id;
 
     RenderMessageDelegate::GetInstance()->AddRoute(d_renderViewRoutingId, this);
+
+    updateVisibility();
+    updateSize();
 }
 
 void RenderWebView::onLoadStatus(int status)
