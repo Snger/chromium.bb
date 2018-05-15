@@ -21,6 +21,7 @@
  */
 
 #include <blpwtk2_inprocessrenderer.h>
+#include <blpwtk2_rendercompositor.h>
 
 #include <blpwtk2_statics.h>
 
@@ -92,6 +93,8 @@ void InProcessRendererThread::Init()
 
 void InProcessRendererThread::CleanUp()
 {
+    RenderCompositorContext::Terminate();
+
     content::RenderThread::CleanUpInProcessRenderer();
     Statics::rendererMessageLoop = 0;
 }
@@ -162,6 +165,8 @@ void InProcessRenderer::cleanup()
         g_inProcessRendererThread = 0;
     }
     else {
+        RenderCompositorContext::Terminate();
+
         DCHECK(Statics::rendererMessageLoop);
         DCHECK(!g_inProcessRendererThread);
         content::RenderThread::CleanUpInProcessRenderer();
