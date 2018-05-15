@@ -33,6 +33,7 @@
 #include <blpwtk2_blob.h>
 #include <blpwtk2_rendererutil.h>
 
+#include <content/browser/renderer_host/display_util.h>
 #include <content/common/frame_messages.h>
 #include <content/common/view_messages.h>
 #include <content/renderer/render_thread_impl.h>
@@ -42,6 +43,8 @@
 #include <third_party/blink/public/web/web_view.h>
 #include <ui/base/win/lock_state.h>
 #include <ui/base/win/lock_state.h>
+#include <ui/display/display.h>
+#include <ui/display/screen.h>
 
 #include <dwmapi.h>
 #include <windows.h>
@@ -49,6 +52,29 @@
 #include <unordered_set>
 
 #define GetAValue(argb)      (LOBYTE((argb)>>24))
+
+namespace {
+
+void GetNativeViewScreenInfo(content::ScreenInfo* screen_info,
+                             HWND hwnd) {
+    display::Screen* screen = display::Screen::GetScreen();
+    if (!screen) {
+        *screen_info = content::ScreenInfo();
+        return;
+    }
+
+    HMONITOR monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+
+    MONITORINFO monitor_info = { sizeof(MONITORINFO) };
+    GetMonitorInfo(monitor, &monitor_info);
+
+    content::DisplayUtil::DisplayToScreenInfo(
+        screen_info,
+        screen->GetDisplayMatching(
+            gfx::Rect(monitor_info.rcMonitor)));
+}
+
+}
 
 namespace blpwtk2 {
 
@@ -103,6 +129,10 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
         base::Bind(&RenderWebView::OnSessionChange,
                    base::Unretained(this))
     ));
+
+    RECT rect;
+    GetWindowRect(d_hwnd.get(), &rect);
+    d_size = gfx::Rect(rect).size();
 }
 
 RenderWebView::RenderViewObserver::RenderViewObserver(
@@ -187,10 +217,14 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         if (windowpos->flags & (SWP_SHOWWINDOW | SWP_HIDEWINDOW)) {
             d_visible = (windowpos->flags & SWP_SHOWWINDOW)?
                 true : false;
+
+            updateVisibility();
         }
 
         if (!(windowpos->flags & SWP_NOSIZE)) {
-            gfx::Size size(windowpos->cx, windowpos->cy);
+            d_size = gfx::Size(windowpos->cx, windowpos->cy);
+
+            updateSize();
         }
     } return 0;
     case WM_PAINT: {
@@ -265,6 +299,41 @@ void RenderWebView::OnSessionChange(WPARAM status_code) {
     // window to be redrawn on unlock.
     if (status_code == WTS_SESSION_UNLOCK)
         ForceRedrawWindow(10);
+}
+
+void RenderWebView::updateVisibility()
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    if (d_visible) {
+        dispatchToRenderViewImpl(
+            ViewMsg_WasShown(d_renderViewRoutingId,
+                true, ui::LatencyInfo()));
+    }
+    else {
+        dispatchToRenderViewImpl(
+            ViewMsg_WasHidden(d_renderViewRoutingId));
+    }
+}
+
+void RenderWebView::updateSize()
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    content::ResizeParams resize_params = {};
+    resize_params.new_size = d_size;
+    resize_params.compositor_viewport_pixel_size = d_size;
+    resize_params.visible_viewport_size = d_size;
+    resize_params.display_mode = blink::kWebDisplayModeBrowser;
+    GetNativeViewScreenInfo(&resize_params.screen_info, d_hwnd.get());
+
+    dispatchToRenderViewImpl(
+        ViewMsg_Resize(d_renderViewRoutingId,
+            resize_params));
 }
 
 void RenderWebView::destroy()
@@ -756,6 +825,9 @@ void RenderWebView::notifyRoutingId(int id)
         d_mainFrameRoutingId, this);
 
     new RenderViewObserver(rv, this);
+
+    updateVisibility();
+    updateSize();
 }
 
 void RenderWebView::onLoadStatus(int status)
