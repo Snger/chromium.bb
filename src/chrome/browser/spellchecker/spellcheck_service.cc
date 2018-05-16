@@ -230,7 +230,7 @@ void SpellcheckService::LoadHunspellDictionaries() {
     dictionary_value->GetAsString(&dictionary);
     hunspell_dictionaries_.push_back(new SpellcheckHunspellDictionary(
         dictionary,
-        context_->AllowDictionaaryDownloads() ?
+        context_->AllowDictionaryDownloads() ?
         content::BrowserContext::GetDefaultStoragePartition(context_)->
             GetURLRequestContext() : nullptr,
         this));
