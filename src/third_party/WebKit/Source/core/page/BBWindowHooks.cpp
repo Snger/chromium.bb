@@ -116,11 +116,10 @@ bool BBWindowHooks::checkSpellingForRange(Range* range)
         return false;
     }
 
-    //TODO: fix this!
-    //LocalFrame *frame = range->ownerDocument().frame();
-    //VisibleSelection s(range->startPosition(), range->endPosition());
-    //frame->spellChecker().clearMisspellingsAndBadGrammar(s);
-    //frame->spellChecker().markMisspellingsAndBadGrammar(s, false, s);
+    LocalFrame *frame = range->ownerDocument().frame();
+    VisibleSelection s = range->ownerDocument().frame()->selection().selection();
+    frame->spellChecker().clearMisspellingsForMovingParagraphs(s);
+    frame->spellChecker().markMisspellingsForMovingParagraphs(s);
     return true;
 }
 
@@ -167,14 +166,12 @@ bool BBWindowHooks::checkSpellingForNode(Node* node)
     if (e && e->isSpellCheckingEnabled()) {
         LocalFrame *frame = e->document().frame();
         if (frame) {
-            //TODO: fix this!:
-            //VisibleSelection s(
-            //    firstPositionInOrBeforeNode(e),
-            //    lastPositionInOrAfterNode(e));
-            //if (frame->settings() && !frame->settings()->asynchronousSpellCheckingEnabled()) {
-            //    frame->spellChecker().clearMisspellingsAndBadGrammar(s);
-            //}
-            //frame->spellChecker().markMisspellingsAndBadGrammar(s, false, s);
+            VisibleSelection s = createVisibleSelection(
+                SelectionInDOMTree::Builder().selectAllChildren(*e).build());
+            if (frame->settings() && !frame->settings()->asynchronousSpellCheckingEnabled()) {
+               frame->spellChecker().clearMisspellingsForMovingParagraphs(s);
+            }
+            frame->spellChecker().markMisspellingsForMovingParagraphs(s);
         }
         return true;
     }

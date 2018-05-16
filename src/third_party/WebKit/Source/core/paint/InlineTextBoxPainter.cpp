@@ -1233,9 +1233,10 @@ void InlineTextBoxPainter::paintHighlightMarkerForeground(const PaintInfo& paint
 
     const SimpleFontData* fontData = font.primaryFont();
     DCHECK(fontData);
+    int ascent = fontData ? fontData->getFontMetrics().ascent() : 0;
 
     LayoutRect boxRect(boxOrigin, LayoutSize(m_inlineTextBox.logicalWidth(), m_inlineTextBox.logicalHeight()));
-    LayoutPoint textOrigin(boxOrigin.x(), boxOrigin.y() + fontData->getFontMetrics().ascent());
+    LayoutPoint textOrigin(boxOrigin.x(), boxOrigin.y() + ascent);
     TextPainter textPainter(paintInfo.context, font, run, textOrigin, boxRect, m_inlineTextBox.isHorizontal());
 
     textPainter.paint(sPos, ePos, m_inlineTextBox.len(), textStyle, 0);
