@@ -531,7 +531,7 @@ static bool fireBbContextMenuEvent(LocalFrame* frame, WebContextMenuData& data, 
     if (exceptionState.hadException()) {
         return false;
     }
-//    event->initCustomEvent("bbContextMenu", true, true, detailScriptValue);
+    event->initCustomEvent("bbContextMenu", true, true, std::move(detailScriptValue));
 
     WebLocalFrameImpl* webFrame = WebLocalFrameImpl::fromFrame(frame);
     webFrame->contextMenuNode().unwrap<Node>()->dispatchEvent(event);
