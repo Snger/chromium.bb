@@ -89,6 +89,8 @@
 #include "core/editing/FrameSelection.h"
 #include "core/editing/iterators/TextIterator.h"
 #include "core/editing/serializers/Serialization.h"
+#include "core/editing/spellcheck/SpellChecker.h"
+#include "core/editing/spellcheck/SpellCheckRequester.h"
 #include "core/events/EventDispatcher.h"
 #include "core/events/FocusEvent.h"
 #include "core/frame/FrameHost.h"
@@ -114,6 +116,7 @@
 #include "core/html/HTMLSlotElement.h"
 #include "core/html/HTMLTableRowsCollection.h"
 #include "core/html/HTMLTemplateElement.h"
+#include "core/html/TextControlElement.h"
 #include "core/html/parser/HTMLParserIdioms.h"
 #include "core/input/EventHandler.h"
 #include "core/inspector/InspectorInstrumentation.h"
@@ -1089,6 +1092,51 @@ int Element::bbScrollHeightNoZoomAdjust()
     if (LayoutBox* lb = layoutBox())
         return lb->scrollHeight().toInt();
     return 0;
+}
+
+void Element::bbRequestSpellCheck()
+{
+    if (!document().frame() ||
+        !document().frame()->spellChecker().isSpellCheckingEnabled()) {
+        return;
+    }
+
+    SpellCheckRequester& spellCheckRequester = document().frame()->spellChecker().spellCheckRequester();
+    Element* element = this;
+    Node* stayWithin = this;
+    while (element) {
+        if (element->isFrameOwnerElement()) {
+            Document* contentDocument = toHTMLFrameOwnerElement(element)->contentDocument();
+            if (contentDocument && contentDocument->documentElement()) {
+                contentDocument->documentElement()->bbRequestSpellCheck();
+            }
+            element = ElementTraversal::nextSkippingChildren(*element, stayWithin);
+        }
+        else if (element->isTextControl()) {
+            HTMLElement* innerElement = toTextControlElement(element)->innerEditorElement();
+            if (innerElement && hasEditableStyle(*innerElement->toNode()) && innerElement->isSpellCheckingEnabled()) {
+                VisiblePosition startPos = createVisiblePosition(PositionTemplate<EditingStrategy>::firstPositionInNode(innerElement));
+                VisiblePosition endPos = createVisiblePosition(PositionTemplate<EditingStrategy>::lastPositionInNode(innerElement));
+                if (startPos.isNotNull() && endPos.isNotNull()) {
+                    EphemeralRange rangeToCheck(startPos.deepEquivalent(), endPos.deepEquivalent());
+                    spellCheckRequester.requestCheckingFor(SpellCheckRequest::create(rangeToCheck));
+                }
+            }
+            element = ElementTraversal::nextSkippingChildren(*element, stayWithin);
+        }
+        else if (hasEditableStyle(*element->toNode()) && element->isSpellCheckingEnabled()) {
+            VisiblePosition startPos = createVisiblePosition(PositionTemplate<EditingStrategy>::firstPositionInNode(element));
+            VisiblePosition endPos = createVisiblePosition(PositionTemplate<EditingStrategy>::lastPositionInNode(element));
+            if (startPos.isNotNull() && endPos.isNotNull()) {
+                EphemeralRange rangeToCheck(startPos.deepEquivalent(), endPos.deepEquivalent());
+                spellCheckRequester.requestCheckingFor(SpellCheckRequest::create(rangeToCheck));
+            }
+            element = ElementTraversal::nextSkippingChildren(*element, stayWithin);
+        }
+        else {
+            element = ElementTraversal::next(*element, stayWithin);
+        }
+    }
 }
 
 bool Element::hasNonEmptyLayoutSize() const {
