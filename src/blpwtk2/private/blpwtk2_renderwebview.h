@@ -157,6 +157,7 @@ class RenderWebView final : public WebView
     void updateSize();
     void updateFocus();
     void setPlatformCursor(HCURSOR cursor);
+    void sendScreenRects();
     void dispatchInputEvent(const blink::WebInputEvent& event);
 
 #if defined(BLPWTK2_FEATURE_RUBBERBAND)
@@ -204,10 +205,16 @@ class RenderWebView final : public WebView
     void handleInputEvents(const InputEvent *events,
                            size_t            eventsCount) override;
     void setDelegate(WebViewDelegate *delegate) override;
+#if defined(BLPWTK2_FEATURE_SCREENPRINT)
+    void drawContentsToBlob(Blob *blob, const DrawParams& params) override;
+#endif
     int getRoutingId() const override;
     void setBackgroundColor(NativeColor color) override;
     void setRegion(NativeRegion region) override;
     void clearTooltip() override;
+#if defined(BLPWTK2_FEATURE_DWM)
+    void rootWindowCompositionChanged() override;
+#endif
     v8::MaybeLocal<v8::Value> callFunction(
             v8::Local<v8::Function>  func,
             v8::Local<v8::Value>     recv,
@@ -286,6 +293,7 @@ class RenderWebView final : public WebView
         content::InputEventAckState ack_result) override;
 
     // Message handlers
+    void OnHasTouchEventHandlers(bool has_handlers);
     void OnImeCompositionRangeChanged(
         const gfx::Range& range,
         const std::vector<gfx::Rect>& character_bounds);

@@ -575,6 +575,37 @@ void RenderWebView::updateAltDragRubberBanding()
 }
 #endif
 
+void RenderWebView::sendScreenRects()
+{
+    if (!d_gotRenderViewInfo) {
+        return;
+    }
+
+    RECT view_screen_rect, window_screen_rect;
+
+    GetWindowRect(d_hwnd.get(), &view_screen_rect);
+
+    auto root_hwnd = GetAncestor(d_hwnd.get(), GA_ROOT);
+    GetWindowRect(root_hwnd, &window_screen_rect);
+
+    if (::IsZoomed(root_hwnd)) {
+        auto frame_size_horz = GetSystemMetrics(SM_CXSIZEFRAME),
+             frame_size_vert = GetSystemMetrics(SM_CYSIZEFRAME);
+
+        auto border_padding_horz = GetSystemMetrics(SM_CXPADDEDBORDER),
+             border_padding_vert = GetSystemMetrics(SM_CXPADDEDBORDER);
+
+        window_screen_rect.left   += frame_size_horz + border_padding_horz;
+        window_screen_rect.top    += frame_size_vert + border_padding_vert;
+        window_screen_rect.right  -= frame_size_horz + border_padding_horz;
+        window_screen_rect.bottom -= frame_size_vert + border_padding_vert;
+    }
+
+    dispatchToRenderViewImpl(
+        ViewMsg_UpdateScreenRects(d_renderViewRoutingId,
+            gfx::Rect(view_screen_rect), gfx::Rect(window_screen_rect)));
+}
+
 void RenderWebView::dispatchInputEvent(const blink::WebInputEvent& event)
 {
     if (!d_gotRenderViewInfo) {
@@ -650,6 +681,13 @@ int RenderWebView::loadUrl(const StringRef& url)
     return 0;
 }
 
+#if defined(BLPWTK2_FEATURE_DWM)
+void RenderWebView::rootWindowCompositionChanged()
+{
+    DCHECK(Statics::isInApplicationMainThread());
+}
+#endif
+
 void RenderWebView::loadInspector(int pid, int routingId)
 {
     DCHECK(Statics::isInApplicationMainThread());
@@ -664,6 +702,21 @@ void RenderWebView::inspectElementAt(const POINT& point)
     DCHECK(Statics::isInApplicationMainThread());
     d_client->proxy()->inspectElementAt(point.x, point.y);
 }
+
+#if defined(BLPWTK2_FEATURE_SCREENPRINT)
+void RenderWebView::drawContentsToBlob(Blob *blob, const DrawParams& params)
+{
+    DCHECK(Statics::isRendererMainThreadMode());
+    DCHECK(Statics::isInApplicationMainThread());
+    DCHECK(d_isMainFrameAccessible)
+        << "You should wait for didFinishLoad";
+    DCHECK(d_gotRenderViewInfo);
+    DCHECK(blob);
+
+    content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    RendererUtil::drawContentsToBlob(rv, blob, params);
+}
+#endif
 
 int RenderWebView::goBack()
 {
@@ -959,13 +1012,13 @@ void RenderWebView::replaceMisspelledRange(const StringRef& text)
 void RenderWebView::rootWindowPositionChanged()
 {
     DCHECK(Statics::isInApplicationMainThread());
-    d_client->proxy()->rootWindowPositionChanged();
+    sendScreenRects();
 }
 
 void RenderWebView::rootWindowSettingsChanged()
 {
     DCHECK(Statics::isInApplicationMainThread());
-    d_client->proxy()->rootWindowSettingsChanged();
+    sendScreenRects();
 }
 
 void RenderWebView::handleInputEvents(const InputEvent *events, size_t eventsCount)
@@ -1006,10 +1059,10 @@ void RenderWebView::setBackgroundColor(NativeColor color)
     DCHECK(d_isMainFrameAccessible) << "You should wait for didFinishLoad";
     DCHECK(d_gotRenderViewInfo);
 
-    d_client->proxy()->setBackgroundColor(red, green, blue);
-
     content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
     blink::WebFrameWidget* frameWidget = rv->GetWebFrameWidget();
+    frameWidget->setIsTransparent(
+        alpha < 255);
     frameWidget->setBaseBackgroundColor(
         SkColorSetARGB(alpha, red, green, blue));
 }
@@ -1017,7 +1070,10 @@ void RenderWebView::setBackgroundColor(NativeColor color)
 void RenderWebView::setRegion(NativeRegion region)
 {
     DCHECK(Statics::isInApplicationMainThread());
-    d_client->applyRegion(region);
+
+    SetWindowRgn(d_hwnd.get(),
+                 region,
+                 IsWindowVisible(d_hwnd.get()));
 }
 
 void RenderWebView::clearTooltip()
@@ -1496,6 +1552,10 @@ void RenderWebView::OnMouseWheelEventAck(
 }
 
 // Message handlers
+void RenderWebView::OnHasTouchEventHandlers(bool has_handlers)
+{
+}
+
 void RenderWebView::OnImeCompositionRangeChanged(
         const gfx::Range& range,
         const std::vector<gfx::Rect>& character_bounds)
@@ -1724,6 +1784,8 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
             OnImeCancelComposition)
         IPC_MESSAGE_HANDLER(InputHostMsg_ImeCompositionRangeChanged,
             OnImeCompositionRangeChanged)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_HasTouchEventHandlers,
+            OnHasTouchEventHandlers)
         IPC_MESSAGE_HANDLER(ViewHostMsg_LockMouse,
             OnLockMouse)
         IPC_MESSAGE_HANDLER(ViewHostMsg_SetCursor,
