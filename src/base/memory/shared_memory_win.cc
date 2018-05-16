@@ -169,12 +169,7 @@ size_t SharedMemory::GetHandleLimit() {
 // static
 SharedMemoryHandle SharedMemory::DuplicateHandle(
     const SharedMemoryHandle& handle) {
-  SharedMemoryHandle result = handle.Duplicate();
-  if(!result.IsValid()) {
-    PLOG(ERROR) << "DuplicateHandle failed"
-                << ", handle = " << handle.GetHandle();
-  }
-  return result;
+  return handle.Duplicate();
 }
 
 bool SharedMemory::CreateAndMapAnonymous(size_t size) {
