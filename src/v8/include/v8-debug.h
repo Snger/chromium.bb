@@ -275,6 +275,35 @@ class V8_EXPORT Debug {
    */
   static bool IsTailCallEliminationEnabled(Isolate* isolate);
   static void SetTailCallEliminationEnabled(Isolate* isolate, bool enabled);
+
+  /**
+   * Get/Set an internal flag that indicates whether the debugger is
+   * connected to the DevToolsAgent.  The embedder should only call
+   * HasDebuggerConnected() to check the connection state; the
+   * DebuggerConnected() function is for internal use only.
+   *
+   * This can be useful for an embedder that wants to wait for the debugger
+   * to be connected before executing scripts.
+   */
+  static void DebuggerConnected(bool connected);
+  static bool HasDebuggerConnected();
+
+  /**
+   * By default, DevToolsAgent tells the debugger to continue when a
+   * navigation event occurs.  The embedder can disable this to keep the
+   * debugger in a paused state even when a navigation event occurs.
+   */
+  static void ContinueDebuggerOnNavigationEvent(bool enable);
+  static bool ShouldContinueDebuggerOnNavigationEvent();
+
+  /**
+   * By default, DevToolsAgent tells the debugger to continue when the
+   * inspected webview is closed.  The embedder can disable this to keep
+   * the debugger in a paused state even after the inspected webview is
+   * closed.
+   */
+  static void ContinueDebuggerOnWidgetClose(bool enable);
+  static bool ShouldContinueDebuggerOnWidgetClose();
 };
 
 

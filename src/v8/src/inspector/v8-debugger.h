@@ -35,6 +35,7 @@ class V8Debugger {
   int markContext(const V8ContextInfo&);
 
   bool enabled() const;
+  void setConnected();
 
   String16 setBreakpoint(const String16& sourceID, const ScriptBreakpoint&,
                          int* actualLineNumber, int* actualColumnNumber);

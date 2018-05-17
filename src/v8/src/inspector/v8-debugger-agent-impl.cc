@@ -651,10 +651,14 @@ Response V8DebuggerAgentImpl::pause() {
   m_skippedStepFrameCount = 0;
   m_steppingFromFramework = false;
   m_debugger->setPauseOnNextStatement(true);
+  m_debugger->setConnected();
   return Response::OK();
 }
 
 Response V8DebuggerAgentImpl::resume() {
+  if (m_debugger)
+    m_debugger->setConnected();
+
   if (m_pausedContext.IsEmpty()) return Response::Error(kDebuggerNotPaused);
   m_scheduledDebuggerStep = NoStep;
   m_steppingFromFramework = false;
