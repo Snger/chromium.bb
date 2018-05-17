@@ -75,7 +75,8 @@ class CORE_EXPORT DocumentMarkerController final
   void addHighlightMarker(const Position& start,
                           const Position& end,
                           Color foregroundColor,
-                          Color backgroundColor);
+                          Color backgroundColor,
+                          bool includeNonSelectableText);
   void copyMarkers(Node* srcNode,
                    unsigned startOffset,
                    int length,

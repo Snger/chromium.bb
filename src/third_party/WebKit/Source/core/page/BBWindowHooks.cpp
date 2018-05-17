@@ -140,13 +140,14 @@ void BBWindowHooks::addMarker(Range* range, long markerType)
 
 }
 
-void BBWindowHooks::addHighlightMarker(Range* range, long foregroundColor, long backgroundColor)
+void BBWindowHooks::addHighlightMarker(Range* range, long foregroundColor, long backgroundColor, bool includeNonSelectableText)
 {
     range->ownerDocument().markers().addHighlightMarker(
         range->startPosition(),
         range->endPosition(),
         Color(foregroundColor),
-        Color(backgroundColor).blendWithWhite());
+        Color(backgroundColor).blendWithWhite(),
+        includeNonSelectableText);
 }
 
 Range* BBWindowHooks::findPlainText(Range* range, const String& target, long options)
