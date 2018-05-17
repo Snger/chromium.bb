@@ -115,14 +115,18 @@ void WebViewHostImpl::created(WebView *source)
 
 void WebViewHostImpl::didFinishLoad(WebView *source, const StringRef& url)
 {
-    DCHECK(d_loadUrlCallback);
+    if (!d_loadUrlCallback) {
+        return;
+    }
     std::move(d_loadUrlCallback).Run(0);
     d_loadUrlCallback.Reset();
 }
 
 void WebViewHostImpl::didFailLoad(WebView *source, const StringRef& url)
 {
-    DCHECK(d_loadUrlCallback);
+    if (!d_loadUrlCallback) {
+        return;
+    }
     std::move(d_loadUrlCallback).Run(EFAULT);
     d_loadUrlCallback.Reset();
 }
@@ -318,7 +322,7 @@ static void onInspectorLoad(int status)
         LOG(INFO) << "DevTools loaded successfully";
     }
     else {
-        LOG(ERROR) << "DevTools failed to load with error " << status; 
+        LOG(ERROR) << "DevTools failed to load with error " << status;
     }
 }
 
