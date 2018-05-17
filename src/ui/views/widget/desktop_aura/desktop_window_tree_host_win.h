@@ -174,6 +174,7 @@ class VIEWS_EXPORT DesktopWindowTreeHostWin
   bool HandleNCDragBegin(int hit_test_code) override;
   void HandleNCDragMove() override;
   void HandleNCDragEnd() override;
+  void HandleNCDoubleClick() override;
   void HandleFrameChanged() override;
   void HandleNativeFocus(HWND last_focused_window) override;
   void HandleNativeBlur(HWND focused_window) override;

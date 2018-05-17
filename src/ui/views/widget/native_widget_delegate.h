@@ -132,6 +132,8 @@ class VIEWS_EXPORT NativeWidgetDelegate {
   // only called if the previous OnNCDragBegin returned true.
   virtual void OnNCDragEnd() = 0;
 
+  virtual void OnNCDoubleClick() = 0;
+
   // Returns the non-client component (see ui/base/hit_test.h) containing
   // |point|, in client coordinates.
   virtual int GetNonClientComponent(const gfx::Point& point) = 0;

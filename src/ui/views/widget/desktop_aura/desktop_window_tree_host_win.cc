@@ -837,6 +837,10 @@ void DesktopWindowTreeHostWin::HandleNCDragEnd() {
   return native_widget_delegate_->OnNCDragEnd();
 }
 
+void DesktopWindowTreeHostWin::HandleNCDoubleClick() {
+  return native_widget_delegate_->OnNCDoubleClick();
+}
+
 void DesktopWindowTreeHostWin::HandleFrameChanged() {
   SetWindowTransparency();
   // Replace the frame and layout the contents.

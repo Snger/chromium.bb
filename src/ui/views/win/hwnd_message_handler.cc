@@ -1659,6 +1659,10 @@ LRESULT HWNDMessageHandler::OnMouseRange(UINT message,
       return 0;
     }
   }
+  else if (message == WM_NCLBUTTONDBLCLK) {
+    delegate_->HandleNCDoubleClick();
+    return 0;
+  }
 
   return HandleMouseEventInternal(message, w_param, l_param, true);
 }

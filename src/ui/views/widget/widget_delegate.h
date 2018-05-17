@@ -187,6 +187,8 @@ class VIEWS_EXPORT WidgetDelegate {
   // only called if the previous OnNCDragBegin returned true.
   virtual void OnNCDragEnd() {}
 
+  virtual void OnNCDoubleClick() {}
+
   // Provides the hit-test mask if HasHitTestMask above returns true.
   virtual void GetWidgetHitTestMask(gfx::Path* mask) const;
 
