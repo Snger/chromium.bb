@@ -63,7 +63,7 @@ interface WebViewHost {
     loadUrl(string url) => (int32 status);
         // Load a URL onto the webview.
 
-    loadInspector(int32 pid, int32 routingId);
+    loadInspector(uint32 pid, int32 routingId);
         // Load DevTools in the current webview to inspect the contents
         // of the webview with the specified 'routingId'.
 
@@ -144,7 +144,7 @@ interface WebViewHost {
     clearTooltip();
         // Force clears the tooltip.
 
-    setParent(int32 window);
+    setParent(uint32 window);
         // Reparent the webview under 'window'.
 };
 
