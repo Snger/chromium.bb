@@ -161,7 +161,7 @@ void WebViewClientImpl::setParent(NativeView parent)
     }
     else {
         DCHECK(d_hostPtr);
-        d_hostPtr->setParent(reinterpret_cast<int>(parent));
+        d_hostPtr->setParent(reinterpret_cast<unsigned int>(parent));
     }
 }
 

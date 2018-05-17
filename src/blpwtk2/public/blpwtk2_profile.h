@@ -84,6 +84,9 @@ class Profile
     virtual String registerNativeViewForStreaming(NativeView view) = 0;
         // TODO(imran)
 
+    virtual String registerScreenForStreaming(NativeScreen view) = 0;
+        // TODO(imran)
+
     virtual void createWebView(
         WebViewDelegate            *delegate = 0,
         const WebViewCreateParams&  params = WebViewCreateParams()) = 0;

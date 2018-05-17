@@ -116,7 +116,7 @@ class WebViewHostImpl final : private WebViewImplClient
     // mojom::WebViewHost overrides
     void loadUrl(
             const std::string& url, const loadUrlCallback& callback) override;
-    void loadInspector(int pid, int routingId) override;
+    void loadInspector(unsigned int pid, int routingId) override;
     void inspectElementAt(int x, int y) override;
     void back(const backCallback& callback) override;
     void forward(const forwardCallback& callback) override;
@@ -152,8 +152,8 @@ class WebViewHostImpl final : private WebViewImplClient
     void applyRegion(const std::string&         blob,
                      const applyRegionCallback& callback) override;
     void clearTooltip() override;
-    void setParent(int window) override;
     void rootWindowCompositionChanged() override;
+    void setParent(unsigned int window) override;
 
     DISALLOW_COPY_AND_ASSIGN(WebViewHostImpl);
 
@@ -162,7 +162,7 @@ class WebViewHostImpl final : private WebViewImplClient
             mojom::WebViewClientPtr&&                    clientPtr,
             const mojom::WebViewCreateParams&            params,
             BrowserContextImpl                          *browserContext,
-            int                                          hostAffinity,
+            unsigned int                                 hostAffinity,
             const scoped_refptr<ProcessHostImpl::Impl>&  processHost);
     ~WebViewHostImpl();
 };

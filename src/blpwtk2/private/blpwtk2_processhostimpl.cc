@@ -473,11 +473,19 @@ void ProcessHostImpl::createWebView(
 }
 
 void ProcessHostImpl::registerNativeViewForStreaming(
-    int view, const registerNativeViewForStreamingCallback& callback)
+    unsigned int view, const registerNativeViewForStreamingCallback& callback)
 {
     String media_id = d_impl->context().registerNativeViewForStreaming(
             reinterpret_cast<NativeView>(view));
-    std::move(callback).Run(std::string(media_id.data(), media_id.size()));
+    std::move(callback).Run(media_id.toStdString());
+}
+
+void ProcessHostImpl::registerScreenForStreaming(
+    unsigned int screen, const registerScreenForStreamingCallback& callback)
+{
+    String id = DesktopStreamsRegistry::RegisterScreenForStreaming(
+            reinterpret_cast<NativeScreen>(screen));
+    std::move(callback).Run(id.toStdString());
 }
 
 void ProcessHostImpl::setDefaultPrinter(const std::string& name)

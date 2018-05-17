@@ -133,6 +133,7 @@ class ProfileImpl : public Profile {
                              const StringRef& profileDir) override;
 
     String registerNativeViewForStreaming(NativeView view) override;
+    String registerScreenForStreaming(NativeScreen view) override;
 
     void createWebView(
         WebViewDelegate            *delegate,
