@@ -864,10 +864,9 @@ class CONTENT_EXPORT RenderWidget
   // session, this info is sent to the browser along with other drag/drop info.
   DragEventSourceInfo possible_drag_event_info_;
 
-  DISALLOW_COPY_AND_ASSIGN(RenderWidget);
-
- private:
   bool bb_OnHandleInputEvent_no_ack_;
+
+  DISALLOW_COPY_AND_ASSIGN(RenderWidget);
 };
 
 }  // namespace content

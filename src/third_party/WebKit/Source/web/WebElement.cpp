@@ -132,7 +132,7 @@ WebRect WebElement::boundsInViewport() const {
 void WebElement::requestSpellCheck()
 {
 #ifdef BB_HAS_ELEMENT_EXTENSIONS
-//    unwrap<Element>()->bbRequestSpellCheck();
+    unwrap<Element>()->bbRequestSpellCheck();
 #endif
 }
 
