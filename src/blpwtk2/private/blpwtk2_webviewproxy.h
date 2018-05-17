@@ -110,6 +110,7 @@ class WebViewProxy final : public WebView
             int                      argc,
             v8::Local<v8::Value>    *argv) override;
 
+    String printToPDF(const StringRef& propertyName) override;
 
     DISALLOW_COPY_AND_ASSIGN(WebViewProxy);
 

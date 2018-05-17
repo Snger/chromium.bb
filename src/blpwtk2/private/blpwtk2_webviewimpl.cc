@@ -269,6 +269,12 @@ void WebViewImpl::drawContentsToBlob(Blob *blob, const DrawParams& params)
     NOTREACHED() << "drawContentsToBlob() not supported in WebViewImpl";
 }
 
+String WebViewImpl::printToPDF(const StringRef& propertyName)
+{
+    NOTREACHED() << "printToPDF() not supported in WebViewImpl";
+    return String();
+}
+
 int WebViewImpl::getRoutingId() const
 {
     DCHECK(Statics::isInBrowserMainThread());

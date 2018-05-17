@@ -249,6 +249,7 @@ class WebViewImpl final : public WebView,
     void setRegion(NativeRegion region) override;
     void clearTooltip() override;
     void rootWindowCompositionChanged() override;
+    String printToPDF(const StringRef& propertyName) override;
 };
 
 }  // close namespace blpwtk2
