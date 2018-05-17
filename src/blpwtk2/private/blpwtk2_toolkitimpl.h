@@ -133,6 +133,8 @@ class ToolkitImpl : public Toolkit {
     bool preHandleMessage(const NativeMsg *msg) override;
     void postHandleMessage(const NativeMsg *msg) override;
     void setTimerHiddenPageAlignmentInterval(double) override;
+    v8::Local<v8::Context> createWebScriptContext() override;
+    void disposeWebScriptContext(v8::Local<v8::Context> context) override;
     void addOriginToTrustworthyList(const StringRef& originString) override;
     void setWebViewHostObserver(WebViewHostObserver* observer) override;
     void setTraceThreshold(unsigned int timeoutMS) override;
