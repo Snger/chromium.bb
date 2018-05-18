@@ -65,7 +65,6 @@
 // feature 15
 // feature 16
 // feature 17
-#define BLPWTK2_FEATURE_REMOVE_SPELLING_MARKER
 // feature 18
 // feature 19
 // feature 20
