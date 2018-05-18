@@ -29,6 +29,7 @@
 #include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/web/WebDevToolsAgent.h"
 #include "third_party/WebKit/public/web/WebLocalFrame.h"
+#include "v8/include/v8-debug.h"
 
 using blink::WebDevToolsAgent;
 using blink::WebDevToolsAgentClient;
