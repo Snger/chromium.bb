@@ -121,7 +121,7 @@ int WebViewProxy::loadUrl(const StringRef& url)
     return 0;
 }
 
-void WebViewProxy::loadInspector(int pid, int routingId)
+void WebViewProxy::loadInspector(unsigned int pid, int routingId)
 {
     DCHECK(Statics::isInApplicationMainThread());
     LOG(INFO) << "routingId=" << d_renderViewRoutingId

@@ -68,12 +68,10 @@ Profile *ProfileImpl::anyInstance()
     return !g_instances.empty()? *(g_instances.begin()) : nullptr;
 }
 
-ProfileImpl::ProfileImpl(int  pid,
-                         bool launchDevToolsServer,
-                         bool singleProcess)
+ProfileImpl::ProfileImpl(unsigned int pid,
+                         bool         launchDevToolsServer)
     : d_numWebViews(0)
     , d_processId(pid)
-    , d_singleProcess(singleProcess)
 {
     g_instances.insert(this);
 
@@ -106,7 +104,7 @@ void ProfileImpl::decrementWebViewCount()
     --d_numWebViews;
 }
 
-int ProfileImpl::getProcessId() const
+unsigned int ProfileImpl::getProcessId() const
 {
     return d_processId;
 }
@@ -117,7 +115,7 @@ void ProfileImpl::destroy()
     delete this;
 }
 
-String ProfileImpl::createHostChannel(int              pid,
+String ProfileImpl::createHostChannel(unsigned int     pid,
                                       bool             isolated,
                                       const StringRef& profileDir)
 {
@@ -153,7 +151,7 @@ String ProfileImpl::registerScreenForStreaming(NativeScreen screen)
     std::string result;
 
     if (d_hostPtr->registerScreenForStreaming(
-                reinterpret_cast<unsigned int>(view), &result)) {
+                reinterpret_cast<unsigned int>(screen), &result)) {
 
         return String(result);
     }

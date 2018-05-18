@@ -587,7 +587,7 @@ Profile *ToolkitImpl::getProfile(int pid, bool launchDevtoolsServer)
 {
     // TODO(imran): Return the browser context in ORIGINAL thread mode
     DCHECK(Statics::isRendererMainThreadMode());
-    return new ProfileImpl(pid, launchDevtoolsServer, 0 != d_browserThread.get());
+    return new ProfileImpl(pid, launchDevtoolsServer);
 }
 
 bool ToolkitImpl::preHandleMessage(const NativeMsg *msg)

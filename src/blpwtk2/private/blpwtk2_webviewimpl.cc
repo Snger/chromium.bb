@@ -315,7 +315,7 @@ static GURL GetDevToolsFrontendURL()
         "http://127.0.0.1:%d/devtools/inspector.html", port));
 }
 
-void WebViewImpl::loadInspector(int pid, int routingId)
+void WebViewImpl::loadInspector(unsigned int pid, int routingId)
 {
     DCHECK(Statics::isInBrowserMainThread());
     DCHECK(!d_wasDestroyed);

@@ -39,7 +39,7 @@ WebViewHostImpl::WebViewHostImpl(
         mojom::WebViewClientPtr&&                    clientPtr,
         const mojom::WebViewCreateParams&            params,
         BrowserContextImpl                          *browserContext,
-        int                                          hostAffinity,
+        unsigned int                                 hostAffinity,
         const scoped_refptr<ProcessHostImpl::Impl>&  processHost)
     : d_clientPtr(std::move(clientPtr))
     , d_dragState({})
@@ -322,7 +322,7 @@ static void onInspectorLoad(int status)
     }
 }
 
-void WebViewHostImpl::loadInspector(int pid, int routingId)
+void WebViewHostImpl::loadInspector(unsigned int pid, int routingId)
 {
     if (!d_loadUrlCallback) {
         d_impl->loadInspector(pid, routingId);
