@@ -71,7 +71,6 @@
 // feature 21
 // feature 22
 // feature 23
-#define BLPWTK2_FEATURE_NO_INTERNET_DICTIONARY
 // feature 24
 // feature 25
 // feature 26
