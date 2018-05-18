@@ -72,7 +72,6 @@
 // feature 22
 // feature 23
 // feature 24
-#define BLPWTK2_FEATURE_PLUGIN_CLIPRECT_N_EVENTS_FIX
 // feature 25
 // feature 26
 // feature 27
