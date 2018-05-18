@@ -198,7 +198,7 @@ class Utf8ExternalStreamingStream : public BufferedUtf16CharacterStream {
       : current_({0, {0, 0, unibrow::Utf8::Utf8IncrementalBuffer(0)}}),
         source_stream_(source_stream) {}
   ~Utf8ExternalStreamingStream() override {
-    for (size_t i = 0; i < chunks_.size(); i++) delete[] chunks_[i].data;
+    for (size_t i = 0; i < chunks_.size(); i++) source_stream_->ReleaseData(chunks_[i].data);
   }
 
  protected:
@@ -459,8 +459,8 @@ struct Chunk {
 
 typedef std::vector<struct Chunk> Chunks;
 
-void DeleteChunks(Chunks& chunks) {
-  for (size_t i = 0; i < chunks.size(); i++) delete[] chunks[i].data;
+void DeleteChunks(Chunks& chunks, ScriptCompiler::ExternalSourceStream* source) {
+  for (size_t i = 0; i < chunks.size(); i++) source->ReleaseData(chunks[i].data);
 }
 
 // Return the chunk index for the chunk containing position.
@@ -522,7 +522,7 @@ class OneByteExternalStreamingStream : public BufferedUtf16CharacterStream {
   explicit OneByteExternalStreamingStream(
       ScriptCompiler::ExternalSourceStream* source)
       : source_(source) {}
-  ~OneByteExternalStreamingStream() override { DeleteChunks(chunks_); }
+  ~OneByteExternalStreamingStream() override { DeleteChunks(chunks_, source_); }
 
  protected:
   size_t FillBuffer(size_t position) override;
@@ -573,7 +573,7 @@ TwoByteExternalStreamingStream::TwoByteExternalStreamingStream(
       one_char_buffer_(0) {}
 
 TwoByteExternalStreamingStream::~TwoByteExternalStreamingStream() {
-  DeleteChunks(chunks_);
+  DeleteChunks(chunks_, source_);
 }
 
 bool TwoByteExternalStreamingStream::ReadBlock() {

@@ -6,6 +6,8 @@
 // file.
 #undef USING_V8_SHARED
 #include "include/v8.h"
+#include "base/allocator/features.h"
+#include "build/build_config.h"
 
 #if V8_OS_WIN
 #include <locale.h>
@@ -24,7 +26,7 @@ BOOL WINAPI DllMain(HANDLE hinstDLL,
 }
 }
 
-#ifdef ALLOCATOR_SHIM
+#if BUILDFLAG(USE_EXPERIMENTAL_ALLOCATOR_SHIM)
 extern __int64 allocator_shim_counter;
 extern "C" {
 __declspec(dllexport) __int64 GetAllocatorShimCounter()
