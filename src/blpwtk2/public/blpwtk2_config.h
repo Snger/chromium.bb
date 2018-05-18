@@ -65,6 +65,7 @@
 // feature 11
 #define BLPWTK2_FEATURE_DOCPRINTER
 // feature 12
+#define BLPWTK2_FEATURE_CUSTOMFONTS
 // feature 13
 // feature 14
 // feature 15
