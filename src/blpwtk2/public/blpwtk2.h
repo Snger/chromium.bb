@@ -67,7 +67,6 @@
 // feature 17
 // feature 18
 // feature 19
-#define BLPWTK2_FEATURE_REROUTE_MOUSEWHEEL
 // feature 20
 // feature 21
 // feature 22
