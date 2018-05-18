@@ -69,6 +69,7 @@
 // feature 13
 // feature 14
 // feature 15
+#define BLPWTK2_FEATURE_UPDATETOOLTIP
 // feature 16
 // feature 17
 // feature 18
