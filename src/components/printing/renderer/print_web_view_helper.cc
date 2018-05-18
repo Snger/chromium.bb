@@ -1069,7 +1069,7 @@ std::vector<char> PrintWebViewHelper::PrintToPDF(blink::WebLocalFrame* localfram
     prep_frame_view_->StartPrinting();
     int page_count = prep_frame_view_->GetExpectedPageCount();
 
-    blink::WebFrame* frame = prep_frame_view_->frame();
+    blink::WebLocalFrame* frame = prep_frame_view_->frame();
 
     std::vector<int> printed_pages = GetPrintedPages(params, page_count);
     if (!printed_pages.empty()) {
@@ -1087,7 +1087,8 @@ std::vector<char> PrintWebViewHelper::PrintToPDF(blink::WebLocalFrame* localfram
                           frame,
                           &metafile,
                           &page_size_in_dpi[i],
-                          &content_area_in_dpi[i], page_count);
+                          &content_area_in_dpi[i],
+                          page_count);
       }
       FinishFramePrinting();
       metafile.FinishDocument();
