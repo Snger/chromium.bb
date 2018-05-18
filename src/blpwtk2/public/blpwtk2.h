@@ -73,7 +73,6 @@
 // feature 23
 // feature 24
 // feature 25
-#define BLPWTK2_FEATURE_ALWAYS_CAPTURE_JS_CALLSTACK
 // feature 26
 // feature 27
 // feature 28
