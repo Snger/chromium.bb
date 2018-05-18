@@ -314,7 +314,7 @@ void WebViewProxy::rootWindowCompositionChanged()
     d_client->proxy()->rootWindowCompositionChanged();
 }
 
-void WebViewProxy::loadInspector(int pid, int routingId)
+void WebViewProxy::loadInspector(unsigned int pid, int routingId)
 {
     DCHECK(Statics::isInApplicationMainThread());
     LOG(INFO) << "routingId=" << d_renderViewRoutingId

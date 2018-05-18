@@ -207,7 +207,7 @@ void BrowserContextImpl::destroy()
     // BrowserContextImpl objects alive until Toolkit is destroyed.
 }
 
-String BrowserContextImpl::createHostChannel(int              pid,
+String BrowserContextImpl::createHostChannel(unsigned int     pid,
                                              bool             isolated,
                                              const StringRef& profileDir)
 {
@@ -217,7 +217,15 @@ String BrowserContextImpl::createHostChannel(int              pid,
 
 String BrowserContextImpl::registerNativeViewForStreaming(NativeView view)
 {
-    std::string media_id = DesktopStreamsRegistry::RegisterNativeViewForStreaming(view);
+    std::string media_id =
+        DesktopStreamsRegistry::RegisterNativeViewForStreaming(view);
+    return String(media_id);
+}
+
+String BrowserContextImpl::registerScreenForStreaming(NativeScreen screen)
+{
+    std::string media_id =
+        DesktopStreamsRegistry::RegisterScreenForStreaming(screen);
     return String(media_id);
 }
 
