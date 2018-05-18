@@ -1088,18 +1088,18 @@ bool Debug::HasDebuggerConnected() {
 }
 
 static bool continueDebuggerOnNavigationEvent = true;
-void ContinueDebuggerOnNavigationEvent(bool enable) {
+void Debug::ContinueDebuggerOnNavigationEvent(bool enable) {
   continueDebuggerOnNavigationEvent = enable;
 }
-bool ShouldContinueDebuggerOnNavigationEvent() {
+bool Debug::ShouldContinueDebuggerOnNavigationEvent() {
   return continueDebuggerOnNavigationEvent;
 }
 
 static bool continueDebuggerOnWidgetClose = true;
-void ContinueDebuggerOnWidgetClose(bool enable) {
+void Debug::ContinueDebuggerOnWidgetClose(bool enable) {
   continueDebuggerOnWidgetClose = enable;
 }
-bool ShouldContinueDebuggerOnWidgetClose() {
+bool Debug::ShouldContinueDebuggerOnWidgetClose() {
   return continueDebuggerOnWidgetClose;
 }
 
