@@ -173,14 +173,14 @@ String RendererUtil::printToPDF(
 
     for (auto* frame = renderView->GetWebView()->mainFrame();
          frame;
-         frame = frame->traverseNext(false)) {
+         frame = frame->traverseNext()) {
 
         v8::Local<v8::Context> jsContext = frame->mainWorldScriptContext();
         v8::Local<v8::Object> winObject = jsContext->Global();
 
         if (winObject->Has(v8::String::NewFromUtf8(isolate, propertyName.c_str()))) {
             std::vector<char> buffer =
-                printing::PrintWebViewHelper::Get(renderView)->PrintToPDF(
+                printing::PrintWebViewHelper::Get(renderView->GetMainRenderFrame())->PrintToPDF(
                     frame->toWebLocalFrame());
 
             returnVal.assign(buffer.data(), buffer.size());
