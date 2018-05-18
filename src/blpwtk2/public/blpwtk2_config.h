@@ -35,6 +35,55 @@
 
 #include <blpwtk2_version.h>
 
+// The following is a list of macro definitions that enable specific features
+// of blpwtk2.  The embedder can use these macros to determine if they can call
+// a certain API.  The purpose behind the "feature #" comments is to help git
+// resolve merge conflicts automatically by disambiguating the line additions
+// for each feature.
+
+// feature 0
+// feature 1
+// feature 2
+// feature 3
+// feature 4
+// feature 5
+// feature 6
+// feature 7
+// feature 8
+// feature 9
+#define BLPWTK2_FEATURE_FASTRESIZE
+// feature 10
+// feature 11
+// feature 12
+// feature 13
+// feature 14
+// feature 15
+// feature 16
+// feature 17
+// feature 18
+// feature 19
+// feature 20
+// feature 21
+// feature 22
+// feature 23
+// feature 24
+// feature 25
+// feature 26
+// feature 27
+// feature 28
+// feature 29
+// feature 30
+// feature 31
+// feature 32
+// feature 33
+// feature 34
+// feature 35
+// feature 36
+// feature 37
+// feature 38
+// feature 39
+
+
 namespace blpwtk2 {
 
 // TODO: support other native handles
