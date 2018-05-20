@@ -23,6 +23,8 @@
 #include <blpwtk2_contentrendererclientimpl.h>
 #include <blpwtk2_inprocessresourceloaderbridge.h>
 #include <blpwtk2_jswidget.h>
+#include <blpwtk2_rendercompositor.h>
+#include <blpwtk2_rendermessagedelegate.h>
 #include <blpwtk2_renderviewobserverimpl.h>
 #include <blpwtk2_resourceloader.h>
 #include <blpwtk2_statics.h>
@@ -32,6 +34,7 @@
 #include <components/printing/renderer/print_web_view_helper.h>
 #include <components/spellcheck/renderer/spellcheck.h>
 #include <components/spellcheck/renderer/spellcheck_provider.h>
+#include <cc/output/compositor_frame_sink.h>
 #include <content/child/font_warmup_win.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/public/renderer/render_view.h>
@@ -169,7 +172,22 @@ bool ContentRendererClientImpl::OverrideCreatePlugin(
     return true;
 }
 
+bool ContentRendererClientImpl::Dispatch(IPC::Message *msg)
+{
+    if (Statics::rendererUIEnabled &&
+        RenderMessageDelegate::GetInstance()->OnMessageReceived(*msg)) {
+        delete msg;
+        return true;
+    }
+
+    return false;
+}
+
+std::unique_ptr<cc::CompositorFrameSink> ContentRendererClientImpl::CreateCompositorFrameSink(
+    bool use_software, int routing_id)
+{
+    return RenderCompositorContext::GetInstance()->CreateCompositorFrameSink(
+        routing_id);
+}
+
 }  // close namespace blpwtk2
-
-// vim: ts=4 et
-

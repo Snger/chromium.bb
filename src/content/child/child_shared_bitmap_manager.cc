@@ -25,26 +25,45 @@ class ChildSharedBitmap : public SharedMemoryBitmap {
  public:
   ChildSharedBitmap(scoped_refptr<ThreadSafeSender> sender,
                     base::SharedMemory* shared_memory,
-                    const cc::SharedBitmapId& id)
+                    const cc::SharedBitmapId& id,
+                    ChildSharedBitmapManager* manager)
       : SharedMemoryBitmap(static_cast<uint8_t*>(shared_memory->memory()),
                            id,
                            shared_memory),
-        sender_(sender) {}
+        sender_(sender),
+        manager_(manager) {}
 
   ChildSharedBitmap(scoped_refptr<ThreadSafeSender> sender,
                     std::unique_ptr<base::SharedMemory> shared_memory_holder,
-                    const cc::SharedBitmapId& id)
-      : ChildSharedBitmap(sender, shared_memory_holder.get(), id) {
+                    const cc::SharedBitmapId& id,
+                    ChildSharedBitmapManager* manager)
+      : ChildSharedBitmap(sender, shared_memory_holder.get(), id, manager) {
     shared_memory_holder_ = std::move(shared_memory_holder);
   }
 
   ~ChildSharedBitmap() override {
+    if (manager_)
+      manager_->FreeSharedMemoryFromMap(id());
     sender_->Send(new ChildProcessHostMsg_DeletedSharedBitmap(id()));
   }
 
  private:
   scoped_refptr<ThreadSafeSender> sender_;
   std::unique_ptr<base::SharedMemory> shared_memory_holder_;
+  ChildSharedBitmapManager* manager_;
+};
+
+class WeakChildSharedBitmap : public SharedMemoryBitmap {
+ public:
+  WeakChildSharedBitmap(base::SharedMemory* shared_memory,
+                        const cc::SharedBitmapId& id)
+      : SharedMemoryBitmap(static_cast<uint8_t*>(shared_memory->memory()),
+                           id,
+                           shared_memory) {
+  }
+
+  ~WeakChildSharedBitmap() override {
+  }
 };
 
 // Collect extra information for debugging bitmap creation failures.
@@ -83,7 +102,9 @@ ChildSharedBitmapManager::ChildSharedBitmapManager(
     : sender_(sender) {
 }
 
-ChildSharedBitmapManager::~ChildSharedBitmapManager() {}
+ChildSharedBitmapManager::~ChildSharedBitmapManager() {
+  DCHECK(shared_memory_map_.empty());
+}
 
 std::unique_ptr<cc::SharedBitmap>
 ChildSharedBitmapManager::AllocateSharedBitmap(const gfx::Size& size) {
@@ -142,14 +163,22 @@ ChildSharedBitmapManager::AllocateSharedMemoryBitmap(const gfx::Size& size) {
   sender_->Send(new ChildProcessHostMsg_AllocatedSharedBitmap(
       memory_size, handle_to_send, id));
 #endif
-  return base::MakeUnique<ChildSharedBitmap>(sender_, std::move(memory), id);
+  shared_memory_map_[id] = memory.get();
+  return base::MakeUnique<ChildSharedBitmap>(
+    sender_, std::move(memory), id, this);
 }
 
 std::unique_ptr<cc::SharedBitmap>
-ChildSharedBitmapManager::GetSharedBitmapFromId(const gfx::Size&,
-                                                const cc::SharedBitmapId&) {
-  NOTREACHED();
-  return std::unique_ptr<cc::SharedBitmap>();
+ChildSharedBitmapManager::GetSharedBitmapFromId(const gfx::Size& size,
+                                                const cc::SharedBitmapId& id) {
+  SharedMemoryMap::iterator it = shared_memory_map_.find(id);
+  if (it == shared_memory_map_.end())
+    return std::unique_ptr<cc::SharedBitmap>();
+
+  base::SharedMemory* shared_memory = it->second;
+
+  return base::WrapUnique(
+      new WeakChildSharedBitmap(shared_memory, id));
 }
 
 std::unique_ptr<cc::SharedBitmap>
@@ -162,8 +191,14 @@ ChildSharedBitmapManager::GetBitmapForSharedMemory(base::SharedMemory* mem) {
 #endif
   sender_->Send(new ChildProcessHostMsg_AllocatedSharedBitmap(
       mem->mapped_size(), handle_to_send, id));
+  shared_memory_map_[id] = mem;
 
-  return base::MakeUnique<ChildSharedBitmap>(sender_, mem, id);
+  return base::MakeUnique<ChildSharedBitmap>(sender_, mem, id, this);
+}
+
+void ChildSharedBitmapManager::FreeSharedMemoryFromMap(
+    const cc::SharedBitmapId& id) {
+  shared_memory_map_.erase(id);
 }
 
 }  // namespace content

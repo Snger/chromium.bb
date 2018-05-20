@@ -121,6 +121,7 @@ class ProcessHostImpl final : public mojom::ProcessHost
     void createWebView(
             mojom::WebViewHostRequest     hostRequest,
             mojom::WebViewCreateParamsPtr params,
+            bool                          rendererUI,
             const createWebViewCallback&  callback) override;
     void registerNativeViewForStreaming(
             unsigned int                                  view,

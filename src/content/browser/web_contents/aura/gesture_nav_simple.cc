@@ -11,7 +11,7 @@
 #include "content/browser/frame_host/navigation_controller_impl.h"
 #include "content/browser/renderer_host/overscroll_controller.h"
 #include "content/browser/web_contents/web_contents_impl.h"
-#include "content/browser/web_contents/web_contents_view.h"
+#include "content/public/browser/web_contents_view.h"
 #include "content/public/browser/browser_thread.h"
 #include "content/public/browser/overscroll_configuration.h"
 #include "content/public/common/content_client.h"

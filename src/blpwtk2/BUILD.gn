@@ -134,6 +134,8 @@ shared_library("blpwtk2") {
     "private/blpwtk2_devtoolsfrontendhostdelegateimpl.h",
     "private/blpwtk2_devtoolsmanagerdelegateimpl.cc",
     "private/blpwtk2_devtoolsmanagerdelegateimpl.h",
+    "private/blpwtk2_dragdrop.cc",
+    "private/blpwtk2_dragdrop.h",
     "private/blpwtk2_dllmain.cc",
     "private/blpwtk2_findonpage.cc",
     "private/blpwtk2_findonpage.h",
@@ -159,10 +161,18 @@ shared_library("blpwtk2") {
     "private/blpwtk2_processhostimpl.h",
     "private/blpwtk2_profileimpl.cc",
     "private/blpwtk2_profileimpl.h",
+    "private/blpwtk2_rendercompositor.cc",
+    "private/blpwtk2_rendercompositor.h",
     "private/blpwtk2_rendererutil.cc",
     "private/blpwtk2_rendererutil.h",
+    "private/blpwtk2_rendermessagedelegate.cc",
+    "private/blpwtk2_rendermessagedelegate.h",
     "private/blpwtk2_renderviewobserverimpl.cc",
     "private/blpwtk2_renderviewobserverimpl.h",
+    "private/blpwtk2_renderwebcontentsview.cc",
+    "private/blpwtk2_renderwebcontentsview.h",
+    "private/blpwtk2_renderwebview.cc",
+    "private/blpwtk2_renderwebview.h",
     "private/blpwtk2_resourcecontextimpl.cc",
     "private/blpwtk2_resourcecontextimpl.h",
     "private/blpwtk2_statics.cc",
@@ -273,6 +283,8 @@ shared_library("blpwtk2") {
     ":pak",
     "//base",
     "//cc",
+    "//cc/blink",
+    "//cc/surfaces",
     "//chrome/chrome_blpwtk2",
     "//components/keyed_service/content",
     "//components/spellcheck/browser",
@@ -356,7 +368,7 @@ executable("blpwtk2_shell") {
   ]
   if (is_official_build) {
     configs -= [ "//build/config/compiler:default_optimization" ]
-    configs += [ "//build/config/compiler:optimize_max" ] 
+    configs += [ "//build/config/compiler:optimize_max" ]
   }
 
   deps = [

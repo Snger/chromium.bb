@@ -14,7 +14,7 @@
 #include "base/mac/scoped_nsobject.h"
 #include "base/macros.h"
 #include "content/browser/renderer_host/render_view_host_delegate_view.h"
-#include "content/browser/web_contents/web_contents_view.h"
+#include "content/public/browser/web_contents_view.h"
 #include "content/common/content_export.h"
 #include "content/common/drag_event_source_info.h"
 #include "ui/base/cocoa/base_view.h"

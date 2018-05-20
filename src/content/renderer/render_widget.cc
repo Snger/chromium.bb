@@ -871,7 +871,8 @@ RenderWidget::CreateCompositorFrameSink(bool fallback) {
   DCHECK(GetWebWidget());
   // For widgets that are never visible, we don't start the compositor, so we
   // never get a request for a cc::CompositorFrameSink.
-  DCHECK(!compositor_never_visible_);
+  DCHECK(!compositor_never_visible_);  
+
   return RenderThreadImpl::current()->CreateCompositorFrameSink(
       fallback, routing_id_, frame_swap_message_queue_,
       GetURLForGraphicsContext3D());

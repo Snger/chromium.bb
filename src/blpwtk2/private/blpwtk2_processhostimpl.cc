@@ -429,6 +429,7 @@ void ProcessHostImpl::bindProcess(unsigned int pid, bool launchDevToolsServer)
 void ProcessHostImpl::createWebView(
         mojom::WebViewHostRequest     hostRequest,
         mojom::WebViewCreateParamsPtr params,
+        bool                          rendererUI,
         const createWebViewCallback&  callback)
 {
     int hostId;
@@ -461,6 +462,7 @@ void ProcessHostImpl::createWebView(
         mojo::MakeStrongBinding(
                 std::make_unique<WebViewHostImpl>(std::move(clientPtr),
                                                   *params,
+                                                  rendererUI,
                                                   browserContext,
                                                   hostId,
                                                   d_impl),

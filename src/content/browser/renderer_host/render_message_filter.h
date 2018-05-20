@@ -138,6 +138,7 @@ class CONTENT_EXPORT RenderMessageFilter
 
   // Message handlers called on the browser IO thread:
   void OnEstablishGpuChannel(IPC::Message* reply);
+  void OnEstablishPrivilegedGpuChannel(IPC::Message* reply);
   void OnHasGpuProcess(IPC::Message* reply);
   // Helper callbacks for the message handlers.
   void EstablishChannelCallback(std::unique_ptr<IPC::Message> reply,

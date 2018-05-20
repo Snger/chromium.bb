@@ -56,6 +56,7 @@ struct WebURLError;
 }
 
 namespace cc {
+class CompositorFrameSink;
 class ImageSerializationProcessor;
 class RemoteCompositorBridge;
 }
@@ -71,6 +72,10 @@ class RendererFactory;
 
 namespace service_manager {
 class InterfaceRegistry;
+}
+
+namespace IPC {
+class Message;
 }
 
 namespace content {
@@ -381,6 +386,17 @@ class CONTENT_EXPORT ContentRendererClient {
   // Overwrites the given URL to use an HTML5 embed if possible.
   // An empty URL is returned if the URL is not overriden.
   virtual GURL OverrideFlashEmbedWithHTML(const GURL& url);
+
+  // Allows the embedder to intercept IPC messages before they are sent to
+  // the browser. If the function handles the message, it should delete
+  // 'msg' and return 'true'. If the function does not handle the message,
+  // it should return 'false' without deleting 'msg'.
+  virtual bool Dispatch(IPC::Message* msg) { return false; }
+
+  // Allows the embedder to override construction of the compositor
+  // frame sink for the 'content::RenderView' identified by 'routing_id'.
+  virtual std::unique_ptr<cc::CompositorFrameSink> CreateCompositorFrameSink(
+      bool use_software, int routing_id);
 };
 
 }  // namespace content

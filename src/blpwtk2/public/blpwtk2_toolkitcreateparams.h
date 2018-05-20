@@ -225,6 +225,8 @@ class ToolkitCreateParams
         // assuming their toolkits were initialized with an empty profile
         // directory.
 
+    BLPWTK2_EXPORT void setRendererUIEnabled(bool rendererUIEnabled);
+
     // ACCESSORS
     ThreadMode threadMode() const;
     bool useDefaultPrintSettings() const;
@@ -254,6 +256,7 @@ class ToolkitCreateParams
     bool isInProcessResizeOptimizationDisabled() const;
     StringRef profileDirectory() const;
     bool isIsolatedProfile() const;
+    bool rendererUIEnabled() const;
 };
 
 }  // close namespace blpwtk2

@@ -5,6 +5,7 @@
 #include "content/public/renderer/content_renderer_client.h"
 
 #include "cc/blimp/remote_compositor_bridge.h"
+#include "cc/output/compositor_frame_sink.h"
 #include "content/public/renderer/media_stream_renderer_factory.h"
 #include "media/base/renderer_factory.h"
 #include "ui/gfx/icc_profile.h"
@@ -242,6 +243,11 @@ bool ContentRendererClient::ShouldEnforceWebRTCRoutingPreferences() {
 
 GURL ContentRendererClient::OverrideFlashEmbedWithHTML(const GURL& url) {
   return GURL();
+}
+
+std::unique_ptr<cc::CompositorFrameSink>
+ContentRendererClient::CreateCompositorFrameSink(bool use_software, int routing_id) {
+  return nullptr;
 }
 
 }  // namespace content

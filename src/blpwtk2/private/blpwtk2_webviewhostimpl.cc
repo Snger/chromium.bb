@@ -38,6 +38,7 @@ namespace blpwtk2 {
 WebViewHostImpl::WebViewHostImpl(
         mojom::WebViewClientPtr&&                    clientPtr,
         const mojom::WebViewCreateParams&            params,
+        bool                                         rendererUI,
         BrowserContextImpl                          *browserContext,
         unsigned int                                 hostAffinity,
         const scoped_refptr<ProcessHostImpl::Impl>&  processHost)
@@ -65,6 +66,7 @@ WebViewHostImpl::WebViewHostImpl(
                              browserContext,    // browser context
                              hostAffinity,      // host affinity
                              false,             // initially visible
+                             rendererUI,        // rendererUI
                              properties);       // properties
 
     d_impl->setImplClient(this);
@@ -121,14 +123,18 @@ void WebViewHostImpl::created(WebView *source)
 
 void WebViewHostImpl::didFinishLoad(WebView *source, const StringRef& url)
 {
-    DCHECK(d_loadUrlCallback);
+    if (!d_loadUrlCallback) {
+        return;
+    }
     std::move(d_loadUrlCallback).Run(0);
     d_loadUrlCallback.Reset();
 }
 
 void WebViewHostImpl::didFailLoad(WebView *source, const StringRef& url)
 {
-    DCHECK(d_loadUrlCallback);
+    if (!d_loadUrlCallback) {
+        return;
+    }
     std::move(d_loadUrlCallback).Run(EFAULT);
     d_loadUrlCallback.Reset();
 }
@@ -330,7 +336,7 @@ static void onInspectorLoad(int status)
         LOG(INFO) << "DevTools loaded successfully";
     }
     else {
-        LOG(ERROR) << "DevTools failed to load with error " << status; 
+        LOG(ERROR) << "DevTools failed to load with error " << status;
     }
 }
 
