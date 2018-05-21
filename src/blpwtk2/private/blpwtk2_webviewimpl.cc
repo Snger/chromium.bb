@@ -217,14 +217,11 @@ void WebViewImpl::overrideWebkitPrefs(content::WebPreferences *prefs)
 
 void WebViewImpl::onRenderViewHostMadeCurrent(content::RenderViewHost *renderViewHost)
 {
-    DCHECK(!d_renderViewHost || d_renderViewHost == renderViewHost);
-    if (!d_renderViewHost) {
-        d_renderViewHost = renderViewHost;
+    d_renderViewHost = renderViewHost;
 
-        int routingId = getRoutingId();
-        if (routingId >= 0 && d_implClient) {
-            d_implClient->gotNewRenderViewRoutingId(routingId);
-        }
+    int routingId = getRoutingId();
+    if (routingId >= 0 && d_implClient) {
+        d_implClient->gotNewRenderViewRoutingId(routingId);
     }
 
 #ifdef BB_RENDER_VIEW_HOST_SUPPORTS_RUBBERBANDING
