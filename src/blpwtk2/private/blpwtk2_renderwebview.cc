@@ -345,20 +345,12 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         // Mousewheel:
         case WM_MOUSEWHEEL:
         case WM_MOUSEHWHEEL: {
-#if defined(BLPWTK2_FEATURE_REROUTE_MOUSEWHEEL)
             if (ui::RerouteMouseWheel(
                 d_hwnd.get(),
                 wParam, lParam,
                 d_properties.rerouteMouseWheelToAnyRelatedWindow)) {
                 return 0;
             }
-#else
-            if (ui::RerouteMouseWheel(
-                d_hwnd.get(),
-                wParam, lParam)) {
-                return 0;
-            }
-#endif
 
             ui::MouseWheelEvent event(msg);
 
@@ -688,7 +680,7 @@ void RenderWebView::rootWindowCompositionChanged()
 }
 #endif
 
-void RenderWebView::loadInspector(int pid, int routingId)
+void RenderWebView::loadInspector(unsigned int pid, int routingId)
 {
     DCHECK(Statics::isInApplicationMainThread());
     LOG(INFO) << "routingId=" << d_renderViewRoutingId
@@ -1737,6 +1729,14 @@ void RenderWebView::OnSetRubberbandRect(const gfx::Rect& rect)
     }
 
     d_rubberbandOutline->SetRect(d_hwnd.get(), rect.ToRECT());
+}
+#endif
+
+#if defined(BLPWTK2_FEATURE_PRINTPDF)
+String RenderWebView::printToPDF(const StringRef& propertyName)
+{
+    auto* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    return RendererUtil::printToPDF(rv, propertyName.toStdString());
 }
 #endif
 

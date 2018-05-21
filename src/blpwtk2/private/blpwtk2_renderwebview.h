@@ -168,7 +168,7 @@ class RenderWebView final : public WebView
     void destroy() override;
     WebFrame *mainFrame() override;
     int loadUrl(const StringRef& url) override;
-    void loadInspector(int pid, int routingId) override;
+    void loadInspector(unsigned int pid, int routingId) override;
     void inspectElementAt(const POINT& point) override;
     int goBack() override;
     int goForward() override;
@@ -321,6 +321,10 @@ class RenderWebView final : public WebView
 #if defined(BLPWTK2_FEATURE_RUBBERBAND)
     void OnHideRubberbandRect();
     void OnSetRubberbandRect(const gfx::Rect& rect);
+#endif
+
+#if defined(BLPWTK2_FEATURE_PRINTPDF)
+    String printToPDF(const StringRef& propertyName) override;
 #endif
 
     DISALLOW_COPY_AND_ASSIGN(RenderWebView);
