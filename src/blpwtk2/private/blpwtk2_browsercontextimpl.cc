@@ -113,7 +113,10 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     SpellcheckServiceFactory::GetInstance();  // This needs to be initialized before
                                               // calling CreateBrowserContextServices.
 
-    BrowserContextDependencyManager::GetInstance()->CreateBrowserContextServices(this);
+    auto dependencyManager = BrowserContextDependencyManager::GetInstance();
+    dependencyManager->CreateBrowserContextServices(this);
+    dependencyManager->RegisterProfilePrefsForServices(this, d_prefRegistry.get());
+
     content::BrowserContext::Initialize(this, base::FilePath());
 
     d_proxyConfig = std::make_unique<net::ProxyConfig>();
