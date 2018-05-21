@@ -67,7 +67,7 @@ class ToolkitImpl : public Toolkit {
     // DATA
     ContentMainDelegateImpl d_mainDelegate;
     std::unique_ptr<content::ContentMainRunner> d_mainRunner;
-    std::unique_ptr<MainMessagePump> d_messagePump;
+    MainMessagePump *d_messagePump;
 
     std::unique_ptr<BrowserThread> d_browserThread;
         // Only used for the RENDERER_MAIN thread mode and when an external

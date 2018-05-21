@@ -162,6 +162,8 @@ BrowserContextImpl::~BrowserContextImpl()
 
     d_requestContextGetter = 0;
     d_isDestroyed = true;
+
+    ShutdownStoragePartitions();
 }
 
 URLRequestContextGetterImpl* BrowserContextImpl::requestContextGetter() const

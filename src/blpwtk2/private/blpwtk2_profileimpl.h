@@ -45,6 +45,7 @@ class ProcessClient;
 class ProxyConfig;
 class WebViewProxy;
 class WebViewDelegate;
+class MainMessagePump;
 
                         // =================
                         // class ProfileImpl
@@ -64,6 +65,7 @@ class ProfileImpl : public Profile {
     mojom::ProcessHostPtr d_hostPtr;
     int d_numWebViews;
     unsigned int d_processId;
+    MainMessagePump *d_pump;
 
     ~ProfileImpl();
 
@@ -75,8 +77,9 @@ class ProfileImpl : public Profile {
         // a general request to the browser that is not specific to a profile.
 
     // CREATORS
-    explicit ProfileImpl(unsigned int pid,
-                         bool         launchDevToolsServer);
+    explicit ProfileImpl(MainMessagePump *pump,
+                         unsigned int     pid,
+                         bool             launchDevToolsServer);
         // Create a new instance of ProfileImpl.  If 'pid' is specified, the
         // profile will be bound to a RenderProcessHost that is coupled with
         // a RenderProcess running on process 'pid'.

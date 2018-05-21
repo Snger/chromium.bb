@@ -151,7 +151,6 @@ ProcessHostImpl::Impl::Impl(bool isolated, const std::string& profileDir)
 
 ProcessHostImpl::Impl::~Impl()
 {
-    d_renderProcessHost->Cleanup();
     releaseBrowserContext(std::move(d_context));
 
     if (d_processHandle &&

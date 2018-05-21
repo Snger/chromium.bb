@@ -28,6 +28,7 @@
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
 #include <blpwtk2_webviewclientimpl.h>
+#include <blpwtk2_mainmessagepump.h>
 
 #include <base/bind.h>
 #include <base/message_loop/message_loop.h>
@@ -69,10 +70,12 @@ Profile *ProfileImpl::anyInstance()
     return !g_instances.empty()? *(g_instances.begin()) : nullptr;
 }
 
-ProfileImpl::ProfileImpl(unsigned int pid,
-                         bool         launchDevToolsServer)
+ProfileImpl::ProfileImpl(MainMessagePump *pump,
+                         unsigned int     pid,
+                         bool             launchDevToolsServer)
     : d_numWebViews(0)
     , d_processId(pid)
+    , d_pump(pump)
 {
     g_instances.insert(this);
 
@@ -89,6 +92,30 @@ ProfileImpl::~ProfileImpl()
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(!g_instances.empty());
+
+    // Releasing the Mojo interface pointer will incur an IPC message to
+    // the host.  If this process had some open webviews, the host will
+    // likely send a ViewMsg_Close message to delete the RenderWidget
+    // instances in this process.  The RenderWidget may then destroy the
+    // compositor if it's no longer needed.  The compositor may hold
+    // references to shared memory that it needs to release before it's
+    // destroyed.
+    //
+    // We take the following approach to ensure a clean shutdown:
+    //  - flush the event loop. this will make sure the IPC message is
+    //    sent to the host
+    //  - sleep for a short period. this will give the host some time
+    //    to send a response
+    //  - flush the event loop again. this will make sure the IPC
+    //    response from the host is processed. the "clean up" task
+    //    will eventually be sent to the compositor, at which point
+    //    it will start cleaning up its resources
+
+    d_hostPtr.reset();
+    d_pump->flush();
+    Sleep(50);
+    d_pump->flush();
+
     g_instances.erase(this);
 }
 
