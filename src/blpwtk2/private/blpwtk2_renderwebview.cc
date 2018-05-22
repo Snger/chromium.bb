@@ -49,6 +49,7 @@
 #include "ui/events/blink/web_input_event_traits.h"
 #include <ui/base/ime/input_method.h>
 #include <ui/base/ime/input_method_factory.h>
+#include <ui/base/win/lock_state.h>
 #include <ui/base/win/mouse_wheel_util.h>
 #include <ui/events/event.h>
 #include <ui/events/event_utils.h>
@@ -141,6 +142,11 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
 
     d_compositor = RenderCompositorContext::GetInstance()->CreateCompositor(
         d_hwnd.get());
+
+    windows_session_change_observer_.reset(new views::WindowsSessionChangeObserver(
+        base::Bind(&RenderWebView::OnSessionChange,
+                   base::Unretained(this))
+    ));
 }
 
 LPCTSTR RenderWebView::GetWindowClass()
@@ -613,6 +619,21 @@ void RenderWebView::dispatchInputEvent(const blink::WebInputEvent& event)
             ui::WebInputEventTraits::ShouldBlockEventStream(event)?
                 content::InputEventDispatchType::DISPATCH_TYPE_BLOCKING :
                 content::InputEventDispatchType::DISPATCH_TYPE_NON_BLOCKING));
+}
+
+void RenderWebView::ForceRedrawWindow(int attempts) {
+    if (ui::IsWorkstationLocked()) {
+        // Presents will continue to fail as long as the input desktop is
+        // unavailable.
+        if (--attempts <= 0)
+            return;
+        base::ThreadTaskRunnerHandle::Get()->PostDelayedTask(
+            FROM_HERE, base::Bind(&RenderWebView::ForceRedrawWindow,
+                                    base::Unretained(this), attempts),
+            base::TimeDelta::FromMilliseconds(500));
+        return;
+    }
+    InvalidateRect(d_hwnd.get(), NULL, FALSE);
 }
 
 void RenderWebView::destroy()
@@ -1642,6 +1663,13 @@ void RenderWebView::OnSelectionChanged(
     d_selection_text_offset = offset;
     d_selection_range.set_start(range.start());
     d_selection_range.set_end(range.end());
+}
+
+void RenderWebView::OnSessionChange(WPARAM status_code) {
+    // Direct3D presents are ignored while the screen is locked, so force the
+    // window to be redrawn on unlock.
+    if (status_code == WTS_SESSION_UNLOCK)
+        ForceRedrawWindow(10);
 }
 
 void RenderWebView::OnSetCursor(const content::WebCursor& cursor)

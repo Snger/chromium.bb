@@ -41,6 +41,7 @@
 #include <ui/base/ime/text_input_client.h>
 #include <ui/gfx/selection_bound.h>
 #include <ui/gfx/geometry/size.h>
+#include <ui/views/win/windows_session_change_observer.h>
 
 struct ViewHostMsg_SelectionBounds_Params;
 class SkBitmap;
@@ -71,6 +72,10 @@ class InputMethod;
 class RubberbandOutline;
 #endif
 }  // close namespace ui
+
+namespace views {
+class WindowsSessionChangeObserver;
+}  // close namespace views
 
 namespace blpwtk2 {
 
@@ -112,6 +117,10 @@ class RenderWebView final : public WebView
     gfx::Size d_size;
 
     std::unique_ptr<RenderCompositor> d_compositor;
+
+    // Manages observation of Windows Session Change messages.
+    std::unique_ptr<views::WindowsSessionChangeObserver>
+        windows_session_change_observer_;
 
     bool d_nc_hit_test_enabled = false;
     int d_nc_hit_test_result = 0;
@@ -159,6 +168,9 @@ class RenderWebView final : public WebView
     void setPlatformCursor(HCURSOR cursor);
     void sendScreenRects();
     void dispatchInputEvent(const blink::WebInputEvent& event);
+    // Attempts to force the window to be redrawn, ensuring that it gets
+    // onscreen.
+    void ForceRedrawWindow(int attempts);
 
 #if defined(BLPWTK2_FEATURE_RUBBERBAND)
     void updateAltDragRubberBanding();
@@ -307,6 +319,7 @@ class RenderWebView final : public WebView
     void OnSelectionChanged(const base::string16& text,
         uint32_t offset,
         const gfx::Range& range);
+    void OnSessionChange(WPARAM status_code);
     void OnSetCursor(const content::WebCursor& cursor);
     void OnStartDragging(
         const content::DropData& drop_data,
@@ -321,7 +334,7 @@ class RenderWebView final : public WebView
 #if defined(BLPWTK2_FEATURE_RUBBERBAND)
     void OnHideRubberbandRect();
     void OnSetRubberbandRect(const gfx::Rect& rect);
-#endif
+#endif    
 
 #if defined(BLPWTK2_FEATURE_PRINTPDF)
     String printToPDF(const StringRef& propertyName) override;
