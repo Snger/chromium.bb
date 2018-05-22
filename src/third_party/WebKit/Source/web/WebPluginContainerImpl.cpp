@@ -947,14 +947,27 @@ void WebPluginContainerImpl::computeClipRectsForPlugin(
   LayoutRect unclippedAbsoluteRect(box->contentBoxRect());
   box->mapToVisualRectInAncestorSpace(rootView, unclippedAbsoluteRect);
 
+  // frameRect() returns the rect of the plugin with respect to the frame
+  // without considering transforms.  We need to consider transforms when
+  // computing layoutWindowRect so we cannot use this directly.
+  //
+  // contentBoxRect also returns the rect of the plugin but it returns it
+  // in local coordinates (with respect to its parent LayoutObject).  We
+  // map it to absolute coordinates to get a value similar to frameRect()
+  // but with consideration to transforms.
+  FloatRect frameRectWithTransforms =
+      box->localToAbsoluteQuad(FloatRect(box->contentBoxRect()),
+                               UseTransforms).boundingBox();
+
   // Map up to the root frame.
   LayoutRect layoutWindowRect =
       LayoutRect(m_element->document()
                      .view()
                      ->layoutViewItem()
-                     .localToAbsoluteQuad(FloatQuad(FloatRect(frameRect())),
+                     .localToAbsoluteQuad(FloatQuad(frameRectWithTransforms),
                                           TraverseDocumentBoundaries)
                      .boundingBox());
+
   windowRect = pixelSnappedIntRect(layoutWindowRect);
 
   LayoutRect layoutClippedLocalRect = unclippedAbsoluteRect;
