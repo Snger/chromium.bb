@@ -6,13 +6,23 @@
 
 #include "base/allocator/winheap_stubs_win.h"
 #include "base/logging.h"
+#include <windows.h>
+
+__int64 allocator_shim_counter = 0;
 
 namespace {
 
 using base::allocator::AllocatorDispatch;
 
 void* DefaultWinHeapMallocImpl(const AllocatorDispatch*, size_t size) {
-  return base::allocator::WinHeapMalloc(size);
+  void* ptr = base::allocator::WinHeapMalloc(size);
+
+  if (ptr) {
+    ::InterlockedAdd64(
+	    &allocator_shim_counter,
+	    base::allocator::WinHeapGetSizeEstimateFromUserSize(size));
+  }
+  return ptr;
 }
 
 void* DefaultWinHeapCallocImpl(const AllocatorDispatch* self,
@@ -40,10 +50,30 @@ void* DefaultWinHeapMemalignImpl(const AllocatorDispatch* self,
 void* DefaultWinHeapReallocImpl(const AllocatorDispatch* self,
                                 void* address,
                                 size_t size) {
-  return base::allocator::WinHeapRealloc(address, size);
+  size_t old_size = 0;
+  if (address) {
+    old_size = base::allocator::WinHeapGetSizeEstimate(address);
+  }
+
+  void* new_address = base::allocator::WinHeapRealloc(address, size);
+  if (new_address) {
+    if (size >= old_size) {
+      ::InterlockedAdd64(&allocator_shim_counter, size - old_size);
+    }
+    else {
+      ::InterlockedAdd64(
+        &allocator_shim_counter,
+        -static_cast<LONG64>(old_size - size));
+    }
+  }
+  return new_address;
 }
 
 void DefaultWinHeapFreeImpl(const AllocatorDispatch*, void* address) {
+  if (address) {
+    size_t size = base::allocator::WinHeapGetSizeEstimate(address);
+    ::InterlockedAdd64(&allocator_shim_counter, -static_cast<LONG64>(size));
+  }
   base::allocator::WinHeapFree(address);
 }
 
