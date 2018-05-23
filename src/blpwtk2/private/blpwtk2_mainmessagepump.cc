@@ -417,6 +417,13 @@ void MainMessagePump::flush()
     for (int i=0; i<255; ++i) {
         LONG workState = work_state_;
         if (HAVE_WORK == workState) {
+            // This call to schedulePump() is not strictly required but it
+            // helps to keep the data members in the expected state.   The
+            // side effect of calling schedulePump() is the setting of the
+            // d_isPumped flag to 1.  doWork() throws an assertion if this
+            // flag is not set to 1.
+            schedulePump();
+
             doWork();
         }
         else {
