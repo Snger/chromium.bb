@@ -60,8 +60,7 @@ class PerformanceProfiler final : public cc::Profiler {
   public:
     PerformanceProfiler();
 
-    void setDelegate(blpwtk2::WebViewDelegate *delegate, int routingId);
-    void clearDelegate(int routingId);
+    void setDelegate(int routingId, blpwtk2::WebViewDelegate *delegate);
     void beginProfile(int routingId) override;
     void endProfile(int routingId) override;
 };
@@ -75,29 +74,24 @@ PerformanceProfiler::PerformanceProfiler()
 {
 }
 
-void PerformanceProfiler::setDelegate(blpwtk2::WebViewDelegate *delegate, int routingId)
+void PerformanceProfiler::setDelegate(int routingId, blpwtk2::WebViewDelegate *delegate)
 {
-    DCHECK(delegate && routingId);
-    if (!delegate || !routingId) {
-        return;
-    }
-
-    d_delegateMap[routingId] = delegate;
-
-    if (!d_isProfilerSet) {
-        d_isProfilerSet = true;
-        cc::ProxyMain::SetProfiler(this);
-    }
-}
-
-void PerformanceProfiler::clearDelegate(int routingId)
-{
+    // Remove any existing delegate associated with this routing id
     DelegateMap::iterator iter = d_delegateMap.find(routingId);
     if (iter != d_delegateMap.end()) {
         if (d_activeProfiles.find(routingId) != d_activeProfiles.end()) {
             endProfile(routingId);
         }
         d_delegateMap.erase(iter);
+    }
+
+    if (delegate) {
+        d_delegateMap[routingId] = delegate;
+
+        if (!d_isProfilerSet) {
+            d_isProfilerSet = true;
+            cc::ProxyMain::SetProfiler(this);
+        }
     }
 }
 
@@ -155,14 +149,13 @@ WebViewProxy::~WebViewProxy()
         d_client = nullptr;
         client->releaseHost();
     }
-
-    s_profiler.clearDelegate(d_renderViewRoutingId);
 }
 
 void WebViewProxy::destroy()
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(!d_pendingDestroy);
+    s_profiler.setDelegate(d_renderViewRoutingId, nullptr);
 
     // Schedule a deletion of this WebViewProxy.  The reason we don't delete
     // the object right here right now is because there may be a callback
@@ -386,8 +379,7 @@ void WebViewProxy::setDelegate(WebViewDelegate *delegate)
     DCHECK(Statics::isInApplicationMainThread());
     d_delegate = delegate;
 
-    s_profiler.clearDelegate(d_renderViewRoutingId);
-    s_profiler.setDelegate(d_delegate, d_renderViewRoutingId);
+    s_profiler.setDelegate(d_renderViewRoutingId, d_delegate);
 }
 
 int WebViewProxy::getRoutingId() const
@@ -534,8 +526,8 @@ void WebViewProxy::notifyRoutingId(int id)
     }
 
     d_gotRenderViewInfo = true;
-    s_profiler.clearDelegate(d_renderViewRoutingId);
-    s_profiler.setDelegate(d_delegate, id);
+    s_profiler.setDelegate(d_renderViewRoutingId, nullptr);
+    s_profiler.setDelegate(id, d_delegate);
 
     d_renderViewRoutingId = id;
     LOG(INFO) << "routingId=" << id;
