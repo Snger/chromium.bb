@@ -650,7 +650,7 @@ void StyleBuilderFunctions::applyValueCSSPropertyWebkitBorderImage(
 
 void StyleBuilderFunctions::applyValueCSSPropertyWebkitCaretColor(StyleResolverState& state, const CSSValue& value)
 {
-    if (value.isPrimitiveValue() || value.isColorValue()) {
+    if (value.isIdentifierValue() || value.isColorValue()) {
         Color col = state.document().textLinkColors().colorFromCSSValue(value, state.style()->visitedDependentColor(CSSPropertyWebkitCaretColor));
         state.style()->setCaretColor(col);
     }
