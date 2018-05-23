@@ -593,12 +593,6 @@ PositionTemplate<Strategy> firstEditablePositionAfterPositionInRootAlgorithm(
       !editablePosition.anchorNode()->isDescendantOf(&highestRoot))
     return PositionTemplate<Strategy>();
 
-  // If |editablePosition| has the non-editable child skipped, get the next
-  // sibling position. If not, we can't get the next paragraph in
-  // InsertListCommand::doApply's while loop. See http://crbug.com/571420
-  if (nonEditableNode &&
-      nonEditableNode->isDescendantOf(editablePosition.anchorNode()))
-    editablePosition = nextVisuallyDistinctCandidate(editablePosition);
   return editablePosition;
 }
 
