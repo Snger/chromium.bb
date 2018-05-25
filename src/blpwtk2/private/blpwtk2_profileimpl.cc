@@ -35,6 +35,7 @@
 #include <ipc/ipc_sender.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/common/service_manager/child_connection.h>
+#include <components/printing/renderer/print_web_view_helper.h>
 #include <mojo/public/cpp/bindings/strong_binding.h>
 
 // TODO(imran): This helper function is stolen from a newer version of Mojo.
@@ -384,6 +385,7 @@ void ProfileImpl::setPacUrl(const StringRef& url)
 
 void ProfileImpl::setDefaultPrinter(const StringRef& name)
 {
+    printing::PrintWebViewHelper::UseDefaultPrintSettings();
     d_hostPtr->setDefaultPrinter(std::string(name.data(), name.size()));
 }
 
