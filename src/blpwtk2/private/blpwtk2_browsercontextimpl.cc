@@ -46,6 +46,7 @@
 #include <components/keyed_service/content/browser_context_dependency_manager.h>
 #include <components/pref_registry/pref_registry_syncable.h>
 #include <components/user_prefs/user_prefs.h>
+#include <components/printing/renderer/print_web_view_helper.h>
 #include <net/proxy/proxy_config.h>
 #include <printing/backend/print_backend.h>
 
@@ -388,6 +389,7 @@ void BrowserContextImpl::setPacUrl(const StringRef& url)
 
 void BrowserContextImpl::setDefaultPrinter(const StringRef& name)
 {
+    printing::PrintWebViewHelper::UseDefaultPrintSettings();
     printing::PrintBackend::SetUserDefaultPrinterName(
             std::string(name.data(), name.size()));
 }

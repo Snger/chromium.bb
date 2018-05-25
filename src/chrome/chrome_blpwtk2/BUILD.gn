@@ -42,6 +42,8 @@ static_library("chrome_blpwtk2") {
     "//chrome/browser/printing/print_job_worker_owner.h",
     "//chrome/browser/printing/print_view_manager_base.cc",
     "//chrome/browser/printing/print_view_manager_base.h",
+    "//chrome/browser/printing/print_view_manager.cc",
+    "//chrome/browser/printing/print_view_manager.h",
     "//chrome/browser/printing/printing_message_filter.cc",
     "//chrome/browser/printing/printing_message_filter.h",
     "//chrome/browser/printing/printer_query.cc",
