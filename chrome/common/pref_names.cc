@@ -916,6 +916,8 @@ const char kMinimumAllowedChromeVersion[] = "minimum_req.version";
 const char kShowSyncSettingsOnSessionStart[] =
     "start_sync_settings_on_session_start";
 
+const char kEnableSyncConsent[] = "sync_consent.enabled";
+
 #endif  // defined(OS_CHROMEOS)
 
 // A boolean pref set to true if a Home button to open the Home pages should be
