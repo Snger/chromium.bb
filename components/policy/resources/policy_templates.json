@@ -11499,6 +11499,23 @@
 
       Note that if <ph name="PRODUCT_NAME">$1<ex>Google Chrome</ex></ph> is running and this policy changes, it will be applied only to new opened tabs. Therefore some tabs might still observe the previous behavior.
       ''',
+    },
+    {
+      'name': 'EnableSyncConsent',
+      'type': 'main',
+      'schema': { 'type': 'boolean'},
+      'supported_on': ['chrome_os: 66-'],
+      'features': {
+        'dynamic_refresh': True,
+        'per_profile': True,
+      },
+      'example_value': False,
+      'id': 451,
+      'caption': '''Enable displaying Sync Consent during sign-in''',
+      'tags': [],
+      'desc': '''This policy controls if Sync Consent can be shown to the user during first sign-in. It should be set to false if Sync Consent is never needed for the user.
+      If set to false, Sync Consent will not be displayed.
+      If set to true or unset, Sync Consent can be displayed.''',
     }
   ],
 

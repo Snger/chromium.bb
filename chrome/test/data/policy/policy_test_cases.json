@@ -3588,6 +3588,12 @@
     ]
   },
 
+  "EnableSyncConsent": {
+    "os": ["chromeos"],
+    "test_policy": { "EnableSyncConsent": false },
+    "pref_mappings": []
+  },
+
   "----- Chrome Frame policies -------------------------------------------": {},
 
   "ChromeFrameRendererSettings": {
