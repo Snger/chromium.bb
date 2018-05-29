@@ -11,8 +11,36 @@
 
 namespace blink {
 
+static void adjustedFontDescriptionForBoldItalic(FontDescription& fontDescription,
+                                                 WTF::String& fontName)
+{
+    if (fontName.endsWith(" Italic")) {
+        fontDescription.setStyle(FontStyleItalic);
+        fontName = fontName.substring(0, fontName.length() - 7);
+    }
+    if (fontName.endsWith(" Bold")) {
+        fontDescription.setWeight(FontWeightBold);
+        fontName = fontName.substring(0, fontName.length() - 5);
+    }
+}
+
+LocalFontFaceSource::LocalFontFaceSource(const String& fontName)
+    : m_fontName(fontName)
+    , m_needToAdjustForBoldItalic(fontName.endsWith(" Bold") || 
+                                  fontName.endsWith(" Italic"))
+{
+}
+
 bool LocalFontFaceSource::isLocalFontAvailable(
     const FontDescription& fontDescription) {
+  if (m_needToAdjustForBoldItalic) {
+    FontDescription adjustedFontDescription = fontDescription;
+    WTF::String adjustedFontName = m_fontName.getString();
+    adjustedFontDescriptionForBoldItalic(adjustedFontDescription, adjustedFontName);
+    return FontCache::fontCache()->isPlatformFontAvailable(
+        adjustedFontDescription, WTF::AtomicString(adjustedFontName));
+  }
+
   return FontCache::fontCache()->isPlatformFontAvailable(fontDescription,
                                                          m_fontName);
 }
@@ -21,8 +49,19 @@ PassRefPtr<SimpleFontData> LocalFontFaceSource::createFontData(
     const FontDescription& fontDescription) {
   // We don't want to check alternate font family names here, so pass true as
   // the checkingAlternateName parameter.
-  RefPtr<SimpleFontData> fontData =
-      FontCache::fontCache()->getFontData(fontDescription, m_fontName, true);
+  RefPtr<SimpleFontData> fontData;
+  if (m_needToAdjustForBoldItalic) {
+      FontDescription adjustedFontDescription = fontDescription;
+      WTF::String adjustedFontName = m_fontName.getString();
+      adjustedFontDescriptionForBoldItalic(adjustedFontDescription, adjustedFontName);
+      fontData = FontCache::fontCache()->getFontData(adjustedFontDescription,
+                                                      WTF::AtomicString(adjustedFontName),
+                                                      true);
+  }
+  else {
+      fontData = FontCache::fontCache()->getFontData(fontDescription, m_fontName, true);
+  }
+
   m_histograms.record(fontData.get());
   return fontData.release();
 }
