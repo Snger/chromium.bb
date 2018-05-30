@@ -51,18 +51,15 @@ def applyVariableToEnvironment(env, var, val):
 def copyVersionFile(destDir):
   gitHash = bbutil.getHEADSha()
   destFile = os.path.join(destDir, 'version.txt')
-  srcFile = os.path.join(chromiumDir, 'version.txt')
   with open(destFile, 'w') as fDest:
-    with open(srcFile, 'r') as fSrc:
-      if 'GN_GENERATORS' in os.environ:
-        fDest.write('GN_GENERATORS="' + os.environ['GN_GENERATORS'] + '"\n')
-      if 'GN_GENERATOR_FLAGS' in os.environ:
-        fDest.write('GN_GENERATOR_FLAGS="' +
-                    os.environ['GN_GENERATOR_FLAGS'] + '"\n')
-      if 'GN_DEFINES' in os.environ:
-        fDest.write('GN_DEFINES="' + os.environ['GN_DEFINES'] + '"\n')
-      fDest.write('chromium.bb commit ' + gitHash + '\n\n')
-      fDest.write(fSrc.read())
+    if 'GN_GENERATORS' in os.environ:
+      fDest.write('GN_GENERATORS="' + os.environ['GN_GENERATORS'] + '"\n')
+    if 'GN_GENERATOR_FLAGS' in os.environ:
+      fDest.write('GN_GENERATOR_FLAGS="' +
+                  os.environ['GN_GENERATOR_FLAGS'] + '"\n')
+    if 'GN_DEFINES' in os.environ:
+      fDest.write('GN_DEFINES="' + os.environ['GN_DEFINES'] + '"\n')
+    fDest.write('chromium.wtk2 commit ' + gitHash + '\n\n')
 
 
 def findHeaderFiles(dirs):
