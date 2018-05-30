@@ -25,6 +25,7 @@
 
 from __future__ import print_function
 import os, sys, bbutil, shutil
+from blpwtk2 import content_version
 
 
 scriptDir = os.path.dirname(os.path.realpath(__file__))
@@ -206,11 +207,7 @@ def main(args):
     raise Exception("Output directory does not exist: " + outDir)
 
   os.chdir(chromiumDir)
-  for name in os.listdir('.'):
-    if name[0].isdigit():
-      version = name + '_' + version
-      break
-
+  version = content_version + '_' + version
   destDir = os.path.join(outDir, version)
   if os.path.exists(destDir):
     raise Exception("Path already exists: " + destDir)
