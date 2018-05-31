@@ -66,16 +66,21 @@ def copyVersionFile(destDir):
 def findHeaderFiles(dirs):
   for d in dirs:
     for dirpath, dirnames, files in os.walk(d):
+      relpath = os.path.relpath(dirpath, d)
       for f in files:
         if not f.endswith('.h'):
           continue
-        yield dirpath, f
+        yield d, relpath, f
 
 
 def copyIncludeFilesFrom(destDir, sourceDirs):
-  for dirpath, f in findHeaderFiles(sourceDirs):
-    src = os.path.join(dirpath, f)
-    dest = os.path.join(destDir, f)
+  for basepath, relpath, f in findHeaderFiles(sourceDirs):
+    destpath = os.path.join(destDir, relpath)
+    if not os.path.exists(destpath):
+      os.mkdir(destpath)
+
+    src = os.path.join(basepath, relpath, f)
+    dest = os.path.join(destpath, f)
     shutil.copyfile(src, dest)
 
 
@@ -263,8 +268,6 @@ def main(args):
   os.mkdir(os.path.join(destDir, 'bin', 'Debug'))
   os.mkdir(os.path.join(destDir, 'bin', 'Release'))
   os.mkdir(os.path.join(destDir, 'include'))
-  os.mkdir(os.path.join(destDir, 'include', 'blpwtk2'))
-  os.mkdir(os.path.join(destDir, 'include', 'v8'))
   os.mkdir(os.path.join(destDir, 'lib'))
   os.mkdir(os.path.join(destDir, 'lib', 'Debug'))
   os.mkdir(os.path.join(destDir, 'lib', 'Release'))
