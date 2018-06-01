@@ -50,6 +50,10 @@ class WebKeyboardEvent : public WebInputEvent {
   // easier to leave it always false than ifdef.
   bool is_system_key;
 
+  // This specifies whether the NumLock was active when the keyboard event
+  // occurred.
+  bool is_num_lock;
+
   // Whether the event forms part of a browser-handled keyboard shortcut.
   // This can be used to conditionally suppress Char events after a
   // shortcut-triggering RawKeyDown goes unhandled.
@@ -68,9 +72,12 @@ class WebKeyboardEvent : public WebInputEvent {
       : WebInputEvent(sizeof(WebKeyboardEvent),
                       type,
                       modifiers,
-                      time_stamp_seconds) {}
+                      time_stamp_seconds)
+      , is_num_lock(false) {}
 
-  WebKeyboardEvent() : WebInputEvent(sizeof(WebKeyboardEvent)) {}
+  WebKeyboardEvent()
+      : WebInputEvent(sizeof(WebKeyboardEvent))
+      , is_num_lock(false) {}
 
   // Please refer to bug http://b/issue?id=961192, which talks about Webkit
   // keyboard event handling changes. It also mentions the list of keys

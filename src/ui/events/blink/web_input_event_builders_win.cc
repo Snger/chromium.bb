@@ -59,6 +59,9 @@ WebKeyboardEvent WebKeyboardEventBuilder::Build(HWND hwnd,
   // Record the scan code (along with other context bits) for this key event.
   result.native_key_code = static_cast<int>(lparam);
 
+  if (::GetKeyState(VK_NUMLOCK) & 0x1)
+    result.is_num_lock = true;
+
   if (result.GetType() == WebInputEvent::kChar ||
       result.GetType() == WebInputEvent::kRawKeyDown) {
     result.text[0] = result.windows_key_code;
