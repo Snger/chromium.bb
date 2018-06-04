@@ -422,7 +422,10 @@ void SelectionController::UpdateSelectionForMouseDrag(
   if (!mouse_down_may_start_select_)
     return;
 
-  Node* target = hit_test_result.InnerNode();
+  HitTestResult adjustedHitTestResult = AdjustHitTestResultForSelectability(
+        hit_test_result, mouse_press_node, last_known_mouse_position);
+
+  Node* target = adjustedHitTestResult.InnerNode();
   if (!target)
     return;
 
@@ -434,7 +437,7 @@ void SelectionController::UpdateSelectionForMouseDrag(
       Selection().SelectionHasFocus()
           ? PositionRespectingEditingBoundary(
                 Selection().ComputeVisibleSelectionInDOMTree().Start(),
-                hit_test_result.LocalPoint(), target)
+                adjustedHitTestResult.LocalPoint(), target)
           : PositionWithAffinity();
   VisiblePositionInFlatTree target_position = CreateVisiblePosition(
       FromPositionInDOMTree<EditingInFlatTreeStrategy>(raw_target_position));
@@ -1022,6 +1025,51 @@ void SelectionController::UpdateSelectionForMouseDrag(
   layout_item.HitTest(result);
   UpdateSelectionForMouseDrag(result, mouse_press_node, drag_start_pos,
                               last_known_mouse_position);
+}
+
+HitTestResult SelectionController::AdjustHitTestResultForSelectability(
+    const HitTestResult& result,
+    Node* mousePressNode,
+    const IntPoint& lastKnownMousePosition)
+{
+    if (!result.InnerNode() || !mousePressNode || !mousePressNode->GetLayoutObject())
+        return result;
+
+    // Check if we should constrain the selection to within the selectable
+    // area around the initial mousedown node.
+    Node* constraint = mousePressNode;
+    while (constraint->parentNode() && constraint->parentNode()->GetLayoutObject() && constraint->parentNode()->GetLayoutObject()->IsSelectable())
+        constraint = constraint->parentNode();
+
+    // If the existing hit test result is within the constraint, then we don't
+    // need to rerun the hit test.
+    if (constraint->contains(result.InnerNode()))
+        return result;
+
+    // Otherwise, we need to constrain the mouse position to the bounds of the
+    // 'constraint' node, then rerun the hit test.
+
+    LayoutPoint mousePosition = frame_->View() ? frame_->View()->RootFrameToContents(lastKnownMousePosition)
+                                                : lastKnownMousePosition;
+
+    LayoutRect boundingBox(constraint->GetLayoutObject()->AbsoluteBoundingBoxRect());
+    if (mousePosition.X() < boundingBox.X()) {
+        mousePosition.SetX(boundingBox.X());
+    }
+    else if (mousePosition.X() > boundingBox.MaxX()) {
+        mousePosition.SetX(boundingBox.MaxX());
+    }
+    if (mousePosition.Y() < boundingBox.Y()) {
+        mousePosition.SetY(boundingBox.Y());
+    }
+    else if (mousePosition.Y() > boundingBox.MaxY()) {
+        mousePosition.SetY(boundingBox.MaxY());
+    }
+
+    HitTestRequest request(HitTestRequest::kReadOnly | HitTestRequest::kActive);
+    HitTestResult newResult(request, mousePosition);
+    frame_->GetDocument()->GetLayoutView()->HitTest(newResult);
+    return newResult;
 }
 
 bool SelectionController::HandleMouseReleaseEvent(
