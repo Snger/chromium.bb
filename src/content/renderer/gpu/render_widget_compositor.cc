@@ -1146,4 +1146,9 @@ void RenderWidgetCompositor::SetDeviceColorSpace(
   layer_tree_host_->GetLayerTree()->SetDeviceColorSpace(color_space);
 }
 
+void RenderWidgetCompositor::FinishAllRendering()
+{
+   layer_tree_host_->FinishAllRendering();
+}
+
 }  // namespace content

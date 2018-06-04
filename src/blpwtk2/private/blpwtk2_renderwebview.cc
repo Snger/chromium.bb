@@ -214,6 +214,24 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
     case WM_NCDESTROY: {
         d_hwnd.release();
     } return 0;
+    case WM_WINDOWPOSCHANGING: {
+        auto windowpos = reinterpret_cast<WINDOWPOS *>(lParam);
+
+        gfx::Size size(windowpos->cx, windowpos->cy);
+
+        if ((size != d_size && !(windowpos->flags & SWP_NOSIZE)) ||
+             windowpos->flags & SWP_FRAMECHANGED) {
+            if (d_gotRenderViewInfo) {
+                content::RenderWidget* rw =
+                    content::RenderViewImpl::FromRoutingID(d_renderViewRoutingId);
+                DCHECK(rw);
+
+                rw->compositor()->FinishAllRendering();
+            }
+
+            d_compositor->Resize(gfx::Size());
+        }
+    } break;
     case WM_WINDOWPOSCHANGED: {
         auto windowpos = reinterpret_cast<WINDOWPOS *>(lParam);
 
@@ -224,8 +242,11 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
             updateVisibility();
         }
 
-        if (!(windowpos->flags & SWP_NOSIZE)) {
-            d_size = gfx::Size(windowpos->cx, windowpos->cy);
+        gfx::Size size(windowpos->cx, windowpos->cy);
+
+        if ((size != d_size && !(windowpos->flags & SWP_NOSIZE)) ||
+            windowpos->flags & SWP_FRAMECHANGED) {
+            d_size = size;
 
             updateSize();
         }
