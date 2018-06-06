@@ -777,8 +777,12 @@ void GraphicsContext::DrawHighlightForText(const Font& font,
   if (ContextDisabled())
     return;
 
+  // SHEZ: disable antialiasing for selection rects
+  bool previousAntiAliasSetting = ShouldAntialias();
+  SetShouldAntialias(false);
   FillRect(font.SelectionRectForText(run, point, h, from, to),
            background_color);
+  SetShouldAntialias(previousAntiAliasSetting);
 }
 
 void GraphicsContext::DrawImage(
