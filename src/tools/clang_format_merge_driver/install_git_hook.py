@@ -13,10 +13,7 @@ _VERSION = 1
 
 def BuildGitCmd(*args):
   cmd = []
-  if sys.platform == 'win32':
-    cmd.append('git.bat')
-  else:
-    cmd.append('git')
+  cmd.append('git')
   cmd.extend(args)
   return cmd
 

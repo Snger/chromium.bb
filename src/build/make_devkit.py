@@ -25,6 +25,7 @@
 
 from __future__ import print_function
 import os, sys, bbutil, shutil
+from blpwtk2 import content_version
 
 
 scriptDir = os.path.dirname(os.path.realpath(__file__))
@@ -51,33 +52,35 @@ def applyVariableToEnvironment(env, var, val):
 def copyVersionFile(destDir):
   gitHash = bbutil.getHEADSha()
   destFile = os.path.join(destDir, 'version.txt')
-  srcFile = os.path.join(chromiumDir, 'version.txt')
   with open(destFile, 'w') as fDest:
-    with open(srcFile, 'r') as fSrc:
-      if 'GN_GENERATORS' in os.environ:
-        fDest.write('GN_GENERATORS="' + os.environ['GN_GENERATORS'] + '"\n')
-      if 'GN_GENERATOR_FLAGS' in os.environ:
-        fDest.write('GN_GENERATOR_FLAGS="' +
-                    os.environ['GN_GENERATOR_FLAGS'] + '"\n')
-      if 'GN_DEFINES' in os.environ:
-        fDest.write('GN_DEFINES="' + os.environ['GN_DEFINES'] + '"\n')
-      fDest.write('chromium.bb commit ' + gitHash + '\n\n')
-      fDest.write(fSrc.read())
+    if 'GN_GENERATORS' in os.environ:
+      fDest.write('GN_GENERATORS="' + os.environ['GN_GENERATORS'] + '"\n')
+    if 'GN_GENERATOR_FLAGS' in os.environ:
+      fDest.write('GN_GENERATOR_FLAGS="' +
+                  os.environ['GN_GENERATOR_FLAGS'] + '"\n')
+    if 'GN_DEFINES' in os.environ:
+      fDest.write('GN_DEFINES="' + os.environ['GN_DEFINES'] + '"\n')
+    fDest.write('chromium.wtk2 commit ' + gitHash + '\n\n')
 
 
 def findHeaderFiles(dirs):
   for d in dirs:
     for dirpath, dirnames, files in os.walk(d):
+      relpath = os.path.relpath(dirpath, d)
       for f in files:
         if not f.endswith('.h'):
           continue
-        yield dirpath, f
+        yield d, relpath, f
 
 
 def copyIncludeFilesFrom(destDir, sourceDirs):
-  for dirpath, f in findHeaderFiles(sourceDirs):
-    src = os.path.join(dirpath, f)
-    dest = os.path.join(destDir, f)
+  for basepath, relpath, f in findHeaderFiles(sourceDirs):
+    destpath = os.path.join(destDir, relpath)
+    if not os.path.exists(destpath):
+      os.mkdir(destpath)
+
+    src = os.path.join(basepath, relpath, f)
+    dest = os.path.join(destpath, f)
     shutil.copyfile(src, dest)
 
 
@@ -183,7 +186,7 @@ def addGenFiles():
 
 
 def main(args):
-  version = "bb701"   # SET BB VERSION NUMBER HERE
+  version = "bb703"   # SET BB VERSION NUMBER HERE
 
   outDir = None
   doClean = True
@@ -209,11 +212,7 @@ def main(args):
     raise Exception("Output directory does not exist: " + outDir)
 
   os.chdir(chromiumDir)
-  for name in os.listdir('.'):
-    if name[0].isdigit():
-      version = name + '_' + version
-      break
-
+  version = content_version + '_' + version
   destDir = os.path.join(outDir, version)
   if os.path.exists(destDir):
     raise Exception("Path already exists: " + destDir)
@@ -269,8 +268,6 @@ def main(args):
   os.mkdir(os.path.join(destDir, 'bin', 'Debug'))
   os.mkdir(os.path.join(destDir, 'bin', 'Release'))
   os.mkdir(os.path.join(destDir, 'include'))
-  os.mkdir(os.path.join(destDir, 'include', 'blpwtk2'))
-  os.mkdir(os.path.join(destDir, 'include', 'v8'))
   os.mkdir(os.path.join(destDir, 'lib'))
   os.mkdir(os.path.join(destDir, 'lib', 'Debug'))
   os.mkdir(os.path.join(destDir, 'lib', 'Release'))

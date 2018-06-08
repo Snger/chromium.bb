@@ -32,27 +32,32 @@
 # This script is a wrapper around gn for generating blpwtk2 build tree
 #
 # Usage:
-# blpwtk2.py                  -- Generate out/shared/Debug
-#                                         out/shared/Release
-#                                         out/static/Debug
-#                                         out/static/Release
+# blpwtk2.py                    -- Generate out/shared/Debug
+#                                           out/shared/Release
+#                                           out/static/Debug
+#                                           out/static/Release
+#                                           out/static/BuildMaster
 #
-# blpwtk2.py shared           -- Generate out/shared/Debug
-#                                         out/shared/Release
+# blpwtk2.py shared             -- Generate out/shared/Debug
+#                                           out/shared/Release
 #
-# blpwtk2.py static           -- Generate out/static/Debug
-#                                         out/static/Release
+# blpwtk2.py static             -- Generate out/static/Debug
+#                                           out/static/Release
+#                                           out/static/BuildMaster
 #
-# blpwtk2.py Debug            -- Generate out/shared/Debug
-#                                         out/static/Debug
+# blpwtk2.py Debug              -- Generate out/shared/Debug
+#                                           out/static/Debug
 #
-# blpwtk2.py Release          -- Generate out/shared/Release
-#                                         out/static/Release
+# blpwtk2.py Release            -- Generate out/shared/Release
+#                                           out/static/Release
 #
-# blpwtk2.py shared Debug     -- Generate out/shared/Debug
-# blpwtk2.py shared Release   -- Generate out/shared/Release
-# blpwtk2.py static Debug     -- Generate out/static/Debug
-# blpwtk2.py static Release   -- Generate out/static/Release
+# blpwtk2.py BuildMaster        -- Generate out/static/BuildMaster
+#
+# blpwtk2.py shared Debug       -- Generate out/shared/Debug
+# blpwtk2.py shared Release     -- Generate out/shared/Release
+# blpwtk2.py static Debug       -- Generate out/static/Debug
+# blpwtk2.py static Release     -- Generate out/static/Release
+# blpwtk2.py static BuildMaster -- Generate out/static/BuildMaster
 
 import os
 import sys
@@ -110,6 +115,9 @@ def createBuildCmd(gn_cmds, gn_mode, gn_type, bb_version):
   elif gn_mode == 'static' and gn_type == 'Release':
       gn_cmd = ' gen out/' + gn_mode + '/Release' + ' ' \
                + '--args="' + os.environ['GN_DEFINES'] + version + '"'
+  elif gn_mode == 'static' and gn_type == 'BuildMaster':
+      gn_cmd = ' gen out/' + gn_mode + '/BuildMaster' + ' ' \
+               + '--args="' + os.environ['GN_DEFINES'] + version + '"'
   gn_cmds.append(gn_cmd)
 
 def parseArgs(argv):
@@ -124,7 +132,7 @@ def parseArgs(argv):
       arg = argv[i]
       if arg == 'shared' or arg == 'static':
         gn_mode = arg
-      elif arg == 'Debug' or arg == 'Release':
+      elif arg == 'Debug' or arg == 'Release' or arg == 'BuildMaster':
         gn_type = arg
       elif arg == '--bb_version':
         with open('../devkit_version.txt', 'r') as f:
@@ -168,12 +176,19 @@ def parseArgs(argv):
       createBuildCmd(gn_static, gn_mode, 'Debug', bb_version)
       applyVariableToEnvironment('GN_DEFINES', 'is_debug', 'false')
       createBuildCmd(gn_static, gn_mode, 'Release', bb_version)
+      applyVariableToEnvironment('GN_DEFINES', 'is_official_build', 'true')
+      createBuildCmd(gn_static, gn_mode, 'BuildMaster', bb_version)
     else:
       if gn_type == 'Debug':
         applyVariableToEnvironment('GN_DEFINES', 'is_debug', 'true')
-      else:
+        createBuildCmd(gn_static, gn_mode, gn_type, bb_version)
+      elif gn_type == 'Release':
         applyVariableToEnvironment('GN_DEFINES', 'is_debug', 'false')
-      createBuildCmd(gn_static, gn_mode, gn_type, bb_version)
+        createBuildCmd(gn_static, gn_mode, gn_type, bb_version)
+      elif gn_type == 'BuildMaster':
+        applyVariableToEnvironment('GN_DEFINES', 'is_debug', 'false')
+        applyVariableToEnvironment('GN_DEFINES', 'is_official_build', 'true')
+        createBuildCmd(gn_static, gn_mode, gn_type, bb_version)
   else:
     if not gn_type:
       # Make GN shared Debug/Release tree
@@ -183,23 +198,38 @@ def parseArgs(argv):
       applyVariableToEnvironment('GN_DEFINES', 'is_debug', 'false')
       createBuildCmd(gn_shared, 'shared', 'Release', bb_version)
 
-      # Make GN static Debug/Release tree
+      # Make GN static Debug/Release/BuildMaster tree
       applyVariableToEnvironment('GN_DEFINES', 'is_component_build', 'false')
       applyVariableToEnvironment('GN_DEFINES', 'is_debug', 'true')
       createBuildCmd(gn_static, 'static', 'Debug', bb_version)
       applyVariableToEnvironment('GN_DEFINES', 'is_debug', 'false')
       createBuildCmd(gn_static, 'static', 'Release', bb_version)
+      applyVariableToEnvironment('GN_DEFINES', 'is_official_build', 'true')
+      createBuildCmd(gn_static, 'static', 'BuildMaster', bb_version)
     else:
       if gn_type == 'Debug':
         applyVariableToEnvironment('GN_DEFINES', 'is_debug', 'true')
-      else:
+
+        applyVariableToEnvironment('GN_DEFINES', 'is_component_build', 'true')
+        createBuildCmd(gn_shared, 'shared', gn_type, bb_version)
+
+        applyVariableToEnvironment('GN_DEFINES', 'is_component_build', 'false')
+        createBuildCmd(gn_static, 'static', gn_type, bb_version)
+
+      elif gn_type == 'Release':
         applyVariableToEnvironment('GN_DEFINES', 'is_debug', 'false')
 
-      applyVariableToEnvironment('GN_DEFINES', 'is_component_build', 'true')
-      createBuildCmd(gn_shared, 'shared', gn_type, bb_version)
+        applyVariableToEnvironment('GN_DEFINES', 'is_component_build', 'true')
+        createBuildCmd(gn_shared, 'shared', gn_type, bb_version)
 
-      applyVariableToEnvironment('GN_DEFINES', 'is_component_build', 'false')
-      createBuildCmd(gn_static, 'static', gn_type, bb_version)
+        applyVariableToEnvironment('GN_DEFINES', 'is_component_build', 'false')
+        createBuildCmd(gn_static, 'static', gn_type, bb_version)
+
+      elif gn_type == 'BuildMaster':
+        applyVariableToEnvironment('GN_DEFINES', 'is_official_build', 'true')
+        applyVariableToEnvironment('GN_DEFINES', 'is_debug', 'false')
+        applyVariableToEnvironment('GN_DEFINES', 'is_component_build', 'false')
+        createBuildCmd(gn_static, 'static', gn_type, bb_version)
 
   return gn_shared, gn_static, gn_type
 
@@ -218,7 +248,7 @@ def main(argv):
     if gn_type:
       print "Generating GN shared %s build tree" % gn_type
     else:
-      print "Generating GN shared debug and release build trees"
+      print "Generating GN shared Debug and Release build trees"
   sys.stdout.flush()
 
   generateBuildTree(gn_shared)
@@ -227,7 +257,7 @@ def main(argv):
     if gn_type:
       print "Generating GN static %s build tree" % gn_type
     else:
-      print "Generating GN static debug and release build trees"
+      print "Generating GN static Debug, Release and BuildMaster build trees"
   sys.stdout.flush()
   generateBuildTree(gn_static)
 
