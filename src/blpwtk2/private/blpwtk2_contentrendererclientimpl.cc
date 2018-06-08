@@ -32,7 +32,6 @@
 #include <base/strings/utf_string_conversions.h>
 #include <components/printing/renderer/print_web_view_helper.h>
 #include <components/spellcheck/renderer/spellcheck.h>
-#include <components/spellcheck/renderer/spellcheck_provider.h>
 #include <cc/output/compositor_frame_sink.h>
 #include <content/child/font_warmup_win.h>
 #include <content/public/renderer/render_thread.h>
@@ -81,10 +80,11 @@ void ContentRendererClientImpl::RenderViewCreated(
     d_spellCheckProvider = std::unique_ptr<SpellCheckProvider>(
             new SpellCheckProvider(render_view, d_spellcheck.get()));
 
-    new printing::PrintWebViewHelper(
-            render_view->GetMainRenderFrame(),
-            std::unique_ptr<printing::PrintWebViewHelper::Delegate>(
-                printing::PrintWebViewHelper::CreateEmptyDelegate()));
+    d_printWebViewHelper = std::unique_ptr<printing::PrintWebViewHelper>(
+            new printing::PrintWebViewHelper(
+                render_view->GetMainRenderFrame(),
+                std::unique_ptr<printing::PrintWebViewHelper::Delegate>(
+                    printing::PrintWebViewHelper::CreateEmptyDelegate())));
 }
 
 void ContentRendererClientImpl::GetNavigationErrorStrings(

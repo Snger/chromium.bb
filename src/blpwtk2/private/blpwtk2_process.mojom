@@ -70,16 +70,16 @@ interface ProcessHost {
     registerNativeViewForStreaming(uint32 view) => (string media_id);
         // Register a NativeView as a streaming media source
 
+    [Sync]
+    registerScreenForStreaming(uint32 view) => (string media_id);
+        // Register a Display device as a streaming media source
+
     setDefaultPrinter(string name);
         // Sets the printer to use by default
 
     dumpDiagnostics(int32 type, string path);
         // Request process host to dump diagnostic information to the file
         // located in 'path'.
-
-    [Sync]
-    registerScreenForStreaming(uint32 view) => (string media_id);
-        // Register a Display device as a streaming media source
 
     addHttpProxy(ProxyConfigType type, string host, int32 port);
         // Add a new proxy host 'host':'port'.  This will cause the browser
