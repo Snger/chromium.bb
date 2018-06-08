@@ -137,18 +137,13 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     // preferences for all services associated with this context.
     content::BrowserContext::Initialize(this, base::FilePath());
     
-    // Create an instance of SpellcheckService for this browser context.
-    // The SpellcheckService constructor perform lookups of spellcheck
-    // related preferences from the preference service.  For this reason,
-    // it is important to call it after content::BrowerContext::Initialize().
-    SpellcheckServiceFactory::GetForContext(this);
-
     // GetForContext(this) should be called here for all service factories.
     // This will create an instance of the service for this context.  It's
     // possible for the service to do lookups of its preference keys in the
     // preference service.  For this reason, it is important to call this
     // after content::BrowserContext::Initialize().
     {
+        SpellcheckServiceFactory::GetForContext(this);
     }
 
     d_proxyConfig = std::make_unique<net::ProxyConfig>();
