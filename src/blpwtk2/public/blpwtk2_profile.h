@@ -68,7 +68,7 @@ class Profile
         // behavior is undefined if this Profile object is used after
         // 'destroy' has been called.
 
-    virtual String createHostChannel(int              pid,
+    virtual String createHostChannel(unsigned int     pid,
                                      bool             isolated,
                                      const StringRef& profileDir) = 0;
         // Ask the browser to create another ProcessHost and return a channel
@@ -77,6 +77,9 @@ class Profile
         // ProcessHost.
 
     virtual String registerNativeViewForStreaming(NativeView view) = 0;
+        // TODO(imran)
+
+    virtual String registerScreenForStreaming(NativeScreen screen) = 0;
         // TODO(imran)
 
     virtual void createWebView(

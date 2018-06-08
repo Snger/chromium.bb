@@ -2603,6 +2603,7 @@ if (!v8_as_shared_library) {
       ":v8_base",
       ":v8_maybe_snapshot",
       "//blpwtk2:blpwtk2_generate_sources",
+      "//base:base",
       "//base/allocator",
     ]
 

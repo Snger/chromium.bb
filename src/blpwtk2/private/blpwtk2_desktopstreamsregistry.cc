@@ -24,6 +24,7 @@
 
 #include <base/base64.h>
 #include <base/location.h>
+#include <base/logging.h>
 #include <base/rand_util.h>
 #include <base/time/time.h>
 #include <content/public/browser/browser_thread.h>
@@ -53,6 +54,27 @@ DesktopStreamsRegistry* DesktopStreamsRegistry::GetInstance() {
   return base::Singleton<DesktopStreamsRegistry>::get();
 }
 
+std::string DesktopStreamsRegistry::RegisterScreenForStreaming(NativeScreen screen) {
+    content::DesktopMediaID source;
+    source.type = content::DesktopMediaID::TYPE_SCREEN;
+    MONITORINFOEX mi;
+    mi.cbSize = sizeof(MONITORINFOEX);
+    GetMonitorInfo(screen, &mi);
+
+    // enumerateDisplayDevices and match device names
+    BOOL enum_result = TRUE;
+    for (int device_index = 0; enum_result; ++device_index) {
+      DISPLAY_DEVICE device;
+      device.cb = sizeof(device);
+      enum_result = EnumDisplayDevices(NULL, device_index, &device, 0);
+      if (wcscmp(mi.szDevice, device.DeviceName) == 0) {
+         source.id = device_index;
+         break;
+      }
+   }
+    return GetInstance()->RegisterStream(source);
+}
+
 std::string DesktopStreamsRegistry::RegisterNativeViewForStreaming(NativeView view) {
   content::DesktopMediaID source;
   source.type = content::DesktopMediaID::TYPE_WINDOW;
@@ -73,7 +95,7 @@ std::string DesktopStreamsRegistry::RegisterStream(
   ApprovedDesktopMediaStream& stream = approved_streams_[id];
   stream.source = source;
   stream.device = content::MediaStreamDevice(
-      content::MEDIA_DESKTOP_VIDEO_CAPTURE, stream.source.ToString(), "Screen");
+      content::MEDIA_DESKTOP_VIDEO_CAPTURE, source.ToString(), source.ToString());
 
   content::BrowserThread::PostDelayedTask(
       content::BrowserThread::UI, FROM_HERE,

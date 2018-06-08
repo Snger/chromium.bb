@@ -405,8 +405,37 @@ void MainMessagePump::init()
     PushRunState(&d_runState, base::MessageLoop::current());
 }
 
+void MainMessagePump::flush()
+{
+    // We repeatedly flush the event loop up to 255 times.  We set an
+    // upper bound on the number of times the flush occurs because it's
+    // possible for a task to recursively schedule another task on the
+    // same thread.  If this pattern repeats indefinitely, the flush
+    // operation would never end and we would be stuck in an infinite
+    // loop.
+
+    for (int i=0; i<255; ++i) {
+        LONG workState = work_state_;
+        if (HAVE_WORK == workState) {
+            // This call to schedulePump() is not strictly required but it
+            // helps to keep the data members in the expected state.   The
+            // side effect of calling schedulePump() is the setting of the
+            // d_isPumped flag to 1.  doWork() throws an assertion if this
+            // flag is not set to 1.
+            schedulePump();
+
+            doWork();
+        }
+        else {
+            break;
+        }
+    }
+}
+
 void MainMessagePump::cleanup()
 {
+    flush();
+
     PopRunState();
     d_runLoop->AfterRun();
     d_runLoop.reset();

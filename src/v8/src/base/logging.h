@@ -88,8 +88,8 @@ std::string* MakeCheckOpString(Lhs const& lhs, Rhs const& rhs,
 
 // Commonly used instantiations of MakeCheckOpString<>. Explicitly instantiated
 // in logging.cc.
-#define DEFINE_MAKE_CHECK_OP_STRING(type)                                    \
-  extern template V8_BASE_EXPORT std::string* MakeCheckOpString<type, type>( \
+#define DEFINE_MAKE_CHECK_OP_STRING(type)                                       \
+  extern template BLPV8_BASE_EXPORT std::string* MakeCheckOpString<type, type>( \
       type const&, type const&, char const*);
 DEFINE_MAKE_CHECK_OP_STRING(int)
 DEFINE_MAKE_CHECK_OP_STRING(long)       // NOLINT(runtime/int)

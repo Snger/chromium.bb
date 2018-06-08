@@ -67,7 +67,7 @@ class ToolkitImpl : public Toolkit {
     // DATA
     ContentMainDelegateImpl d_mainDelegate;
     std::unique_ptr<content::ContentMainRunner> d_mainRunner;
-    std::unique_ptr<MainMessagePump> d_messagePump;
+    MainMessagePump *d_messagePump;
 
     std::unique_ptr<BrowserThread> d_browserThread;
         // Only used for the RENDERER_MAIN thread mode and when an external
@@ -133,6 +133,8 @@ class ToolkitImpl : public Toolkit {
     bool preHandleMessage(const NativeMsg *msg) override;
     void postHandleMessage(const NativeMsg *msg) override;
     void setTimerHiddenPageAlignmentInterval(double) override;
+    v8::Local<v8::Context> createWebScriptContext() override;
+    void disposeWebScriptContext(v8::Local<v8::Context> context) override;
     void addOriginToTrustworthyList(const StringRef& originString) override;
     void setWebViewHostObserver(WebViewHostObserver* observer) override;
     void setTraceThreshold(unsigned int timeoutMS) override;
