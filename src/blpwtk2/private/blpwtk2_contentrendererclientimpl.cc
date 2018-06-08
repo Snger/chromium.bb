@@ -25,7 +25,6 @@
 #include <blpwtk2_jswidget.h>
 #include <blpwtk2_rendercompositor.h>
 #include <blpwtk2_rendermessagedelegate.h>
-#include <blpwtk2_renderviewobserverimpl.h>
 #include <blpwtk2_resourceloader.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
@@ -76,9 +75,8 @@ void ContentRendererClientImpl::RenderThreadStarted()
 void ContentRendererClientImpl::RenderViewCreated(
     content::RenderView* render_view)
 {
-    // Note that RenderViewObserverImpl automatically gets deleted when the
-    // RenderView is destroyed.
-    new RenderViewObserverImpl(render_view);
+    d_renderViewObserver = std::unique_ptr<RenderViewObserverImpl>(
+            new RenderViewObserverImpl(render_view));
 
     new printing::PrintWebViewHelper(
             render_view->GetMainRenderFrame(),
