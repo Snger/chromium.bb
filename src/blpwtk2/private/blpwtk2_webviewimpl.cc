@@ -208,14 +208,11 @@ void WebViewImpl::overrideWebkitPrefs(content::WebPreferences *prefs)
 
 void WebViewImpl::onRenderViewHostMadeCurrent(content::RenderViewHost *renderViewHost)
 {
-    DCHECK(!d_renderViewHost || d_renderViewHost == renderViewHost);
-    if (!d_renderViewHost) {
-        d_renderViewHost = renderViewHost;
+    d_renderViewHost = renderViewHost;
 
-        int routingId = getRoutingId();
-        if (routingId >= 0 && d_implClient) {
-            d_implClient->gotNewRenderViewRoutingId(routingId);
-        }
+    int routingId = getRoutingId();
+    if (routingId >= 0 && d_implClient) {
+        d_implClient->gotNewRenderViewRoutingId(routingId);
     }
 }
 
@@ -317,7 +314,7 @@ static GURL GetDevToolsFrontendURL()
         "http://127.0.0.1:%d/devtools/inspector.html", port));
 }
 
-void WebViewImpl::loadInspector(int pid, int routingId)
+void WebViewImpl::loadInspector(unsigned int pid, int routingId)
 {
     DCHECK(Statics::isInBrowserMainThread());
     DCHECK(!d_wasDestroyed);

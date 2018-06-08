@@ -20,7 +20,7 @@ namespace platform {
  * of zero is passed, a suitable default based on the current number of
  * processors online will be chosen.
  */
-V8_PLATFORM_EXPORT v8::Platform* CreateDefaultPlatform(
+BLPV8_PLATFORM_EXPORT v8::Platform* CreateDefaultPlatform(
     int thread_pool_size = 0);
 
 /**
@@ -31,7 +31,7 @@ V8_PLATFORM_EXPORT v8::Platform* CreateDefaultPlatform(
  * not block if no task is pending. The |platform| has to be created using
  * |CreateDefaultPlatform|.
  */
-V8_PLATFORM_EXPORT bool PumpMessageLoop(v8::Platform* platform,
+BLPV8_PLATFORM_EXPORT bool PumpMessageLoop(v8::Platform* platform,
                                         v8::Isolate* isolate);
 
 /**
@@ -39,7 +39,7 @@ V8_PLATFORM_EXPORT bool PumpMessageLoop(v8::Platform* platform,
  *
  * The |platform| has to be created using |CreateDefaultPlatform|.
  */
-V8_PLATFORM_EXPORT void SetTracingController(
+BLPV8_PLATFORM_EXPORT void SetTracingController(
     v8::Platform* platform,
     v8::platform::tracing::TracingController* tracing_controller);
 

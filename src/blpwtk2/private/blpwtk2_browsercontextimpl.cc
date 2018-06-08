@@ -100,11 +100,35 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
         factory.set_user_prefs(d_userPrefs);
         d_prefService = factory.Create(d_prefRegistry.get());
         user_prefs::UserPrefs::Set(this, d_prefService.get());
+
         d_prefRegistry->RegisterBooleanPref(prefs::kPrintingEnabled, true);
     }
 
-    BrowserContextDependencyManager::GetInstance()->CreateBrowserContextServices(this);
+    // GetInstance() should be called here for all service factories.  This
+    // will cause the constructor of the class to register itself to the
+    // dependency manager.
+    {
+    }
+
+    // Register this context with the dependency manager.
+    auto dependencyManager = BrowserContextDependencyManager::GetInstance();
+    dependencyManager->CreateBrowserContextServices(this);
+
+    // Register our preference registry to the dependency manager.
+    dependencyManager->RegisterProfilePrefsForServices(this, d_prefRegistry.get());
+
+    // Initialize the browser context.  During this initialization, the
+    // context will ask the dependency manager to register profile
+    // preferences for all services associated with this context.
     content::BrowserContext::Initialize(this, base::FilePath());
+
+    // GetForContext(this) should be called here for all service factories.
+    // This will create an instance of the service for this context.  It's
+    // possible for the service to do lookups of its preference keys in the
+    // preference service.  For this reason, it is important to call this
+    // after content::BrowserContext::Initialize().
+    {
+    }
 
     d_proxyConfig = std::make_unique<net::ProxyConfig>();
     d_proxyConfig->proxy_rules().type =
@@ -149,6 +173,8 @@ BrowserContextImpl::~BrowserContextImpl()
 
     d_requestContextGetter = 0;
     d_isDestroyed = true;
+
+    ShutdownStoragePartitions();
 }
 
 URLRequestContextGetterImpl* BrowserContextImpl::requestContextGetter() const
@@ -197,7 +223,7 @@ void BrowserContextImpl::destroy()
     // BrowserContextImpl objects alive until Toolkit is destroyed.
 }
 
-String BrowserContextImpl::createHostChannel(int              pid,
+String BrowserContextImpl::createHostChannel(unsigned int     pid,
                                              bool             isolated,
                                              const StringRef& profileDir)
 {
@@ -207,7 +233,15 @@ String BrowserContextImpl::createHostChannel(int              pid,
 
 String BrowserContextImpl::registerNativeViewForStreaming(NativeView view)
 {
-    std::string media_id = DesktopStreamsRegistry::RegisterNativeViewForStreaming(view);
+    std::string media_id =
+        DesktopStreamsRegistry::RegisterNativeViewForStreaming(view);
+    return String(media_id);
+}
+
+String BrowserContextImpl::registerScreenForStreaming(NativeScreen screen)
+{
+    std::string media_id =
+        DesktopStreamsRegistry::RegisterScreenForStreaming(screen);
     return String(media_id);
 }
 

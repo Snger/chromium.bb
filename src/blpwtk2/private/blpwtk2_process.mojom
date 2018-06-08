@@ -37,14 +37,14 @@ struct WebViewCreateParams {
     bool javascriptCanAccessClipboard;
     bool rerouteMouseWheelToAnyRelatedWindow;
 
-    int32 processId;
+    uint32 processId;
         // Process in which the RenderView will live.  A value of 0 will
         // cause Content to create a new subprocess to host the RenderView.
 };
 
 interface ProcessHost {
     [Sync]
-    createHostChannel(int32 pid, bool isolated, string profileDir) => (string channelInfo);
+    createHostChannel(uint32 pid, bool isolated, string profileDir) => (string channelInfo);
         // Create a new instance of process host for use with the process
         // 'pid'.  The instance will be kept alive until process 'pid'
         // calls bindProcess() to bind with it.  Once the instance is bound
@@ -54,7 +54,7 @@ interface ProcessHost {
         // initialize the toolkit.  This will allow the toolkit to establish
         // a Mojo connection so the process can issue Mojo requests.
 
-    bindProcess(int32 pid, bool launchDevToolsServer);
+    bindProcess(uint32 pid, bool launchDevToolsServer);
         // Once a child process establishes a Mojo connection given a channel
         // info, it must call bindProcess with its pid to signal the browser
         // to associate the connection of the incoming request with the
@@ -64,8 +64,12 @@ interface ProcessHost {
         // Create a new webview.
 
     [Sync]
-    registerNativeViewForStreaming(int32 view) => (string media_id);
+    registerNativeViewForStreaming(uint32 view) => (string media_id);
         // Register a NativeView as a streaming media source
+
+    [Sync]
+    registerScreenForStreaming(uint32 view) => (string media_id);
+        // Register a Display device as a streaming media source
 
     setDefaultPrinter(string name);
         // Sets the printer to use by default

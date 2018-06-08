@@ -151,7 +151,6 @@ ProcessHostImpl::Impl::Impl(bool isolated, const std::string& profileDir)
 
 ProcessHostImpl::Impl::~Impl()
 {
-    d_renderProcessHost->Cleanup();
     releaseBrowserContext(std::move(d_context));
 
     if (d_processHandle &&
@@ -241,7 +240,6 @@ int ProcessHostImpl::createPipeHandleForChild(
 
     DCHECK(!d_impl);
     d_impl = new Impl(isolated, profileDir);
-
 
     // Create a pipe for Mojo
     mojo::edk::PlatformChannelPair channel_pair;
@@ -374,7 +372,7 @@ void ProcessHostImpl::releaseAll()
 
 // mojom::ProcessHost overrides
 void ProcessHostImpl::createHostChannel(
-        int                              pid,
+        unsigned int                     pid,
         bool                             isolated,
         const std::string&               profileDir,
         const createHostChannelCallback& callback)
@@ -389,7 +387,7 @@ void ProcessHostImpl::createHostChannel(
             runner));
 }
 
-void ProcessHostImpl::bindProcess(int pid, bool launchDevToolsServer)
+void ProcessHostImpl::bindProcess(unsigned int pid, bool launchDevToolsServer)
 {
     auto it = s_unboundHosts.find(static_cast<base::ProcessId>(pid));
     DCHECK(s_unboundHosts.end() != it);
@@ -474,10 +472,18 @@ void ProcessHostImpl::createWebView(
 }
 
 void ProcessHostImpl::registerNativeViewForStreaming(
-    int view, const registerNativeViewForStreamingCallback& callback)
+    unsigned int view, const registerNativeViewForStreamingCallback& callback)
 {
     String media_id = d_impl->context().registerNativeViewForStreaming(
             reinterpret_cast<NativeView>(view));
+    std::move(callback).Run(std::string(media_id.data(), media_id.size()));
+}
+
+void ProcessHostImpl::registerScreenForStreaming(
+    unsigned int screen, const registerScreenForStreamingCallback& callback)
+{
+    String media_id = d_impl->context().registerScreenForStreaming(
+            reinterpret_cast<NativeScreen>(screen));
     std::move(callback).Run(std::string(media_id.data(), media_id.size()));
 }
 

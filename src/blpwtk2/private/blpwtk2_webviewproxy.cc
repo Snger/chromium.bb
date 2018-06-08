@@ -84,6 +84,7 @@ void WebViewProxy::destroy()
     // that is already scheduled and the callback requires the existence of
     // the WebView.
     d_pendingDestroy = true;
+    d_delegate = nullptr;
     base::MessageLoop::current()->task_runner()->DeleteSoon(FROM_HERE, this);
 }
 
@@ -121,7 +122,7 @@ int WebViewProxy::loadUrl(const StringRef& url)
     return 0;
 }
 
-void WebViewProxy::loadInspector(int pid, int routingId)
+void WebViewProxy::loadInspector(unsigned int pid, int routingId)
 {
     DCHECK(Statics::isInApplicationMainThread());
     LOG(INFO) << "routingId=" << d_renderViewRoutingId
@@ -369,55 +370,76 @@ void WebViewProxy::setClient(WebViewClient *client)
 
 void WebViewProxy::ncHitTest()
 {
-    d_delegate->requestNCHitTest(this);
-    // Note: The embedder is expected to call WebView::onNCHitTestResult
+    if (d_delegate) {
+        d_delegate->requestNCHitTest(this);
+        // Note: The embedder is expected to call WebView::onNCHitTestResult
+    }
+    else {
+        onNCHitTestResult(0, 0, HTNOWHERE);
+    }
 }
 
 void WebViewProxy::ncDragBegin(int hitTestCode, const gfx::Point& point)
 {
-    POINT winPoint = { point.x(), point.y() };
-    d_delegate->ncDragBegin(this, hitTestCode, winPoint);
+    if (d_delegate) {
+        POINT winPoint = { point.x(), point.y() };
+        d_delegate->ncDragBegin(this, hitTestCode, winPoint);
+    }
 }
 
 void WebViewProxy::ncDragMove(const gfx::Point& point)
 {
-    POINT winPoint = { point.x(), point.y() };
-    d_delegate->ncDragMove(this, winPoint);
+    if (d_delegate) {
+        POINT winPoint = { point.x(), point.y() };
+        d_delegate->ncDragMove(this, winPoint);
+    }
 }
 
 void WebViewProxy::ncDragEnd(const gfx::Point& point)
 {
-    POINT winPoint = { point.x(), point.y() };
-    d_delegate->ncDragEnd(this, winPoint);
+    if (d_delegate) {
+        POINT winPoint = { point.x(), point.y() };
+        d_delegate->ncDragEnd(this, winPoint);
+    }
 }
 
 void WebViewProxy::ncDoubleClick(const gfx::Point& point)
 {
-    POINT winPoint = { point.x(), point.y() };
-    d_delegate->ncDoubleClick(this, winPoint);
+    if (d_delegate) {
+        POINT winPoint = { point.x(), point.y() };
+        d_delegate->ncDoubleClick(this, winPoint);
+    }
 }
 
 void WebViewProxy::focused()
 {
-    d_delegate->focused(this);
+    if (d_delegate) {
+        d_delegate->focused(this);
+    }
 }
 
 void WebViewProxy::blurred()
 {
-    d_delegate->blurred(this);
+    if (d_delegate) {
+        d_delegate->blurred(this);
+    }
 }
 
 void WebViewProxy::showContextMenu(const ContextMenuParams& params)
 {
-    d_delegate->showContextMenu(this, params);
+    if (d_delegate) {
+        d_delegate->showContextMenu(this, params);
+    }
 }
 
 void WebViewProxy::findReply(int  numberOfMatches,
                              int  activeMatchOrdinal,
                              bool finalUpdate)
 {
-    d_delegate->findState(
-            this, numberOfMatches, activeMatchOrdinal, finalUpdate);
+    if (d_delegate) {
+        d_delegate->findState(
+                this, numberOfMatches, activeMatchOrdinal, finalUpdate);
+    }
 }
 
 void WebViewProxy::preResize(const gfx::Size& size)

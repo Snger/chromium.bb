@@ -91,10 +91,11 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
 
     // Profile overrides, must only be called on the browser-main thread.
     void destroy() override;
-    String createHostChannel(int              pid,
+    String createHostChannel(unsigned int     pid,
                              bool             isolated,
                              const StringRef& profileDir) override;
     String registerNativeViewForStreaming(NativeView view) override;
+    String registerScreenForStreaming(NativeScreen screen) override;
     void createWebView(
         WebViewDelegate            *delegate,
         const WebViewCreateParams&  params = WebViewCreateParams()) override;

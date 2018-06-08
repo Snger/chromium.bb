@@ -157,39 +157,39 @@ shared_library("blpwtk2") {
     "private/blpwtk2_profileimpl.h",
     "private/blpwtk2_rendererutil.cc",
     "private/blpwtk2_rendererutil.h",
-    "private/blpwtk2_renderviewobserverimpl.cc", #
+    "private/blpwtk2_renderviewobserverimpl.cc",
     "private/blpwtk2_renderviewobserverimpl.h",
-    "private/blpwtk2_resourcecontextimpl.cc", #
+    "private/blpwtk2_resourcecontextimpl.cc",
     "private/blpwtk2_resourcecontextimpl.h",
     "private/blpwtk2_statics.cc",
     "private/blpwtk2_statics.h",
-    "private/blpwtk2_toolkitimpl.cc", #
+    "private/blpwtk2_toolkitimpl.cc",
     "private/blpwtk2_toolkitimpl.h",
-    "private/blpwtk2_urlrequestcontextgetterimpl.cc", #
+    "private/blpwtk2_urlrequestcontextgetterimpl.cc",
     "private/blpwtk2_urlrequestcontextgetterimpl.h",
-    "private/blpwtk2_utility.cc", #
+    "private/blpwtk2_utility.cc",
     "private/blpwtk2_utility.h",
-    "private/blpwtk2_viewsdelegateimpl.cc", #
+    "private/blpwtk2_viewsdelegateimpl.cc",
     "private/blpwtk2_viewsdelegateimpl.h",
-    "private/blpwtk2_webcontentsviewdelegateimpl.cc", #
+    "private/blpwtk2_webcontentsviewdelegateimpl.cc",
     "private/blpwtk2_webcontentsviewdelegateimpl.h",
-    "private/blpwtk2_webframeimpl.cc", #
+    "private/blpwtk2_webframeimpl.cc",
     "private/blpwtk2_webframeimpl.h",
-    "private/blpwtk2_webviewproperties.cc", #
+    "private/blpwtk2_webviewproperties.cc",
     "private/blpwtk2_webviewproperties.h",
-    "private/blpwtk2_webviewclientdelegate.cc", #
+    "private/blpwtk2_webviewclientdelegate.cc",
     "private/blpwtk2_webviewclientdelegate.h",
-    "private/blpwtk2_webviewhostimpl.cc", #
+    "private/blpwtk2_webviewhostimpl.cc",
     "private/blpwtk2_webviewhostimpl.h",
-    "private/blpwtk2_webviewclient.cc", #
+    "private/blpwtk2_webviewclient.cc",
     "private/blpwtk2_webviewclient.h",
-    "private/blpwtk2_webviewclientimpl.cc", #
+    "private/blpwtk2_webviewclientimpl.cc",
     "private/blpwtk2_webviewclientimpl.h",
-    "private/blpwtk2_webviewimpl.cc", #
+    "private/blpwtk2_webviewimpl.cc",
     "private/blpwtk2_webviewimpl.h",
-    "private/blpwtk2_webviewproxy.cc", #
+    "private/blpwtk2_webviewproxy.cc",
     "private/blpwtk2_webviewproxy.h",
-    "private/blpwtk2_webviewimplclient.cc", #
+    "private/blpwtk2_webviewimplclient.cc",
     "private/blpwtk2_webviewimplclient.h",
     "public/blpwtk2.h",
     "public/blpwtk2_blob.cc",
@@ -197,43 +197,43 @@ shared_library("blpwtk2") {
     "public/blpwtk2_config.h",
     "public/blpwtk2_contextmenuitem.cc",
     "public/blpwtk2_contextmenuitem.h",
-    "public/blpwtk2_contextmenuparams.cc", #
+    "public/blpwtk2_contextmenuparams.cc",
     "public/blpwtk2_contextmenuparams.h",
-    "public/blpwtk2_iatpatchfunction.cc", #
+    "public/blpwtk2_iatpatchfunction.cc",
     "public/blpwtk2_iatpatchfunction.h",
-    "public/blpwtk2_pdfutil.cc", #
+    "public/blpwtk2_pdfutil.cc",
     "public/blpwtk2_pdfutil.h",
     "public/blpwtk2_profile.cc",
     "public/blpwtk2_profile.h",
     "public/blpwtk2_resourcecontext.cc",
     "public/blpwtk2_resourcecontext.h",
-    "public/blpwtk2_resourceloader.cc", #
+    "public/blpwtk2_resourceloader.cc",
     "public/blpwtk2_resourceloader.h",
     "public/blpwtk2_string.cc",
     "public/blpwtk2_string.h",
     "public/blpwtk2_stringref.cc",
     "public/blpwtk2_stringref.h",
-    "public/blpwtk2_textdirection.cc", #
+    "public/blpwtk2_textdirection.cc",
     "public/blpwtk2_textdirection.h",
-    "public/blpwtk2_threadmode.cc", #
+    "public/blpwtk2_threadmode.cc",
     "public/blpwtk2_threadmode.h",
-    "public/blpwtk2_toolkit.cc", #
+    "public/blpwtk2_toolkit.cc",
     "public/blpwtk2_toolkit.h",
-    "public/blpwtk2_toolkitcreateparams.cc", #
+    "public/blpwtk2_toolkitcreateparams.cc",
     "public/blpwtk2_toolkitcreateparams.h",
-    "public/blpwtk2_toolkitfactory.cc", #
+    "public/blpwtk2_toolkitfactory.cc",
     "public/blpwtk2_toolkitfactory.h",
-    "public/blpwtk2_webcontentsettingsdelegate.cc", #
+    "public/blpwtk2_webcontentsettingsdelegate.cc",
     "public/blpwtk2_webcontentsettingsdelegate.h",
-    "public/blpwtk2_webframe.cc", #
+    "public/blpwtk2_webframe.cc",
     "public/blpwtk2_webframe.h",
-    "public/blpwtk2_webview.cc", #
+    "public/blpwtk2_webview.cc",
     "public/blpwtk2_webview.h",
     "public/blpwtk2_webviewcreateparams.cc",
     "public/blpwtk2_webviewcreateparams.h",
-    "public/blpwtk2_webviewdelegate.cc", #
+    "public/blpwtk2_webviewdelegate.cc",
     "public/blpwtk2_webviewdelegate.h",
-    "public/blpwtk2_webviewhostobserver.cc", #
+    "public/blpwtk2_webviewhostobserver.cc",
     "public/blpwtk2_webviewhostobserver.h",
   ]
 
@@ -261,7 +261,7 @@ shared_library("blpwtk2") {
 
   public_deps = [
     ":blpwtk2_generate_sources",
-    "//v8",
+    "//v8:v8",
   ]
 
   deps = [
@@ -365,8 +365,7 @@ group("blpwtk2_all") {
   deps = [
     ":blpwtk2_shell",
     ":blpwtk2_subprocess",
-    ":blpwtk2",
-#    "//v8:d8",
-    "//content/shell:content_shell"
+    "//content/shell:content_shell",
+    "//v8:d8",
   ]
 }

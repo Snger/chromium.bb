@@ -161,7 +161,7 @@ void WebViewClientImpl::setParent(NativeView parent)
     }
     else {
         DCHECK(d_hostPtr);
-        d_hostPtr->setParent(reinterpret_cast<int>(parent));
+        d_hostPtr->setParent(reinterpret_cast<unsigned int>(parent));
     }
 }
 
@@ -197,8 +197,8 @@ void WebViewClientImpl::ncHitTest(const ncHitTestCallback& callback)
     DCHECK(!d_ncHitTestCallback);
 
     if (d_delegate) {
-        d_delegate->ncHitTest();
         d_ncHitTestCallback = std::move(callback);
+        d_delegate->ncHitTest();
         // The proxy is expected to call WebViewClientImpl::ncHitTestResult
     }
     else {

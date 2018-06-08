@@ -104,7 +104,7 @@ class V8_PLATFORM_EXPORT TraceObject {
   void operator=(const TraceObject&) = delete;
 };
 
-class V8_PLATFORM_EXPORT TraceWriter {
+class BLPV8_PLATFORM_EXPORT TraceWriter {
  public:
   TraceWriter() {}
   virtual ~TraceWriter() {}
@@ -143,7 +143,7 @@ class V8_PLATFORM_EXPORT TraceBufferChunk {
   void operator=(const TraceBufferChunk&) = delete;
 };
 
-class V8_PLATFORM_EXPORT TraceBuffer {
+class BLPV8_PLATFORM_EXPORT TraceBuffer {
  public:
   TraceBuffer() {}
   virtual ~TraceBuffer() {}
@@ -179,7 +179,7 @@ enum TraceRecordMode {
   ECHO_TO_CONSOLE,
 };
 
-class V8_PLATFORM_EXPORT TraceConfig {
+class BLPV8_PLATFORM_EXPORT TraceConfig {
  public:
   typedef std::vector<std::string> StringList;
 
@@ -209,7 +209,7 @@ class V8_PLATFORM_EXPORT TraceConfig {
   void operator=(const TraceConfig&) = delete;
 };
 
-class V8_PLATFORM_EXPORT TracingController {
+class BLPV8_PLATFORM_EXPORT TracingController {
  public:
   enum Mode { DISABLED = 0, RECORDING_MODE };
 

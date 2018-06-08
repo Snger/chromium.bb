@@ -112,20 +112,26 @@ class ProcessHostImpl final : public mojom::ProcessHost
 
     // mojom::ProcessHost overrides
     void createHostChannel(
-            int                              pid,
+            unsigned int                     pid,
             bool                             isolated,
             const std::string&               profileDir,
             const createHostChannelCallback& callback) override;
-    void bindProcess(int pid, bool launchDevToolsServer) override;
+    void bindProcess(unsigned int pid, bool launchDevToolsServer) override;
 
     void createWebView(
             mojom::WebViewHostRequest     hostRequest,
             mojom::WebViewCreateParamsPtr params,
             const createWebViewCallback&  callback) override;
     void registerNativeViewForStreaming(
-            int                                           view,
+            unsigned int                                  view,
             const registerNativeViewForStreamingCallback& callback) override;
+
+    void registerScreenForStreaming(
+            unsigned int                              screen,
+            const registerScreenForStreamingCallback& callback) override;
+
     void setDefaultPrinter(const std::string& name) override;
+
     void addHttpProxy(mojom::ProxyConfigType type,
                       const std::string&     host,
                       int                    port) override;
