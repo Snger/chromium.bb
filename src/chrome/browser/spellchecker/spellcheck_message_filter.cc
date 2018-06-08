@@ -149,6 +149,8 @@ void SpellCheckMessageFilter::OnTextCheckComplete(
       render_process_id_, text, markers, &results_copy);
 #endif
 
+  // blpwtk2: Remove dependency on Chrome's custom dictionary
+#if 0
   // Erase custom dictionary words from the spellcheck results and record
   // in-dictionary feedback.
   std::vector<SpellCheckResult>::iterator write_iter;
@@ -158,23 +160,17 @@ void SpellCheckMessageFilter::OnTextCheckComplete(
        iter != results_copy.end();
        ++iter) {
 
-// blpwtk2: Remove dependency on Chrome's custom dictionary
-#if 0
     if (spellcheck->GetCustomDictionary()->HasWord(
             text_copy.substr(iter->location, iter->length))) {
       spellcheck->GetFeedbackSender()->RecordInDictionary(iter->hash);
     } else {
-#endif
       if (write_iter != iter)
         *write_iter = *iter;
       ++write_iter;
-
-// blpwtk2: Remove dependency on Chrome's custom dictionary
-#if 0
     }
-#endif
   }
   results_copy.erase(write_iter, results_copy.end());
+#endif
 
   Send(new SpellCheckMsg_RespondSpellingService(
       route_id, identifier, success, text, results_copy));

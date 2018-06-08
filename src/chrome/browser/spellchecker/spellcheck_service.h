@@ -18,7 +18,9 @@
 #include "build/build_config.h"
 
 // SHEZ: Remove dependency on Chrome's custom dictionary
-// #include "chrome/browser/spellchecker/spellcheck_custom_dictionary.h"
+#if 0
+#include "chrome/browser/spellchecker/spellcheck_custom_dictionary.h"
+#endif
 
 #include "chrome/browser/spellchecker/spellcheck_hunspell_dictionary.h"
 #include "components/keyed_service/core/keyed_service.h"
@@ -53,7 +55,9 @@ class SpellcheckService : public KeyedService,
                           public content::NotificationObserver,
                           public content::SpellcheckData::Observer,
                           // SHEZ: Remove dependency on Chrome's custom dictionary
-                          // public SpellcheckCustomDictionary::Observer,
+#if 0
+                          public SpellcheckCustomDictionary::Observer,
+#endif
                           public SpellcheckHunspellDictionary::Observer {
  public:
   // Event types used for reporting the status of this class and its derived

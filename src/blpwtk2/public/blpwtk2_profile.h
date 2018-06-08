@@ -153,7 +153,7 @@ class Profile
         // file 'filepath'
 
     virtual void enableSpellCheck(bool enabled) = 0;
-        // Enable/Disable spellchecker.
+        // Enable/Disable spellchecker.  Default: enabled
 
     virtual void setLanguages(const StringRef *languages,
                               size_t           numLanguages) = 0;

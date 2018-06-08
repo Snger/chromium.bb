@@ -97,8 +97,6 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     d_requestContextGetter =
         new URLRequestContextGetterImpl(path, false, false);
 
-    content::SpellcheckData::CreateForContext(this);
-
     {
         // Initialize prefs for this context.
         d_prefRegistry = new user_prefs::PrefRegistrySyncable();
@@ -111,6 +109,18 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
 
         d_prefRegistry->RegisterBooleanPref(prefs::kPrintingEnabled, true);
     }
+
+    // Create an instance of SpellcheckData and attach it to the
+    // BrowserContext.  The BrowserContext will manage the lifetime of the
+    // SpellcheckData.
+    //
+    // We will store the custom dictionary words in the SpellcheckData
+    // object.  The SpellcheckService will query the SpellcheckData upon
+    // initialization to update its list of custom words.  It will also
+    // install an observer so that subsequent updates from here
+    // (blpwtk2::BrowserContextImpl) will update the spellcheck service's
+    // custom word list.
+    content::SpellcheckData::CreateForContext(this);
 
     // GetInstance() should be called here for all service factories.  This
     // will cause the constructor of the class to register itself to the
@@ -130,6 +140,12 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     // context will ask the dependency manager to register profile
     // preferences for all services associated with this context.
     content::BrowserContext::Initialize(this, base::FilePath());
+    
+    // Create an instance of SpellcheckService for this browser context.
+    // The SpellcheckService constructor perform lookups of spellcheck
+    // related preferences from the preference service.  For this reason,
+    // it is important to call it after content::BrowerContext::Initialize().
+    SpellcheckServiceFactory::GetForContext(this);
 
     // GetForContext(this) should be called here for all service factories.
     // This will create an instance of the service for this context.  It's
@@ -467,15 +483,7 @@ void BrowserContextImpl::enableSpellCheck(bool enabled)
     DCHECK(!d_isDestroyed);
 
     PrefService *prefs = user_prefs::UserPrefs::Get(this);
-    bool wasEnabled = prefs->GetBoolean(spellcheck::prefs::kEnableSpellcheck);
-
     prefs->SetBoolean(spellcheck::prefs::kEnableSpellcheck, enabled);
-
-    if (!wasEnabled && enabled) {
-        // Ensure the spellcheck service is created for this context if we just
-        // turned it on.
-        SpellcheckServiceFactory::GetForContext(this);
-    }
 }
 
 void BrowserContextImpl::setLanguages(const StringRef *languages,
