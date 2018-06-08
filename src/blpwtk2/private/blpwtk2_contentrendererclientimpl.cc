@@ -22,7 +22,6 @@
 
 #include <blpwtk2_contentrendererclientimpl.h>
 #include <blpwtk2_inprocessresourceloaderbridge.h>
-#include <blpwtk2_renderviewobserverimpl.h>
 #include <blpwtk2_resourceloader.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
@@ -58,9 +57,8 @@ ContentRendererClientImpl::~ContentRendererClientImpl()
 void ContentRendererClientImpl::RenderViewCreated(
     content::RenderView* render_view)
 {
-    // Note that RenderViewObserverImpl automatically gets deleted when the
-    // RenderView is destroyed.
-    new RenderViewObserverImpl(render_view);
+    d_renderViewObserver = std::unique_ptr<RenderViewObserverImpl>(
+            new RenderViewObserverImpl(render_view));
 }
 
 void ContentRendererClientImpl::GetNavigationErrorStrings(
