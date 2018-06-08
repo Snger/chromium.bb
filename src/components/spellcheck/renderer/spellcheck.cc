@@ -257,6 +257,8 @@ void SpellCheck::OnCustomDictionaryChanged(
     const std::set<std::string>& words_added,
     const std::set<std::string>& words_removed) {
   custom_dictionary_.OnCustomDictionaryChanged(words_added, words_removed);
+
+  // blpwtk2: Request a full spellcheck of all the RenderViews in the process.
   if (spellcheck_enabled_) {
     RequestSpellcheckForView requestor;
     content::RenderView::ForEach(&requestor);

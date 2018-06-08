@@ -108,21 +108,19 @@ SpellcheckService::SpellcheckService(content::BrowserContext* context)
                              base::Bind(&SpellcheckService::InitForAllRenderers,
                                         base::Unretained(this)));
 
+  // SHEZ: Remove dependency on Chrome's custom dictionary
+#if 0
+  custom_dictionary_.reset(new SpellcheckCustomDictionary(context_->GetPath()));
+  custom_dictionary_->AddObserver(this);
+  custom_dictionary_->Load();
+#endif
+
   OnSpellCheckDictionariesChanged();
 
   content::SpellcheckData* spellcheckData =
       content::SpellcheckData::FromContext(context);
   if (spellcheckData) {
-    // If the browser-context has SpellcheckData, then we will use that instead
-    // of SpellcheckCustomDictionary, which reads & writes the words list to
-    // disk.
     spellcheckData->AddObserver(this);
-  }
-  else {
-    // SHEZ: Remove dependency on Chrome's custom dictionary
-    //custom_dictionary_.reset(new SpellcheckCustomDictionary(context_->GetPath()));
-    //custom_dictionary_->AddObserver(this);
-    //custom_dictionary_->Load();
   }
 
   registrar_.Add(this,
@@ -130,7 +128,11 @@ SpellcheckService::SpellcheckService(content::BrowserContext* context)
                  content::NotificationService::AllSources());
 
   LoadHunspellDictionaries();
+
+  // blpwtk2:: Remove feedback sender
+#if 0
   UpdateFeedbackSenderState();
+#endif
 }
 
 SpellcheckService::~SpellcheckService() {
@@ -216,6 +218,7 @@ void SpellcheckService::InitForRenderer(content::RenderProcessHost* process) {
       prefs->GetBoolean(spellcheck::prefs::kEnableSpellcheck) &&
       !bdict_languages.empty();
   
+  // blpwtk2: Send the list of custom words to the renderer
   std::set<std::string> empty_string_set;
   const std::set<std::string> *custom_words_ptr = &empty_string_set;
 
@@ -388,7 +391,11 @@ void SpellcheckService::OnSpellCheckDictionariesChanged() {
   // If there are hunspell dictionaries, then fire off notifications to the
   // renderers after the dictionaries are finished loading.
   LoadHunspellDictionaries();
-  UpdateFeedbackSenderState();
+
+  // blpwtk2:: Remove feedback sender
+#if 0
+   UpdateFeedbackSenderState();
+#endif
 
   // If there are no hunspell dictionaries to load, then immediately let the
   // renderers know the new state.

@@ -8,7 +8,9 @@
 #include "chrome/browser/spellchecker/spellcheck_service.h"
 
 // SHEZ: Remove dependency on chrome's grit.
-// #include "chrome/grit/locale_settings.h"
+#if 0
+#include "chrome/grit/locale_settings.h"
+#endif
 
 #include "components/keyed_service/content/browser_context_dependency_manager.h"
 #include "components/pref_registry/pref_registry_syncable.h"
@@ -89,7 +91,7 @@ void SpellcheckServiceFactory::RegisterProfilePrefs(
   uint32_t flags = user_prefs::PrefRegistrySyncable::SYNCABLE_PREF;
 #endif
   user_prefs->RegisterBooleanPref(
-      spellcheck::prefs::kEnableSpellcheck, false, flags);
+      spellcheck::prefs::kEnableSpellcheck, true, flags);
 }
 
 content::BrowserContext* SpellcheckServiceFactory::GetBrowserContextToUse(

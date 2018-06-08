@@ -72,7 +72,8 @@ void ContentRendererClientImpl::RenderViewCreated(
     d_renderViewObserver = std::unique_ptr<RenderViewObserverImpl>(
             new RenderViewObserverImpl(render_view));
 
-    new SpellCheckProvider(render_view, d_spellcheck.get());
+    d_spellCheckProvider = std::unique_ptr<SpellCheckProvider>(
+            new SpellCheckProvider(render_view, d_spellcheck.get()));
 }
 
 void ContentRendererClientImpl::GetNavigationErrorStrings(
