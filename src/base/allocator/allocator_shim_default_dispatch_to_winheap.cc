@@ -6,7 +6,9 @@
 
 #include "base/allocator/winheap_stubs_win.h"
 #include "base/logging.h"
+#include "base/synchronization/lock.h"
 #include <windows.h>
+#include <set>
 
 __int64 allocator_shim_counter = 0;
 
@@ -14,10 +16,50 @@ namespace {
 
 using base::allocator::AllocatorDispatch;
 
+#if defined(STRICT_ALLOC_COUNTER)
+#define MAX_POINTER_SET_SIZE 65536
+
+static base::Lock g_lock;
+static void *g_pointer_set[MAX_POINTER_SET_SIZE];
+static size_t g_pointer_set_size;
+
+static inline void RegisterPointer(void *ptr) {
+  g_pointer_set[g_pointer_set_size] = ptr;
+  ++g_pointer_set_size;
+  if (g_pointer_set_size >= MAX_POINTER_SET_SIZE) {
+    *((int*)0x0) = 0x1;
+  }
+}
+
+static inline void UnregisterPointer(void *ptr) {
+  for (size_t i=0; i<g_pointer_set_size; ++i) {
+    if (g_pointer_set[i] == ptr) {
+      // found
+      --g_pointer_set_size;
+      for (; i<g_pointer_set_size; ++i) {
+        g_pointer_set[i] = g_pointer_set[i+1];
+      }
+      return;
+    }
+  }
+
+  // Crash the process. We cannot use any assertion constructs here because
+  // the assert macros internally use the logger and the logger.  The logger
+  // may attempt to allocate memory, which would trigger a deadlock.
+  *((int*)0x0) = 0x1;
+}
+#endif
+
 void* DefaultWinHeapMallocImpl(const AllocatorDispatch*, size_t size) {
   void* ptr = base::allocator::WinHeapMalloc(size);
 
   if (ptr) {
+#if defined(STRICT_ALLOC_COUNTER)
+    {
+      base::AutoLock autoLock(g_lock);
+      RegisterPointer(ptr);
+    }
+#endif
     ::InterlockedAdd64(
 	    &allocator_shim_counter,
 	    base::allocator::WinHeapGetSizeEstimateFromUserSize(size));
@@ -52,11 +94,24 @@ void* DefaultWinHeapReallocImpl(const AllocatorDispatch* self,
                                 size_t size) {
   size_t old_size = 0;
   if (address) {
+#if defined(STRICT_ALLOC_COUNTER)
+    {
+      base::AutoLock autoLock(g_lock);
+      UnregisterPointer(address);
+    }
+#endif
+
     old_size = base::allocator::WinHeapGetSizeEstimate(address);
   }
 
   void* new_address = base::allocator::WinHeapRealloc(address, size);
   if (new_address) {
+#if defined(STRICT_ALLOC_COUNTER)
+    {
+      base::AutoLock autoLock(g_lock);
+      RegisterPointer(new_address);
+    }
+#endif
     if (size >= old_size) {
       ::InterlockedAdd64(&allocator_shim_counter, size - old_size);
     }
@@ -71,6 +126,12 @@ void* DefaultWinHeapReallocImpl(const AllocatorDispatch* self,
 
 void DefaultWinHeapFreeImpl(const AllocatorDispatch*, void* address) {
   if (address) {
+#if defined(STRICT_ALLOC_COUNTER)
+    {
+      base::AutoLock autoLock(g_lock);
+      UnregisterPointer(address);
+    }
+#endif
     size_t size = base::allocator::WinHeapGetSizeEstimate(address);
     ::InterlockedAdd64(&allocator_shim_counter, -static_cast<LONG64>(size));
   }
