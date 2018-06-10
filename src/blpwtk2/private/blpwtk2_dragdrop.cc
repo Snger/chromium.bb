@@ -22,6 +22,8 @@
 
 #include <blpwtk2_dragdrop.h>
 
+#include <blpwtk2_mainmessagepump.h>
+
 #include <base/strings/utf_string_conversions.h>
 #include <content/common/drag_messages.h>
 #include <content/public/common/drop_data.h>
@@ -351,13 +353,19 @@ void DragDrop::StartDragging(
     source->set_data(data.get());
     ui::OSExchangeDataProviderWin::GetDataObjectImpl(*data)->set_in_drag_loop(true);
 
+    HRESULT result;
     DWORD effect;
-    auto result =
-        DoDragDrop(
-            ui::OSExchangeDataProviderWin::GetIDataObject(*data),
-            source.Get(),
-            MakeDROPEFFECT(operations_allowed),
-            &effect);
+
+    {
+        MainMessagePump::ScopedModalLoopWorkAllower allow(
+            MainMessagePump::current());
+        result =
+            DoDragDrop(
+                ui::OSExchangeDataProviderWin::GetIDataObject(*data),
+                source.Get(),
+                MakeDROPEFFECT(operations_allowed),
+                &effect);
+    }
 
     POINT screen_pt;
     GetCursorPos(&screen_pt);
