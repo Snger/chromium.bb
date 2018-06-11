@@ -26,6 +26,7 @@
 #include "bindings/core/v8/ScriptState.h"
 #include "bindings/core/v8/V8Binding.h"
 #include "public/platform/WebString.h"
+#include "platform/ScriptForbiddenScope.h"
 
 #include <v8.h>
 
@@ -51,6 +52,12 @@ void WebScriptBindings::disposeWebScriptContext(v8::Local<v8::Context> context)
 	}
 
 	scriptState->disposePerContextData();
+}
+
+void WebScriptBindings::runUserAgentScript(base::Closure closure)
+{
+    ScriptForbiddenScope::AllowUserAgentScript allowUserAgentScript;
+    closure.Run();
 }
 
 } // namespace blink
