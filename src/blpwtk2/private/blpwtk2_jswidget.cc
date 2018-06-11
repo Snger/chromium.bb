@@ -28,6 +28,7 @@
 #include <third_party/WebKit/public/web/WebDOMEvent.h>
 #include <third_party/WebKit/public/web/WebLocalFrame.h>
 #include <third_party/WebKit/public/web/WebPluginContainer.h>
+#include <third_party/WebKit/public/web/WebScriptBindings.h>
 #include <third_party/WebKit/public/web/WebSerializedScriptValue.h>
 #include <v8/include/v8.h>
 
@@ -42,6 +43,25 @@ static v8::Handle<v8::Object> toV8(v8::Isolate* isolate, const blink::WebRect& r
     result->Set(v8::String::NewFromUtf8(isolate, "width"), v8::Integer::New(isolate, rc.width));
     result->Set(v8::String::NewFromUtf8(isolate, "height"), v8::Integer::New(isolate, rc.height));
     return result;
+}
+
+static void dispatchFunction(
+    v8::Isolate* isolate,
+    v8::Local<v8::Object> object,
+    const char *name,
+    v8::Local<v8::Object> detail)
+{
+    v8::HandleScope handleScope(isolate);
+    v8::MicrotasksScope microtasksScope(isolate, v8::MicrotasksScope::kRunMicrotasks);
+    v8::Handle<v8::Value> value = object->Get(v8::String::NewFromUtf8(isolate, name, v8::String::kNormalString, strlen(name)));
+
+    if (value->IsFunction()) {
+        v8::Handle<v8::Function> function = v8::Handle<v8::Function>::Cast(value);
+        v8::Local<v8::Value> argv[] = {
+            detail
+        };
+        function->Call(object, 1, argv);
+    }
 }
 
 JsWidget::JsWidget(blink::WebLocalFrame* frame)
@@ -68,6 +88,7 @@ bool JsWidget::initialize(blink::WebPluginContainer* container)
     d_container = container;
     blink::WebDOMEvent event = blink::WebDOMEvent::createCustomEvent("bbOnInitialize", false, false, blink::WebSerializedScriptValue());
     dispatchEvent(event);
+
     return true;
 }
 
@@ -119,6 +140,20 @@ void JsWidget::updateGeometry(
     blink::WebDOMEvent event = blink::WebDOMEvent::createCustomEvent("bbOnUpdateGeometry", false, false,
                                                                      blink::WebSerializedScriptValue::serialize(detailObj));
     dispatchEvent(event);
+
+    // Synchronous notification:
+    v8::Local<v8::Object> object = d_container->v8ObjectForElement();
+    if (object.IsEmpty()) {
+        return;
+    }
+
+    v8::Handle<v8::Object> argumentObj = v8::Object::New(isolate);
+    argumentObj->Set(v8::String::NewFromUtf8(isolate, "detail"), detailObj);
+
+    blink::WebScriptBindings::runUserAgentScript(
+        base::Bind(
+            dispatchFunction,
+            isolate, object, "bbOnUpdateGeometry", argumentObj));
 }
 
 void JsWidget::updateVisibility(bool isVisible)
@@ -141,6 +176,20 @@ void JsWidget::updateVisibility(bool isVisible)
     blink::WebDOMEvent event = blink::WebDOMEvent::createCustomEvent("bbOnUpdateVisibility", false, false,
                                                                      blink::WebSerializedScriptValue::serialize(detailObj));
     dispatchEvent(event);
+
+    // Synchronous notification:
+    v8::Local<v8::Object> object = d_container->v8ObjectForElement();
+    if (object.IsEmpty()) {
+        return;
+    }
+
+    v8::Handle<v8::Object> argumentObj = v8::Object::New(isolate);
+    argumentObj->Set(v8::String::NewFromUtf8(isolate, "detail"), detailObj);
+
+    blink::WebScriptBindings::runUserAgentScript(
+        base::Bind(
+            dispatchFunction,
+            isolate, object, "bbOnUpdateVisibility", argumentObj));
 }
 
 void JsWidget::addedToParent()
