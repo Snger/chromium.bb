@@ -24,7 +24,6 @@
 #define WebScriptBindings_h
 
 #include "../platform/WebCommon.h"
-#include "../platform/functional/WebFunction.h"
 #include "base/callback.h"
 
 namespace v8 {
