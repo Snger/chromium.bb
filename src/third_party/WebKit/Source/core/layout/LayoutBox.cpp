@@ -2996,7 +2996,7 @@ void LayoutBox::ComputeMarginsForDirection(MarginDirection flow_direction,
   DCHECK(!IsLayoutTableCol());
 
   LayoutUnit inlineAdditionalMarginStart =
-    flowDirection == InlineDirection ?
+    flow_direction == kInlineDirection ?
     additionalMarginStart() :
     LayoutUnit();
 

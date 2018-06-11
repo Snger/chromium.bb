@@ -562,11 +562,11 @@ void LayoutBlock::AddVisualOverflowFromTheme() {
 
 LayoutUnit LayoutBlock::additionalMarginStart() const
 {
-    if (isInline() || !parent() || parent()->childrenInline() || !parent()->node() || (!parent()->node()->hasTagName(HTMLNames::ulTag) && !parent()->node()->hasTagName(HTMLNames::olTag))) {
+    if (IsInline() || !Parent() || Parent()->ChildrenInline() || !Parent()->GetNode() || (!Parent()->GetNode()->HasTagName(HTMLNames::ulTag) && !Parent()->GetNode()->HasTagName(HTMLNames::olTag))) {
         return LayoutUnit(0);
     }
 
-    LayoutBox *previousBox = previousSiblingBox();
+    LayoutBox *previousBox = PreviousSiblingBox();
     return previousBox ? previousBox->additionalMarginStart() : LayoutUnit(40);
 }
 
@@ -1499,8 +1499,8 @@ void LayoutBlock::ComputeBlockPreferredLogicalWidths(
       margin_end += end_margin_length.Value();
 
     // SHEZ: additionalMarginStart is treated as fixed margin
-    if (child->isBox())
-      margin_start += toLayoutBox(child)->additionalMarginStart();
+    if (child->IsBox())
+      margin_start += ToLayoutBox(child)->additionalMarginStart();
 
     margin = margin_start + margin_end;
 
@@ -1608,7 +1608,7 @@ bool LayoutBlock::HasLineIfEmpty() const {
   if (IsRootEditableElement(*GetNode()))
     return true;
 
-  if (hasEditableStyle(*node()) && isTableCell())
+  if (HasEditableStyle(*GetNode()) && IsTableCell())
     return true;
 
   if (GetNode()->IsShadowRoot() &&
@@ -1840,8 +1840,8 @@ void LayoutBlock::UpdateHitTestResult(HitTestResult& result,
     result.SetNodeAndPosition(n, point);
 }
 
-// An inline-block uses its inlineBox as the inlineBoxWrapper,
-// so the firstChild() is nullptr if the only child is an empty inline-block.
+// An inline-block uses its inlineBox as the InlineBoxWrapper,
+// so the FirstChild() is nullptr if the only child is an empty inline-block.
 inline bool LayoutBlock::IsInlineBoxWrapperActuallyChild() const {
   return IsInlineBlockOrInlineTable() && !Size().IsEmpty() && GetNode() &&
          EditingIgnoresContent(*GetNode());
@@ -1861,66 +1861,66 @@ LayoutRect LayoutBlock::LocalCaretRect(InlineBox* inline_box,
   // Do the normal calculation in most cases.
   if ((FirstChild() && !FirstChild()->IsPseudoElement()) ||
       IsInlineBoxWrapperActuallyChild()) {
-    if (!childrenInline()) {
+    if (!ChildrenInline()) {
       return LayoutBox::LocalCaretRect(inline_box, caret_offset,
                                        extra_width_to_end_of_line);
     }
 
     // The caret is inside a RenderBlock, before the first inline child, in
     // between two inline children, or after the last inline child.  Find
-    // the child at the specified 'caretOffset', then use the InlineBox of
+    // the child at the specified 'caret_offset', then use the InlineBox of
     // that child to determine the caret rect.  It would be either to the
     // left of the child, or to the right of the child (if the caret is
     // after the last child).
 
-    LayoutObject* child = firstChild();
-    while (caretOffset && child) {
-        child = child->nextSibling();
-        --caretOffset;
+    LayoutObject* child = FirstChild();
+    while (caret_offset && child) {
+        child = child->NextSibling();
+        --caret_offset;
     }
 
     bool isAfterLastChild = false;
     if (!child) {
-        if (caretOffset) {
+        if (caret_offset) {
             // Something strange going on.  Fallback to the upstream behavior.
-            return LayoutBox::localCaretRect(inlineBox, caretOffset, extraWidthToEndOfLine);
+            return LayoutBox::LocalCaretRect(inline_box, caret_offset, extra_width_to_end_of_line);
         }
 
         // The caret is after the last child.
-        child = lastChild();
+        child = LastChild();
         isAfterLastChild = true;
 
         if (!child) {
             // Fallback to the upstream behavior.
-            return LayoutBox::localCaretRect(inlineBox, caretOffset, extraWidthToEndOfLine);
+            return LayoutBox::LocalCaretRect(inline_box, caret_offset, extra_width_to_end_of_line);
         }
     }
 
     LayoutUnit margin;
-    if (child->isBox()) {
-        LayoutBox* box = toLayoutBox(child);
-        inlineBox = box->inlineBoxWrapper();
-        margin = isAfterLastChild ? box->marginRight() : box->marginLeft();
+    if (child->IsBox()) {
+        LayoutBox* box = ToLayoutBox(child);
+        inline_box = box->InlineBoxWrapper();
+        margin = isAfterLastChild ? box->MarginRight() : box->MarginLeft();
     }
-    else if (child->isText()) {
-        inlineBox = isAfterLastChild ? toLayoutText(child)->lastTextBox()
-                                      : toLayoutText(child)->firstTextBox();
+    else if (child->IsText()) {
+        inline_box = isAfterLastChild ? ToLayoutText(child)->LastTextBox()
+                                      : ToLayoutText(child)->FirstTextBox();
     }
-    else if (child->isLayoutInline()) {
-        inlineBox = isAfterLastChild ? toLayoutInline(child)->lastLineBox()
-                                      : toLayoutInline(child)->firstLineBox();
-    }
-
-    if (!inlineBox) {
-        return LayoutBox::localCaretRect(inlineBox, caretOffset, extraWidthToEndOfLine);
+    else if (child->IsLayoutInline()) {
+        inline_box = isAfterLastChild ? ToLayoutInline(child)->LastLineBox()
+                                      : ToLayoutInline(child)->FirstLineBox();
     }
 
-    LayoutUnit x = isAfterLastChild ? inlineBox->x() + inlineBox->width() + margin
-                                    : inlineBox->x() - margin;
-    if (extraWidthToEndOfLine)
-        *extraWidthToEndOfLine = inlineBox->root().width() - x;
+    if (!inline_box) {
+        return LayoutBox::LocalCaretRect(inline_box, caret_offset, extra_width_to_end_of_line);
+    }
+
+    LayoutUnit x = isAfterLastChild ? inline_box->X() + inline_box->Width() + margin
+                                    : inline_box->X() - margin;
+    if (extra_width_to_end_of_line)
+        *extra_width_to_end_of_line = inline_box->Root().Width() - x;
     LayoutUnit layoutWidth(1);
-    return LayoutRect(x, inlineBox->y(), layoutWidth, inlineBox->height());
+    return LayoutRect(x, inline_box->Y(), layoutWidth, inline_box->Height());
   }
 
   LayoutRect caret_rect =

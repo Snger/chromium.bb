@@ -4332,7 +4332,7 @@ LayoutUnit LayoutBlockFlow::LogicalLeftSelectionOffset(
       LogicalLeftOffsetForLine(position, kDoNotIndentText);
   if (logical_left == LogicalLeftOffsetForContent()) {
     logical_left = LayoutBlock::LogicalLeftSelectionOffset(root_block, position);
-    if (isListItem() && style()->isLeftToRightDirection()) {
+    if (IsListItem() && Style()->IsLeftToRightDirection()) {
       logical_left += additionalMarginStart();
     }
     return logical_left;
@@ -4340,7 +4340,7 @@ LayoutUnit LayoutBlockFlow::LogicalLeftSelectionOffset(
 
   const LayoutBlock* cb = this;
   while (cb != root_block) {
-    if (cb->isListItem() && cb->style()->isLeftToRightDirection()) {
+    if (cb->IsListItem() && cb->Style()->IsLeftToRightDirection()) {
       logical_left += cb->additionalMarginStart();
     }
     logical_left += cb->LogicalLeft();
@@ -4355,17 +4355,17 @@ LayoutUnit LayoutBlockFlow::LogicalRightSelectionOffset(
   LayoutUnit logical_right =
       LogicalRightOffsetForLine(position, kDoNotIndentText);
   if (logical_right == LogicalRightOffsetForContent()) {
-    logicalRight = LayoutBlock::LogicalRightSelectionOffset(root_block, position);
-    if (isListItem() && !style()->isLeftToRightDirection()) {
-        logicalRight -= additionalMarginStart();
+    logical_right = LayoutBlock::LogicalRightSelectionOffset(root_block, position);
+    if (IsListItem() && !Style()->IsLeftToRightDirection()) {
+        logical_right -= additionalMarginStart();
     }
-    return logicalRight;
+    return logical_right;
   }
 
   const LayoutBlock* cb = this;
   while (cb != root_block) {
-    if (cb->isListItem() && !cb->style()->isLeftToRightDirection()) {
-      logicalRight -= cb->additionalMarginStart();
+    if (cb->IsListItem() && !cb->Style()->IsLeftToRightDirection()) {
+      logical_right -= cb->additionalMarginStart();
     }
     logical_right += cb->LogicalLeft();
     cb = cb->ContainingBlock();
