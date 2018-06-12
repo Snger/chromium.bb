@@ -34,6 +34,7 @@ RasterSource::RasterSource(const RecordingSource* other)
       clear_canvas_with_debug_color_(other->clear_canvas_with_debug_color_),
       slow_down_raster_scale_factor_for_debug_(
           other->slow_down_raster_scale_factor_for_debug_),
+      default_lcd_background_color_(other->default_lcd_background_color_),
       recording_scale_factor_(other->recording_scale_factor_) {}
 RasterSource::~RasterSource() = default;
 
@@ -236,6 +237,15 @@ void RasterSource::AsValueInto(base::trace_event::TracedValue* array) const {
 void RasterSource::DidBeginTracing() {
   if (display_list_.get())
     display_list_->EmitTraceSnapshot();
+}
+
+SkColor RasterSource::DefaultLCDBackgroundColor() const {
+  if (can_use_lcd_text_) {
+    return default_lcd_background_color_;
+  }
+  else {
+    return SK_ColorTRANSPARENT;
+  }
 }
 
 RasterSource::PlaybackSettings::PlaybackSettings()

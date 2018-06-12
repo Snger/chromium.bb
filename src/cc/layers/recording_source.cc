@@ -39,6 +39,7 @@ RecordingSource::RecordingSource()
       clear_canvas_with_debug_color_(kDefaultClearCanvasSetting),
       solid_color_(SK_ColorTRANSPARENT),
       background_color_(SK_ColorTRANSPARENT),
+      default_lcd_background_color_(SK_ColorTRANSPARENT) {},
       recording_scale_factor_(1.f) {}
 
 RecordingSource::~RecordingSource() {}
@@ -127,6 +128,10 @@ void RecordingSource::SetSlowdownRasterScaleFactor(int factor) {
 
 void RecordingSource::SetBackgroundColor(SkColor background_color) {
   background_color_ = background_color;
+}
+
+void RecordingSource::SetDefaultLCDBackgroundColor(SkColor default_lcd_background_color) {
+  default_lcd_background_color_ = default_lcd_background_color;
 }
 
 void RecordingSource::SetRequiresClear(bool requires_clear) {

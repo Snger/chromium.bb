@@ -116,7 +116,7 @@ class CC_EXPORT RasterSource : public base::RefCountedThreadSafe<RasterSource> {
   const DisplayItemList* display_list() const { return display_list_.get(); }
 
   SkColor background_color() const { return background_color_; }
-
+  SkColor DefaultLCDBackgroundColor() const;
  protected:
   // RecordingSource is the only class that can create a raster source.
   friend class RecordingSource;
@@ -138,6 +138,7 @@ class CC_EXPORT RasterSource : public base::RefCountedThreadSafe<RasterSource> {
   const bool clear_canvas_with_debug_color_;
   const int slow_down_raster_scale_factor_for_debug_;
   const float recording_scale_factor_;
+  const SkColor default_lcd_background_color_;
 
  private:
   void RasterCommon(SkCanvas* canvas,
