@@ -25,7 +25,7 @@
 
 #include <blpwtk2_config.h>
 #include <blpwtk2_renderviewobserverimpl.h>
-#include <components/printing/renderer/print_web_view_helper.h>
+
 #include <content/public/renderer/content_renderer_client.h>
 #include <content/public/renderer/render_thread_observer.h>
 
@@ -40,7 +40,6 @@ namespace blpwtk2 {
 class ContentRendererClientImpl : public content::ContentRendererClient
 {
     std::unique_ptr<RenderViewObserverImpl> d_renderViewObserver;
-    std::unique_ptr<printing::PrintWebViewHelper> d_printWebViewHelper;
 
     DISALLOW_COPY_AND_ASSIGN(ContentRendererClientImpl);
 
