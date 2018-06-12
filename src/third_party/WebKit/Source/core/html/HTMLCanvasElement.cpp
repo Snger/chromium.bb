@@ -138,6 +138,7 @@ inline HTMLCanvasElement::HTMLCanvasElement(Document& document)
       PageVisibilityObserver(document.GetPage()),
       size_(kDefaultWidth, kDefaultHeight),
       ignore_reset_(false),
+      m_bbDirectCompositingDisabled(false),
       externally_allocated_memory_(0),
       origin_clean_(true),
       did_fail_to_create_image_buffer_(false),
@@ -308,6 +309,8 @@ CanvasRenderingContext* HTMLCanvasElement::GetCanvasRenderingContext(
 }
 
 bool HTMLCanvasElement::ShouldBeDirectComposited() const {
+  if (m_bbDirectCompositingDisabled)
+    return false;
   return (context_ && context_->IsComposited()) ||
          (GetImageBuffer() && GetImageBuffer()->IsExpensiveToPaint()) ||
          (!!surface_layer_bridge_);
