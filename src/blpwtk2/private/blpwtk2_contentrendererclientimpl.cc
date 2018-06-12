@@ -22,6 +22,7 @@
 
 #include <blpwtk2_contentrendererclientimpl.h>
 #include <blpwtk2_inprocessresourceloaderbridge.h>
+#include <blpwtk2_renderviewobserverimpl.h>
 #include <blpwtk2_resourceloader.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
@@ -59,8 +60,11 @@ ContentRendererClientImpl::~ContentRendererClientImpl()
 void ContentRendererClientImpl::RenderViewCreated(
     content::RenderView* render_view)
 {
-    d_renderViewObserver = std::unique_ptr<RenderViewObserverImpl>(
-            new RenderViewObserverImpl(render_view));
+    // Create an instance of RenderViewObserverImpl.  This is an observer that
+    // is registered with the RenderView.  The RenderViewImpl's destructor
+    // will call OnDestruct() on all observers, which will delete this
+    // instance of RenderViewObserverImpl.
+    new RenderViewObserverImpl(render_view);
 
     // Create an instance of PrintWebViewHelper.  This is an observer that is
     // registered with the RenderFrame.  The RenderFrameImpl's destructor
