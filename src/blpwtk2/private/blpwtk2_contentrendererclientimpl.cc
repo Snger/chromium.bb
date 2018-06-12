@@ -72,8 +72,11 @@ void ContentRendererClientImpl::RenderViewCreated(
     d_renderViewObserver = std::unique_ptr<RenderViewObserverImpl>(
             new RenderViewObserverImpl(render_view));
 
-    d_spellCheckProvider = std::unique_ptr<SpellCheckProvider>(
-            new SpellCheckProvider(render_view, d_spellcheck.get()));
+    // Create an instance of SpellCheckProvider.  This is an observer that is
+    // registered with the RenderView.  The RenderViewImpl's destructor
+    // will call OnDestruct() on all observers, which will delete this
+    // instance of SpellCheckProvider.
+    new SpellCheckProvider(render_view, d_spellcheck.get());
 }
 
 void ContentRendererClientImpl::GetNavigationErrorStrings(

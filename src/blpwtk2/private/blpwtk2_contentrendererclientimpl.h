@@ -43,7 +43,6 @@ class ContentRendererClientImpl : public content::ContentRendererClient
 {
     std::unique_ptr<SpellCheck> d_spellcheck;
     std::unique_ptr<RenderViewObserverImpl> d_renderViewObserver;
-    std::unique_ptr<SpellCheckProvider> d_spellCheckProvider;
 
     DISALLOW_COPY_AND_ASSIGN(ContentRendererClientImpl);
 
