@@ -24,7 +24,6 @@
 #define INCLUDED_BLPWTK2_CONTENTRENDERERCLIENTIMPL_H
 
 #include <blpwtk2_config.h>
-#include <blpwtk2_renderviewobserverimpl.h>
 #include <components/spellcheck/renderer/spellcheck_provider.h>
 #include <components/printing/renderer/print_web_view_helper.h>
 #include <content/public/renderer/content_renderer_client.h>
@@ -43,10 +42,7 @@ namespace blpwtk2 {
 class ContentRendererClientImpl : public content::ContentRendererClient
 {
     std::unique_ptr<SpellCheck> d_spellcheck;
-    std::unique_ptr<RenderViewObserverImpl> d_renderViewObserver;
-    std::unique_ptr<SpellCheckProvider> d_spellCheckProvider;
     std::unique_ptr<printing::PrintWebViewHelper> d_printWebViewHelper;
-
     DISALLOW_COPY_AND_ASSIGN(ContentRendererClientImpl);
 
   public:

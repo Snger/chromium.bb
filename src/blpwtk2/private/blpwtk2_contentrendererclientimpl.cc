@@ -25,6 +25,7 @@
 #include <blpwtk2_jswidget.h>
 #include <blpwtk2_rendercompositor.h>
 #include <blpwtk2_rendermessagedelegate.h>
+#include <blpwtk2_renderviewobserverimpl.h>
 #include <blpwtk2_resourceloader.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
@@ -74,17 +75,24 @@ void ContentRendererClientImpl::RenderThreadStarted()
 void ContentRendererClientImpl::RenderViewCreated(
     content::RenderView* render_view)
 {
-    d_renderViewObserver = std::unique_ptr<RenderViewObserverImpl>(
-            new RenderViewObserverImpl(render_view));
+    // Create an instance of RenderViewObserverImpl.  This is an observer that
+    // is registered with the RenderView.  The RenderViewImpl's destructor
+    // will call OnDestruct() on all observers, which will delete this
+    // instance of RenderViewObserverImpl.
+    new RenderViewObserverImpl(render_view);
 
-    d_spellCheckProvider = std::unique_ptr<SpellCheckProvider>(
-            new SpellCheckProvider(render_view, d_spellcheck.get()));
+    // Create an instance of SpellCheckProvider.  This is an observer that is
+    // registered with the RenderView.  The RenderViewImpl's destructor
+    // will call OnDestruct() on all observers, which will delete this
+    // instance of SpellCheckProvider.
+    new SpellCheckProvider(render_view, d_spellcheck.get());
 
     d_printWebViewHelper = std::unique_ptr<printing::PrintWebViewHelper>(
             new printing::PrintWebViewHelper(
                 render_view->GetMainRenderFrame(),
                 std::unique_ptr<printing::PrintWebViewHelper::Delegate>(
                     printing::PrintWebViewHelper::CreateEmptyDelegate())));
+
 }
 
 void ContentRendererClientImpl::GetNavigationErrorStrings(
