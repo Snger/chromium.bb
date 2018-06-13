@@ -573,6 +573,9 @@ void InputMethodController::setComposition(
   // See https://bugs.webkit.org/show_bug.cgi?id=46868
   document().updateStyleAndLayoutTree();
 
+  // blpwtk2: event.data should be the entire text, not just the incremental
+  // updates on it.
+#if 0
   // When the IME only wants to change a few characters at the end of the
   // composition, only touch those characters in order to preserve rich text
   // substructure.
@@ -580,6 +583,7 @@ void InputMethodController::setComposition(
     return setCompositionWithIncrementalText(text, underlines, selectionStart,
                                              selectionEnd);
   }
+#endif
 
   selectComposition();
 
