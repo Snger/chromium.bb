@@ -186,6 +186,21 @@ Shell* Shell::CreateNewWindow(BrowserContext* browser_context,
   WebContents::CreateParams create_params(browser_context, site_instance);
   create_params.initial_size = AdjustWindowSize(initial_size);
   WebContents* web_contents = WebContents::Create(create_params);
+
+#if defined(OS_LINUX) || defined(OS_ANDROID) || defined(OS_WIN)
+  CR_DEFINE_STATIC_LOCAL(const gfx::FontRenderParams, fontRenderParams,
+        (gfx::GetFontRenderParams(gfx::FontRenderParamsQuery(), NULL)));
+
+  content::RendererPreferences *prefs = web_contents->GetMutableRendererPrefs();
+
+  prefs->should_antialias_text    = fontRenderParams.antialiasing;
+  prefs->use_subpixel_positioning = fontRenderParams.subpixel_positioning;
+  prefs->hinting                  = fontRenderParams.hinting;
+  prefs->use_autohinter           = fontRenderParams.autohinter;
+  prefs->use_bitmaps              = fontRenderParams.use_bitmaps;
+  prefs->subpixel_rendering       = fontRenderParams.subpixel_rendering;
+#endif
+
   Shell* shell = CreateShell(web_contents, create_params.initial_size);
   if (!url.is_empty())
     shell->LoadURL(url);
