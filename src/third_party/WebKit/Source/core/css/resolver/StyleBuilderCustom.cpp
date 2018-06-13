@@ -998,4 +998,56 @@ void StyleBuilderFunctions::applyValueCSSPropertyCaretColor(
   }
 }
 
+void StyleBuilderFunctions::applyInitialCSSPropertyBbLcdBackgroundColor(
+    StyleResolverState& state) {
+  state.style()->setLcdBackgroundColorSource(
+    ComputedStyle::initialLcdBackgroundColorSource());
+  state.style()->setLcdBackgroundColor(
+    ComputedStyle::initialLcdBackgroundColor());
+}
+
+void StyleBuilderFunctions::applyInheritCSSPropertyBbLcdBackgroundColor(
+    StyleResolverState& state) {
+  state.style()->setLcdBackgroundColorSource(
+    state.parentStyle()->lcdBackgroundColorSource());
+  state.style()->setLcdBackgroundColor(
+    state.parentStyle()->lcdBackgroundColor());
+}
+
+void StyleBuilderFunctions::applyValueCSSPropertyBbLcdBackgroundColor(
+    StyleResolverState& state, const CSSValue& value) {
+  if (value.isIdentifierValue()) {
+      CSSValueID id = toCSSIdentifierValue(value).getValueID();
+
+      switch (id) {
+      case CSSValueNone:
+          state.style()->setLcdBackgroundColorSource(
+              LcdBackgroundColorSourceNone);
+          state.style()->setLcdBackgroundColor(
+              Color::transparent);
+          return;
+      case CSSValueAuto:
+          state.style()->setLcdBackgroundColorSource(
+              LcdBackgroundColorSourceAuto);
+          state.style()->setLcdBackgroundColor(
+              Color::transparent);
+          return;
+      default:
+          if (StyleColor::isColorKeyword(id)) {
+              state.style()->setLcdBackgroundColorSource(
+                  LcdBackgroundColorSourceColor);
+              state.style()->setLcdBackgroundColor(
+                  StyleBuilderConverter::convertColor(state, value));
+          }
+          return;
+      }
+  }
+  else if (value.isColorValue()) {
+      state.style()->setLcdBackgroundColorSource(
+          LcdBackgroundColorSourceColor);
+      state.style()->setLcdBackgroundColor(
+          StyleBuilderConverter::convertColor(state, value));
+  }
+}
+
 }  // namespace blink

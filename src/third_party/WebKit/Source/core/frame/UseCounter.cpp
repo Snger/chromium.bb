@@ -1135,6 +1135,8 @@ int UseCounter::MapCSSPropertyIdToCSSSampleIdForHistogram(
       return 586;
     case CSSPropertyScrollBoundaryBehaviorY:
       return 587;
+    case CSSPropertyBbLcdBackgroundColor:
+      return 588;
     // 1. Add new features above this line (don't change the assigned numbers of
     // the existing items).
     // 2. Update kMaximumCSSSampleId with the new maximum value.

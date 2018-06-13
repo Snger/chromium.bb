@@ -957,6 +957,26 @@ class ComputedStyle : public ComputedStyleBase,
     SetCaretColorIsAutoInternal(color.IsAutoColor());
   }
 
+  // -bb-lcd-background-color
+  static LcdBackgroundColorSource initialLcdBackgroundColorSource() {
+    return LcdBackgroundColorSourceNone;
+  }
+  LcdBackgroundColorSource lcdBackgroundColorSource() const {
+    return static_cast<LcdBackgroundColorSource>(
+      m_rareInheritedData->lcdBackgroundColorSource);
+  }
+  void setLcdBackgroundColorSource(LcdBackgroundColorSource source) {
+    SET_VAR(m_rareInheritedData, lcdBackgroundColorSource, source);
+  }
+
+  static Color initialLcdBackgroundColor() { return Color::transparent; }
+  Color lcdBackgroundColor() const {
+    return m_rareInheritedData->lcdBackgroundColor;
+  }
+  void setLcdBackgroundColor(const Color& c) {
+    SET_VAR(m_rareInheritedData, lcdBackgroundColor, c);
+  }
+
   // Font properties.
   CORE_EXPORT const Font& GetFont() const;
   CORE_EXPORT void SetFont(const Font&);

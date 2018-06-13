@@ -4498,5 +4498,13 @@
       name: "-webkit-user-select",
       alias_for: "user-select",
     },
+    {
+      name: "-bb-lcd-background-color",
+      api_class: true,
+      api_methods: ["ParseSingleValue"],
+      name_for_methods: "LcdBackgroundColor",
+      field_group: "rare-inherited",
+      custom_all: true
+    },
   ],
 }

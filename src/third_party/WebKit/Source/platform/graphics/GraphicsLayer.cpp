@@ -1003,6 +1003,11 @@ void GraphicsLayer::SetContentsOpaque(bool opaque) {
     contents_layer_->SetOpaque(opaque);
 }
 
+void GraphicsLayer::setDefaultLCDBackgroundColor(const Color& color) {
+  m_layer->setDefaultLCDBackgroundColor(color.rgb());
+  m_layer->layer()->setOpaqueForLCDText(color.alpha() == 255);
+}
+
 void GraphicsLayer::SetMaskLayer(GraphicsLayer* mask_layer) {
   if (mask_layer == mask_layer_)
     return;
