@@ -1106,3 +1106,7 @@ page
 recto
 verso
 avoid-column
+
+// bb-lcd-background-color
+// auto
+// none

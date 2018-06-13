@@ -720,6 +720,12 @@ enum ScrollSnapType {
 
 enum AutoRepeatType { NoAutoRepeat, AutoFill, AutoFit };
 
+enum LcdBackgroundColorSource {
+  LcdBackgroundColorSourceNone,
+  LcdBackgroundColorSourceAuto,
+  LcdBackgroundColorSourceColor
+};
+
 }  // namespace blink
 
 #endif  // ComputedStyleConstants_h

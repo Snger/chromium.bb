@@ -3380,6 +3380,13 @@ static CSSValue* consumeGridTemplateAreas(CSSParserTokenRange& range) {
   return CSSGridTemplateAreasValue::create(gridAreaMap, rowCount, columnCount);
 }
 
+static CSSValue* consumeBbLcdBackgroundColor(CSSParserTokenRange& range,
+                                             CSSParserMode cssParserMode) {
+  if (range.peek().id() == CSSValueAuto || range.peek().id() == CSSValueNone)
+    return consumeIdent(range);
+  return consumeColor(range, cssParserMode);
+}
+
 static void countKeywordOnlyPropertyUsage(CSSPropertyID property,
                                           UseCounter* counter,
                                           CSSValueID valueID) {
@@ -3845,6 +3852,8 @@ const CSSValue* CSSPropertyParser::parseSingleValue(
     case CSSPropertyGridAutoFlow:
       ASSERT(RuntimeEnabledFeatures::cssGridLayoutEnabled());
       return consumeGridAutoFlow(m_range);
+    case CSSPropertyBbLcdBackgroundColor:
+      return consumeBbLcdBackgroundColor(m_range, m_context.mode());
     default:
       return nullptr;
   }

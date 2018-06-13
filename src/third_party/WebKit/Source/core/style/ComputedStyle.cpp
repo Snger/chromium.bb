@@ -2080,6 +2080,9 @@ Color ComputedStyle::colorIncludingFallback(int colorProperty,
     case CSSPropertyTextDecorationColor:
       result = decorationColorIncludingFallback(visitedLink);
       break;
+    case CSSPropertyBbLcdBackgroundColor:
+      result = lcdBackgroundColor();
+      break;
     default:
       ASSERT_NOT_REACHED();
       break;

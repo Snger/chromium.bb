@@ -191,6 +191,8 @@ class CORE_EXPORT StyleRareInheritedData
 
   unsigned m_snapHeightPosition : 7;
 
+  unsigned lcdBackgroundColorSource : 2; // LcdBackgroundColorSource
+
   AtomicString hyphenationString;
   short hyphenationLimitBefore;
   short hyphenationLimitAfter;
@@ -208,6 +210,8 @@ class CORE_EXPORT StyleRareInheritedData
 
   RefPtr<StyleInheritedVariables> variables;
   TextSizeAdjust m_textSizeAdjust;
+
+  Color lcdBackgroundColor;
 
  private:
   StyleRareInheritedData();

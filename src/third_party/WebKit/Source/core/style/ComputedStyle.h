@@ -2517,6 +2517,26 @@ class CORE_EXPORT ComputedStyle : public ComputedStyleBase,
     SET_VAR(m_rareInheritedData, userSelect, s);
   }
 
+  // -bb-lcd-background-color
+  static LcdBackgroundColorSource initialLcdBackgroundColorSource() {
+    return LcdBackgroundColorSourceNone;
+  }
+  LcdBackgroundColorSource lcdBackgroundColorSource() const {
+    return static_cast<LcdBackgroundColorSource>(
+      m_rareInheritedData->lcdBackgroundColorSource);
+  }
+  void setLcdBackgroundColorSource(LcdBackgroundColorSource source) {
+    SET_VAR(m_rareInheritedData, lcdBackgroundColorSource, source);
+  }
+
+  static Color initialLcdBackgroundColor() { return Color::transparent; }
+  Color lcdBackgroundColor() const {
+    return m_rareInheritedData->lcdBackgroundColor;
+  }
+  void setLcdBackgroundColor(const Color& c) {
+    SET_VAR(m_rareInheritedData, lcdBackgroundColor, c);
+  }
+
   // Font properties.
   const Font& font() const;
   void setFont(const Font&);

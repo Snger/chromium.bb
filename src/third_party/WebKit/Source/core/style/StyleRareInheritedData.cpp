@@ -55,6 +55,7 @@ struct SameSizeAsStyleRareInheritedData
   TabSize tabSize;
   void* variables[1];
   TextSizeAdjust textSizeAdjust;
+  Color lcdBackgroundColor;
 };
 
 static_assert(sizeof(StyleRareInheritedData) <=
@@ -105,7 +106,9 @@ StyleRareInheritedData::StyleRareInheritedData()
       m_snapHeightUnit(0),
       tapHighlightColor(ComputedStyle::initialTapHighlightColor()),
       m_tabSize(ComputedStyle::initialTabSize()),
-      m_textSizeAdjust(ComputedStyle::initialTextSizeAdjust()) {}
+      m_textSizeAdjust(ComputedStyle::initialTextSizeAdjust()),
+      lcdBackgroundColorSource(0),
+      lcdBackgroundColor(Color::transparent) {}
 
 StyleRareInheritedData::StyleRareInheritedData(const StyleRareInheritedData& o)
     : RefCounted<StyleRareInheritedData>(),
@@ -169,7 +172,9 @@ StyleRareInheritedData::StyleRareInheritedData(const StyleRareInheritedData& o)
       appliedTextDecorations(o.appliedTextDecorations),
       m_tabSize(o.m_tabSize),
       variables(o.variables),
-      m_textSizeAdjust(o.m_textSizeAdjust) {}
+      m_textSizeAdjust(o.m_textSizeAdjust),
+      lcdBackgroundColorSource(o.lcdBackgroundColorSource),
+      lcdBackgroundColor(o.lcdBackgroundColor) {}
 
 StyleRareInheritedData::~StyleRareInheritedData() {}
 
@@ -228,7 +233,9 @@ bool StyleRareInheritedData::operator==(const StyleRareInheritedData& o) const {
          dataEquivalent(listStyleImage.get(), o.listStyleImage.get()) &&
          dataEquivalent(appliedTextDecorations, o.appliedTextDecorations) &&
          dataEquivalent(variables, o.variables) &&
-         m_textSizeAdjust == o.m_textSizeAdjust;
+         m_textSizeAdjust == o.m_textSizeAdjust &&
+         lcdBackgroundColorSource == o.lcdBackgroundColorSource &&
+         lcdBackgroundColor == o.lcdBackgroundColor;
 }
 
 bool StyleRareInheritedData::shadowDataEquivalent(
