@@ -50,6 +50,8 @@
 #include "core/editing/commands/FormatBlockCommand.h"
 #include "core/editing/commands/IndentOutdentCommand.h"
 #include "core/editing/commands/InsertListCommand.h"
+#include "core/editing/commands/IndentBlockCommand.h"
+#include "core/editing/commands/OutdentBlockCommand.h"
 #include "core/editing/commands/ReplaceSelectionCommand.h"
 #include "core/editing/commands/TypingCommand.h"
 #include "core/editing/commands/UnlinkCommand.h"
@@ -949,6 +951,20 @@ static bool ExecuteIndent(LocalFrame& frame,
   return IndentOutdentCommand::Create(*frame.GetDocument(),
                                       IndentOutdentCommand::kIndent)
       ->Apply();
+}
+
+static bool executeIndentBlock(LocalFrame& frame, Event*, EditorCommandSource, const String&)
+{
+    DCHECK(frame.GetDocument());
+    IndentBlockCommand::create(*frame.GetDocument())->Apply();
+    return true;
+}
+
+static bool executeOutdentBlock(LocalFrame& frame, Event*, EditorCommandSource, const String&)
+{
+    DCHECK(frame.GetDocument());
+    OutdentBlockCommand::create(*frame.GetDocument())->Apply();
+    return true;
 }
 
 static bool ExecuteInsertBacktab(LocalFrame& frame,
