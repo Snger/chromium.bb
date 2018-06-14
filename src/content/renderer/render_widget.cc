@@ -373,6 +373,7 @@ RenderWidget::RenderWidget(int32_t widget_routing_id,
       pending_window_rect_count_(0),
       screen_info_(screen_info),
       device_scale_factor_(screen_info_.device_scale_factor),
+      last_client_point(),
 #if defined(OS_ANDROID)
       text_field_is_dirty_(false),
 #endif
@@ -1679,13 +1680,18 @@ void RenderWidget::OnDragTargetDragOver(const gfx::Point& client_point,
   if (!GetWebWidget())
     return;
 
-  DCHECK(GetWebWidget()->isWebFrameWidget());
-  WebDragOperation operation =
-      static_cast<WebFrameWidget*>(GetWebWidget())->dragTargetDragOver(
-          ConvertWindowPointToViewport(client_point),
-          screen_point, ops, key_modifiers);
+  // Do not update cursor with new point position at the first time. This will
+  // fix the problem that cursor flashes between noDrop and drop state.
+  if (client_point == last_client_point) {
+    DCHECK(GetWebWidget()->isWebFrameWidget());
+    WebDragOperation operation =
+        static_cast<WebFrameWidget*>(GetWebWidget())->dragTargetDragOver(
+            ConvertWindowPointToViewport(client_point),
+            screen_point, ops, key_modifiers);
+    Send(new DragHostMsg_UpdateDragCursor(routing_id(), operation));
+  }
 
-  Send(new DragHostMsg_UpdateDragCursor(routing_id(), operation));
+  last_client_point = client_point;
 }
 
 void RenderWidget::OnDragTargetDragLeave() {

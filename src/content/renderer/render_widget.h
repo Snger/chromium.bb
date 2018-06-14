@@ -859,6 +859,8 @@ class CONTENT_EXPORT RenderWidget
   // session, this info is sent to the browser along with other drag/drop info.
   DragEventSourceInfo possible_drag_event_info_;
 
+  gfx::Point last_client_point;
+
   DISALLOW_COPY_AND_ASSIGN(RenderWidget);
 };
 
