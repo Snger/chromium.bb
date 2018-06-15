@@ -442,6 +442,7 @@ class CORE_EXPORT CompositedLayerMapping final : public GraphicsLayerClient {
 
   Color layoutObjectBackgroundColor() const;
   void updateBackgroundColor();
+  void updateLCDBackgroundColor(CompositedLayerMapping *containerLayerMapping);
   void updateContentsRect();
   void updateContentsOffsetInCompositingLayer(
       const IntPoint& snappedOffsetFromCompositedAncestor,
@@ -650,6 +651,8 @@ class CORE_EXPORT CompositedLayerMapping final : public GraphicsLayerClient {
   // Keep track of whether the background is painted onto the scrolling contents
   // layer for invalidations.
   unsigned m_backgroundPaintsOntoScrollingContentsLayer : 1;
+
+  Color m_inheritedBackgroundColor;
 
   friend class CompositedLayerMappingTest;
 };
