@@ -467,6 +467,7 @@ class CORE_EXPORT CompositedLayerMapping final : public GraphicsLayerClient {
 
   Color LayoutObjectBackgroundColor() const;
   void UpdateBackgroundColor();
+  void UpdateLCDBackgroundColor(CompositedLayerMapping *containerLayerMapping);
   void UpdateContentsRect();
   void UpdateContentsOffsetInCompositingLayer(
       const IntPoint& snapped_offset_from_composited_ancestor,
@@ -722,7 +723,7 @@ class CORE_EXPORT CompositedLayerMapping final : public GraphicsLayerClient {
   unsigned background_paints_onto_graphics_layer_ : 1;
 
   bool draws_background_onto_content_layer_;
-
+  Color inherited_background_color;
   friend class CompositedLayerMappingTest;
 };
 
