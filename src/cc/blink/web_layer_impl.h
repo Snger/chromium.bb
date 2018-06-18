@@ -71,6 +71,8 @@ class CC_BLINK_EXPORT WebLayerImpl : public NON_EXPORTED_BASE(blink::WebLayer) {
   bool isRootForIsolatedGroup() override;
   void setOpaque(bool opaque) override;
   bool opaque() const override;
+  void setOpaqueForLCDText(bool) override;
+  bool opaqueForLCDText() const override;
   void setPosition(const blink::WebFloatPoint& position) override;
   blink::WebFloatPoint position() const override;
   void setTransform(const SkMatrix44& transform) override;

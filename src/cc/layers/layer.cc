@@ -50,6 +50,7 @@ Layer::Inputs::Inputs(int layer_id)
       blend_mode(SkXfermode::kSrcOver_Mode),
       is_root_for_isolated_group(false),
       contents_opaque(false),
+      contents_opaque_for_lcd_text(false),
       is_drawable(false),
       double_sided(true),
       should_flatten_transform(true),
@@ -563,6 +564,14 @@ void Layer::SetContentsOpaque(bool opaque) {
   inputs_.contents_opaque = opaque;
   SetNeedsCommit();
   SetSubtreePropertyChanged();
+}
+
+void Layer::SetContentsOpaqueForLCDText(bool opaque) {
+  DCHECK(IsPropertyChangeAllowed());
+  if (inputs_.contents_opaque_for_lcd_text == opaque)
+    return;
+  inputs_.contents_opaque_for_lcd_text = opaque;
+  SetNeedsCommit();
 }
 
 void Layer::SetPosition(const gfx::PointF& position) {
@@ -1157,6 +1166,7 @@ void Layer::PushPropertiesTo(LayerImpl* layer) {
   layer->SetNonFastScrollableRegion(inputs_.non_fast_scrollable_region);
   layer->SetTouchEventHandlerRegion(inputs_.touch_event_handler_region);
   layer->SetContentsOpaque(inputs_.contents_opaque);
+  layer->SetContentsOpaqueForLCDText(inputs_.contents_opaque_for_lcd_text);
   layer->SetPosition(inputs_.position);
   layer->set_should_flatten_transform_from_property_tree(
       should_flatten_transform_from_property_tree_);

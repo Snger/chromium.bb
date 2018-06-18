@@ -186,6 +186,9 @@ class CC_EXPORT LayerImpl {
   void SetContentsOpaque(bool opaque);
   bool contents_opaque() const { return contents_opaque_; }
 
+  void SetContentsOpaqueForLCDText(bool opaque);
+  bool contents_opaque_for_lcd_text() const { return contents_opaque_for_lcd_text_; }
+
   float Opacity() const;
   const gfx::Transform& Transform() const;
 
@@ -510,6 +513,7 @@ class CC_EXPORT LayerImpl {
 
   bool masks_to_bounds_ : 1;
   bool contents_opaque_ : 1;
+  bool contents_opaque_for_lcd_text_ : 1;
   bool use_parent_backface_visibility_ : 1;
   bool use_local_transform_for_backface_visibility_ : 1;
   bool should_check_backface_visibility_ : 1;

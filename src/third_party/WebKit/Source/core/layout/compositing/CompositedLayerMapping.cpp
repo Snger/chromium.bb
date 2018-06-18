@@ -176,7 +176,8 @@ CompositedLayerMapping::CompositedLayerMapping(PaintLayer& layer)
       m_isMainFrameLayoutViewLayer(false),
       m_backgroundLayerPaintsFixedRootBackground(false),
       m_scrollingContentsAreEmpty(false),
-      m_backgroundPaintsOntoScrollingContentsLayer(false) {
+      m_backgroundPaintsOntoScrollingContentsLayer(false),
+      m_inheritedBackgroundColor(Color::transparent) {
   if (layer.isRootLayer() && layoutObject()->frame()->isMainFrame())
     m_isMainFrameLayoutViewLayer = true;
 
@@ -953,6 +954,9 @@ void CompositedLayerMapping::updateGraphicsLayerGeometry(
   updateIsRootForIsolatedGroup();
   updateContentsRect();
   updateBackgroundColor();
+  updateLCDBackgroundColor(
+      compositingContainer?
+          compositingContainer->compositedLayerMapping() : nullptr);
   updateDrawsContent();
   updateElementIdAndCompositorMutableProperties();
   updateBackgroundPaintsOntoScrollingContentsLayer();
@@ -2260,6 +2264,87 @@ Color CompositedLayerMapping::layoutObjectBackgroundColor() const {
 
 void CompositedLayerMapping::updateBackgroundColor() {
   m_graphicsLayer->setBackgroundColor(layoutObjectBackgroundColor());
+}
+
+void CompositedLayerMapping::updateLCDBackgroundColor(
+    CompositedLayerMapping *containerLayerMapping) {
+  // Update the cached inheritedBackgroundColor:
+  Color inheritedBackgroundColor = Color::transparent;
+
+  LayoutObject *object    = layoutObject(),
+               *objectEnd = containerLayerMapping?
+                 containerLayerMapping->layoutObject() :
+                 nullptr;
+
+  for (; object != objectEnd; object = object->parent()) {
+    inheritedBackgroundColor = object->resolveColor(CSSPropertyBackgroundColor);
+
+    if (inheritedBackgroundColor.alpha() == 0xFF) {
+      break;
+    }
+    if (object->style()->hasBackgroundImage()) {
+      break;
+    }
+  }
+
+  if (inheritedBackgroundColor.alpha() != 0xFF &&
+      object == objectEnd                      &&
+      containerLayerMapping) {
+    inheritedBackgroundColor =
+      containerLayerMapping->m_inheritedBackgroundColor;
+  }
+
+  m_inheritedBackgroundColor = inheritedBackgroundColor;
+
+  // Determine the lcdBackgroundColor from the "-bb-lcd-background-color"
+  // CSS property:
+  Color lcdBackgroundColor = Color::transparent;
+
+  LcdBackgroundColorSource source =
+    layoutObject()->style()->lcdBackgroundColorSource();
+
+  if (source == LcdBackgroundColorSourceAuto) {
+    lcdBackgroundColor = m_inheritedBackgroundColor;
+  }
+  if (source == LcdBackgroundColorSourceColor) {
+    lcdBackgroundColor =
+      layoutObject()->resolveColor(CSSPropertyBbLcdBackgroundColor);
+  }
+
+  // Apply lcdBackgroundColor to relevant GraphicsLayers:
+  if (m_ancestorClippingLayer) {
+    m_ancestorClippingLayer->setDefaultLCDBackgroundColor(lcdBackgroundColor);
+  }
+
+  m_graphicsLayer->setDefaultLCDBackgroundColor(lcdBackgroundColor);
+
+  if (m_childContainmentLayer) {
+    m_childContainmentLayer->setDefaultLCDBackgroundColor(lcdBackgroundColor);
+  }
+  if (m_childTransformLayer) {
+    m_childTransformLayer->setDefaultLCDBackgroundColor(lcdBackgroundColor);
+  }
+  if (m_scrollingLayer) {
+    m_scrollingLayer->setDefaultLCDBackgroundColor(lcdBackgroundColor);
+  }
+  if (m_scrollingContentsLayer) {
+    m_scrollingContentsLayer->setDefaultLCDBackgroundColor(lcdBackgroundColor);
+  }
+  if (m_backgroundLayer) {
+    m_backgroundLayer->setDefaultLCDBackgroundColor(lcdBackgroundColor);
+  }
+  if (m_foregroundLayer) {
+    m_foregroundLayer->setDefaultLCDBackgroundColor(lcdBackgroundColor);
+  }
+  if (m_squashingLayer) {
+    m_squashingLayer->setDefaultLCDBackgroundColor(lcdBackgroundColor);
+  }
+  if (m_overflowControlsAncestorClippingLayer) {
+    m_overflowControlsAncestorClippingLayer->setDefaultLCDBackgroundColor(lcdBackgroundColor);
+  }
+  if (m_squashingContainmentLayer) {
+    m_squashingContainmentLayer->setDefaultLCDBackgroundColor(lcdBackgroundColor);
+  }
 }
 
 bool CompositedLayerMapping::paintsChildren() const {

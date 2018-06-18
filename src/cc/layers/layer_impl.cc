@@ -62,6 +62,7 @@ LayerImpl::LayerImpl(LayerTreeImpl* tree_impl, int id)
       may_contain_video_(false),
       masks_to_bounds_(false),
       contents_opaque_(false),
+      contents_opaque_for_lcd_text_(false),
       use_parent_backface_visibility_(false),
       use_local_transform_for_backface_visibility_(false),
       should_check_backface_visibility_(false),
@@ -724,6 +725,13 @@ void LayerImpl::SetContentsOpaque(bool opaque) {
   contents_opaque_ = opaque;
 }
 
+void LayerImpl::SetContentsOpaqueForLCDText(bool opaque) {
+  if (contents_opaque_for_lcd_text_ == opaque)
+    return;
+
+  contents_opaque_for_lcd_text_ = opaque;
+}
+
 float LayerImpl::Opacity() const {
   PropertyTrees* property_trees = layer_tree_impl()->property_trees();
   if (!property_trees->IsInIdToIndexMap(PropertyTrees::TreeType::EFFECT, id()))
@@ -1031,7 +1039,7 @@ bool LayerImpl::CanUseLCDText() const {
     return true;
   if (!layer_tree_impl()->settings().can_use_lcd_text)
     return false;
-  if (!contents_opaque())
+  if (!contents_opaque() && !contents_opaque_for_lcd_text())
     return false;
 
   if (layer_tree_impl()
