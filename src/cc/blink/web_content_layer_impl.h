@@ -30,6 +30,7 @@ class WebContentLayerImpl : public blink::WebContentLayer,
 
   // WebContentLayer implementation.
   blink::WebLayer* layer() override;
+  void setDefaultLCDBackgroundColor(blink::WebColor default_lcd_background_color) override;
 
  protected:
   // ContentLayerClient implementation.

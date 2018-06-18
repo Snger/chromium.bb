@@ -174,7 +174,7 @@ static const CSSPropertyID staticComputableProperties[] = {
     CSSPropertyScrollSnapPointsY, CSSPropertyScrollSnapCoordinate,
     CSSPropertyScrollSnapDestination, CSSPropertyTranslate, CSSPropertyRotate,
     CSSPropertyBbRubberbandable,
-    CSSPropertyScale,
+    CSSPropertyScale, CSSPropertyBbLcdBackgroundColor,
 };
 
 static const Vector<CSSPropertyID>& computableProperties() {

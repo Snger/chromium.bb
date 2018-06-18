@@ -96,6 +96,9 @@ class WebLayer {
   virtual void setOpaque(bool) = 0;
   virtual bool opaque() const = 0;
 
+  virtual void setOpaqueForLCDText(bool) = 0;
+  virtual bool opaqueForLCDText() const = 0;
+
   virtual void setPosition(const WebFloatPoint&) = 0;
   virtual WebFloatPoint position() const = 0;
 

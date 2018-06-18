@@ -106,6 +106,8 @@ class CC_EXPORT RasterSource : public base::RefCountedThreadSafe<RasterSource> {
 
   scoped_refptr<RasterSource> CreateCloneWithoutLCDText() const;
 
+  SkColor DefaultLCDBackgroundColor() const;
+
   // Image decode controller should be set once. Its lifetime has to exceed that
   // of the raster source, since the raster source will access it during raster.
   void set_image_decode_controller(
@@ -145,6 +147,7 @@ class CC_EXPORT RasterSource : public base::RefCountedThreadSafe<RasterSource> {
   const gfx::Size size_;
   const bool clear_canvas_with_debug_color_;
   const int slow_down_raster_scale_factor_for_debug_;
+  const SkColor default_lcd_background_color_;
 
   // In practice, this is only set once before raster begins, so it's ok with
   // respect to threading.

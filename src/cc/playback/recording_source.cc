@@ -35,7 +35,8 @@ RecordingSource::RecordingSource()
       is_solid_color_(false),
       clear_canvas_with_debug_color_(kDefaultClearCanvasSetting),
       solid_color_(SK_ColorTRANSPARENT),
-      background_color_(SK_ColorTRANSPARENT) {}
+      background_color_(SK_ColorTRANSPARENT),
+      default_lcd_background_color_(SK_ColorTRANSPARENT) {}
 
 RecordingSource::~RecordingSource() {}
 
@@ -133,6 +134,10 @@ void RecordingSource::SetBackgroundColor(SkColor background_color) {
 
 void RecordingSource::SetRequiresClear(bool requires_clear) {
   requires_clear_ = requires_clear;
+}
+
+void RecordingSource::SetDefaultLCDBackgroundColor(SkColor default_lcd_background_color) {
+  default_lcd_background_color_ = default_lcd_background_color;
 }
 
 const DisplayItemList* RecordingSource::GetDisplayItemList() {
