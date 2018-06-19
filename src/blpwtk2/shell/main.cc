@@ -976,7 +976,7 @@ void consoleLogMessageHandler(blpwtk2::ToolkitCreateParams::LogMessageSeverity s
      }
 }
 
-int main(int argc, _TCHAR* argv[])
+int main(int argc, wchar_t* argv[])
 {
     g_instance = GetModuleHandle(NULL);
 
