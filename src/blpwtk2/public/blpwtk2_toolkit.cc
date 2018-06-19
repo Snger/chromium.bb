@@ -21,6 +21,8 @@
  */
 
 #include <blpwtk2_toolkit.h>
+#include "base/allocator/features.h"
+#include "build/build_config.h"
 
 // dependencies needed for SubProcessMain()
 #include <blpwtk2_contentmaindelegateimpl.h>
@@ -51,7 +53,7 @@ int SubProcessMain(HINSTANCE hInstance,
     return content::ContentMain(params);
 }
 
-#ifdef ALLOCATOR_SHIM
+#if BUILDFLAG(USE_EXPERIMENTAL_ALLOCATOR_SHIM)
 extern __int64 allocator_shim_counter;
 extern "C" {
 __declspec(dllexport) __int64 GetAllocatorShimCounter()

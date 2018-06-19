@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Bloomberg Finance L.P.
+ * Copyright (C) 2017 Bloomberg Finance L.P.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -20,26 +20,38 @@
  * IN THE SOFTWARE.
  */
 
-#include <blpwtk2_renderviewobserverimpl.h>
-#include <content/public/renderer/render_view.h>
+#include "public/web/WebScriptBindings.h"
 
-namespace blpwtk2 {
+#include "bindings/core/v8/DOMWrapperWorld.h"
+#include "bindings/core/v8/ScriptState.h"
+#include "bindings/core/v8/V8Binding.h"
+#include "public/platform/WebString.h"
 
-RenderViewObserverImpl::RenderViewObserverImpl(content::RenderView* renderView)
-: content::RenderViewObserver(renderView)
+#include <v8.h>
+
+namespace blink {
+
+v8::Local<v8::Context> WebScriptBindings::createWebScriptContext()
 {
+    v8::Isolate* isolate = v8::Isolate::GetCurrent();
+    v8::EscapableHandleScope hs(isolate);
+    v8::Local<v8::Context> context = v8::Context::New(isolate);
+
+    PassRefPtr<ScriptState> scriptState = ScriptState::create(context, &DOMWrapperWorld::mainWorld());
+
+    return hs.Escape(context);
 }
 
-RenderViewObserverImpl::~RenderViewObserverImpl()
+void WebScriptBindings::disposeWebScriptContext(v8::Local<v8::Context> context)
 {
+	ScriptState *scriptState = ScriptState::from(context);
+
+	if (!scriptState) {
+		return;
+	}
+
+	scriptState->disposePerContextData();
 }
 
-void RenderViewObserverImpl::OnDestruct()
-{
-    delete this;
-}
-
-}  // close namespace blpwtk2
-
-// vim: ts=4 et
+} // namespace blink
 

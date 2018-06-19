@@ -770,8 +770,10 @@ void RenderProcessHostImpl::RegisterRendererMainThreadFactory(
 RenderProcessHostImpl::~RenderProcessHostImpl() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
 #ifndef NDEBUG
-  DCHECK(is_self_deleted_)
-      << "RenderProcessHostImpl is destroyed by something other than itself";
+  if (!IsProcessManagedExternally()) {
+    DCHECK(is_self_deleted_)
+        << "RenderProcessHostImpl is destroyed by something other than itself";
+  }
 #endif
 
   ChildProcessSecurityPolicyImpl::GetInstance()->Remove(GetID());
@@ -859,7 +861,7 @@ bool RenderProcessHostImpl::Init() {
   CreateMessageFilters();
   RegisterMojoInterfaces();
 
-  if (IsProcessManagedExternally()) {
+  if (run_renderer_in_process() || IsProcessManagedExternally()) {
     if (externally_managed_handle_ != base::GetCurrentProcessHandle()) {
       // Renderer is running in a separate process that is being managed
       // externally.
@@ -1928,7 +1930,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
 }
 
 base::ProcessHandle RenderProcessHostImpl::GetHandle() const {
-  if (IsProcessManagedExternally())
+  if (run_renderer_in_process() || IsProcessManagedExternally())
     return externally_managed_handle_;
 
   if (!child_process_launcher_.get() || child_process_launcher_->IsStarting())
@@ -1944,7 +1946,7 @@ bool RenderProcessHostImpl::IsReady() const {
 }
 
 bool RenderProcessHostImpl::Shutdown(int exit_code, bool wait) {
-  if (IsProcessManagedExternally())
+  if (run_renderer_in_process() || IsProcessManagedExternally())
     return false;  // Externally managed process never shuts down the renderer.
 
 #if defined(OS_ANDROID)
@@ -1960,7 +1962,7 @@ bool RenderProcessHostImpl::Shutdown(int exit_code, bool wait) {
 }
 
 bool RenderProcessHostImpl::FastShutdownIfPossible() {
-  if (IsProcessManagedExternally())
+  if (run_renderer_in_process() || IsProcessManagedExternally())
     return false;  // Externally managed process never shuts down the renderer.
 
   if (!child_process_launcher_.get() || child_process_launcher_->IsStarting() ||
@@ -2138,7 +2140,7 @@ bool RenderProcessHostImpl::IgnoreInputEvents() const {
 void RenderProcessHostImpl::Cleanup() {
   DCHECK_CURRENTLY_ON(BrowserThread::UI);
   // Keep the renderer around forever in externally-managed mode.
-  if (IsProcessManagedExternally())
+  if (run_renderer_in_process() || IsProcessManagedExternally())
     return;
 
   // If within_process_died_observer_ is true, one of our observers performed an
@@ -2820,7 +2822,7 @@ void RenderProcessHostImpl::OnShutdownRequest() {
   // Don't shut down if there are active RenderViews, or if there are pending
   // RenderViews being swapped back in.
   // In single process mode, we never shutdown the renderer.
-  if (pending_views_ || IsProcessManagedExternally() || GetActiveViewCount() > 0)
+  if (pending_views_ || run_renderer_in_process() || IsProcessManagedExternally() || GetActiveViewCount() > 0)
     return;
 
   // Notify any contents that might have swapped out renderers from this

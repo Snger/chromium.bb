@@ -13,7 +13,7 @@
 #include "src/base/build_config.h"
 #include "src/base/compiler-specific.h"
 
-extern "C" PRINTF_FORMAT(3, 4) V8_NORETURN V8_BASE_EXPORT
+extern "C" PRINTF_FORMAT(3, 4) V8_NORETURN BLPV8_BASE_EXPORT
     void V8_Fatal(const char* file, int line, const char* format, ...);
 
 // The FATAL, UNREACHABLE and UNIMPLEMENTED macros are useful during
@@ -88,8 +88,8 @@ std::string* MakeCheckOpString(Lhs const& lhs, Rhs const& rhs,
 
 // Commonly used instantiations of MakeCheckOpString<>. Explicitly instantiated
 // in logging.cc.
-#define DEFINE_MAKE_CHECK_OP_STRING(type)                                    \
-  extern template V8_BASE_EXPORT std::string* MakeCheckOpString<type, type>( \
+#define DEFINE_MAKE_CHECK_OP_STRING(type)                                       \
+  extern template BLPV8_BASE_EXPORT std::string* MakeCheckOpString<type, type>( \
       type const&, type const&, char const*);
 DEFINE_MAKE_CHECK_OP_STRING(int)
 DEFINE_MAKE_CHECK_OP_STRING(long)       // NOLINT(runtime/int)

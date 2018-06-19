@@ -39,7 +39,7 @@ WebViewHostImpl::WebViewHostImpl(
         mojom::WebViewClientPtr&&                    clientPtr,
         const mojom::WebViewCreateParams&            params,
         BrowserContextImpl                          *browserContext,
-        int                                          hostAffinity,
+        unsigned int                                 hostAffinity,
         const scoped_refptr<ProcessHostImpl::Impl>&  processHost)
     : d_clientPtr(std::move(clientPtr))
     , d_dragState({})
@@ -115,14 +115,18 @@ void WebViewHostImpl::created(WebView *source)
 
 void WebViewHostImpl::didFinishLoad(WebView *source, const StringRef& url)
 {
-    DCHECK(d_loadUrlCallback);
+    if (!d_loadUrlCallback) {
+        return;
+    }
     std::move(d_loadUrlCallback).Run(0);
     d_loadUrlCallback.Reset();
 }
 
 void WebViewHostImpl::didFailLoad(WebView *source, const StringRef& url)
 {
-    DCHECK(d_loadUrlCallback);
+    if (!d_loadUrlCallback) {
+        return;
+    }
     std::move(d_loadUrlCallback).Run(EFAULT);
     d_loadUrlCallback.Reset();
 }
@@ -318,11 +322,11 @@ static void onInspectorLoad(int status)
         LOG(INFO) << "DevTools loaded successfully";
     }
     else {
-        LOG(ERROR) << "DevTools failed to load with error " << status; 
+        LOG(ERROR) << "DevTools failed to load with error " << status;
     }
 }
 
-void WebViewHostImpl::loadInspector(int pid, int routingId)
+void WebViewHostImpl::loadInspector(unsigned int pid, int routingId)
 {
     if (!d_loadUrlCallback) {
         d_impl->loadInspector(pid, routingId);
@@ -497,7 +501,7 @@ void WebViewHostImpl::clearTooltip()
     d_impl->clearTooltip();
 }
 
-void WebViewHostImpl::setParent(int window)
+void WebViewHostImpl::setParent(unsigned int window)
 {
     d_impl->setParent(reinterpret_cast<NativeView>(window));
 }

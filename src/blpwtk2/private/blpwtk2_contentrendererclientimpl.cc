@@ -58,8 +58,10 @@ ContentRendererClientImpl::~ContentRendererClientImpl()
 void ContentRendererClientImpl::RenderViewCreated(
     content::RenderView* render_view)
 {
-    // Note that RenderViewObserverImpl automatically gets deleted when the
-    // RenderView is destroyed.
+    // Create an instance of RenderViewObserverImpl.  This is an observer that
+    // is registered with the RenderView.  The RenderViewImpl's destructor
+    // will call OnDestruct() on all observers, which will delete this
+    // instance of RenderViewObserverImpl.
     new RenderViewObserverImpl(render_view);
 }
 

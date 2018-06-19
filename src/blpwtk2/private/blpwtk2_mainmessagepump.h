@@ -98,6 +98,7 @@ class MainMessagePump final : public base::MessagePumpForUI {
         // This must be called after a MessageLoop is installed on the current
         // thread.
 
+    void flush();
     void cleanup();
     bool preHandleMessage(const MSG& msg);
     void postHandleMessage(const MSG& msg);
