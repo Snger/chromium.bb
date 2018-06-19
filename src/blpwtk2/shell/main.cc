@@ -227,7 +227,7 @@ void testGetPicture(blpwtk2::NativeView hwnd,
     getWebViewPosition(hwnd, &left, &top, &width, &height);
 
     if (!width || !height) {
-        OutputDebugStringA("Unable to get bitmap of canvas. Canvas area is zero\n");
+        std::cout << "Unable to get bitmap of canvas. Canvas area is zero" << std::endl;
         return;
     }
 
