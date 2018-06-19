@@ -27,6 +27,7 @@
 #include <time.h>
 
 #include <algorithm>
+#include <iostream>
 #include <fstream>
 #include <string>
 #include <set>
@@ -145,9 +146,7 @@ void testV8AppendElement(blpwtk2::WebView* webView)
     v8::Handle<v8::Value> result = script->Run();
     if (result.IsEmpty()) {
         v8::String::Utf8Value msg(tryCatch.Exception());
-        char buf[1024];
-        sprintf_s(buf, sizeof(buf), "EXCEPTION: %s\n", *msg);
-        OutputDebugStringA(buf);
+        std::cout << "EXCEPTION: " << *msg << std::endl;
     }
 }
 
@@ -526,10 +525,7 @@ public:
     {
         assert(source == d_webView);
         std::string str(url.data(), url.length());
-
-        char buf[1024];
-        sprintf_s(buf, sizeof(buf), "DELEGATE: didFinishLoad('%s')\n", str.c_str());
-        OutputDebugStringA(buf);
+        std::cout << "DELEGATE: didFinishLoad('" << str << "')" << std::endl;
 
         EnableWindow(GetDlgItem(d_mainWnd, IDC_BACK), TRUE);
         EnableWindow(GetDlgItem(d_mainWnd, IDC_FORWARD), TRUE);
@@ -543,10 +539,7 @@ public:
     {
         assert(source == d_webView);
         std::string str(url.data(), url.length());
-
-        char buf[1024];
-        sprintf_s(buf, sizeof(buf), "DELEGATE: didFailLoad('%s')\n", str.c_str());
-        OutputDebugStringA(buf);
+        std::cout << "DELEGATE: didFailLoad('" << str << "')" << std::endl;
 
         EnableWindow(GetDlgItem(d_mainWnd, IDC_BACK), TRUE);
         EnableWindow(GetDlgItem(d_mainWnd, IDC_FORWARD), TRUE);
@@ -557,14 +550,14 @@ public:
     void focused(blpwtk2::WebView* source) override
     {
         assert(source == d_webView);
-        OutputDebugStringA("DELEGATE: focused\n");
+        std::cout << "DELEGATE: focused" << std::endl;
     }
 
     // Notification that |source| has lost focus.
     void blurred(blpwtk2::WebView* source) override
     {
         assert(source == d_webView);
-        OutputDebugStringA("DELEGATE: blurred\n");
+        std::cout << "DELEGATE: blurred" << std::endl;
     }
 
     std::string extentionForMimeType(const blpwtk2::StringRef& mimeType)
@@ -594,7 +587,7 @@ public:
     void showContextMenu(blpwtk2::WebView* source, const blpwtk2::ContextMenuParams& params) override
     {
         assert(source == d_webView);
-        OutputDebugStringA("DELEGATE: showContextMenu\n");
+        std::cout << "DELEGATE: showContextMenu" << std::endl;
 
         d_contextMenuPoint = params.pointOnScreen();
         ::ScreenToClient(d_mainWnd, &d_contextMenuPoint);
@@ -649,10 +642,8 @@ public:
         else if (nearBottomBorder)
             result = HTBOTTOM;
 
-        char buf[1024];
-        sprintf_s(buf, sizeof(buf), "DELEGATE: requestNCHitTest(x=%d, y=%d, result=%d)\n",
-                  ptClient.x, ptClient.y, result);
-        OutputDebugStringA(buf);
+        std::cout << "DELEGATE: requestNCHitTest(x=" << ptClient.x << ", y="
+                  << ptClient.y << ", result=" << result << ")" << std::endl;
         source->onNCHitTestResult(pt.x, pt.y, result);
     }
 
@@ -661,28 +652,23 @@ public:
                      const POINT& startPoint) override
     {
         assert(source == d_webView);
-        char buf[1024];
-        sprintf_s(buf, sizeof(buf), "DELEGATE: ncDragBegin(%d, x=%d, y=%d)\n",
-                  hitTestCode, startPoint.x, startPoint.y);
-        OutputDebugStringA(buf);
+        std::cout << "DELEGATE: ncDragBegin(" << hitTestCode << ", x="
+                  << startPoint.x << ", y=" << startPoint.y << ")"
+                  << std::endl;
     }
 
     void ncDragMove(blpwtk2::WebView* source, const POINT& movePoint) override
     {
         assert(source == d_webView);
-        char buf[1024];
-        sprintf_s(buf, sizeof(buf), "DELEGATE: ncDragMove(x=%d, y=%d)\n",
-                  movePoint.x, movePoint.y);
-        OutputDebugStringA(buf);
+        std::cout << "DELEGATE: ncDragMove(x=" << movePoint.x << ", y="
+                  << movePoint.y << ")" << std::endl;
     }
 
     void ncDragEnd(blpwtk2::WebView* source, const POINT& endPoint) override
     {
         assert(source == d_webView);
-        char buf[1024];
-        sprintf_s(buf, sizeof(buf), "DELEGATE: ncDragEnd(x=%d, y=%d)\n",
-                  endPoint.x, endPoint.y);
-        OutputDebugStringA(buf);
+        std::cout << "DELEGATE: ncDragEnd(x=" << endPoint.x << ", y="
+                  << endPoint.y << ")" << std::endl;
     }
 
     void find()
@@ -708,10 +694,9 @@ public:
 
     void findState(blpwtk2::WebView* source, int numberOfMatches, int activeMatchOrdinal, bool finalUpdate) override
     {
-        char buf[1024];
-        sprintf_s(buf, sizeof(buf), "FIND: count:%d, current:%d, final:%s\n",
-                  numberOfMatches, activeMatchOrdinal, finalUpdate ? "yes" : "no");
-        OutputDebugStringA(buf);
+        std::cout << "FIND: count:" << numberOfMatches << ", current:"
+                  << activeMatchOrdinal << ", final:"
+                  << (finalUpdate ? "yes" : "no") << std::endl;
     }
 
     HMENU createContextMenu(const blpwtk2::ContextMenuParams& params)
@@ -868,17 +853,13 @@ HANDLE spawnProcess()
 
     if (!success) {
         DWORD lastError = ::GetLastError();
-        char buf[1024];
-        sprintf_s(buf, sizeof(buf), "CreateProcess failed: %d\n", lastError);
-        OutputDebugStringA(buf);
+        std::cout << "CreateProcess failed: " << lastError << std::endl;
         return NULL;
     }
 
     if (!::AssignProcessToJobObject(g_hJob, procInfo.hProcess)) {
         DWORD lastError = ::GetLastError();
-        char buf[1024];
-        sprintf_s(buf, sizeof(buf), "AssignProcessToJobObject failed: %d\n", lastError);
-        OutputDebugStringA(buf);
+        std::cout << "AssignProcessToJobObject failed: " << lastError << std::endl;
         ::TerminateProcess(procInfo.hProcess, 1);
         return NULL;
     }
@@ -905,9 +886,7 @@ void runHost()
                                        &info,
                                        sizeof(info))) {
             DWORD lastError = ::GetLastError();
-            char buf[1024];
-            sprintf_s(buf, sizeof(buf), "SetInformationJobObject failed: %d\n", lastError);
-            OutputDebugStringA(buf);
+            std::cout << "SetInformationJobObject failed: " << lastError << std::endl;
             return;
         }
     }
@@ -939,9 +918,9 @@ void runHost()
     ::CloseHandle(g_hJob);
 }
 
-int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int)
+int main(int argc, _TCHAR* argv[])
 {
-    g_instance = instance;
+    g_instance = GetModuleHandle(NULL);
 
     // Seed random number generator
     srand(static_cast<unsigned>(time(nullptr)));
@@ -1022,14 +1001,8 @@ int APIENTRY wWinMain(HINSTANCE instance, HINSTANCE, wchar_t*, int)
         g_in_process_renderer = false;
     }
 
-    {
-        char buf[2048];
-        sprintf_s(buf, sizeof(buf), "URL(%s) isHost(%d) hostChannel(%s)\n",
-                  g_url.c_str(),
-                  isHost ? 1 : 0,
-                  hostChannel.c_str());
-        OutputDebugStringA(buf);
-    }
+    std::cout << "URL(" << g_url << ") isHost(" << (isHost ? 1 : 0)
+              << ") hostChannel(" << hostChannel << ")" << std::endl;
 
     blpwtk2::ToolkitCreateParams toolkitParams;
 

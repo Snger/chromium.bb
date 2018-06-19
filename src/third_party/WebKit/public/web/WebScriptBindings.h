@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Bloomberg Finance L.P.
+ * Copyright (C) 2017 Bloomberg Finance L.P.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -20,26 +20,30 @@
  * IN THE SOFTWARE.
  */
 
-#include <blpwtk2_renderviewobserverimpl.h>
-#include <content/public/renderer/render_view.h>
+#ifndef WebScriptBindings_h
+#define WebScriptBindings_h
 
-namespace blpwtk2 {
+#include "../platform/WebCommon.h"
 
-RenderViewObserverImpl::RenderViewObserverImpl(content::RenderView* renderView)
-: content::RenderViewObserver(renderView)
-{
+namespace v8 {
+class Context;
+template <class T> class Local;
 }
 
-RenderViewObserverImpl::~RenderViewObserverImpl()
-{
-}
+namespace blink {
 
-void RenderViewObserverImpl::OnDestruct()
-{
-    delete this;
-}
+class WebString;
 
-}  // close namespace blpwtk2
+class WebScriptBindings {
+public:
+    // Creates a V8 context that can access the DOM.
+    BLINK_EXPORT static v8::Local<v8::Context> createWebScriptContext();
 
-// vim: ts=4 et
+    // Disposes of per-context data for a context created with 'createWebScriptContext()':
+    BLINK_EXPORT static void disposeWebScriptContext(v8::Local<v8::Context> context);
+};
+
+} // namespace blink
+
+#endif
 

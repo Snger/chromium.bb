@@ -206,6 +206,11 @@ class SourceStream : public v8::ScriptCompiler::ExternalSourceStream {
     return length;
   }
 
+  virtual void ReleaseData(const uint8_t* src) override
+  {
+      delete[] src;
+  }
+  
   void didFinishLoading() {
     DCHECK(isMainThread());
     m_finished = true;

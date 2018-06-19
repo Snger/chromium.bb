@@ -63,6 +63,7 @@
 #include <third_party/WebKit/public/web/WebKit.h>
 #include <third_party/WebKit/public/web/WebSecurityPolicy.h>
 #include <third_party/WebKit/public/web/WebScriptController.h>
+#include <third_party/WebKit/public/web/WebScriptBindings.h>
 
 namespace blpwtk2 {
 
@@ -355,7 +356,8 @@ void ToolkitImpl::startMessageLoop(const sandbox::SandboxInterfaceInfo& sandboxI
     // is not a norm but some scenarios (such as sync IPC calls) do require
     // nested message loops.
     LOG(INFO) << "Initializing MainMessagePump";
-    MainMessagePump::current()->init();
+    d_messagePump = MainMessagePump::current();
+    d_messagePump->init();
 }
 
 std::string ToolkitImpl::createProcessHost(
@@ -523,10 +525,16 @@ ToolkitImpl::~ToolkitImpl()
     }
 
     DCHECK(nullptr == ProfileImpl::anyInstance());
-    MainMessagePump::current()->cleanup();
 
     if (Statics::isInProcessRendererEnabled)
         InProcessRenderer::cleanup();
+
+    d_messagePump->cleanup();
+
+    // The ScopedAllowSyncCall object must be released before the
+    // BrowserThread is destroyed.  This is because the BrowserThread owns the
+    // AtExitManager, which is one of the dependencies of ScopedAllowSyncCall
+    d_allowSyncCall.reset();
 
     if (Statics::isRendererMainThreadMode()) {
         delete base::MessageLoop::current();
@@ -586,19 +594,19 @@ Profile *ToolkitImpl::getProfile(int pid, bool launchDevtoolsServer)
 {
     // TODO(imran): Return the browser context in ORIGINAL thread mode
     DCHECK(Statics::isRendererMainThreadMode());
-    return new ProfileImpl(pid, launchDevtoolsServer, 0 != d_browserThread.get());
+    return new ProfileImpl(d_messagePump, pid, launchDevtoolsServer);
 }
 
 bool ToolkitImpl::preHandleMessage(const NativeMsg *msg)
 {
     DCHECK(Statics::isInApplicationMainThread());
-    return MainMessagePump::current()->preHandleMessage(*msg);
+    return d_messagePump->preHandleMessage(*msg);
 }
 
 void ToolkitImpl::postHandleMessage(const NativeMsg *msg)
 {
     DCHECK(Statics::isInApplicationMainThread());
-    return MainMessagePump::current()->postHandleMessage(*msg);
+    return d_messagePump->postHandleMessage(*msg);
 }
 
 void ToolkitImpl::setTimerHiddenPageAlignmentInterval(double interval)
@@ -606,6 +614,16 @@ void ToolkitImpl::setTimerHiddenPageAlignmentInterval(double interval)
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(Statics::isRendererMainThreadMode());
     blink::setTimerHiddenPageAlignmentInterval(interval);
+}
+
+v8::Local<v8::Context> ToolkitImpl::createWebScriptContext()
+{
+    return blink::WebScriptBindings::createWebScriptContext();
+}
+
+void ToolkitImpl::disposeWebScriptContext(v8::Local<v8::Context> context)
+{
+    blink::WebScriptBindings::disposeWebScriptContext(context);
 }
 
 void ToolkitImpl::addOriginToTrustworthyList(const StringRef& originString)
@@ -632,7 +650,7 @@ void ToolkitImpl::setWebViewHostObserver(WebViewHostObserver* observer)
 
 void ToolkitImpl::setTraceThreshold(unsigned int timeoutMS)
 {
-    MainMessagePump::current()->setTraceThreshold(timeoutMS);
+    d_messagePump->setTraceThreshold(timeoutMS);
 }
 
 }  // close namespace blpwtk2

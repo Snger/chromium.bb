@@ -59,10 +59,10 @@ String::Impl String::make(Impl impl)
     DCHECK(impl);
 
     const char* str = impl;
-    int length = *(reinterpret_cast<int*>(impl) - 1);
+    size_t length = *(reinterpret_cast<size_t*>(impl) - 1);
     DCHECK(0 < length);
 
-    int* lenPtr = (int*)malloc(sizeof(int) + length + 1);
+    size_t* lenPtr = (size_t*)malloc(sizeof(size_t) + length + 1);
     *lenPtr = length;
 
     char* ret = {reinterpret_cast<char*>(lenPtr + 1)};
@@ -74,7 +74,7 @@ String::Impl String::make(Impl impl)
 void String::unmake(Impl impl)
 {
     DCHECK(impl);
-    int* realPtr = reinterpret_cast<int*>(impl) - 1;
+    size_t* realPtr = reinterpret_cast<size_t*>(impl) - 1;
     free(realPtr);
 }
 
