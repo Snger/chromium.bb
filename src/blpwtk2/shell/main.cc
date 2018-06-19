@@ -725,7 +725,7 @@ void runHost()
     ::CloseHandle(g_hJob);
 }
 
-int main(int argc, _TCHAR* argv[])
+int main(int argc, wchar_t* argv[])
 {
     g_instance = GetModuleHandle(NULL);
 
