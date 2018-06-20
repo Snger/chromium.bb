@@ -25,7 +25,7 @@ Tile::Tile(TileManager* tile_manager,
     : tile_manager_(tile_manager),
       content_rect_(info.content_rect),
       enclosing_layer_rect_(info.enclosing_layer_rect),
-      raster_scales_(info.raster_scales),
+      raster_transform_(info.raster_transform),
       layer_id_(layer_id),
       source_frame_number_(source_frame_number),
       flags_(flags),
@@ -50,9 +50,11 @@ void Tile::AsValueInto(base::trace_event::TracedValue* value) const {
   // TODO(vmpstr): Update tracing to use x/y scales.
   value->SetDouble("contents_scale", contents_scale_key());
 
-  value->BeginArray("raster_scales");
-  value->AppendDouble(raster_scales_.width());
-  value->AppendDouble(raster_scales_.height());
+  value->BeginArray("raster_transform");
+  value->AppendDouble(raster_transform_.translation().x());
+  value->AppendDouble(raster_transform_.translation().y());
+  value->AppendDouble(raster_transform_.scale().width());
+  value->AppendDouble(raster_transform_.scale().height());
   value->EndArray();
 
   MathUtil::AddToTracedValue("content_rect", content_rect_, value);

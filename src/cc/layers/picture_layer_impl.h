@@ -79,6 +79,8 @@ class CC_EXPORT PictureLayerImpl
 
   void SetNearestNeighbor(bool nearest_neighbor);
 
+  void SetUseTransformedRasterization(bool use);
+
   size_t GPUMemoryUsageInBytes() const override;
 
   void RunMicroBenchmark(MicroBenchmarkImpl* benchmark) override;
@@ -100,12 +102,13 @@ class CC_EXPORT PictureLayerImpl
 
  protected:
   PictureLayerImpl(LayerTreeImpl* tree_impl, int id, bool is_mask);
-  PictureLayerTiling* AddTiling(float contents_scale);
+  PictureLayerTiling* AddTiling(const gfx::AxisTransform2d& contents_transform);
   void RemoveAllTilings();
   void AddTilingsForRasterScale();
   void AddLowResolutionTilingIfNeeded();
   bool ShouldAdjustRasterScale() const;
   void RecalculateRasterScales();
+  gfx::Vector2dF CalculateRasterTranslation(float raster_scale);
   void CleanUpTilingsOnActiveLayer(
       const std::vector<PictureLayerTiling*>& used_tilings);
   float MinimumContentsScale() const;
@@ -134,6 +137,7 @@ class CC_EXPORT PictureLayerImpl
   float ideal_device_scale_;
   float ideal_source_scale_;
   float ideal_contents_scale_;
+  float scale_aspect_ratio_;
 
   float raster_page_scale_;
   float raster_device_scale_;
@@ -146,6 +150,7 @@ class CC_EXPORT PictureLayerImpl
   const bool is_mask_;
 
   bool nearest_neighbor_;
+  bool use_transformed_rasterization_;
   bool is_directly_composited_image_;
 
   // Use this instead of |visible_layer_rect()| for tiling calculations. This

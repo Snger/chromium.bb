@@ -11,6 +11,7 @@
 #include "cc/raster/raster_buffer_provider.h"
 #include "cc/resources/resource_provider.h"
 #include "gpu/command_buffer/common/sync_token.h"
+#include "ui/gfx/geometry/axis_transform2d.h"
 
 namespace cc {
 class ContextProvider;
@@ -45,7 +46,7 @@ class CC_EXPORT GpuRasterBufferProvider : public RasterBufferProvider {
       const gfx::Rect& raster_full_rect,
       const gfx::Rect& raster_dirty_rect,
       uint64_t new_content_id,
-      const gfx::SizeF& scales,
+      const gfx::AxisTransform2d& transform,
       const RasterSource::PlaybackSettings& playback_settings);
 
  private:
@@ -64,7 +65,7 @@ class CC_EXPORT GpuRasterBufferProvider : public RasterBufferProvider {
         const gfx::Rect& raster_full_rect,
         const gfx::Rect& raster_dirty_rect,
         uint64_t new_content_id,
-        const gfx::SizeF& scales,
+        const gfx::AxisTransform2d& transform,
         const RasterSource::PlaybackSettings& playback_settings) override;
 
     void set_sync_token(const gpu::SyncToken& sync_token) {

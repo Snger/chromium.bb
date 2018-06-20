@@ -16,6 +16,8 @@
 #include "cc/proto/layer.pb.h"
 #include "cc/trees/layer_tree_host.h"
 #include "cc/trees/layer_tree_impl.h"
+#include "cc/trees/property_tree.h"
+#include "cc/trees/transform_node.h"
 #include "third_party/skia/include/core/SkPictureRecorder.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 
@@ -59,6 +61,9 @@ void PictureLayer::PushPropertiesTo(LayerImpl* base_layer) {
   DropRecordingSourceContentIfInvalid();
 
   layer_impl->SetNearestNeighbor(picture_layer_inputs_.nearest_neighbor);
+
+  layer_impl->SetUseTransformedRasterization(
+      ShouldUseTransformedRasterization());
 
   // Preserve lcd text settings from the current raster source.
   bool can_use_lcd_text = layer_impl->RasterSourceUsesLCDText();
@@ -210,6 +215,43 @@ void PictureLayer::SetDefaultLCDBackgroundColor(SkColor default_lcd_background_c
 
 bool PictureLayer::HasDrawableContent() const {
   return picture_layer_inputs_.client && Layer::HasDrawableContent();
+}
+
+bool PictureLayer::ShouldUseTransformedRasterization() const {
+  // Background color overfill is undesirable with transformed rasterization.
+  // However, without background overfill, the tiles will be non-opaque on
+  // external edges, and layer opaque region can't be computed in layer space
+  // due to rounding under extreme scaling. This defeats many opaque layer
+  // optimization. Prefer optimization over quality for this particular case.
+  if (contents_opaque())
+    return false;
+
+  const TransformTree& transform_tree =
+      GetLayerTree()->property_trees()->transform_tree;
+  DCHECK(!transform_tree.needs_update());
+  auto* transform_node = transform_tree.Node(transform_tree_index());
+  DCHECK(transform_node);
+  // TODO(pdr): This is a workaround for https://crbug.com/708951 to avoid
+  // crashing when there's no transform node. This workaround should be removed.
+  if (!transform_node)
+    return false;
+
+  if (transform_node->to_screen_is_potentially_animated)
+    return false;
+
+  const gfx::Transform& to_screen =
+      transform_tree.ToScreen(transform_tree_index());
+  if (!to_screen.IsScaleOrTranslation())
+    return false;
+
+  float origin_x =
+      to_screen.matrix().getFloat(0, 3) + offset_to_transform_parent().x();
+  float origin_y =
+      to_screen.matrix().getFloat(1, 3) + offset_to_transform_parent().y();
+  if (origin_x - floorf(origin_x) == 0.f && origin_y - floorf(origin_y) == 0.f)
+    return false;
+
+  return true;
 }
 
 void PictureLayer::SetTypeForProtoSerialization(proto::LayerNode* proto) const {
