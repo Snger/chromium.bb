@@ -377,12 +377,6 @@ static bool WasmInstanceOverride(
 static void InitializeV8Common(v8::Isolate* isolate) {
   isolate->AddGCPrologueCallback(V8GCController::GcPrologue);
   isolate->AddGCEpilogueCallback(V8GCController::GcEpilogue);
-  std::unique_ptr<ScriptWrappableVisitor> visitor(
-      new ScriptWrappableVisitor(isolate));
-  V8PerIsolateData::From(isolate)->SetScriptWrappableVisitor(
-      std::move(visitor));
-  isolate->SetEmbedderHeapTracer(
-      V8PerIsolateData::From(isolate)->GetScriptWrappableVisitor());
 
   isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kScoped);
 
