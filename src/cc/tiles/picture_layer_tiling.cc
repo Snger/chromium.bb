@@ -48,32 +48,37 @@ float ComputeScaledManhattalInternalDistance(const gfx::Rect& a,
 
 PictureLayerTiling::PictureLayerTiling(
     WhichTree tree,
-    const gfx::SizeF& raster_scales,
+    const gfx::AxisTransform2d& raster_transform,
     scoped_refptr<RasterSource> raster_source,
     PictureLayerTilingClient* client,
     float min_preraster_distance,
     float max_preraster_distance)
-    : raster_scales_(raster_scales),
+    : raster_transform_(raster_transform),
       client_(client),
       tree_(tree),
       raster_source_(raster_source),
       min_preraster_distance_(min_preraster_distance),
       max_preraster_distance_(max_preraster_distance) {
   DCHECK(!raster_source->IsSolidColor());
-  gfx::Size content_bounds =
-      gfx::ScaleToCeiledSize(raster_source_->GetSize(), raster_scales_.width(),
-                             raster_scales_.height());
-  gfx::Size tile_size = client_->CalculateTileSize(content_bounds);
+  DCHECK_GE(raster_transform.translation().x(), 0.f);
+  DCHECK_LT(raster_transform.translation().x(), 1.f);
+  DCHECK_GE(raster_transform.translation().y(), 0.f);
+  DCHECK_LT(raster_transform.translation().y(), 1.f);
 
   DCHECK(!gfx::ScaleToFlooredSize(raster_source_->GetSize(),
-                                  raster_scales_.width(),
-                                  raster_scales_.height())
+                                  raster_transform.scale().width(),
+                                  raster_transform.scale().height())
               .IsEmpty())
       << "Tiling created with scale too small as contents become empty."
       << " Layer bounds: " << raster_source_->GetSize().ToString()
-      << " Raster scales: " << raster_scales_.ToString();
+      << " Raster transform: " << raster_transform_.ToString();
 
-  tiling_data_.SetTilingSize(content_bounds);
+  gfx::Rect content_bounds_rect =
+      EnclosingContentsRectFromLayerRect(gfx::Rect(raster_source_->GetSize()));
+  gfx::Size tiling_size = gfx::Size(content_bounds_rect.bottom_right().x(),
+                                    content_bounds_rect.bottom_right().y());
+  tiling_data_.SetTilingSize(tiling_size);
+  gfx::Size tile_size = client_->CalculateTileSize(tiling_size);
   tiling_data_.SetMaxTextureSize(tile_size);
 }
 
@@ -126,8 +131,8 @@ void PictureLayerTiling::CreateMissingTilesInLiveTilesRect() {
           gfx::Rect invalidated;
           for (Region::Iterator iter(*invalidation); iter.has_rect();
                iter.next()) {
-            gfx::Rect invalid_content_rect = gfx::ScaleToEnclosingRect(
-                iter.rect(), raster_scales_.width(), raster_scales_.height());
+            gfx::Rect invalid_content_rect =
+                EnclosingContentsRectFromLayerRect(iter.rect());
             invalid_content_rect.Intersect(tile_rect);
             invalidated.Union(invalid_content_rect);
           }
@@ -189,12 +194,13 @@ void PictureLayerTiling::SetRasterSourceAndResize(
   gfx::Size old_layer_bounds = raster_source_->GetSize();
   raster_source_ = std::move(raster_source);
   gfx::Size new_layer_bounds = raster_source_->GetSize();
-  gfx::Size content_bounds = gfx::ScaleToCeiledSize(
-      new_layer_bounds, raster_scales_.width(), raster_scales_.height());
-  gfx::Size tile_size = client_->CalculateTileSize(content_bounds);
+  gfx::Rect content_rect =
+      EnclosingContentsRectFromLayerRect(gfx::Rect(new_layer_bounds));
+  DCHECK(content_rect.origin() == gfx::Point());
+  gfx::Size tile_size = client_->CalculateTileSize(content_rect.size());
 
   if (tile_size != tiling_data_.max_texture_size()) {
-    tiling_data_.SetTilingSize(content_bounds);
+    tiling_data_.SetTilingSize(content_rect.size());
     tiling_data_.SetMaxTextureSize(tile_size);
     // When the tile size changes, the TilingData positions no longer work
     // as valid keys to the TileMap, so just drop all tiles and clear the live
@@ -209,7 +215,6 @@ void PictureLayerTiling::SetRasterSourceAndResize(
   // The SetLiveTilesRect() method would drop tiles outside the new bounds,
   // but may do so incorrectly if resizing the tiling causes the number of
   // tiles in the tiling_data_ to change.
-  gfx::Rect content_rect(content_bounds);
   int before_left = tiling_data_.TileXIndexFromSrcCoord(live_tiles_rect_.x());
   int before_top = tiling_data_.TileYIndexFromSrcCoord(live_tiles_rect_.y());
   int before_right =
@@ -220,7 +225,7 @@ void PictureLayerTiling::SetRasterSourceAndResize(
   // The live_tiles_rect_ is clamped to stay within the tiling size as we
   // change it.
   live_tiles_rect_.Intersect(content_rect);
-  tiling_data_.SetTilingSize(content_bounds);
+  tiling_data_.SetTilingSize(content_rect.size());
 
   int after_right = -1;
   int after_bottom = -1;
@@ -284,8 +289,8 @@ void PictureLayerTiling::RemoveTilesInRegion(const Region& layer_invalidation,
        iter.next()) {
     gfx::Rect layer_rect = iter.rect();
     // The pixels which are invalid in content space.
-    gfx::Rect invalid_content_rect = gfx::ScaleToEnclosingRect(
-        layer_rect, raster_scales_.width(), raster_scales_.height());
+    gfx::Rect invalid_content_rect =
+        EnclosingContentsRectFromLayerRect(layer_rect);
     gfx::Rect coverage_content_rect = invalid_content_rect;
     // Avoid needless work by not bothering to invalidate where there aren't
     // tiles.
@@ -321,10 +326,10 @@ void PictureLayerTiling::RemoveTilesInRegion(const Region& layer_invalidation,
 Tile::CreateInfo PictureLayerTiling::CreateInfoForTile(int i, int j) const {
   gfx::Rect tile_rect = tiling_data_.TileBoundsWithBorder(i, j);
   tile_rect.set_size(tiling_data_.max_texture_size());
-  gfx::Rect enclosing_layer_rect = gfx::ScaleToEnclosingRect(
-      tile_rect, 1.f / raster_scales_.width(), 1.f / raster_scales_.height());
+  gfx::Rect enclosing_layer_rect =
+      EnclosingLayerRectFromContentsRect(tile_rect);
   return Tile::CreateInfo(i, j, enclosing_layer_rect, tile_rect,
-                          raster_scales_);
+                          raster_transform_);
 }
 
 bool PictureLayerTiling::ShouldCreateTileAt(
@@ -363,8 +368,8 @@ bool PictureLayerTiling::ShouldCreateTileAt(
   // on the active tree and avoid floating point inconsistencies.
   for (Region::Iterator iter(*layer_invalidation); iter.has_rect();
        iter.next()) {
-    gfx::Rect invalid_content_rect = gfx::ScaleToEnclosingRect(
-        iter.rect(), raster_scales_.width(), raster_scales_.height());
+    gfx::Rect invalid_content_rect =
+        EnclosingContentsRectFromLayerRect(iter.rect());
     if (invalid_content_rect.Intersects(info.content_rect))
       return true;
   }
@@ -393,24 +398,26 @@ PictureLayerTiling::CoverageIterator::CoverageIterator(
     const PictureLayerTiling* tiling,
     float coverage_scale,
     const gfx::Rect& coverage_rect)
-    : tiling_(tiling), coverage_rect_(coverage_rect) {
+    : tiling_(tiling), coverage_rect_(coverage_rect),
+      coverage_to_content_(tiling->raster_transform().scale().width()  / coverage_scale,
+                           tiling->raster_transform().scale().height() /
+                           (coverage_scale * tiling->raster_transform().scale_ratio()),
+                           gfx::Vector2dF(0.f, 0.f)) {
   DCHECK(tiling_);
   // In order to avoid artifacts in geometry_rect scaling and clamping to ints,
   // the |coverage_scale| should always be at least as big as the tiling's
   // raster scales.
-  DCHECK_GE(coverage_scale, tiling_->raster_scales_.width());
-  DCHECK_GE(coverage_scale, tiling_->raster_scales_.height());
+  DCHECK_GE(coverage_scale, tiling_->raster_transform_.scale().width());
+  DCHECK_GE(coverage_scale * tiling->raster_transform().scale_ratio(), tiling_->raster_transform_.scale().height());
 
   // Clamp |coverage_rect| to the bounds of this tiling's raster source.
   coverage_rect_max_bounds_ =
-      gfx::ScaleToCeiledSize(tiling->raster_source_->GetSize(), coverage_scale);
+      gfx::ScaleToCeiledSize(
+          tiling->raster_source_->GetSize(),
+          coverage_scale, coverage_scale * tiling->raster_transform().scale_ratio());
   coverage_rect_.Intersect(gfx::Rect(coverage_rect_max_bounds_));
   if (coverage_rect_.IsEmpty())
     return;
-
-  coverage_to_content_scale_ =
-      gfx::SizeF(tiling_->raster_scales_.width() / coverage_scale,
-                 tiling_->raster_scales_.height() / coverage_scale);
 
   // Find the indices of the texel samples that enclose the rect we want to
   // cover.
@@ -428,9 +435,8 @@ PictureLayerTiling::CoverageIterator::CoverageIterator(
   // wanted_texels(sample coordinates) = (l:99.5, t:189.5, r:280.5, b:371.5)
   // Or in integer index:
   // wanted_texels(integer index) = (l:99, t:189, r:280, b:371)
-  gfx::RectF content_rect = gfx::ScaleRect(gfx::RectF(coverage_rect_),
-                                           coverage_to_content_scale_.width(),
-                                           coverage_to_content_scale_.height());
+  gfx::RectF content_rect =
+      coverage_to_content_.MapRect(gfx::RectF(coverage_rect_));
   content_rect.Offset(-0.5f, -0.5f);
   gfx::Rect wanted_texels = gfx::ToEnclosingRect(content_rect);
 
@@ -491,9 +497,8 @@ PictureLayerTiling::CoverageIterator::operator++() {
 
   // Convert texel_extent to coverage scale, which is what we have to report
   // geometry_rect in.
-  current_geometry_rect_ = gfx::ToEnclosedRect(
-      gfx::ScaleRect(texel_extent, 1.f / coverage_to_content_scale_.width(),
-                     1.f / coverage_to_content_scale_.height()));
+  current_geometry_rect_ =
+      gfx::ToEnclosedRect(coverage_to_content_.InverseMapRect(texel_extent));
   {
     // Adjust external edges to cover the whole layer in dest space.
     //
@@ -558,11 +563,7 @@ gfx::RectF PictureLayerTiling::CoverageIterator::texture_rect() const {
 
   // Convert from dest space => content space => texture space.
   gfx::RectF texture_rect(current_geometry_rect_);
-  texture_rect.Scale(coverage_to_content_scale_.width(),
-                     coverage_to_content_scale_.height());
-  texture_rect.Intersect(gfx::RectF(gfx::SizeF(tiling_->tiling_size())));
-  if (texture_rect.IsEmpty())
-    return texture_rect;
+  texture_rect = coverage_to_content_.MapRect(texture_rect);
   texture_rect.Offset(-tex_origin.OffsetFromOrigin());
 
   return texture_rect;
@@ -606,8 +607,8 @@ void PictureLayerTiling::ComputeTilePriorityRects(
   }
 
   gfx::SizeF content_to_screen_scale(
-      ideal_contents_scale / raster_scales_.width(),
-      ideal_contents_scale / raster_scales_.height());
+      ideal_contents_scale / raster_transform_.scale().width(),
+      (ideal_contents_scale * raster_transform_.scale_ratio()) / raster_transform_.scale().height());
 
   const gfx::Rect* input_rects[] = {
       &visible_rect_in_layer_space, &skewport_in_layer_space,
@@ -615,8 +616,8 @@ void PictureLayerTiling::ComputeTilePriorityRects(
   gfx::Rect output_rects[4];
   for (size_t i = 0; i < arraysize(input_rects); ++i) {
     output_rects[i] = gfx::ToEnclosingRect(
-        gfx::ScaleRect(gfx::RectF(*input_rects[i]), raster_scales_.width(),
-                       raster_scales_.height()));
+        gfx::ScaleRect(gfx::RectF(*input_rects[i]), raster_transform_.scale().width(),
+                       raster_transform_.scale().height()));
   }
   // Make sure the eventually rect is aligned to tile bounds.
   output_rects[3] =
@@ -761,10 +762,10 @@ bool PictureLayerTiling::IsTileOccludedOnCurrentTree(const Tile* tile) const {
   if (tile_query_rect.IsEmpty())
     return false;
 
-  if (raster_scales_ != gfx::SizeF(1.f, 1.f)) {
+  if (raster_transform_.scale() != gfx::SizeF(1.f, 1.f)) {
     tile_query_rect =
-        gfx::ScaleToEnclosingRect(tile_query_rect, 1.f / raster_scales_.width(),
-                                  1.f / raster_scales_.height());
+        gfx::ScaleToEnclosingRect(tile_query_rect, 1.f / raster_transform_.scale().width(),
+                                  1.f / raster_transform_.scale().height());
   }
   return current_occlusion_in_layer_space_.IsOccluded(tile_query_rect);
 }
@@ -847,10 +848,7 @@ PrioritizedTile PictureLayerTiling::MakePrioritizedTile(
   DCHECK(tile);
   DCHECK(raster_source()->CoversRect(tile->enclosing_layer_rect()))
       << "Recording rect: "
-      << gfx::ScaleToEnclosingRect(tile->content_rect(),
-                                   1.f / tile->raster_scales().width(),
-                                   1.f / tile->raster_scales().height())
-             .ToString();
+      <<  EnclosingLayerRectFromContentsRect(tile->content_rect()).ToString();
 
   const auto& tile_priority = ComputePriorityForTile(tile, priority_rect_type);
   // Note that TileManager will consider this flag but may rasterize the tile
@@ -949,9 +947,11 @@ void PictureLayerTiling::AsValueInto(
   // TODO(vmpstr): Change frameviewer to use raster scales.
   state->SetDouble("content_scale", contents_scale_key());
 
-  state->BeginArray("raster_scales");
-  state->AppendDouble(raster_scales_.width());
-  state->AppendDouble(raster_scales_.height());
+  state->BeginArray("raster_transform");
+  state->AppendDouble(raster_transform_.translation().x());
+  state->AppendDouble(raster_transform_.translation().y());
+  state->AppendDouble(raster_transform_.scale().width());
+  state->AppendDouble(raster_transform_.scale().height());
   state->EndArray();
 
   MathUtil::AddToTracedValue("visible_rect", current_visible_rect_, state);
@@ -969,6 +969,17 @@ size_t PictureLayerTiling::GPUMemoryUsageInBytes() const {
     amount += tile->GPUMemoryUsageInBytes();
   }
   return amount;
+}
+
+gfx::Rect PictureLayerTiling::EnclosingContentsRectFromLayerRect(
+    const gfx::Rect& layer_rect) const {
+  return ToEnclosingRect(raster_transform_.MapRect(gfx::RectF(layer_rect)));
+}
+
+gfx::Rect PictureLayerTiling::EnclosingLayerRectFromContentsRect(
+    const gfx::Rect& contents_rect) const {
+  return ToEnclosingRect(
+      raster_transform_.InverseMapRect(gfx::RectF(contents_rect)));
 }
 
 }  // namespace cc

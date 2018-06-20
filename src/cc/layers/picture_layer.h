@@ -85,6 +85,8 @@ class CC_EXPORT PictureLayer : public Layer {
 
   void DropRecordingSourceContentIfInvalid();
 
+  bool ShouldUseTransformedRasterization() const;
+
   std::unique_ptr<RecordingSource> recording_source_;
   devtools_instrumentation::
       ScopedLayerObjectTracker instrumentation_object_tracker_;

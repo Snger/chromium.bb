@@ -17,6 +17,7 @@
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkClipStack.h"
 #include "third_party/skia/include/core/SkPictureRecorder.h"
+#include "ui/gfx/geometry/axis_transform2d.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 
 namespace cc {
@@ -66,7 +67,7 @@ RasterSource::~RasterSource() {
 void RasterSource::PlaybackToCanvas(SkCanvas* raster_canvas,
                                     const gfx::Rect& canvas_bitmap_rect,
                                     const gfx::Rect& canvas_playback_rect,
-                                    const gfx::SizeF& raster_scales,
+                                    const gfx::AxisTransform2d& raster_transform,
                                     const PlaybackSettings& settings) const {
   SkIRect raster_bounds = gfx::RectToSkIRect(canvas_bitmap_rect);
   if (!canvas_playback_rect.IsEmpty() &&
@@ -78,7 +79,10 @@ void RasterSource::PlaybackToCanvas(SkCanvas* raster_canvas,
   raster_canvas->save();
   raster_canvas->translate(-canvas_bitmap_rect.x(), -canvas_bitmap_rect.y());
   raster_canvas->clipRect(SkRect::MakeFromIRect(raster_bounds));
-  raster_canvas->scale(raster_scales.width(), raster_scales.height());
+  raster_canvas->translate(
+    raster_transform.translation().x(), raster_transform.translation().y());
+  raster_canvas->scale(
+    raster_transform.scale().width(), raster_transform.scale().height());
   PlaybackToCanvas(raster_canvas, settings);
   raster_canvas->restore();
 }

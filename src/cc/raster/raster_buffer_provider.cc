@@ -13,6 +13,7 @@
 #include "cc/resources/resource_format_utils.h"
 #include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/skia/include/core/SkSurface.h"
+#include "ui/gfx/geometry/axis_transform2d.h"
 
 namespace cc {
 
@@ -51,7 +52,7 @@ void RasterBufferProvider::PlaybackToMemory(
     const RasterSource* raster_source,
     const gfx::Rect& canvas_bitmap_rect,
     const gfx::Rect& canvas_playback_rect,
-    const gfx::SizeF& scales,
+    const gfx::AxisTransform2d& transform,
     sk_sp<SkColorSpace> dst_color_space,
     const RasterSource::PlaybackSettings& playback_settings) {
   TRACE_EVENT0(TRACE_DISABLED_BY_DEFAULT("cc.debug"),
@@ -82,7 +83,7 @@ void RasterBufferProvider::PlaybackToMemory(
       sk_sp<SkSurface> surface =
           SkSurface::MakeRasterDirect(info, memory, stride, &surface_props);
       raster_source->PlaybackToCanvas(surface->getCanvas(), canvas_bitmap_rect,
-                                      canvas_playback_rect, scales,
+                                      canvas_playback_rect, transform,
                                       playback_settings);
       return;
     }
@@ -92,7 +93,7 @@ void RasterBufferProvider::PlaybackToMemory(
       // TODO(reveman): Improve partial raster support by reducing the size of
       // playback rect passed to PlaybackToCanvas. crbug.com/519070
       raster_source->PlaybackToCanvas(surface->getCanvas(), canvas_bitmap_rect,
-                                      canvas_bitmap_rect, scales,
+                                      canvas_bitmap_rect, transform,
                                       playback_settings);
 
       if (format == ETC1) {
