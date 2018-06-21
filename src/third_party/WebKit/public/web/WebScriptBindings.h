@@ -24,7 +24,6 @@
 #define WebScriptBindings_h
 
 #include "../platform/WebCommon.h"
-#include "base/callback.h"
 
 namespace v8 {
 class Context;
@@ -42,10 +41,6 @@ public:
 
     // Disposes of per-context data for a context created with 'createWebScriptContext()':
     BLINK_EXPORT static void disposeWebScriptContext(v8::Local<v8::Context> context);
-
-    // Executes 'closure', synchronously, in a scope where script execution
-    // is permitted:
-    BLINK_EXPORT static void runUserAgentScript(base::Closure closure);
 };
 
 } // namespace blink
