@@ -697,14 +697,16 @@ std::unique_ptr<RenderCompositor> RenderCompositorContext::CreateCompositor(gpu:
         new RenderCompositor(this, gpu_surface_handle));
 }
 
-std::unique_ptr<cc::CompositorFrameSink> RenderCompositorContext::CreateCompositorFrameSink(int routing_id)
+base::Optional<std::unique_ptr<cc::CompositorFrameSink>> RenderCompositorContext::CreateCompositorFrameSink(int routing_id)
 {
     auto it = d_compositors_by_routing_id.find(routing_id);
     if (it == d_compositors_by_routing_id.end()) {
-        return std::unique_ptr<cc::CompositorFrameSink>();
+        return base::make_optional(
+            std::unique_ptr<cc::CompositorFrameSink>());
     }
 
-    return it->second->CreateCompositorFrameSink();
+    return base::make_optional(
+        it->second->CreateCompositorFrameSink());
 }
 
 RenderCompositor::RenderCompositor(

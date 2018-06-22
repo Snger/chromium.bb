@@ -2023,10 +2023,10 @@ RenderThreadImpl::CreateCompositorFrameSink(
     int routing_id,
     scoped_refptr<FrameSwapMessageQueue> frame_swap_message_queue,
     const GURL& url) {
-  std::unique_ptr<cc::CompositorFrameSink> surface =
+  base::Optional<std::unique_ptr<cc::CompositorFrameSink>> surface =
       GetContentClient()->renderer()->CreateCompositorFrameSink(use_software, routing_id);
-  if (surface) {
-      return surface;
+  if (surface.has_value()) {
+      return std::move(*surface);
   }
 
   const base::CommandLine& command_line =

@@ -156,7 +156,7 @@ bool ContentRendererClientImpl::Dispatch(IPC::Message *msg)
     return false;
 }
 
-std::unique_ptr<cc::CompositorFrameSink> ContentRendererClientImpl::CreateCompositorFrameSink(
+base::Optional<std::unique_ptr<cc::CompositorFrameSink>> ContentRendererClientImpl::CreateCompositorFrameSink(
     bool use_software, int routing_id)
 {
     return RenderCompositorContext::GetInstance()->CreateCompositorFrameSink(
