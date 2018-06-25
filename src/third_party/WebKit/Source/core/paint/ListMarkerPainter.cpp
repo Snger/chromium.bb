@@ -78,13 +78,6 @@ void ListMarkerPainter::Paint(const PaintInfo& paint_info,
                        layout_list_marker_.StyleRef(), marker.Size())
             .Get(),
         marker);
-    if (layout_list_marker_.GetSelectionState() != SelectionState::kNone) {
-      LayoutRect sel_rect = layout_list_marker_.LocalSelectionRect();
-      sel_rect.MoveBy(box_origin);
-      context.FillRect(
-          PixelSnappedIntRect(sel_rect),
-          layout_list_marker_.ListItem()->SelectionBackgroundColor());
-    }
     return;
   }
 
@@ -155,9 +148,9 @@ void ListMarkerPainter::Paint(const PaintInfo& paint_info,
 
   const UChar suffix = ListMarkerText::Suffix(
       list_style, layout_list_marker_.ListItem()->Value());
-  UChar suffix_str[2] = {suffix, static_cast<UChar>(' ')};
+  UChar suffix_str[1] = { suffix };
   TextRun suffix_run =
-      ConstructTextRun(font, suffix_str, 2, layout_list_marker_.StyleRef(),
+      ConstructTextRun(font, suffix_str, 1, layout_list_marker_.StyleRef(),
                        layout_list_marker_.Style()->Direction());
   TextRunPaintInfo suffix_run_info(suffix_run);
   suffix_run_info.bounds = marker;
