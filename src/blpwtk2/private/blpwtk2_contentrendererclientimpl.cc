@@ -23,6 +23,7 @@
 #include <blpwtk2_contentrendererclientimpl.h>
 #include <blpwtk2_inprocessresourceloaderbridge.h>
 #include <blpwtk2_jswidget.h>
+#include <blpwtk2_nativeviewplugin.h>
 #include <blpwtk2_rendercompositor.h>
 #include <blpwtk2_rendermessagedelegate.h>
 #include <blpwtk2_renderviewobserverimpl.h>
@@ -174,12 +175,17 @@ bool ContentRendererClientImpl::OverrideCreatePlugin(
     const blink::WebPluginParams& params,
     blink::WebPlugin** plugin)
 {
-    if (base::UTF16ToASCII(base::StringPiece16(params.mimeType)) != "application/x-bloomberg-jswidget") {
-        return false;
+    if (base::UTF16ToASCII(base::StringPiece16(params.mimeType)) == "application/x-bloomberg-jswidget") {
+	*plugin = new JsWidget(frame);
+	return true;
     }
 
-    *plugin = new JsWidget(frame);
-    return true;
+    if (base::UTF16ToASCII(base::StringPiece16(params.mimeType)) == "application/x-bloomberg-nativeview") {
+        *plugin = new NativeViewPlugin(frame, params);
+        return true;
+    }
+    
+    return false;
 }
 
 bool ContentRendererClientImpl::Dispatch(IPC::Message *msg)
