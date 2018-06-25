@@ -409,7 +409,7 @@ void ProcessHostImpl::bindProcess(unsigned int pid, bool launchDevToolsServer)
     }
     else {
         for (const auto& instance : g_instances) {
-            if (instance->d_impl->processId() == static_cast<base::ProcessId>(pid)) {
+            if (instance && instance->d_impl && instance->d_impl->processId() == static_cast<base::ProcessId>(pid)) {
                 // found!
                 d_impl = instance->d_impl;
                 LOG(INFO) << "Rebound process host for pid: " << pid;
