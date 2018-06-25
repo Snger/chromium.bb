@@ -84,7 +84,7 @@ class ContentRendererClientImpl : public content::ContentRendererClient
 
     bool Dispatch(IPC::Message *msg) override;
 
-    std::unique_ptr<cc::CompositorFrameSink> CreateCompositorFrameSink(
+    base::Optional<std::unique_ptr<cc::CompositorFrameSink>> CreateCompositorFrameSink(
         bool use_software, int routing_id) override;
 };
 

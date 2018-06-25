@@ -27,6 +27,7 @@
 #include <memory>
 
 #include <base/lazy_instance.h>
+#include <base/optional.h>
 #include <base/memory/ref_counted.h>
 #include <base/memory/weak_ptr.h>
 #include <base/synchronization/waitable_event.h>
@@ -82,7 +83,7 @@ class RenderCompositorContext {
     static void Terminate();
 
     std::unique_ptr<RenderCompositor> CreateCompositor(gpu::SurfaceHandle gpu_surface_handle);
-    std::unique_ptr<cc::CompositorFrameSink> CreateCompositorFrameSink(int routing_id);
+    base::Optional<std::unique_ptr<cc::CompositorFrameSink>> CreateCompositorFrameSink(int routing_id);
 
   private:
 

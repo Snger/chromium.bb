@@ -13,6 +13,7 @@
 #include <vector>
 
 #include "base/bind.h"
+#include "base/optional.h"
 #include "base/memory/ref_counted.h"
 #include "base/strings/string16.h"
 #include "build/build_config.h"
@@ -395,7 +396,7 @@ class CONTENT_EXPORT ContentRendererClient {
 
   // Allows the embedder to override construction of the compositor
   // frame sink for the 'content::RenderView' identified by 'routing_id'.
-  virtual std::unique_ptr<cc::CompositorFrameSink> CreateCompositorFrameSink(
+  virtual base::Optional<std::unique_ptr<cc::CompositorFrameSink>> CreateCompositorFrameSink(
       bool use_software, int routing_id);
 };
 

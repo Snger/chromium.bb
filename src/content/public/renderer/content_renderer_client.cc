@@ -245,9 +245,9 @@ GURL ContentRendererClient::OverrideFlashEmbedWithHTML(const GURL& url) {
   return GURL();
 }
 
-std::unique_ptr<cc::CompositorFrameSink>
+base::Optional<std::unique_ptr<cc::CompositorFrameSink>>
 ContentRendererClient::CreateCompositorFrameSink(bool use_software, int routing_id) {
-  return nullptr;
+  return base::Optional<std::unique_ptr<cc::CompositorFrameSink>>();
 }
 
 }  // namespace content
