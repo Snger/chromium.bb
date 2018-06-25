@@ -22,6 +22,7 @@
 
 #include <blpwtk2_contentrendererclientimpl.h>
 #include <blpwtk2_inprocessresourceloaderbridge.h>
+#include <blpwtk2_nativeviewplugin.h>
 #include <blpwtk2_renderviewobserverimpl.h>
 #include <blpwtk2_resourceloader.h>
 #include <blpwtk2_statics.h>
@@ -139,6 +140,11 @@ bool ContentRendererClientImpl::OverrideCreatePlugin(
     const blink::WebPluginParams& params,
     blink::WebPlugin** plugin)
 {
+    if (base::UTF16ToASCII(base::StringPiece16(params.mimeType)) == "application/x-bloomberg-nativeview") {
+        *plugin = new NativeViewPlugin(frame, params);
+        return true;
+    }
+
     return false;
 }
 

@@ -228,6 +228,8 @@ component("web") {
     "WebRuntimeFeatures.cpp",
     "WebScopedUserGesture.cpp",
     "WebScopedWindowFocusAllowedIndicator.cpp",
+    "WebScriptBindings.cpp",
+    "WebScriptBindings.h",
     "WebScriptController.cpp",
     "WebScriptSource.cpp",
     "WebSearchableFormData.cpp",
