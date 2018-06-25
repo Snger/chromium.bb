@@ -221,14 +221,6 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
 
         if ((size != d_size && !(windowpos->flags & SWP_NOSIZE)) ||
              windowpos->flags & SWP_FRAMECHANGED) {
-            if (d_gotRenderViewInfo) {
-                content::RenderWidget* rw =
-                    content::RenderViewImpl::FromRoutingID(d_renderViewRoutingId);
-                DCHECK(rw);
-
-                rw->compositor()->FinishAllRendering();
-            }
-
             d_compositor->Resize(gfx::Size());
         }
     } break;
