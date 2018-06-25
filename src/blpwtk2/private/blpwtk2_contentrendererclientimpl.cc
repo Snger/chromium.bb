@@ -65,13 +65,17 @@ void ContentRendererClientImpl::RenderViewCreated(
     // will call OnDestruct() on all observers, which will delete this
     // instance of RenderViewObserverImpl.
     new RenderViewObserverImpl(render_view);
+}
 
+void ContentRendererClientImpl::RenderFrameCreated(
+    content::RenderFrame *render_frame)
+{
     // Create an instance of PrintWebViewHelper.  This is an observer that is
     // registered with the RenderFrame.  The RenderFrameImpl's destructor
     // will call OnDestruct() on all observers, which will delete this
     // instance of PrintWebViewHelper.
     new printing::PrintWebViewHelper(
-            render_view->GetMainRenderFrame(),
+            render_frame,
             std::unique_ptr<printing::PrintWebViewHelper::Delegate>(
                 printing::PrintWebViewHelper::CreateEmptyDelegate()));
 }
