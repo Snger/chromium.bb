@@ -866,6 +866,8 @@ class CONTENT_EXPORT RenderWidget
 
   bool bb_OnHandleInputEvent_no_ack_;
 
+  gfx::Point last_client_point;
+
   DISALLOW_COPY_AND_ASSIGN(RenderWidget);
 };
 
