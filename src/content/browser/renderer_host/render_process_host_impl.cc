@@ -1784,7 +1784,11 @@ void RenderProcessHostImpl::CreateMessageFilters() {
 #if defined(OS_MACOSX)
   AddFilter(new TextInputClientMessageFilter());
 #elif defined(OS_WIN)
-  AddFilter(new DWriteFontProxyMessageFilter());
+  {
+    DWriteFontProxyMessageFilter* filter = new DWriteFontProxyMessageFilter();
+	filter->SetFontCollection(browser_context->GetFontCollection());
+	AddFilter(filter);
+  }
 
   // The FontCacheDispatcher is required only when we're using GDI rendering.
   // TODO(scottmg): pdf/ppapi still require the renderer to be able to precache

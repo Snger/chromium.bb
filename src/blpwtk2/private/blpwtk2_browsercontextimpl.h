@@ -146,7 +146,9 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     net::URLRequestContextGetter *CreateMediaRequestContext() override;
     net::URLRequestContextGetter *CreateMediaRequestContextForStoragePartition(
           const base::FilePath& partition_path,
-          bool                  in_memory) override;
+          bool in_memory) override;
+
+	content::FontCollection* GetFontCollection() override;
 };
 
 }  // close namespace blpwtk2
