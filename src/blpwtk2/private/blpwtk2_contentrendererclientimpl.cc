@@ -159,8 +159,12 @@ bool ContentRendererClientImpl::Dispatch(IPC::Message *msg)
 base::Optional<std::unique_ptr<cc::CompositorFrameSink>> ContentRendererClientImpl::CreateCompositorFrameSink(
     bool use_software, int routing_id)
 {
-    return RenderCompositorContext::GetInstance()->CreateCompositorFrameSink(
-        routing_id);
+    if (Statics::rendererUIEnabled) {
+        return RenderCompositorContext::GetInstance()->CreateCompositorFrameSink(
+            routing_id);
+    }
+
+    return base::Optional<std::unique_ptr<cc::CompositorFrameSink>>();
 }
 
 }  // close namespace blpwtk2
