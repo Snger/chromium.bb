@@ -1142,6 +1142,7 @@ chrome_public_apk_tmpl_shared("chrome_public_apk_for_test") {
   deps = [
     "//chrome/browser/profiling_host:profiling_host_java_test_support",
   ]
+  deps += android_extra_test_deps
 }
 
 chrome_public_apk_tmpl_shared("chrome_modern_public_apk") {
@@ -1300,6 +1301,7 @@ if (enable_vr) {
     deps = [
       ":chrome_test_vr_java",
     ]
+    deps += android_extra_test_deps
     additional_apks = [ "//net/android:net_test_support_apk" ]
     proguard_enabled = !is_java_debug
     if (proguard_enabled && !enable_proguard_obfuscation) {
@@ -1368,6 +1370,7 @@ instrumentation_test_apk("chrome_sync_shell_test_apk") {
     "//third_party/junit",
     "//ui/android:ui_java",
   ]
+  deps += android_extra_test_deps
   proguard_enabled = !is_java_debug
   if (proguard_enabled && !enable_proguard_obfuscation) {
     proguard_configs = [ "//base/android/proguard/enable_obfuscation.flags" ]
