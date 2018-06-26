@@ -105,7 +105,7 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
 
     d_hwnd.reset(CreateWindowEx(
 #if defined(BLPWTK2_FEATURE_FOCUS)
-        d_properties.takeKeyboardFocusOnMouseDown?
+        d_properties.activateWindowOnMouseDown?
             0 : WS_EX_NOACTIVATE,
 #else
         0,
@@ -336,10 +336,12 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
             case WM_LBUTTONDOWN:
             case WM_MBUTTONDOWN:
             case WM_RBUTTONDOWN: {
+#if defined(BLPWTK2_FEATURE_FOCUS)
                 // Focus on mouse button down:
-                if (!(GetWindowLong(d_hwnd.get(), GWL_EXSTYLE) & WS_EX_NOACTIVATE)) {
+                if (d_properties.takeKeyboardFocusOnMouseDown) {
                     SetFocus(d_hwnd.get());
                 }
+#endif
 
                 // Capture on mouse button down:
                 SetCapture(d_hwnd.get());
