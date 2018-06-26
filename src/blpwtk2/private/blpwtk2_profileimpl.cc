@@ -271,6 +271,15 @@ void ProfileImpl::createWebView(WebViewDelegate            *delegate,
     if (Statics::rendererUIEnabled && Statics::isInProcessRendererEnabled) {
         WebViewProperties properties;
 
+#if defined(BLPWTK2_FEATURE_FOCUS)
+        properties.takeKeyboardFocusOnMouseDown =
+            params.takeKeyboardFocusOnMouseDown();
+        properties.takeLogicalFocusOnMouseDown =
+            params.takeLogicalFocusOnMouseDown();
+        properties.activateWindowOnMouseDown =
+            params.activateWindowOnMouseDown();
+#endif
+
         properties.domPasteEnabled =
             params.domPasteEnabled();
         properties.javascriptCanAccessClipboard =
