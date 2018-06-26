@@ -194,15 +194,7 @@ LRESULT CALLBACK RenderWebView::WindowProcedure(HWND      hWnd,
         // Otherwise:
         DCHECK(that->d_hwnd == hWnd);
 
-        auto result = that->windowProcedure(uMsg, wParam, lParam);
-
-        // Perform some cleanup if destroying:
-        if (uMsg == WM_NCDESTROY) {
-            SetWindowLong(that->d_hwnd.get(), GWL_USERDATA, 0);
-            that->d_hwnd.reset();
-        }
-
-        return result;
+        return that->windowProcedure(uMsg, wParam, lParam);
     }
 }
 
@@ -212,6 +204,12 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
 {
     switch (uMsg) {
     case WM_NCDESTROY: {
+        d_compositor->SetVisible(false);
+        d_compositor.reset();
+
+        dispatchToRenderViewImpl(
+            ViewMsg_WasHidden(d_renderViewRoutingId));
+
         d_hwnd.release();
     } return 0;
     case WM_WINDOWPOSCHANGING: {
@@ -500,6 +498,11 @@ RenderWebView::~RenderWebView()
         d_client = nullptr;
         client->releaseHost();
     }
+
+    // Prevent the window procedure from subsequently accessing 'this':
+    if (d_hwnd.is_valid()) {
+        SetWindowLongPtr(d_hwnd.get(), GWLP_USERDATA, 0);
+    }
 }
 
 bool RenderWebView::dispatchToRenderViewImpl(const IPC::Message& message)
@@ -660,6 +663,9 @@ void RenderWebView::destroy()
         content::RenderView *rv =
             content::RenderView::FromRoutingID(d_renderViewRoutingId);
         DCHECK(rv);
+
+        dispatchToRenderViewImpl(
+            ViewMsg_Close(d_renderViewRoutingId));
 
         RenderMessageDelegate::GetInstance()->RemoveRoute(
             rv->GetMainRenderFrame()->GetRoutingID());
@@ -1197,6 +1203,10 @@ void RenderWebView::preResize(const gfx::Size& size)
 
 void RenderWebView::notifyRoutingId(int id)
 {
+    if (d_gotRenderViewInfo) {
+        return;
+    }
+
     if (d_pendingDestroy) {
         LOG(INFO) << "WebView destroyed before we got a reference to a RenderView";
         return;

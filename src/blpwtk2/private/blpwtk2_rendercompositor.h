@@ -121,7 +121,7 @@ class RenderCompositorContext {
     std::unique_ptr<Details> d_details;
 };
 
-class RenderCompositor : private base::SupportsWeakPtr<RenderCompositor> {
+class RenderCompositor {
   public:
 
     ~RenderCompositor();
