@@ -146,12 +146,13 @@ class CC_EXPORT PictureLayerImpl : public LayerImpl,
   float ideal_device_scale_;
   float ideal_source_scale_;
   float ideal_contents_scale_;
-  float scale_aspect_ratio_;
+  float ideal_scale_aspect_ratio_;
 
   float raster_page_scale_;
   float raster_device_scale_;
   float raster_source_scale_;
   float raster_contents_scale_;
+  float raster_scale_aspect_ratio_;
   float low_res_raster_contents_scale_;
 
   Layer::LayerMaskType mask_type_;
