@@ -100,12 +100,11 @@ PictureLayerImpl::PictureLayerImpl(LayerTreeImpl* tree_impl,
       ideal_device_scale_(0.f),
       ideal_source_scale_(0.f),
       ideal_contents_scale_(0.f),
-      ideal_scale_aspect_ratio_(1.f),
+      scale_aspect_ratio_(1.f),
       raster_page_scale_(0.f),
       raster_device_scale_(0.f),
       raster_source_scale_(0.f),
       raster_contents_scale_(0.f),
-      raster_scale_aspect_ratio_(1.f),
       low_res_raster_contents_scale_(0.f),
       was_screen_space_transform_animating_(false),
       only_used_low_res_last_append_quads_(false),
@@ -169,7 +168,6 @@ void PictureLayerImpl::PushPropertiesTo(LayerImpl* base_layer) {
   layer_impl->raster_device_scale_ = raster_device_scale_;
   layer_impl->raster_source_scale_ = raster_source_scale_;
   layer_impl->raster_contents_scale_ = raster_contents_scale_;
-  layer_impl->raster_scale_aspect_ratio_ = raster_scale_aspect_ratio_;
   layer_impl->low_res_raster_contents_scale_ = low_res_raster_contents_scale_;
   layer_impl->is_directly_composited_image_ = is_directly_composited_image_;
 
@@ -211,7 +209,7 @@ void PictureLayerImpl::AppendQuads(RenderPass* render_pass,
   PopulateTransformedSharedQuadState(
       shared_quad_state,
       gfx::AxisTransform2d(
-          max_contents_scale, max_contents_scale * ideal_scale_aspect_ratio_,
+          max_contents_scale, max_contents_scale * scale_aspect_ratio_,
           raster_translation));
   Occlusion scaled_occlusion =
       draw_properties()
@@ -232,7 +230,8 @@ void PictureLayerImpl::AppendQuads(RenderPass* render_pass,
     // The raster source may not be valid over the entire visible rect,
     // and rastering outside of that may cause incorrect pixels.
     gfx::Rect scaled_recorded_viewport = gfx::ScaleToEnclosingRect(
-        raster_source_->RecordedViewport(), max_contents_scale);
+        raster_source_->RecordedViewport(),
+        max_contents_scale, max_contents_scale * scale_aspect_ratio_);
     geometry_rect.Intersect(scaled_recorded_viewport);
     opaque_rect.Intersect(scaled_recorded_viewport);
     visible_geometry_rect.Intersect(scaled_recorded_viewport);
@@ -314,13 +313,15 @@ void PictureLayerImpl::AppendQuads(RenderPass* render_pass,
   // normally the same as draw viewport but can be independently overridden by
   // embedders like Android WebView with SetExternalTilePriorityConstraints.
   gfx::Rect scaled_viewport_for_tile_priority = gfx::ScaleToEnclosingRect(
-      viewport_rect_for_tile_priority_in_content_space_, max_contents_scale);
+      viewport_rect_for_tile_priority_in_content_space_,
+      max_contents_scale, max_contents_scale * scale_aspect_ratio_);
 
   size_t missing_tile_count = 0u;
   size_t on_demand_missing_tile_count = 0u;
   only_used_low_res_last_append_quads_ = true;
   gfx::Rect scaled_recorded_viewport = gfx::ScaleToEnclosingRect(
-      raster_source_->RecordedViewport(), max_contents_scale);
+      raster_source_->RecordedViewport(),
+      max_contents_scale, max_contents_scale * scale_aspect_ratio_);
   for (PictureLayerTilingSet::CoverageIterator iter(
            tilings_.get(), max_contents_scale,
            shared_quad_state->visible_quad_layer_rect, ideal_contents_scale_);
@@ -456,7 +457,7 @@ bool PictureLayerImpl::UpdateTiles() {
     ideal_device_scale_ = 0.f;
     ideal_contents_scale_ = 0.f;
     ideal_source_scale_ = 0.f;
-    ideal_scale_aspect_ratio_ = 1.f;
+    scale_aspect_ratio_ = 1.f;
     SanityCheckTilingState();
     return false;
   }
@@ -469,9 +470,11 @@ bool PictureLayerImpl::UpdateTiles() {
   if (layer_tree_impl()->IsActiveTree())
     CleanUpTilingsOnActiveLayer(last_append_quads_tilings_);
 
+  float last_scale_aspect_ratio = scale_aspect_ratio_;
   UpdateIdealScales();
 
-  if (!raster_contents_scale_ || ShouldAdjustRasterScale()) {
+  if (!raster_contents_scale_ ||
+      ShouldAdjustRasterScale(last_scale_aspect_ratio)) {
     RecalculateRasterScales();
     AddTilingsForRasterScale();
   }
@@ -662,7 +665,7 @@ void PictureLayerImpl::NotifyTileStateChanged(const Tile* tile) {
   }
   if (tile->draw_info().NeedsRaster()) {
     PictureLayerTiling* tiling =
-        tilings_->FindTilingWithScaleKey(tile->contents_scale_key());
+        tilings_->FindTilingWithScale(tile->raster_scales());
     if (tiling)
       tiling->set_all_tiles_done(false);
   }
@@ -732,8 +735,8 @@ const PictureLayerTiling* PictureLayerImpl::GetPendingOrActiveTwinTiling(
   PictureLayerImpl* twin_layer = GetPendingOrActiveTwinLayer();
   if (!twin_layer)
     return nullptr;
-  return twin_layer->tilings_->FindTilingWithScaleKey(
-      tiling->contents_scale_key());
+  return twin_layer->tilings_->FindTilingWithScale(
+      tiling->raster_scales());
 }
 
 bool PictureLayerImpl::RequiresHighResToDraw() const {
@@ -847,7 +850,8 @@ void PictureLayerImpl::GetContentsResourceId(ResourceId* resource_id,
       << raster_source_->GetSize().ToString();
   float dest_scale = MaximumTilingContentsScale();
   gfx::Rect content_rect =
-      gfx::ScaleToEnclosingRect(gfx::Rect(bounds()), dest_scale);
+      gfx::ScaleToEnclosingRect(gfx::Rect(bounds()),
+        dest_scale, dest_scale * scale_aspect_ratio_);
   PictureLayerTilingSet::CoverageIterator iter(
       tilings_.get(), dest_scale, content_rect, ideal_contents_scale_);
 
@@ -904,9 +908,9 @@ void PictureLayerImpl::RemoveAllTilings() {
 }
 
 void PictureLayerImpl::AddTilingsForRasterScale() {
-  // If scale aspect ratio has changed, then throw out all tilings:
-  if (tilings_->aspect_ratio() != ideal_scale_aspect_ratio_) {
-    tilings_->SetAspectRatio(ideal_scale_aspect_ratio_);
+  // If scale aspect ratio has changed, then update it:
+  if (tilings_->aspect_ratio() != scale_aspect_ratio_) {
+    tilings_->SetAspectRatio(scale_aspect_ratio_);
   }
 
   // Reset all resolution enums on tilings, we'll be setting new values in this
@@ -914,7 +918,8 @@ void PictureLayerImpl::AddTilingsForRasterScale() {
   tilings_->MarkAllTilingsNonIdeal();
 
   PictureLayerTiling* high_res =
-      tilings_->FindTilingWithScaleKey(raster_contents_scale_);
+      tilings_->FindTilingWithScale(
+          gfx::SizeF(raster_contents_scale_, raster_contents_scale_ * scale_aspect_ratio_));
   // Note: This function is always invoked when raster scale is recomputed,
   // but not necessarily changed. This means raster translation update is also
   // always done when there are significant changes that triggered raster scale
@@ -930,7 +935,7 @@ void PictureLayerImpl::AddTilingsForRasterScale() {
     // We always need a high res tiling, so create one if it doesn't exist.
     high_res = AddTiling(
       gfx::AxisTransform2d(
-          raster_contents_scale_, raster_contents_scale_ * ideal_scale_aspect_ratio_,
+          raster_contents_scale_, raster_contents_scale_ * scale_aspect_ratio_,
           raster_translation));
   } else if (high_res->may_contain_low_resolution_tiles()) {
     // If the tiling we find here was LOW_RESOLUTION previously, it may not be
@@ -951,7 +956,8 @@ void PictureLayerImpl::AddTilingsForRasterScale() {
   SanityCheckTilingState();
 }
 
-bool PictureLayerImpl::ShouldAdjustRasterScale() const {
+bool PictureLayerImpl::ShouldAdjustRasterScale(
+  float last_scale_aspect_ratio) const {
   if (is_directly_composited_image_) {
     float max_scale = std::max(1.f, MinimumContentsScale());
     if (raster_source_scale_ < std::min(ideal_source_scale_, max_scale))
@@ -998,7 +1004,7 @@ bool PictureLayerImpl::ShouldAdjustRasterScale() const {
   if (draw_properties().screen_space_transform_is_animating ||
       has_will_change_transform_hint() ||
       (raster_source_scale_ == ideal_source_scale_ &&
-       raster_scale_aspect_ratio_ == ideal_scale_aspect_ratio_)) {
+       last_scale_aspect_ratio == scale_aspect_ratio_)) {
     return false;
   }
 
@@ -1035,8 +1041,6 @@ void PictureLayerImpl::AddLowResolutionTilingIfNeeded() {
 }
 
 void PictureLayerImpl::RecalculateRasterScales() {
-  raster_scale_aspect_ratio_ = ideal_scale_aspect_ratio_;
-
   if (is_directly_composited_image_) {
     if (!raster_source_scale_)
       raster_source_scale_ = 1.f;
@@ -1107,7 +1111,8 @@ void PictureLayerImpl::RecalculateRasterScales() {
     float starting_scale = animation_scales.starting_animation_scale;
     if (maximum_scale) {
       gfx::Size bounds_at_maximum_scale =
-          gfx::ScaleToCeiledSize(raster_source_->GetSize(), maximum_scale);
+          gfx::ScaleToCeiledSize(raster_source_->GetSize(),
+            maximum_scale, maximum_scale * scale_aspect_ratio_);
       int64_t maximum_area =
           static_cast<int64_t>(bounds_at_maximum_scale.width()) *
           static_cast<int64_t>(bounds_at_maximum_scale.height());
@@ -1119,7 +1124,8 @@ void PictureLayerImpl::RecalculateRasterScales() {
     }
     if (starting_scale && starting_scale > maximum_scale) {
       gfx::Size bounds_at_starting_scale =
-          gfx::ScaleToCeiledSize(raster_source_->GetSize(), starting_scale);
+          gfx::ScaleToCeiledSize(raster_source_->GetSize(),
+            starting_scale, starting_scale * scale_aspect_ratio_);
       int64_t start_area =
           static_cast<int64_t>(bounds_at_starting_scale.width()) *
           static_cast<int64_t>(bounds_at_starting_scale.height());
@@ -1150,7 +1156,8 @@ void PictureLayerImpl::RecalculateRasterScales() {
   // If this layer would create zero or one tiles at this content scale,
   // don't create a low res tiling.
   gfx::Size raster_bounds =
-      gfx::ScaleToCeiledSize(raster_source_->GetSize(), raster_contents_scale_);
+      gfx::ScaleToCeiledSize(raster_source_->GetSize(),
+        raster_contents_scale_, raster_contents_scale_ * scale_aspect_ratio_);
   gfx::Size tile_size = CalculateTileSize(raster_bounds);
   bool tile_covers_bounds = tile_size.width() >= raster_bounds.width() &&
                             tile_size.height() >= raster_bounds.height();
@@ -1214,7 +1221,7 @@ gfx::Vector2dF PictureLayerImpl::CalculateRasterTranslation(
   static constexpr float kErrorThreshold = 0.0000001f;
   if (std::abs(draw_transform.matrix().getFloat(0, 0) - raster_scale) >
           kErrorThreshold ||
-      std::abs(draw_transform.matrix().getFloat(1, 1) - (raster_scale * ideal_scale_aspect_ratio_)) >
+      std::abs(draw_transform.matrix().getFloat(1, 1) - (raster_scale * scale_aspect_ratio_)) >
           kErrorThreshold)
     return gfx::Vector2dF();
 
@@ -1242,7 +1249,7 @@ float PictureLayerImpl::MinimumContentsScale() const {
 
   return std::max(
       (1.f / min_dimension) /
-      (min_axis? ideal_scale_aspect_ratio_ : 1.f),
+      (min_axis? scale_aspect_ratio_ : 1.f),
       setting_min);
 }
 
@@ -1262,7 +1269,7 @@ float PictureLayerImpl::MaximumContentsScale() const {
   int max_bounds = bounds[max_axis];
   float max_scale =
       (static_cast<float>(max_texture_size) / max_bounds) /
-      (max_axis? ideal_scale_aspect_ratio_ : 1.f);
+      (max_axis? scale_aspect_ratio_ : 1.f);
   // We require that multiplying the layer size by the contents scale and
   // ceiling produces a value <= |max_texture_size|. Because for large layer
   // sizes floating point ambiguity may crop up, making the result larger or
@@ -1277,7 +1284,6 @@ void PictureLayerImpl::ResetRasterScale() {
   raster_device_scale_ = 0.f;
   raster_source_scale_ = 0.f;
   raster_contents_scale_ = 0.f;
-  raster_scale_aspect_ratio_ = 1.f;
   low_res_raster_contents_scale_ = 0.f;
 }
 
@@ -1342,7 +1348,7 @@ void PictureLayerImpl::UpdateIdealScales() {
   ideal_device_scale_ = layer_tree_impl()->device_scale_factor();
 
   float ideal_contents_scale = 0.f;
-  std::tie(ideal_contents_scale, ideal_scale_aspect_ratio_) =
+  std::tie(ideal_contents_scale, scale_aspect_ratio_) =
       GetIdealContentsScaleAndAspectRatio();
 
   ideal_contents_scale_ =
