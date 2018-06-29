@@ -89,6 +89,7 @@ class CC_EXPORT PictureLayerTilingSet {
   WhichTree tree() const { return tree_; }
 
   PictureLayerTiling* FindTilingWithScaleKey(float scale_key) const;
+  PictureLayerTiling* FindTilingWithScale(const gfx::SizeF& scale) const;
   PictureLayerTiling* FindTilingWithResolution(TileResolution resolution) const;
 
   void MarkAllTilingsNonIdeal();
@@ -113,6 +114,8 @@ class CC_EXPORT PictureLayerTilingSet {
 
   // Removes all tilings with a contents scale key > |maximum_scale_key|.
   void RemoveTilingsAboveScaleKey(float maximum_scale);
+
+  void RemoveTilingsWithStaleAspectRatio();
 
   // Remove all tilings.
   void RemoveAllTilings();

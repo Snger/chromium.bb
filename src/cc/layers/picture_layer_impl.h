@@ -106,7 +106,7 @@ class CC_EXPORT PictureLayerImpl
   void RemoveAllTilings();
   void AddTilingsForRasterScale();
   void AddLowResolutionTilingIfNeeded();
-  bool ShouldAdjustRasterScale() const;
+  bool ShouldAdjustRasterScale(float last_scale_aspect_ratio) const;
   void RecalculateRasterScales();
   gfx::Vector2dF CalculateRasterTranslation(float raster_scale);
   void CleanUpTilingsOnActiveLayer(
@@ -137,13 +137,12 @@ class CC_EXPORT PictureLayerImpl
   float ideal_device_scale_;
   float ideal_source_scale_;
   float ideal_contents_scale_;
-  float ideal_scale_aspect_ratio_;
+  float scale_aspect_ratio_;
 
   float raster_page_scale_;
   float raster_device_scale_;
   float raster_source_scale_;
   float raster_contents_scale_;
-  float raster_scale_aspect_ratio_;
   float low_res_raster_contents_scale_;
 
   bool was_screen_space_transform_animating_;
