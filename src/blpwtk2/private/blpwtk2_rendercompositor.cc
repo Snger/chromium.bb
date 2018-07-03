@@ -636,6 +636,27 @@ scoped_refptr<gpu::GpuChannelHost> RenderCompositorContext::EstablishPrivilegedG
     return gpu_channel;
 }
 
+std::unique_ptr<cc::CompositorFrameSink> RenderCompositorContext::CreateUncorrelatedCompositorFrameSink()
+{
+    base::WaitableEvent event(
+        base::WaitableEvent::ResetPolicy::AUTOMATIC,
+        base::WaitableEvent::InitialState::NOT_SIGNALED);
+
+    std::unique_ptr<CompositorFrameSink> result;
+
+    content::RenderThreadImpl::current()->compositor_task_runner()->
+        PostTask(
+            FROM_HERE,
+            base::Bind(&RenderCompositorContext::Details::CreateUncorrelatedCompositorFrameSinkImpl,
+                base::Unretained(d_details.get()),
+                &result,
+                &event));
+
+    event.Wait();
+
+    return result;
+}
+
 void RenderCompositorContext::Details::ConstructImpl(
     cc::SharedBitmapManager *shared_bitmap_manager,
     gpu::GpuMemoryBufferManager *gpu_memory_buffer_manager)
@@ -691,6 +712,23 @@ void RenderCompositorContext::Details::EstablishPrivilegedGpuChannelImpl(
     }
 }
 
+void RenderCompositorContext::Details::CreateUncorrelatedCompositorFrameSinkImpl(
+    std::unique_ptr<CompositorFrameSink> *result,
+    base::WaitableEvent *event)
+{
+    auto compositor_output_surface =
+        std::make_unique<CompositorFrameSink>(
+            nullptr,
+            nullptr,
+            nullptr,
+            d_gpu_memory_buffer_manager,
+            d_shared_bitmap_manager);
+
+    *result = std::move(compositor_output_surface);
+
+    event->Signal();
+}
+
 std::unique_ptr<RenderCompositor> RenderCompositorContext::CreateCompositor(gpu::SurfaceHandle gpu_surface_handle)
 {
     return std::unique_ptr<RenderCompositor>(
@@ -702,7 +740,7 @@ base::Optional<std::unique_ptr<cc::CompositorFrameSink>> RenderCompositorContext
     auto it = d_compositors_by_routing_id.find(routing_id);
     if (it == d_compositors_by_routing_id.end()) {
         return base::make_optional(
-            std::unique_ptr<cc::CompositorFrameSink>());
+            CreateUncorrelatedCompositorFrameSink());
     }
 
     return base::make_optional(

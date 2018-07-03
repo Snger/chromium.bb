@@ -1149,4 +1149,9 @@ void RenderWidgetCompositor::SetDeviceColorSpace(
   layer_tree_host_->GetLayerTree()->SetDeviceColorSpace(color_space);
 }
 
+std::unique_ptr<cc::CompositorFrameSink> RenderWidgetCompositor::ReleaseCompositorFrameSink()
+{
+  return layer_tree_host_->ReleaseCompositorFrameSink();
+}
+
 }  // namespace content

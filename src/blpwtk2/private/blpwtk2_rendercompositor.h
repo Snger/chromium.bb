@@ -95,6 +95,7 @@ class RenderCompositorContext {
 
     void Destruct();
     scoped_refptr<gpu::GpuChannelHost> EstablishPrivilegedGpuChannel();
+    std::unique_ptr<cc::CompositorFrameSink> CreateUncorrelatedCompositorFrameSink();
 
     std::map<int, RenderCompositor *> d_compositors_by_routing_id;
 
@@ -116,6 +117,9 @@ class RenderCompositorContext {
             cc::SharedBitmapManager *shared_bitmap_manager,
             gpu::GpuMemoryBufferManager *gpu_memory_buffer_manager);
         void EstablishPrivilegedGpuChannelImpl(scoped_refptr<gpu::GpuChannelHost> gpu_channel);
+        void CreateUncorrelatedCompositorFrameSinkImpl(
+            std::unique_ptr<CompositorFrameSink> *result,
+            base::WaitableEvent *event);
     };
 
     std::unique_ptr<Details> d_details;
