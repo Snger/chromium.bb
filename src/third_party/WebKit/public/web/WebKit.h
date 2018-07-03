@@ -56,6 +56,13 @@ BLINK_EXPORT bool LayoutTestMode();
 // must be called only if setLayoutTestMode(true).
 BLINK_EXPORT void SetMockThemeEnabledForTest(bool);
 
+// Set the highlight color for text searches.
+BLINK_EXPORT void setTextSearchHighlightColor(int activeR, int activeG, int activeB,
+                                              int inactiveR, int inactiveG, int inactiveB);
+
+// Set the text color for text searches.
+BLINK_EXPORT void setTextSearchColor(int activeR, int activeG, int activeB);
+
 // Alters the rendering of fonts for layout tests.
 BLINK_EXPORT void SetFontAntialiasingEnabledForTest(bool);
 BLINK_EXPORT bool FontAntialiasingEnabledForTest();

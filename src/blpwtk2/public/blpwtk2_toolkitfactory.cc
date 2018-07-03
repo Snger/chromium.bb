@@ -122,6 +122,14 @@ Toolkit* ToolkitFactory::create(const ToolkitCreateParams& params)
 
     base::win::SetWinProcExceptionFilter(params.winProcExceptionFilter());
 
+    NativeColor activeSearchColor = params.activeTextSearchHighlightColor();
+    NativeColor inactiveSearchColor = params.inactiveTextSearchHighlightColor();
+    blink::setTextSearchHighlightColor(GetRValue(activeSearchColor), GetGValue(activeSearchColor), GetBValue(activeSearchColor),
+                                       GetRValue(inactiveSearchColor), GetGValue(inactiveSearchColor), GetBValue(inactiveSearchColor));
+
+    NativeColor activeSearchTextColor = params.activeTextSearchColor();
+    blink::setTextSearchColor(GetRValue(activeSearchTextColor), GetGValue(activeSearchTextColor), GetBValue(activeSearchTextColor));
+
     DCHECK(!Statics::inProcessResourceLoader ||
             Statics::isRendererMainThreadMode());
 
