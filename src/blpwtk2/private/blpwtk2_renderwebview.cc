@@ -36,13 +36,15 @@
 #include <blpwtk2_rendererutil.h>
 
 #include <base/win/scoped_gdi_object.h>
+#include <cc/output/compositor_frame_sink.h>
 #include <content/common/frame_messages.h>
 #include <content/common/drag_messages.h>
 #include <content/common/input_messages.h>
 #include <content/common/view_messages.h>
-#include <content/renderer/render_view_impl.h>
 #include <content/public/renderer/render_view.h>
 #include <content/renderer/render_thread_impl.h>
+#include <content/renderer/render_view_impl.h>
+#include <content/renderer/gpu/render_widget_compositor.h>
 #include <third_party/WebKit/public/web/WebView.h>
 #include <ui/base/cursor/cursor_loader.h>
 #include <ui/events/blink/web_input_event.h>
@@ -1237,6 +1239,12 @@ void RenderWebView::notifyRoutingId(int id)
         rv->GetMainRenderFrame()->GetRoutingID(), this);
 
     d_compositor->Correlate(d_renderViewRoutingId);
+
+    // Force the compositor to re-create the compositor frame sink:
+    content::RenderWidget *rw =
+        content::RenderViewImpl::FromRoutingID(id);
+    DCHECK(rw);
+    rw->compositor()->ReleaseCompositorFrameSink();
 
     updateVisibility();
     updateSize();
