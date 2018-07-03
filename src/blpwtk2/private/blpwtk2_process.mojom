@@ -109,6 +109,9 @@ interface ProcessHost {
     clearBypassRules();
         // Clear the proxy blacklist.
 
+    clearWebCache();
+        // Clear unused resources from global web cache
+
     setPacUrl(string url);
 };
 

@@ -150,6 +150,7 @@ class ProcessHostImpl final : public mojom::ProcessHost
     void clearFallbackProxies() override;
     void addBypassRule(const std::string& rule) override;
     void clearBypassRules() override;
+    void clearWebCache() override;
     void setPacUrl(const std::string& url) override;
 };
 

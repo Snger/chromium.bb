@@ -499,6 +499,11 @@ void ProcessHostImpl::clearBypassRules() {
   d_impl->context().clearBypassRules();
 }
 
+void ProcessHostImpl::clearWebCache()
+{
+    d_impl->context().clearWebCache();
+}
+
 void ProcessHostImpl::setPacUrl(const std::string& url) {
   d_impl->context().setPacUrl(StringRef(url));
 }

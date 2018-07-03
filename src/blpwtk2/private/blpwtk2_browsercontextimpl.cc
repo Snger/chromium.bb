@@ -410,6 +410,15 @@ void BrowserContextImpl::clearBypassRules()
     d_requestContextGetter->setProxyConfig(*d_proxyConfig);
 }
 
+
+void BrowserContextImpl::clearWebCache()
+{
+    DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
+    DCHECK(!d_isDestroyed);
+
+    content::RenderProcessHost::ClearWebCacheOnAllRenderers();
+}
+
 void BrowserContextImpl::setPacUrl(const StringRef& url)
 {
     DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
