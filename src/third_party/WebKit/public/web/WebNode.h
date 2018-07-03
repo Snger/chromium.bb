@@ -35,6 +35,7 @@
 #include "public/platform/WebPrivatePtr.h"
 #include "public/platform/WebString.h"
 #include "public/platform/WebVector.h"
+#include "WebDOMEvent.h"
 
 namespace blink {
 
@@ -84,6 +85,7 @@ class BLINK_EXPORT WebNode {
   bool IsFocusable() const;
   bool IsContentEditable() const;
   bool IsElementNode() const;
+  void DispatchEvent(WebDOMEvent event);
   void SimulateClick();
 
   // The argument should be lower-cased.
