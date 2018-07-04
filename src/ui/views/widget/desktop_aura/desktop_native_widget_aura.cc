@@ -361,8 +361,19 @@ void DesktopNativeWidgetAura::HandleActivationChanged(bool active) {
       View* view_for_activation = focus_manager->GetFocusedView()
                                       ? focus_manager->GetFocusedView()
                                       : focus_manager->GetStoredFocusView();
+
+      aura::Window* window_for_activation = nullptr;
+
       if (!view_for_activation) {
         view_for_activation = GetWidget()->GetRootView();
+
+        // blpwtk2: If a delegate is installed, ask it for the window that
+        // should be activated.
+        if (GetWidget()->widget_delegate()) {
+          window_for_activation =
+              GetWidget()->widget_delegate()->GetDefaultActivationWindow();
+        }
+
       } else if (view_for_activation == focus_manager->GetStoredFocusView()) {
         // When desktop native widget has modal transient child, we don't
         // restore focused view here, as the modal transient child window will
@@ -377,8 +388,17 @@ void DesktopNativeWidgetAura::HandleActivationChanged(bool active) {
           restore_focus_on_activate_ = false;
         }
       }
-      activation_client->ActivateWindow(
-          view_for_activation->GetWidget()->GetNativeView());
+
+      // blpwtk2: Try to activate the window provided by the delegate
+      // (if any).  Otherwise, fallback to the upstream behavior and activate
+      // the window associated with the webview.
+      if (window_for_activation) {
+        activation_client->ActivateWindow(window_for_activation);
+      } else {
+        activation_client->ActivateWindow(
+            view_for_activation->GetWidget()->GetNativeView());
+      }
+
       // Refreshes the focus info to IMF in case that IMF cached the old info
       // about focused text input client when it was "inactive".
       GetInputMethod()->OnFocus();
