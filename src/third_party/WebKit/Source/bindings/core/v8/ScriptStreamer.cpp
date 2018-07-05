@@ -208,6 +208,11 @@ class SourceStream : public v8::ScriptCompiler::ExternalSourceStream {
     return length;
   }
 
+  void ReleaseData(const uint8_t* src) override
+  {
+	  delete[] src;
+  }
+
   void DidFinishLoading() {
     DCHECK(IsMainThread());
     finished_ = true;
@@ -529,10 +534,19 @@ void ScriptStreamer::NotifyAppendData(ScriptResource* resource) {
         new v8::ScriptCompiler::StreamedSource(stream_, encoding_));
 
     ScriptState::Scope scope(script_state_.Get());
-    std::unique_ptr<v8::ScriptCompiler::ScriptStreamingTask>
+
+    v8::ScriptCompiler::ScriptStreamingTask* scriptStreamingTaskPtr =
+        v8::ScriptCompiler::StartStreamingScript(
+            script_state_->GetIsolate(), source_.get(), compile_options_);
+
+    std::unique_ptr<
+        v8::ScriptCompiler::ScriptStreamingTask,
+        std::function<void(v8::ScriptCompiler::ScriptStreamingTask*)>>
         script_streaming_task(
-            WTF::WrapUnique(v8::ScriptCompiler::StartStreamingScript(
-                script_state_->GetIsolate(), source_.get(), compile_options_)));
+            scriptStreamingTaskPtr,
+            std::bind(&v8::ScriptCompiler::ScriptStreamingTask::Dispose,
+                      scriptStreamingTaskPtr));
+
     if (!script_streaming_task) {
       // V8 cannot stream the script.
       SuppressStreaming();

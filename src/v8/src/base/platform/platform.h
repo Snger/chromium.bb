@@ -104,7 +104,7 @@ class TimezoneCache;
 // functions. Add methods here to cope with differences between the
 // supported platforms.
 
-class V8_BASE_EXPORT OS {
+class BLPV8_BASE_EXPORT OS {
  public:
   // Initialize the OS class.
   // - random_seed: Used for the GetRandomMmapAddress() if non-zero.
@@ -139,7 +139,7 @@ class V8_BASE_EXPORT OS {
   static FILE* OpenTemporaryFile();
 
   // Log file open mode is platform-dependent due to line ends issues.
-  static const char* const LogFileOpenMode;
+  static constexpr char* const LogFileOpenMode= "wb";
 
   // Print output to console. This is mostly used for debugging output.
   // On platforms that has standard terminal output, the output
@@ -215,7 +215,7 @@ class V8_BASE_EXPORT OS {
     char text[kStackWalkMaxTextLen];
   };
 
-  class V8_BASE_EXPORT MemoryMappedFile {
+  class BLPV8_BASE_EXPORT MemoryMappedFile {
    public:
     virtual ~MemoryMappedFile() {}
     virtual void* memory() const = 0;
@@ -289,7 +289,7 @@ class V8_BASE_EXPORT OS {
 // Control of the reserved memory can be assigned to another VirtualMemory
 // object by calling TakeControl. This removes the reserved memory from the
 // 'from' instance.
-class V8_BASE_EXPORT VirtualMemory {
+class BLPV8_BASE_EXPORT VirtualMemory {
  public:
   // Empty VirtualMemory object, controlling no reserved memory.
   VirtualMemory();
@@ -428,7 +428,7 @@ class V8_BASE_EXPORT VirtualMemory {
 // thread. The Thread object should not be deallocated before the thread has
 // terminated.
 
-class V8_BASE_EXPORT Thread {
+class BLPV8_BASE_EXPORT Thread {
  public:
   // Opaque data type for thread-local storage keys.
   typedef int32_t LocalStorageKey;

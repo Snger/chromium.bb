@@ -72,13 +72,17 @@ void BackgroundParsingTask::Run() {
   source_->parser->ParseOnBackground(source_->info.get());
 
   if (script_data_ != nullptr) {
-    source_->cached_data.reset(new ScriptCompiler::CachedData(
+    source_->cached_data.reset(ScriptCompiler::CachedData::create(
         script_data_->data(), script_data_->length(),
         ScriptCompiler::CachedData::BufferOwned));
     script_data_->ReleaseDataOwnership();
     delete script_data_;
     script_data_ = nullptr;
   }
+}
+
+void BackgroundParsingTask::Dispose() {
+  delete this;
 }
 
 }  // namespace internal

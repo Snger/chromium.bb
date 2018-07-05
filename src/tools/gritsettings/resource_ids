@@ -311,6 +311,9 @@
   "third_party/WebKit/public/blink_image_resources.grd": {
     "structures": [25300],
   },
+  "third_party/WebKit/public/blink_inspector_resources.grd": {
+    "includes": [30380],
+  },
   "third_party/WebKit/public/blink_resources.grd": {
     "includes": [25400],
   },

@@ -10,7 +10,11 @@
 #include "base/files/file_util.h"
 #include "build/build_config.h"
 #include "chrome/common/chrome_paths.h"
+
+// TODO(yren93)
+#define IPC_MESSAGE_IMPL
 #include "chrome/common/chrome_utility_printing_messages.h"
+
 #include "chrome/utility/cloud_print/bitmap_image.h"
 #include "chrome/utility/cloud_print/pwg_encoder.h"
 #include "content/public/utility/utility_thread.h"

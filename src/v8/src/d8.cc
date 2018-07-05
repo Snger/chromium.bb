@@ -21,7 +21,7 @@
 #include "src/d8.h"
 #include "src/ostreams.h"
 
-#include "include/libplatform/libplatform.h"
+#include "include/v8-default-platform.h"
 #include "include/libplatform/v8-tracing.h"
 #include "include/v8-inspector.h"
 #include "src/api.h"
@@ -513,7 +513,7 @@ ScriptCompiler::CachedData* CompileForCachedData(
       int length = script_source.GetCachedData()->length;
       uint8_t* cache = new uint8_t[length];
       memcpy(cache, script_source.GetCachedData()->data, length);
-      result = new ScriptCompiler::CachedData(
+      result = ScriptCompiler::CachedData::create(
           cache, length, ScriptCompiler::CachedData::BufferOwned);
     }
   }

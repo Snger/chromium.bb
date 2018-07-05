@@ -285,6 +285,9 @@ MessageLoop::MessageLoop(Type type, MessagePumpFactoryCallback pump_factory)
       nestable_tasks_allowed_(true),
       pump_factory_(std::move(pump_factory)),
       current_pending_task_(nullptr),
+#if defined(OS_WIN)
+      ipc_sync_messages_should_peek_(false),
+#endif  // OS_WIN
       incoming_task_queue_(new internal::IncomingTaskQueue(this)),
       unbound_task_runner_(
           new internal::MessageLoopTaskRunner(incoming_task_queue_)),

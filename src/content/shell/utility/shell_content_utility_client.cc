@@ -21,6 +21,11 @@
 #include "mojo/public/cpp/system/buffer.h"
 #include "services/service_manager/public/cpp/binder_registry.h"
 
+#include <chrome/common/chrome_paths.h>
+#include <content/public/utility/content_utility_client.h>
+#include <content/public/utility/utility_thread.h>
+#include <ipc/ipc_message_macros.h>
+
 namespace content {
 
 namespace {
@@ -75,6 +80,10 @@ std::unique_ptr<service_manager::Service> CreateTestService() {
   return std::unique_ptr<service_manager::Service>(new TestService);
 }
 
+bool Send(IPC::Message* message) {
+  return content::UtilityThread::Get()->Send(message);
+}
+
 }  // namespace
 
 ShellContentUtilityClient::ShellContentUtilityClient() {}
@@ -106,5 +115,10 @@ void ShellContentUtilityClient::RegisterNetworkBinders(
     service_manager::BinderRegistry* registry) {
   network_service_test_helper_.RegisterNetworkBinders(registry);
 }
+
+bool ShellContentUtilityClient::OnMessageReceived(const IPC::Message& message) {
+  return false;
+}
+
 
 }  // namespace content

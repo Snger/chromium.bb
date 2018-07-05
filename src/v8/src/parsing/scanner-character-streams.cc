@@ -207,7 +207,7 @@ class Utf8ExternalStreamingStream : public BufferedUtf16CharacterStream {
         source_stream_(source_stream),
         stats_(stats) {}
   ~Utf8ExternalStreamingStream() override {
-    for (size_t i = 0; i < chunks_.size(); i++) delete[] chunks_[i].data;
+    for (size_t i = 0; i < chunks_.size(); i++) source_stream_->ReleaseData(chunks_[i].data);
   }
 
   bool can_access_heap() override { return false; }
@@ -474,8 +474,8 @@ struct Chunk {
 
 typedef std::vector<struct Chunk> Chunks;
 
-void DeleteChunks(Chunks& chunks) {
-  for (size_t i = 0; i < chunks.size(); i++) delete[] chunks[i].data;
+void DeleteChunks(ScriptCompiler::ExternalSourceStream* source, Chunks& chunks) {
+  for (size_t i = 0; i < chunks.size(); i++) source->ReleaseData(chunks[i].data);
 }
 
 // Return the chunk index for the chunk containing position.
@@ -540,7 +540,7 @@ class OneByteExternalStreamingStream : public BufferedUtf16CharacterStream {
   explicit OneByteExternalStreamingStream(
       ScriptCompiler::ExternalSourceStream* source, RuntimeCallStats* stats)
       : source_(source), stats_(stats) {}
-  ~OneByteExternalStreamingStream() override { DeleteChunks(chunks_); }
+  ~OneByteExternalStreamingStream() override { DeleteChunks(source_, chunks_); }
 
   bool can_access_heap() override { return false; }
 
@@ -598,7 +598,7 @@ TwoByteExternalStreamingStream::TwoByteExternalStreamingStream(
       one_char_buffer_(0) {}
 
 TwoByteExternalStreamingStream::~TwoByteExternalStreamingStream() {
-  DeleteChunks(chunks_);
+  DeleteChunks(source_, chunks_);
 }
 
 bool TwoByteExternalStreamingStream::ReadBlock() {
@@ -705,7 +705,7 @@ TwoByteExternalBufferedStream::TwoByteExternalBufferedStream(
       stats_(stats) {}
 
 TwoByteExternalBufferedStream::~TwoByteExternalBufferedStream() {
-  DeleteChunks(chunks_);
+  DeleteChunks(source_, chunks_);
 }
 
 bool TwoByteExternalBufferedStream::ReadBlock() {

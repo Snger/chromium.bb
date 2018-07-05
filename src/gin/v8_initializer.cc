@@ -34,6 +34,8 @@
 #endif
 #endif  // V8_USE_EXTERNAL_STARTUP_DATA
 
+#include <blpv8_products.h>  // For BLPV8_NATIVES_BLOB_NAME, BLPV8_SNAPSHOT_BLOB_NAME
+
 namespace gin {
 
 namespace {
@@ -56,7 +58,7 @@ base::LazyInstance<OpenedFileMap>::Leaky g_opened_files =
 
 #if defined(V8_USE_EXTERNAL_STARTUP_DATA)
 
-const char kNativesFileName[] = "natives_blob.bin";
+const char kNativesFileName[] = BLPV8_NATIVES_BLOB_NAME;
 
 #if defined(OS_ANDROID)
 const char kSnapshotFileName64[] = "snapshot_blob_64.bin";
@@ -69,7 +71,7 @@ const char kSnapshotFileName32[] = "snapshot_blob_32.bin";
 #endif
 
 #else  // defined(OS_ANDROID)
-const char kSnapshotFileName[] = "snapshot_blob.bin";
+const char kSnapshotFileName[] = BLPV8_SNAPSHOT_BLOB_NAME;
 #endif  // defined(OS_ANDROID)
 
 #endif  // defined(V8_USE_EXTERNAL_STATUP_DATA)

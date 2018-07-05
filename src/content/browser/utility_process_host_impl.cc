@@ -114,6 +114,7 @@ class UtilitySandboxedProcessLauncherDelegate
 };
 
 UtilityMainThreadFactoryFunction g_utility_main_thread_factory = NULL;
+static bool g_run_utility_in_process_ = false;
 
 UtilityProcessHost* UtilityProcessHost::Create(
     const scoped_refptr<UtilityProcessHostClient>& client,
@@ -124,6 +125,16 @@ UtilityProcessHost* UtilityProcessHost::Create(
 void UtilityProcessHostImpl::RegisterUtilityMainThreadFactory(
     UtilityMainThreadFactoryFunction create) {
   g_utility_main_thread_factory = create;
+}
+
+// static
+bool UtilityProcessHost::run_utility_in_process() {
+  return g_run_utility_in_process_;
+}
+
+// static
+void UtilityProcessHost::SetRunUtilityInProcess(bool value) {
+  g_run_utility_in_process_ = value;
 }
 
 UtilityProcessHostImpl::UtilityProcessHostImpl(
@@ -209,7 +220,7 @@ bool UtilityProcessHostImpl::StartProcess() {
   process_->SetName(name_);
   process_->GetHost()->CreateChannelMojo();
 
-  if (RenderProcessHost::run_renderer_in_process()) {
+  if (UtilityProcessHost::run_utility_in_process()) {
     DCHECK(g_utility_main_thread_factory);
     // See comment in RenderProcessHostImpl::Init() for the background on why we
     // support single process mode this way.

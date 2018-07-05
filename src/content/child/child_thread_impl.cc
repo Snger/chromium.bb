@@ -67,6 +67,7 @@
 #include "mojo/edk/embedder/named_platform_channel_pair.h"
 #include "mojo/edk/embedder/platform_channel_pair.h"
 #include "mojo/edk/embedder/scoped_ipc_support.h"
+#include "mojo/edk/embedder/platform_handle.h"
 #include "mojo/public/cpp/system/buffer.h"
 #include "mojo/public/cpp/system/platform_handle.h"
 #include "services/device/public/cpp/power_monitor/power_monitor_broadcast_source.h"
@@ -245,7 +246,7 @@ base::LazyInstance<QuitClosure>::DestructorAtExit g_quit_closure =
 #endif
 
 std::unique_ptr<mojo::edk::IncomingBrokerClientInvitation>
-InitializeMojoIPCChannel() {
+InitializeMojoIPCChannel(int file_descriptor) {
   mojo::edk::ScopedPlatformHandle platform_channel;
 #if defined(OS_WIN)
   if (base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -253,6 +254,13 @@ InitializeMojoIPCChannel() {
     platform_channel =
         mojo::edk::PlatformChannelPair::PassClientHandleFromParentProcess(
             *base::CommandLine::ForCurrentProcess());
+  } else if (file_descriptor) {
+      mojo::edk::ScopedPlatformHandle clientHandle(
+          mojo::edk::PlatformHandle(
+          LongToHandle(file_descriptor)));
+
+      DCHECK(clientHandle.is_valid());
+      platform_channel = std::move(clientHandle);
   } else {
     // If this process is elevated, it will have a pipe path passed on the
     // command line.
@@ -312,7 +320,9 @@ ChildThread* ChildThread::Get() {
 }
 
 ChildThreadImpl::Options::Options()
-    : auto_start_service_manager_connection(true), connect_to_browser(false) {}
+    : auto_start_service_manager_connection(true),
+      connect_to_browser(false),
+      mojo_controller_handle(0) {}
 
 ChildThreadImpl::Options::Options(const Options& other) = default;
 
@@ -328,6 +338,7 @@ ChildThreadImpl::Options::Builder::InBrowserProcess(
   options_.browser_process_io_runner = params.io_runner();
   options_.in_process_service_request_token = params.service_request_token();
   options_.broker_client_invitation = params.broker_client_invitation();
+  options_.mojo_controller_handle = params.mojo_controller_handle();
   return *this;
 }
 
@@ -455,7 +466,7 @@ void ChildThreadImpl::Init(const Options& options) {
   if (!IsInBrowserProcess()) {
     mojo_ipc_support_.reset(new mojo::edk::ScopedIPCSupport(
         GetIOTaskRunner(), mojo::edk::ScopedIPCSupport::ShutdownPolicy::FAST));
-    invitation = InitializeMojoIPCChannel();
+    invitation = InitializeMojoIPCChannel(options.mojo_controller_handle);
 
     std::string service_request_token =
         base::CommandLine::ForCurrentProcess()->GetSwitchValueASCII(

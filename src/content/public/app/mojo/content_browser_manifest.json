@@ -17,6 +17,7 @@
           "discardable_memory::mojom::DiscardableSharedMemoryManager",
           "ui::mojom::Gpu"
         ],
+
         "renderer": [
           "blink::mojom::BackgroundFetchService",
           "blink::mojom::BackgroundSyncService",
@@ -30,6 +31,7 @@
           "content::mojom::FieldTrialRecorder",
           "content::mojom::FrameSinkProvider",
           "content::mojom::MediaStreamDispatcherHost",
+          "blpwtk2::mojom::ProcessHost",
           "content::mojom::MemoryCoordinatorHandle",
           "content::mojom::PushMessaging",
           "content::mojom::RendererHost",
