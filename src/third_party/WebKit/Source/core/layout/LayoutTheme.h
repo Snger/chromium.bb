@@ -145,7 +145,12 @@ class CORE_EXPORT LayoutTheme : public RefCounted<LayoutTheme> {
 
   Color PlatformActiveSpellingMarkerHighlightColor() const;
 
+// Highlighting colors for TextMatches.
+  static void setTextSearchHighlightColor(int activeR, int activeG, int activeB,
+                                          int inactiveR, int inactiveG, int inactiveB);
+
   // Highlight and text colors for TextMatches.
+  static void setTextSearchColor(int activeR, int activeG, int activeB);
   Color PlatformTextSearchHighlightColor(bool active_match) const;
   Color PlatformTextSearchColor(bool active_match) const;
 
