@@ -379,6 +379,7 @@ RenderWidget::RenderWidget(int32_t widget_routing_id,
       resizing_mode_selector_(new ResizingModeSelector()),
       has_host_context_menu_location_(false),
       has_added_input_handler_(false),
+      bb_OnHandleInputEvent_no_ack_(false),
       has_focus_(false),
 #if defined(OS_MACOSX)
       text_input_client_observer_(new TextInputClientObserver(this)),
@@ -835,7 +836,7 @@ void RenderWidget::OnHandleInputEvent(
     return;
 
   HandledEventCallback callback;
-  if (dispatch_type == DISPATCH_TYPE_BLOCKING) {
+  if (dispatch_type == DISPATCH_TYPE_BLOCKING && !bb_OnHandleInputEvent_no_ack_) {
     callback = base::Bind(
         &RenderWidget::SendInputEventAck, this, input_event->GetType(),
         ui::WebInputEventTraits::GetUniqueTouchEventId(*input_event));
@@ -983,6 +984,14 @@ void RenderWidget::DidReceiveCompositorFrameAck() {
 
 bool RenderWidget::IsClosing() const {
   return host_closing_;
+}
+
+
+void RenderWidget::bbHandleInputEvent(const blink::WebInputEvent& event) {
+  ui::LatencyInfo latency_info;
+  bb_OnHandleInputEvent_no_ack_ = true;
+  OnHandleInputEvent(&event, std::vector<const blink::WebInputEvent*>(), latency_info, InputEventDispatchType::DISPATCH_TYPE_BLOCKING);
+  bb_OnHandleInputEvent_no_ack_ = false;
 }
 
 void RenderWidget::RequestScheduleAnimation() {
