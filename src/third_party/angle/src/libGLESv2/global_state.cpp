@@ -6,6 +6,8 @@
 
 // global_state.cpp : Implements functions for querying the thread-local GL and EGL state.
 
+#include <locale.h>
+
 #include "libGLESv2/global_state.h"
 
 #include "common/debug.h"
@@ -92,6 +94,8 @@ bool DeallocateCurrentThread()
 
 bool InitializeProcess()
 {
+    setlocale(LC_ALL, NULL);
+    
     threadTLS = CreateTLSIndex();
     if (threadTLS == TLS_INVALID_INDEX)
     {
