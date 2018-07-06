@@ -124,11 +124,17 @@ const WebInputEvent::Modifiers kEditingModifier = WebInputEvent::kControlKey;
 void WebPluginContainerImpl::AttachToLayout() {
   DCHECK(!is_attached_);
   is_attached_ = true;
+  if (web_plugin_) {
+	  web_plugin_->AttachToLayout();
+  }
   SetParentVisible(true);
 }
 
 void WebPluginContainerImpl::DetachFromLayout() {
   DCHECK(is_attached_);
+  if (web_plugin_) {
+	  web_plugin_->DetachFromLayout();
+  }  
   SetParentVisible(false);
   is_attached_ = false;
 }
@@ -279,6 +285,16 @@ void WebPluginContainerImpl::SetParentVisible(bool parent_visible) {
 
   if (web_plugin_)
     web_plugin_->UpdateVisibility(parent_visible_ && self_visible_);
+}
+
+void WebPluginContainerImpl::EnqueueEvent(const WebDOMEvent& event)
+{
+    if (!element_->GetDocument().IsActive()) {
+        return;
+    }
+
+    static_cast<Event*>(event)->SetTarget(element_);
+    element_->GetExecutionContext()->GetEventQueue()->EnqueueEvent(BLINK_FROM_HERE, event);
 }
 
 void WebPluginContainerImpl::SetPlugin(WebPlugin* plugin) {
@@ -1053,41 +1069,44 @@ void WebPluginContainerImpl::ComputeClipRectsForPlugin(
   LayoutRect unclipped_absolute_rect(box->ContentBoxRect());
   box->MapToVisualRectInAncestorSpace(root_view, unclipped_absolute_rect);
 
-  // The frameRect is already in absolute space of the local frame to the
-  // plugin.
-  window_rect = frame_rect_;
+  // frameRect() returns the rect of the plugin with respect to the frame
+  // without considering transforms.  We need to consider transforms when
+  // computing layoutWindowRect so we cannot use this directly.
+  //
+  // contentBoxRect also returns the rect of the plugin but it returns it
+  // in local coordinates (with respect to its parent LayoutObject).  We
+  // map it to absolute coordinates to get a value similar to frameRect()
+  // but with consideration to transforms.
+  FloatRect frame_rect_with_transforms =
+      box->LocalToAbsoluteQuad(FloatRect(box->ContentBoxRect()),
+                               MapCoordinatesMode::kUseTransforms).BoundingBox();
+
   // Map up to the root frame.
   LayoutRect layout_window_rect =
       LayoutRect(element_->GetDocument()
                      .View()
                      ->GetLayoutViewItem()
-                     .LocalToAbsoluteQuad(FloatQuad(FloatRect(frame_rect_)),
+                     .LocalToAbsoluteQuad(FloatQuad(FloatRect(frame_rect_with_transforms)),
                                           kTraverseDocumentBoundaries)
                      .BoundingBox());
-  // Finally, adjust for scrolling of the root frame, which the above does not
-  // take into account.
-  layout_window_rect.MoveBy(-root_view->ViewRect().Location());
-  window_rect = PixelSnappedIntRect(layout_window_rect);
 
   LayoutRect layout_clipped_local_rect = unclipped_absolute_rect;
   LayoutRect unclipped_layout_local_rect = layout_clipped_local_rect;
   layout_clipped_local_rect.Intersect(
-      LayoutRect(root_view->GetFrameView()->VisibleContentRect()));
+	  LayoutRect(root_view->GetFrameView()->VisibleContentRect()));
 
-  unclipped_int_local_rect =
-      box->AbsoluteToLocalQuad(FloatRect(unclipped_layout_local_rect),
-                               kTraverseDocumentBoundaries | kUseTransforms)
-          .EnclosingBoundingBox();
-  // As a performance optimization, map the clipped rect separately if is
-  // different than the unclipped rect.
-  if (layout_clipped_local_rect != unclipped_layout_local_rect) {
-    clipped_local_rect =
-        box->AbsoluteToLocalQuad(FloatRect(layout_clipped_local_rect),
-                                 kTraverseDocumentBoundaries | kUseTransforms)
-            .EnclosingBoundingBox();
-  } else {
-    clipped_local_rect = unclipped_int_local_rect;
-  }
+  // Although the clip rect is in absolute space, its origin is the top-left
+  // of the frame rect
+  layout_clipped_local_rect.MoveBy(-layout_window_rect.Location());
+  unclipped_layout_local_rect.MoveBy(-layout_window_rect.Location());
+
+  clipped_local_rect = IntRect(layout_clipped_local_rect);
+  unclipped_int_local_rect = IntRect(unclipped_layout_local_rect);
+
+  // Finally, adjust for scrolling of the root frame, which the above does not
+  // take into account.
+  layout_window_rect.MoveBy(-root_view->ViewRect().Location());
+  window_rect = PixelSnappedIntRect(layout_window_rect);
 }
 
 void WebPluginContainerImpl::CalculateGeometry(IntRect& window_rect,
