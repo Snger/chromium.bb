@@ -504,7 +504,7 @@ class CORE_EXPORT LayoutBlock : public LayoutBox {
 
   Position PositionForBox(InlineBox*, bool start = true) const;
 
-    LayoutUnit additionalMarginStart() const override;
+  LayoutUnit additionalMarginStart() const override;
 
   // End helper functions and structs used by layoutBlockChildren.
 

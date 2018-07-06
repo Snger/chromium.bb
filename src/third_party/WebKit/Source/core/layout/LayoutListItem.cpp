@@ -304,6 +304,14 @@ static LayoutObject* FirstNonMarkerChild(LayoutObject* parent) {
   return result;
 }
 
+static LayoutObject* firstRenderText(LayoutObject* curr, LayoutObject* stayWithin)
+{
+    while (curr && !curr->IsText()) {
+        curr = curr->NextInPreOrder(stayWithin);
+    }
+    return curr;
+}
+
 bool LayoutListItem::UpdateMarkerLocation() {
   DCHECK(marker_);
 
@@ -322,9 +330,21 @@ bool LayoutListItem::UpdateMarkerLocation() {
       line_box_parent = this;
   }
 
-  if (marker_parent != line_box_parent) {
+  bool fontsAreDifferent = false;
+  LayoutObject* firstNonMarker = FirstNonMarkerChild(line_box_parent);
+  LayoutObject* firstText = firstRenderText(firstNonMarker, line_box_parent);
+  if (firstText && marker_->Style()->GetFontDescription() != firstText->Style()->GetFontDescription()) {
+    fontsAreDifferent = true;
+  }
+
+  if (marker_parent != line_box_parent || fontsAreDifferent) {
     marker_->Remove();
-    line_box_parent->AddChild(marker_, FirstNonMarkerChild(line_box_parent));
+    if (fontsAreDifferent) {
+      marker_->MutableStyle()->SetFontDescription(firstText->Style()->GetFontDescription());
+      marker_->Style()->GetFont().Update(marker_->Style()->GetFont().GetFontSelector());
+    }
+    line_box_parent->AddChild(marker_, firstNonMarker);
+
     // TODO(rhogan): lineBoxParent and markerParent may be deleted by addChild,
     // so they are not safe to reference here.
     // Once we have a safe way of referencing them delete markerParent if it is
@@ -361,7 +381,7 @@ void LayoutListItem::PositionListMarker() {
     }
 
     bool adjust_overflow = false;
-    LayoutUnit marker_logical_left;
+    LayoutUnit marker_logical_left = marker_old_logical_left;
     RootInlineBox& root = marker_->InlineBoxWrapper()->Root();
     bool hit_self_painting_layer = false;
 
@@ -372,11 +392,6 @@ void LayoutListItem::PositionListMarker() {
     // pretty wrong (https://crbug.com/554160).
     // FIXME: Need to account for relative positioning in the layout overflow.
     if (Style()->IsLeftToRightDirection()) {
-      marker_logical_left = marker_->LineOffset() - line_offset -
-                            PaddingStart() - BorderStart() +
-                            marker_->MarginStart();
-      marker_->InlineBoxWrapper()->MoveInInlineDirection(
-          marker_logical_left - marker_old_logical_left);
       for (InlineFlowBox* box = marker_->InlineBoxWrapper()->Parent(); box;
            box = box->Parent()) {
         LayoutRect new_logical_visual_overflow_rect =
@@ -405,11 +420,6 @@ void LayoutListItem::PositionListMarker() {
           hit_self_painting_layer = true;
       }
     } else {
-      marker_logical_left = marker_->LineOffset() - line_offset +
-                            PaddingStart() + BorderStart() +
-                            marker_->MarginEnd();
-      marker_->InlineBoxWrapper()->MoveInInlineDirection(
-          marker_logical_left - marker_old_logical_left);
       for (InlineFlowBox* box = marker_->InlineBoxWrapper()->Parent(); box;
            box = box->Parent()) {
         LayoutRect new_logical_visual_overflow_rect =

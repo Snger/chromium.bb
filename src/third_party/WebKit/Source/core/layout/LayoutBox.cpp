@@ -2785,7 +2785,7 @@ LayoutUnit LayoutBox::FillAvailableMeasure(LayoutUnit available_logical_width,
                                            LayoutUnit& margin_end) const {
   DCHECK_GE(available_logical_width, 0);
   margin_start =
-      MinimumValueForLength(Style()->MarginStart(), available_logical_width);
+      MinimumValueForLength(Style()->MarginStart(), available_logical_width) + additionalMarginStart();
   margin_end =
       MinimumValueForLength(Style()->MarginEnd(), available_logical_width);
   LayoutUnit available = available_logical_width - margin_start - margin_end;
