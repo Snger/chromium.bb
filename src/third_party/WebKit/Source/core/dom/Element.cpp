@@ -1131,6 +1131,52 @@ void Element::UpdateFromCompositorMutation(const CompositorMutation& mutation) {
         *this, mutation);
 }
 
+int Element::bbScrollLeftNoZoomAdjust()
+{
+    GetDocument().UpdateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = GetLayoutBox())
+        return lb->ScrollLeft().ToInt();
+    return 0;
+}
+
+int Element::bbScrollTopNoZoomAdjust()
+{
+    GetDocument().UpdateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = GetLayoutBox())
+        return lb->ScrollTop().ToInt();
+    return 0;
+}
+
+void Element::setBbScrollLeftNoZoomAdjust(int newLeft)
+{
+    GetDocument().UpdateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = GetLayoutBox())
+        lb->SetScrollLeft(LayoutUnit(newLeft));
+}
+
+void Element::setBbScrollTopNoZoomAdjust(int newTop)
+{
+    GetDocument().UpdateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = GetLayoutBox())
+        lb->SetScrollTop(LayoutUnit(newTop));
+}
+
+int Element::bbScrollWidthNoZoomAdjust()
+{
+    GetDocument().UpdateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = GetLayoutBox())
+        return lb->ScrollWidth().ToInt();
+    return 0;
+}
+
+int Element::bbScrollHeightNoZoomAdjust()
+{
+    GetDocument().UpdateStyleAndLayoutIgnorePendingStylesheets();
+    if (LayoutBox* lb = GetLayoutBox())
+        return lb->ScrollHeight().ToInt();
+    return 0;
+}
+
 bool Element::HasNonEmptyLayoutSize() const {
   GetDocument().UpdateStyleAndLayoutIgnorePendingStylesheets();
 
