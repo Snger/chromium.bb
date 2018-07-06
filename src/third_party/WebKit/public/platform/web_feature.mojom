@@ -1678,7 +1678,8 @@ enum WebFeature {
   kWebkitBoxLineClampManyChildren = 2143,
   kWebkitBoxLineClampDoesSomething = 2144,
   kFeaturePolicyAllowAttributeDeprecatedSyntax = 2145,
-
+  kSelectionGetClipboardCopyString = 2146, // Bloomberg-specific at the moment
+  
   // Add new features immediately above this line. Don't change assigned
   // numbers of any item, and don't reuse removed slots.
   // Also, run update_use_counter_feature_enum.py in
