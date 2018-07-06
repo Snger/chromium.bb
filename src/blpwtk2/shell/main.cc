@@ -79,6 +79,7 @@ enum {
     IDM_FILE,
     IDM_NEW_WINDOW,
     IDM_CLOSE_WINDOW,
+    IDM_CLEAR_WEB_CACHE,
     IDM_EXIT,
     IDM_TEST,
     IDM_TEST_V8_APPEND_ELEMENT,
@@ -937,6 +938,9 @@ LRESULT CALLBACK shellWndProc(HWND hwnd,        // handle to window
         case IDM_CLOSE_WINDOW:
             DestroyWindow(shell->d_mainWnd);
             return 0;
+        case IDM_CLEAR_WEB_CACHE:
+            g_profile->clearWebCache();
+            return 0;
         case IDM_TEST_V8_APPEND_ELEMENT:
             testV8AppendElement(shell->webView());
             return 0;
@@ -1122,6 +1126,7 @@ Shell* createShell(blpwtk2::Profile* profile, blpwtk2::WebView* webView, bool fo
     HMENU fileMenu = CreateMenu();
     AppendMenu(fileMenu, MF_STRING, IDM_NEW_WINDOW, L"&New Window");
     AppendMenu(fileMenu, MF_STRING, IDM_CLOSE_WINDOW, L"&Close Window");
+    AppendMenu(fileMenu, MF_STRING, IDM_CLEAR_WEB_CACHE, L"Clear Web Cache");
     AppendMenu(fileMenu, MF_SEPARATOR, 0, 0);
     AppendMenu(fileMenu, MF_STRING, IDM_EXIT, L"E&xit");
     AppendMenu(menu, MF_POPUP, (UINT_PTR)fileMenu, L"&File");

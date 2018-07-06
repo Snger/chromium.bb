@@ -553,6 +553,7 @@ class CONTENT_EXPORT RenderThreadImpl
 
   void OnTransferBitmap(const SkBitmap& bitmap, int resource_id);
   void OnGetAccessibilityTree();
+  void OnClearWebCache();
 
   // mojom::Renderer:
   void CreateView(mojom::CreateViewParamsPtr params) override;

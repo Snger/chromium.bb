@@ -133,6 +133,9 @@ class Profile
     virtual void clearBypassRules() = 0;
         // Clear the proxy blacklist.
 
+    virtual void clearWebCache() = 0;
+        // Clear unused resources from global web cache
+
     virtual void setPacUrl(const StringRef& url) = 0;
 
   protected:

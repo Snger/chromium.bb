@@ -295,6 +295,11 @@ void ProfileImpl::clearBypassRules()
     d_hostPtr->clearBypassRules();
 }
 
+void ProfileImpl::clearWebCache()
+{
+    d_hostPtr->clearWebCache();
+}
+
 void ProfileImpl::setPacUrl(const StringRef& url)
 {
     d_hostPtr->setPacUrl(std::string(url.data(), url.size()));

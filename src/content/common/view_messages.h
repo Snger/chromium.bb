@@ -565,6 +565,9 @@ IPC_MESSAGE_ROUTED3(ViewMsg_ResolveTapDisambiguation,
 // Fetches complete rendered content of a web page as plain text.
 IPC_MESSAGE_ROUTED0(ViewMsg_GetRenderedText)
 
+// Tells the renderer to clear unused resources from its global web cache
+IPC_MESSAGE_CONTROL0(ViewMsg_ClearWebCache)
+
 #if defined(OS_ANDROID)
 // Notifies the renderer whether hiding/showing the browser controls is enabled
 // and whether or not to animate to the proper state.
