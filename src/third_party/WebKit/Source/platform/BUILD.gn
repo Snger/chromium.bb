@@ -367,6 +367,7 @@ component("platform") {
     "WebMouseWheelEvent.cpp",
     "WebPointerEvent.cpp",
     "WebScheduler.cpp",
+    "WebScriptBindings.cpp",
     "WebTaskRunner.cpp",
     "WebTaskRunner.h",
     "WebTextInputInfo.cpp",

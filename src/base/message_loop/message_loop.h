@@ -278,6 +278,16 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate,
   void AddTaskObserver(TaskObserver* task_observer);
   void RemoveTaskObserver(TaskObserver* task_observer);
 
+#if defined(OS_WIN)
+  void set_ipc_sync_messages_should_peek(bool ipc_sync_messages_should_peek) {
+    ipc_sync_messages_should_peek_ = ipc_sync_messages_should_peek;
+  }
+
+  bool ipc_sync_messages_should_peek() const {
+    return ipc_sync_messages_should_peek_;
+  }
+#endif  // OS_WIN
+
   // Returns true if the message loop is "idle". Provided for testing.
   bool IsIdleForTesting();
 
@@ -287,6 +297,10 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate,
 
   // Runs the specified PendingTask.
   void RunTask(PendingTask* pending_task);
+
+  MessagePump* get_pump() {
+    return pump_.get();
+  }
 
   // Disallow task observers. After this is called, calling
   // Add/RemoveTaskObserver() on this MessageLoop will crash.
@@ -412,6 +426,11 @@ class BASE_EXPORT MessageLoop : public MessagePump::Delegate,
   // of run_loop_client_->ProcessingTasksAllowed(), equivalent until then (both
   // need to be checked in conditionals).
   bool nestable_tasks_allowed_;
+
+#if defined(OS_WIN)
+  // Should be set to true if IPC sync messages should PeekMessage periodically.
+  bool ipc_sync_messages_should_peek_;
+#endif
 
   // pump_factory_.Run() is called to create a message pump for this loop
   // if type_ is TYPE_CUSTOM and pump_ is null.

@@ -125,6 +125,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // browser_context is used, using |site_instance| (for which a null value is
   // legal).
   static RenderProcessHost* CreateOrUseSpareRenderProcessHost(
+      int affinity,
       BrowserContext* browser_context,
       StoragePartitionImpl* storage_partition_impl,
       SiteInstance* site_instance,
@@ -137,6 +138,8 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // legal). |site_instance| is not used if |storage_partition_impl| is not
   // null.
   static RenderProcessHost* CreateRenderProcessHost(
+      int host_id,
+      base::ProcessHandle externally_managed_handle,
       BrowserContext* browser_context,
       StoragePartitionImpl* storage_partition_impl,
       SiteInstance* site_instance,
@@ -152,6 +155,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void RemoveRoute(int32_t routing_id) override;
   void AddObserver(RenderProcessHostObserver* observer) override;
   void RemoveObserver(RenderProcessHostObserver* observer) override;
+  size_t NumListeners() override;
   void ShutdownForBadMessage(CrashReportMode crash_report_mode) override;
   void WidgetRestored() override;
   void WidgetHidden() override;
@@ -204,6 +208,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void BindInterface(const std::string& interface_name,
                      mojo::ScopedMessagePipeHandle interface_pipe) override;
   const service_manager::Identity& GetChildIdentity() const override;
+  bool IsProcessManagedExternally() const override;
   std::unique_ptr<base::SharedPersistentMemoryAllocator> TakeMetricsAllocator()
       override;
   const base::TimeTicks& GetInitTimeForNavigationMetrics() const override;
@@ -224,7 +229,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void SetIsUsed() override;
 
   bool HostHasNotBeenUsed() override;
-
+  void AdjustCommandLineForRenderer(base::CommandLine* command_line) override;
   mojom::RouteProvider* GetRemoteRouteProvider();
 
   // IPC::Sender via RenderProcessHost.
@@ -248,6 +253,14 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void mark_child_process_activity_time() {
     child_process_activity_time_ = base::TimeTicks::Now();
   }
+
+  mojo::edk::OutgoingBrokerClientInvitation* GetOutgoingInvitation();
+
+  // This value is guaranteed to never be returned by GenerateUniqueId() below.
+  static int kInvalidId;
+
+  // Generate a new unique host id.
+  static int GenerateUniqueId();
 
   // Used to extend the lifetime of the sessions until the render view
   // in the renderer is fully closed. This is static because its also called
@@ -295,6 +308,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // on the SiteInstance's ProcessReusePolicy and its url, this may be an
   // existing RenderProcessHost or a new one.
   static RenderProcessHost* GetProcessHostForSiteInstance(
+      int affinity,
       BrowserContext* browser_context,
       SiteInstanceImpl* site_instance);
 
@@ -416,7 +430,9 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   // Use CreateRenderProcessHost() instead of calling this constructor
   // directly.
-  RenderProcessHostImpl(BrowserContext* browser_context,
+  RenderProcessHostImpl(int host_id,
+                        base::ProcessHandle externally_managed_handle,
+                        BrowserContext* browser_context,
                         StoragePartitionImpl* storage_partition_impl,
                         bool is_for_guests_only);
 
@@ -496,6 +512,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   // Returns the default subframe RenderProcessHost to use for |site_instance|.
   static RenderProcessHost* GetDefaultSubframeProcessHost(
+      int affinity,
       BrowserContext* browser_context,
       SiteInstanceImpl* site_instance,
       bool is_for_guests_only);
@@ -637,6 +654,11 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   // Used to launch and terminate the process without blocking the UI thread.
   std::unique_ptr<ChildProcessLauncher> child_process_launcher_;
+
+  // Handle for the renderer process if it is managed externally, otherwise
+  // this will be set to base::kNullProcessHandle (which means the
+  // RenderProcessHostImpl is the one that launches the process).
+  base::ProcessHandle externally_managed_handle_;
 
   // The globally-unique identifier for this RPH.
   const int id_;

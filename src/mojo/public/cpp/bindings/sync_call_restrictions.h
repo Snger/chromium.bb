@@ -45,6 +45,10 @@ namespace views {
 class ClipboardMus;
 }
 
+namespace blpwtk2 {
+class ToolkitImpl;
+}
+
 namespace mojo {
 
 // In some processes, sync calls are disallowed. For example, in the browser
@@ -84,6 +88,8 @@ class MOJO_CPP_BINDINGS_EXPORT SyncCallRestrictions {
   // For file open and save dialogs created synchronously.
   friend class ::ChromeSelectFileDialogFactory;
   // END ALLOWED USAGE.
+
+  friend class blpwtk2::ToolkitImpl;  // single-process support
 
   // BEGIN USAGE THAT NEEDS TO BE FIXED.
   // In the non-mus case, we called blocking OS functions in the ui::Clipboard

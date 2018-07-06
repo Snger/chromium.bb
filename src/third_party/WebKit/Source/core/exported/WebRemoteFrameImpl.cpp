@@ -326,6 +326,12 @@ v8::Local<v8::Object> WebRemoteFrameImpl::GlobalProxy() const {
       ->GlobalProxyIfNotDetached();
 }
 
+v8::Isolate* WebRemoteFrameImpl::scriptIsolate() const
+{
+  NOTREACHED();
+  return nullptr;
+}
+
 WebRemoteFrameImpl::WebRemoteFrameImpl(WebTreeScopeType scope,
                                        WebRemoteFrameClient* client)
     : WebRemoteFrame(scope),

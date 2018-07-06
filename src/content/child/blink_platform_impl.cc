@@ -32,6 +32,7 @@
 #include "base/trace_event/memory_dump_manager.h"
 #include "base/trace_event/trace_event.h"
 #include "blink/public/resources/grit/blink_image_resources.h"
+#include "blink/public/resources/grit/blink_inspector_resources.h"
 #include "blink/public/resources/grit/blink_resources.h"
 #include "blink/public/resources/grit/media_controls_resources.h"
 #include "build/build_config.h"

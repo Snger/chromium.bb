@@ -29,6 +29,7 @@
 #include "ipc/message_router.h"
 #include "mojo/public/cpp/bindings/associated_binding.h"
 #include "mojo/public/cpp/bindings/associated_binding_set.h"
+#include "mojo/edk/embedder/scoped_platform_handle.h"
 
 namespace base {
 class MessageLoop;
@@ -204,6 +205,7 @@ class CONTENT_EXPORT ChildThreadImpl
   void OnChannelConnected(int32_t peer_pid) override;
   void OnChannelError() override;
 
+ public:  // SHEZ: Lets us access the IOTaskRunner from blpwtk2
   bool IsInBrowserProcess() const;
 
  private:
@@ -273,6 +275,10 @@ class CONTENT_EXPORT ChildThreadImpl
   // attempt to communicate.
   bool on_channel_error_called_;
 
+  bool use_mojo_channel_;
+
+  std::string in_process_ipc_token_;
+
   base::MessageLoop* message_loop_;
 
   std::unique_ptr<FileSystemDispatcher> file_system_dispatcher_;
@@ -319,6 +325,7 @@ struct ChildThreadImpl::Options {
   std::vector<IPC::MessageFilter*> startup_filters;
   mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation;
   std::string in_process_service_request_token;
+  int mojo_controller_handle;
 
  private:
   Options();

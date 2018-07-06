@@ -19,6 +19,15 @@ namespace internal {
 class Parser;
 class ScriptData;
 
+// blpwtk2: CachedData's destructor is made private to prevent the caller from
+// directly deleting the object.  Instead, it exposes a 'dispose' function
+// that the caller can invoke to delete the object with respect to v8's heap.
+struct CachedDataDeleter {
+  void operator()(ScriptCompiler::CachedData* cd) {
+    ScriptCompiler::CachedData::dispose(cd);
+  }
+};
+
 // Internal representation of v8::ScriptCompiler::StreamedSource. Contains all
 // data which needs to be transmitted between threads for background parsing,
 // finalizing it on the main thread, and compiling on the main thread.
@@ -32,7 +41,7 @@ struct StreamedSource {
   // Internal implementation of v8::ScriptCompiler::StreamedSource.
   std::unique_ptr<ScriptCompiler::ExternalSourceStream> source_stream;
   ScriptCompiler::StreamedSource::Encoding encoding;
-  std::unique_ptr<ScriptCompiler::CachedData> cached_data;
+  std::unique_ptr<ScriptCompiler::CachedData, CachedDataDeleter> cached_data;
 
   // Data needed for parsing, and data needed to to be passed between thread
   // between parsing and compilation. These need to be initialized before the
@@ -46,14 +55,13 @@ struct StreamedSource {
   StreamedSource& operator=(const StreamedSource&) = delete;
 };
 
-
 class BackgroundParsingTask : public ScriptCompiler::ScriptStreamingTask {
  public:
   BackgroundParsingTask(StreamedSource* source,
                         ScriptCompiler::CompileOptions options, int stack_size,
                         Isolate* isolate);
-
-  virtual void Run();
+  void Run() override;
+  void Dispose() override;
 
  private:
   StreamedSource* source_;  // Not owned.

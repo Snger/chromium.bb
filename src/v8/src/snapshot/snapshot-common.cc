@@ -141,8 +141,8 @@ v8::StartupData Snapshot::CreateSnapshotBlob(
     }
     payload_offset += payload_length;
   }
-
-  v8::StartupData result = {data, static_cast<int>(total_length)};
+  static auto array_deallocator = [](const char* buffer) {delete[] buffer; buffer = nullptr;};
+  v8::StartupData result{data, static_cast<int>(total_length), array_deallocator };
   return result;
 }
 

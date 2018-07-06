@@ -986,11 +986,10 @@ bool RenderWidget::IsClosing() const {
   return host_closing_;
 }
 
-
 void RenderWidget::bbHandleInputEvent(const blink::WebInputEvent& event) {
   ui::LatencyInfo latency_info;
   bb_OnHandleInputEvent_no_ack_ = true;
-  OnHandleInputEvent(&event, std::vector<const blink::WebInputEvent*>(), latency_info, InputEventDispatchType::DISPATCH_TYPE_BLOCKING);
+  OnHandleInputEvent(&event, {}, latency_info, InputEventDispatchType::DISPATCH_TYPE_BLOCKING);
   bb_OnHandleInputEvent_no_ack_ = false;
 }
 

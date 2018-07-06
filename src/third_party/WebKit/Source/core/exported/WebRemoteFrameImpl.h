@@ -74,6 +74,7 @@ class CORE_EXPORT WebRemoteFrameImpl final
   void WillEnterFullscreen() override;
   void SetHasReceivedUserGesture() override;
   v8::Local<v8::Object> GlobalProxy() const override;
+  v8::Isolate* scriptIsolate() const override;
 
   void InitializeCoreFrame(Page&, FrameOwner*, const AtomicString& name);
   RemoteFrame* GetFrame() const { return frame_.Get(); }

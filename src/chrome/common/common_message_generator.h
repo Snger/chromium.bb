@@ -6,9 +6,9 @@
 
 #include "chrome/common/common_param_traits_macros.h"
 #include "chrome/common/mac/app_shim_messages.h"
-#include "chrome/common/prerender_messages.h"
+//#include "chrome/common/prerender_messages.h"
 #include "chrome/common/render_messages.h"
-#include "chrome/common/tts_messages.h"
+//#include "chrome/common/tts_messages.h"
 #include "content/public/common/common_param_traits.h"
 #include "content/public/common/common_param_traits_macros.h"
 #include "extensions/features/features.h"
@@ -27,7 +27,7 @@
 #endif
 
 #if BUILDFLAG(ENABLE_WEBRTC)
-#include "chrome/common/media/webrtc_logging_messages.h"
+//#include "chrome/common/media/webrtc_logging_messages.h"
 #endif
 
 #if defined(FULL_SAFE_BROWSING)
