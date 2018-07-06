@@ -1834,6 +1834,33 @@ gfx::Size RenderViewImpl::GetSize() const {
   return size();
 }
 
+void RenderViewImpl::SetSize(const gfx::Size& new_size) {
+  if (new_size == size()) {
+    return;
+  }
+  need_resize_ack_for_auto_resize_ = true;
+
+  // blpwtk2: Loosely copied from RenderViewImpl::OnDisableAutoResize
+  ResizeParams resize_params = {};
+
+  resize_params.screen_info = screen_info_;
+  resize_params.new_size = new_size;
+  resize_params.compositor_viewport_pixel_size = new_size;
+  resize_params.browser_controls_shrink_blink_size = browser_controls_shrink_blink_size_;
+  resize_params.top_controls_height = top_controls_height_;
+  resize_params.visible_viewport_size = new_size;
+  resize_params.is_fullscreen_granted = is_fullscreen_granted_;
+  resize_params.display_mode = display_mode_;
+  resize_params.needs_resize_ack = false;
+  resize_params.local_surface_id = local_surface_id_;
+  resize_params.content_source_id = GetContentSourceId();
+  if(!resize_params.local_surface_id->is_valid()) {
+    return;
+  }
+
+  Resize(resize_params);
+}
+
 float RenderViewImpl::GetDeviceScaleFactor() const {
   return GetWebScreenInfo().device_scale_factor;
 }
