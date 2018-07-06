@@ -806,6 +806,8 @@ void RenderWidget::OnResize(const ResizeParams& params) {
     for (auto& render_frame : render_frames_)
       render_frame.DidChangeVisibleViewport();
   }
+
+  browser_size_ = params.new_size;
 }
 
 void RenderWidget::OnEnableDeviceEmulation(

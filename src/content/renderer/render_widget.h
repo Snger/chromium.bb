@@ -721,6 +721,9 @@ class CONTENT_EXPORT RenderWidget
   // The size of the compositor's surface in pixels.
   gfx::Size compositor_viewport_pixel_size_;
 
+  // The size of the RenderWidget expected by the host.
+  gfx::Size browser_size_;
+
   // The size of the visible viewport in pixels.
   gfx::Size visible_viewport_size_;
 
