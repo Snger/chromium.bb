@@ -55,20 +55,30 @@ bool CanAccessWindowInternal(const LocalDOMWindow* accessing_window,
   SECURITY_CHECK(!(target_window && target_window->GetFrame()) ||
                  target_window == target_window->GetFrame()->DomWindow());
 
-  // It's important to check that target_window is a LocalDOMWindow: it's
-  // possible for a remote frame and local frame to have the same security
-  // origin, depending on the model being used to allocate Frames between
-  // processes. See https://crbug.com/601629.
-  if (!(accessing_window && target_window && target_window->IsLocalDOMWindow()))
-    return false;
-
-  const SecurityOrigin* accessing_origin =
-      accessing_window->document()->GetSecurityOrigin();
   const LocalDOMWindow* local_target_window = ToLocalDOMWindow(target_window);
-  if (!accessing_origin->CanAccess(
-          local_target_window->document()->GetSecurityOrigin())) {
-    return false;
+  if (accessing_window) {
+    // It's important to check that target_window is a LocalDOMWindow: it's
+    // possible for a remote frame and local frame to have the same security
+    // origin, depending on the model being used to allocate Frames between
+    // processes. See https://crbug.com/601629.
+    if (!(target_window && target_window->IsLocalDOMWindow()))
+      return false;
+
+    const SecurityOrigin* accessing_origin =
+        accessing_window->document()->GetSecurityOrigin();
+    if (!accessing_origin->CanAccess(
+            local_target_window->document()->GetSecurityOrigin())) {
+      return false;
+    }
   }
+	else {
+      const Frame* frame = target_window->GetFrame();
+      const SecurityOrigin* targetOrigin = frame && frame->GetSecurityContext() ?
+                               frame->GetSecurityContext()->GetSecurityOrigin() : nullptr;
+      if (!(targetOrigin && targetOrigin->IsGrantedUniversalAccess())) {
+        return false;
+      }
+	}
 
   // Notify the loader's client if the initial document has been accessed.
   LocalFrame* target_frame = local_target_window->GetFrame();
@@ -322,6 +332,11 @@ bool BindingSecurity::ShouldAllowAccessToCreationContext(
     // Sandbox detached frames - they can't create cross origin objects.
     LocalDOMWindow* calling_window = CurrentDOMWindow(isolate);
     LocalDOMWindow* target_window = ToLocalDOMWindow(creation_context);
+
+    if (calling_window && calling_window->document()->GetSecurityOrigin()->CanAccess(target_window->document()->GetSecurityOrigin()))
+        return true;
+    if (!target_window || target_window->document()->GetSecurityOrigin()->IsGrantedUniversalAccess())
+        return true;
 
     // TODO(https://crbug.com/723057): This is tricky: this intentionally uses
     // the internal CanAccessWindow() helper rather than ShouldAllowAccessTo().
