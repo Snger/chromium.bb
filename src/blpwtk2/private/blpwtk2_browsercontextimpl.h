@@ -131,6 +131,7 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     storage::SpecialStoragePolicy *GetSpecialStoragePolicy() override;
     content::PushMessagingService *GetPushMessagingService() override;
     content::SSLHostStateDelegate *GetSSLHostStateDelegate() override;
+    bool AllowDictionaryDownloads() override;
     content::PermissionManager *GetPermissionManager() override;
     content::BackgroundSyncController *GetBackgroundSyncController() override;
     content::BrowsingDataRemoverDelegate* GetBrowsingDataRemoverDelegate()
