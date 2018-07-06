@@ -493,6 +493,10 @@ class CONTENT_EXPORT RenderWidgetHostViewBase : public RenderWidgetHostView,
 
   WebContentsAccessibility* web_contents_accessibility_;
 
+  // The default background color, which is also used as the initial
+  // background color during construction
+  static const SkColor default_background_color_{SK_ColorBLACK};
+
  private:
   gfx::Rect current_display_area_;
 

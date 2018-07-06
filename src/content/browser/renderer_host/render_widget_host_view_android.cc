@@ -459,8 +459,8 @@ RenderWidgetHostViewAndroid::RenderWidgetHostViewAndroid(
       ime_adapter_android_(nullptr),
       selection_popup_controller_(nullptr),
       text_suggestion_host_(nullptr),
-      background_color_(SK_ColorWHITE),
-      cached_background_color_(SK_ColorWHITE),
+      background_color_(default_background_color_),
+      cached_background_color_(default_background_color_),
       view_(this),
       gesture_provider_(ui::GetGestureProviderConfig(
                             ui::GestureProviderConfigType::CURRENT_PLATFORM),
