@@ -134,6 +134,7 @@ RenderWidgetHostViewEventHandler::RenderWidgetHostViewEventHandler(
       set_focus_on_mouse_down_or_key_event_(false),
       synthetic_move_sent_(false),
       host_(RenderWidgetHostImpl::From(host)),
+      has_capture_from_mouse_down_(false),
       host_view_(host_view),
       popup_child_host_view_(nullptr),
       popup_child_event_handler_(nullptr),
@@ -379,7 +380,7 @@ void RenderWidgetHostViewEventHandler::OnMouseEvent(ui::MouseEvent* event) {
 
       // Ensure that we get keyboard focus on mouse down as a plugin window may
       // have grabbed keyboard focus.
-      if (event->type() == ui::ET_MOUSE_PRESSED)
+      if (event->type() == ui::ET_MOUSE_PRESSED && host_->ShouldSetKeyboardFocusOnMouseDown())
         SetKeyboardFocus();
     }
   }
@@ -387,10 +388,13 @@ void RenderWidgetHostViewEventHandler::OnMouseEvent(ui::MouseEvent* event) {
   switch (event->type()) {
     case ui::ET_MOUSE_PRESSED:
       window_->SetCapture();
+      has_capture_from_mouse_down_ = true;
       break;
     case ui::ET_MOUSE_RELEASED:
-      if (!delegate_->NeedsMouseCapture())
+      if (!delegate_->NeedsMouseCapture()) {
+        has_capture_from_mouse_down_ = false;
         window_->ReleaseCapture();
+      }
       break;
     default:
       break;
@@ -796,7 +800,7 @@ void RenderWidgetHostViewEventHandler::HandleMouseEventWhileLocked(
       }
       // Ensure that we get keyboard focus on mouse down as a plugin window
       // may have grabbed keyboard focus.
-      if (event->type() == ui::ET_MOUSE_PRESSED)
+      if (event->type() == ui::ET_MOUSE_PRESSED && host_->ShouldSetKeyboardFocusOnMouseDown())
         SetKeyboardFocus();
     }
   }

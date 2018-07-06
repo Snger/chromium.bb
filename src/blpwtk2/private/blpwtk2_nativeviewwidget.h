@@ -43,6 +43,7 @@ class NativeViewWidget : private views::WidgetDelegateView {
     NativeViewWidget(gfx::NativeView contents,
                      blpwtk2::NativeView parent,
                      NativeViewWidgetDelegate* delegate,
+                     bool activatable,
                      bool rerouteMouseWheelToAnyRelatedWindow);
     virtual ~NativeViewWidget();
 
@@ -59,6 +60,7 @@ class NativeViewWidget : private views::WidgetDelegateView {
   private:
     // views::WidgetDelegate overrides
     void WindowClosing() override;
+    aura::Window* GetDefaultActivationWindow() override;
     views::View* GetContentsView() override;
     bool OnNCHitTest(int* result, const gfx::Point& point) override;
     bool OnNCDragBegin(int hit_test_code) override;
