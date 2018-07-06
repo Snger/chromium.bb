@@ -63,6 +63,12 @@ void InlineTextBox::Destroy() {
   InlineBox::Destroy();
 }
 
+void InlineTextBox::SetStartAndLen(unsigned start, unsigned len)
+{
+  start_ = start;
+  len_ = len;
+}
+
 void InlineTextBox::OffsetRun(int delta) {
   DCHECK(!IsDirty());
   start_ += delta;

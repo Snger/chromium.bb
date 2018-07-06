@@ -36,8 +36,16 @@
 
 namespace blink {
 
+bool g_bbNoRelayoutOnSetCharacterData = false;
 void CharacterData::Atomize() {
   data_ = AtomicString(data_);
+}
+
+void CharacterData::bbSetDataNoRelayout(const String& data)
+{
+  g_bbNoRelayoutOnSetCharacterData = true;
+  setData(data);
+  g_bbNoRelayoutOnSetCharacterData = false;
 }
 
 void CharacterData::setData(const String& data) {
