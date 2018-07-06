@@ -1188,7 +1188,7 @@ void InlineTextBoxPainter::PaintStyleableMarkerUnderline(
   if (marker.IsThick() && inline_text_box_.LogicalHeight() - baseline >= 2)
     line_thickness = 2;
 
-  const ComputedStyle& styleToUse = inline_text_box_.StyleRef(inline_text_box_.IsFirstLineStyle());
+  const ComputedStyle& styleToUse = inline_text_box_.GetLineLayoutItem().StyleRef(inline_text_box_.IsFirstLineStyle());
   context.SetStrokeColor(LayoutObject::ResolveColor(styleToUse, CSSPropertyWebkitTextFillColor));
   context.SetStrokeThickness(line_thickness);
   context.DrawLineForText(
