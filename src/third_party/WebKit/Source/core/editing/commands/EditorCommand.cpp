@@ -980,6 +980,18 @@ static bool ExecuteInsertHTML(LocalFrame& frame,
       frame, CreateFragmentFromMarkup(*frame.GetDocument(), value, ""));
 }
 
+static bool ExecuteInsertHTMLNested(LocalFrame& frame,
+                                    Event*,
+                                    EditorCommandSource,
+                                    const String& value) {
+  DCHECK(frame.GetDocument());
+  ReplaceSelectionCommand::Create(*frame.GetDocument(),
+                                  CreateFragmentFromMarkup(*frame.GetDocument(), value, ""),
+                                  ReplaceSelectionCommand::kInsertNested,
+                                  InputEvent::InputType::kNone)->Apply();
+  return true;
+}
+
 static bool ExecuteInsertImage(LocalFrame& frame,
                                Event*,
                                EditorCommandSource,
@@ -2882,6 +2894,9 @@ static const EditorInternalCommand* InternalCommand(
       {WebEditingCommandType::kAlignCenter, ExecuteJustifyCenter,
        SupportedFromMenuOrKeyBinding, EnabledInRichlyEditableText, StateNone,
        ValueStateOrNull, kNotTextInsertion, kDoNotAllowExecutionWhenDisabled},
+      {WebEditingCommandType::kInsertHTMLNested, ExecuteInsertHTMLNested,
+       Supported, EnabledInEditableText, StateNone, ValueStateOrNull,
+       kNotTextInsertion, kDoNotAllowExecutionWhenDisabled },
   };
   // Handles all commands except WebEditingCommandType::Invalid.
   static_assert(
