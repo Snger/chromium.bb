@@ -72,6 +72,7 @@
 #include "public/web/WebPageImportanceSignals.h"
 #include "public/web/WebView.h"
 
+
 namespace blink {
 
 class BrowserControls;
@@ -95,6 +96,21 @@ class CompositorMutatorImpl;
 class WebRemoteFrame;
 class WebSettingsImpl;
 class WebViewScheduler;
+
+class RubberbandContext;
+class RubberbandStateImpl;
+class RubberbandState {
+
+    // Not implemented.
+    RubberbandState(const RubberbandState&);
+    RubberbandState& operator=(const RubberbandState&);
+
+  public:
+    RubberbandState();
+    ~RubberbandState();
+
+    std::unique_ptr<RubberbandStateImpl> impl_;
+};
 
 class CORE_EXPORT WebViewImpl final
     : public WebView,
@@ -277,6 +293,18 @@ class CORE_EXPORT WebViewImpl final
   WebColor BackgroundColorOverride() const {
     return background_color_override_;
   }
+
+  // Rubberbanding
+  virtual bool IsAltDragRubberbandingEnabled() const override;
+  virtual void EnableAltDragRubberbanding(bool) override;
+  virtual bool IsRubberbanding() const override;
+  virtual bool PreStartRubberbanding() override;
+  virtual void StartRubberbanding() override;
+  virtual WebRect ExpandRubberbandRect(const WebRect&) override;
+  virtual WebString FinishRubberbanding(const WebRect&) override;
+  virtual void AbortRubberbanding() override;
+  virtual WebString GetTextInRubberband(const WebRect&) override;
+  virtual bool ForceStartRubberbanding(int x, int y) override;
 
   Frame* FocusedCoreFrame() const;
 
@@ -568,6 +596,12 @@ class CORE_EXPORT WebViewImpl final
   CompositorMutatorImpl& Mutator();
   CompositorMutatorImpl* CompositorMutator();
 
+  // Rubberbanding
+  void RubberbandWalkFrame(const RubberbandContext&, LocalFrame*, const LayoutPoint&);
+  void RubberbandWalkLayoutObject(const RubberbandContext&, LayoutObject*);
+  WTF::String GetTextInRubberbandImpl(const WebRect&);
+  bool HandleAltDragRubberbandEvent(const WebInputEvent&);
+
   WebViewClient* client_;  // Can be 0 (e.g. unittests, shared workers, etc.)
 
   Persistent<ChromeClient> chrome_client_;
@@ -640,6 +674,14 @@ class CORE_EXPORT WebViewImpl final
 
   Persistent<DevToolsEmulator> dev_tools_emulator_;
   std::unique_ptr<PageOverlay> page_color_overlay_;
+
+
+  std::unique_ptr<RubberbandState> rubberbandState_;
+  
+  // Whether Alt+Mousedrag rubberbanding is enabled or not.
+  bool isAltDragRubberbandingEnabled_;
+  // Whether rubberbanding has been forced on
+  bool rubberbandingForcedOn_;
 
   // Whether the user can press tab to focus links.
   bool tabs_to_links_;

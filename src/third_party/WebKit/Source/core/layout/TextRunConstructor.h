@@ -36,6 +36,7 @@
 #ifndef TextRunConstructor_h
 #define TextRunConstructor_h
 
+#include "core/CoreExport.h"
 #include "platform/text/TextDirection.h"
 #include "platform/text/TextRun.h"
 #include "platform/wtf/text/Unicode.h"
@@ -84,6 +85,7 @@ TextRun ConstructTextRun(const Font&,
                          int length,
                          const ComputedStyle&,
                          TextDirection);
+CORE_EXPORT                         
 TextRun ConstructTextRun(const Font&,
                          const UChar*,
                          int length,

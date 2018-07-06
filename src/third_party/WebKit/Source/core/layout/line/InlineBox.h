@@ -404,8 +404,8 @@ class CORE_EXPORT InlineBox : public DisplayItemClient {
   }
 
   Node* node() const { return line_layout_item_.GetLayoutObject()->GetNode(); }
-  const ComputedStyle& StyleRef(bool firstLine) const { return line_layout_item_.GetLayoutObject()->StyleRef(firstLine); }
-  LayoutBlock* ContainingBlock() const { return line_layout_item_.GetLayoutObject()->ContainingBlock(); }
+  const ComputedStyle& styleRef(bool firstLine) const { return line_layout_item_.GetLayoutObject()->StyleRef(firstLine); }
+  LayoutBlock* containingBlock() const { return line_layout_item_.GetLayoutObject()->ContainingBlock(); }
 
   // Set all LineLayoutItems in the inline box subtree should do full paint
   // invalidation.

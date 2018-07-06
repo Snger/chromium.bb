@@ -347,6 +347,8 @@ WebViewImpl::WebViewImpl(WebViewClient* client,
       suppress_next_keypress_event_(false),
       ime_accept_events_(true),
       dev_tools_emulator_(nullptr),
+      isAltDragRubberbandingEnabled_(false),
+      rubberbandingForcedOn_(false),
       tabs_to_links_(false),
       layer_tree_view_(nullptr),
       root_layer_(nullptr),
@@ -1973,6 +1975,9 @@ WebInputEventResult WebViewImpl::HandleInputEvent(
 
   TRACE_EVENT1("input,rail", "WebViewImpl::handleInputEvent", "type",
                WebInputEvent::GetName(input_event.GetType()));
+  if ((rubberbandingForcedOn_ || isAltDragRubberbandingEnabled_) &&
+      HandleAltDragRubberbandEvent(input_event))
+    return WebInputEventResult::kHandledSystem;
 
   // If a drag-and-drop operation is in progress, ignore input events.
   if (MainFrameImpl()->FrameWidget()->DoingDragAndDrop())
@@ -2097,6 +2102,10 @@ void WebViewImpl::SetCursorVisibilityState(bool is_visible) {
 void WebViewImpl::MouseCaptureLost() {
   TRACE_EVENT_ASYNC_END0("input", "capturing mouse", this);
   mouse_capture_node_ = nullptr;
+  if ((rubberbandingForcedOn_ || isAltDragRubberbandingEnabled_) &&
+      IsRubberbanding()) {
+    AbortRubberbanding();
+  }  
 }
 
 void WebViewImpl::SetFocus(bool enable) {

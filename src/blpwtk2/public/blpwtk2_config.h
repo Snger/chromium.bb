@@ -51,6 +51,7 @@
 // feature 6
 // feature 7
 // feature 8
+#define BLPWTK2_FEATURE_RUBBERBAND
 // feature 9
 // feature 10
 // feature 11
