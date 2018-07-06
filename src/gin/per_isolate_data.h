@@ -71,7 +71,7 @@ class GIN_EXPORT PerIsolateData {
 
   v8::Isolate* isolate() { return isolate_; }
   v8::ArrayBuffer::Allocator* allocator() { return allocator_; }
-  MultiHeapTracer* heap_tracer() { return heap_tracer_; }
+  MultiHeapTracer* heap_tracer() { return &heap_tracer_; }
   std::shared_ptr<v8::TaskRunner> task_runner() { return task_runner_; }
 
  private:

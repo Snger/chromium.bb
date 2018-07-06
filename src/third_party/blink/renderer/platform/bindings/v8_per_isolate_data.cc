@@ -82,7 +82,7 @@ V8PerIsolateData::V8PerIsolateData(
   if (IsMainThread())
     g_main_thread_per_isolate_data = this;
 
-  isolate_holder_.heap_tracer().AddHeapTracer(script_wrappable_visitor_.get(),
+  isolate_holder_.heap_tracer()->AddHeapTracer(script_wrappable_visitor_.get(),
                                               gin::kEmbedderBlink);
 }
 
@@ -109,7 +109,7 @@ V8PerIsolateData::V8PerIsolateData()
   // SnapshotCreator enters the isolate, so we don't call Isolate::Enter() here.
   g_main_thread_per_isolate_data = this;
 
-  isolate_holder_.heap_tracer().AddHeapTracer(script_wrappable_visitor_.get(),
+  isolate_holder_.heap_tracer()->AddHeapTracer(script_wrappable_visitor_.get(),
                                               gin::kEmbedderBlink);
 }
 
@@ -376,8 +376,8 @@ void V8PerIsolateData::TemporaryScriptWrappableVisitorScope::
 
   data->script_wrappable_visitor_.swap(saved_visitor_);
 
-  data->isolate_holder_.heap_tracer().RemoveHeapTracer(gin::kEmbedderBlink);
-  data->isolate_holder_.heap_tracer().AddHeapTracer(CurrentVisitor(),
+  data->isolate_holder_.heap_tracer()->RemoveHeapTracer(gin::kEmbedderBlink);
+  data->isolate_holder_.heap_tracer()->AddHeapTracer(CurrentVisitor(),
                                                     gin::kEmbedderBlink);
 }
 

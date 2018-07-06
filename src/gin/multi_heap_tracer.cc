@@ -47,7 +47,7 @@ int MultiHeapTracer::AddHeapTracer(v8::EmbedderHeapTracer *tracer,
 
 void MultiHeapTracer::RemoveHeapTracer(int embedder_id) {
   DCHECK(!is_tracing_);
-  DCHECK(1 == tracers_.count(embedder_id);
+  DCHECK(1 == tracers_.count(embedder_id));
 
   tracers_.erase(embedder_id);
   next_tracer_ = tracers_.begin();
@@ -78,10 +78,10 @@ bool MultiHeapTracer::AdvanceTracing(double                deadline_in_ms,
   bool more_work = false;
 
   auto numTracers = tracers_.size();
-  for (Tracers::size_type i = 0, num_tracers = tracers_.size();
+  for (Tracers::size_type i = 0;
        i < numTracers;
        ++i) {
-    if (next_tracer_.second->AdvanceTracing(deadline_in_ms, actions)) {
+    if (next_tracer_->second->AdvanceTracing(deadline_in_ms, actions)) {
       more_work = true;
     }
 

@@ -31,7 +31,7 @@ PerIsolateData::PerIsolateData(
     : isolate_(isolate), allocator_(allocator),
       heap_tracer_() {
   isolate_->SetData(kEmbedderNativeGin, this);
-  isolate_->SetEmbedderHeapTracer(heap_tracer_);
+  isolate_->SetEmbedderHeapTracer(&heap_tracer_);
 
   DCHECK(task_runner);
   if (access_mode == IsolateHolder::kUseLocker) {
