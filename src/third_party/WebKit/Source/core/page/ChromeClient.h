@@ -153,6 +153,7 @@ class CORE_EXPORT ChromeClient : public PlatformChromeClient {
                                    MessageLevel,
                                    const String& message,
                                    unsigned line_number,
+                                   unsigned columnNumber,
                                    const String& source_id,
                                    const String& stack_trace) = 0;
 
