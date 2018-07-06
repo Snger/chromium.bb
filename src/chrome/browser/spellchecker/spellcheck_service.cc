@@ -219,8 +219,9 @@ void SpellcheckService::LoadHunspellDictionaries() {
     hunspell_dictionaries_.push_back(
         base::MakeUnique<SpellcheckHunspellDictionary>(
             dictionary,
-            content::BrowserContext::GetDefaultStoragePartition(context_)
-                ->GetURLRequestContext(),
+            (context_->AllowDictionaryDownloads() ?
+                content::BrowserContext::GetDefaultStoragePartition(context_)
+                ->GetURLRequestContext() : nullptr),
             this));
     hunspell_dictionaries_.back()->AddObserver(this);
     hunspell_dictionaries_.back()->Load();

@@ -477,6 +477,11 @@ content::SSLHostStateDelegate *BrowserContextImpl::GetSSLHostStateDelegate()
     return nullptr;
 }
 
+bool BrowserContextImpl::AllowDictionaryDownloads()
+{
+    return false;
+}
+
 content::PermissionManager *BrowserContextImpl::GetPermissionManager()
 {
     return nullptr;
