@@ -69,6 +69,7 @@
 #include <third_party/WebKit/public/web/WebSecurityPolicy.h>
 #include <third_party/WebKit/public/web/WebScriptController.h>
 #include <third_party/WebKit/public/web/WebScriptBindings.h>
+#include <gin/public/multi_heap_tracer.h>
 
 namespace blpwtk2 {
 
@@ -677,6 +678,18 @@ void ToolkitImpl::setWebViewHostObserver(WebViewHostObserver* observer)
 void ToolkitImpl::setTraceThreshold(unsigned int timeoutMS)
 {
     d_messagePump->setTraceThreshold(timeoutMS);
+}
+
+int ToolkitImpl::addV8HeapTracer(v8::EmbedderHeapTracer *tracer)
+{
+    auto *multiHeapTracer = gin::MultiHeapTracer::From(v8::Isolate::GetCurrent());
+    return multiHeapTracer->AddHeapTracer(tracer);
+}
+
+void ToolkitImpl::removeV8HeapTracer(int embedder_id)
+{
+    auto *multiHeapTracer = gin::MultiHeapTracer::From(v8::Isolate::GetCurrent());
+    multiHeapTracer->RemoveHeapTracer(embedder_id);
 }
 
 }  // close namespace blpwtk2

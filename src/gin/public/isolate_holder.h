@@ -83,7 +83,7 @@ class GIN_EXPORT IsolateHolder {
                          v8::ArrayBuffer::Allocator* allocator);
 
   // Return the heap tracer.
-  MultiHeapTracer* heap_tracer() { return isolate_data_->heap_tracer(); }
+  MultiHeapTracer* heap_tracer();
 
   v8::Isolate* isolate() { return isolate_; }
 

@@ -33,7 +33,7 @@ PerIsolateData::PerIsolateData(
       task_runner_(
           task_runner ? task_runner : base::ThreadTaskRunnerHandle::Get()) {
   isolate_->SetData(kEmbedderNativeGin, this);
-  isolate_->SetEmbedderHeapTracer(heap_tracer_);
+  isolate_->SetEmbedderHeapTracer(&heap_tracer_);
 }
 
 PerIsolateData::~PerIsolateData() {
