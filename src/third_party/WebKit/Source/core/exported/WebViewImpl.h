@@ -156,6 +156,7 @@ class CORE_EXPORT WebViewImpl final
   void DidAcquirePointerLock() override;
   void DidNotAcquirePointerLock() override;
   void DidLosePointerLock() override;
+  void DidChangeWindowRect() override;
   void ShowContextMenu(WebMenuSourceType) override;
 
   // WebView methods:

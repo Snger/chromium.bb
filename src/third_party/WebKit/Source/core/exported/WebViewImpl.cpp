@@ -50,6 +50,7 @@
 #include "core/editing/iterators/TextIterator.h"
 #include "core/editing/serializers/HTMLInterchange.h"
 #include "core/editing/serializers/Serialization.h"
+#include "core/dom/events/CustomEvent.h"
 #include "core/events/KeyboardEvent.h"
 #include "core/events/UIEventWithKeyState.h"
 #include "core/events/WebInputEventConversion.h"
@@ -2353,6 +2354,25 @@ void WebViewImpl::DidAcquirePointerLock() {
 void WebViewImpl::DidNotAcquirePointerLock() {
   if (MainFrameImpl())
     MainFrameImpl()->FrameWidget()->DidNotAcquirePointerLock();
+}
+
+void WebViewImpl::DidChangeWindowRect()
+{
+    if (!MainFrameImpl()
+        || !MainFrameImpl()->GetFrame()
+        || !MainFrameImpl()->GetFrame()->GetDocument()) {
+        return;
+    }
+
+    CustomEventInit eventInit;
+    eventInit.setBubbles(false);
+    eventInit.setCancelable(false);
+
+    CustomEvent* event = CustomEvent::Create(
+        ToScriptStateForMainWorld(MainFrameImpl()->GetFrame()),
+        "bbWindowRectChanged",
+        eventInit);
+    MainFrameImpl()->GetFrame()->DomWindow()->DispatchEvent(event);
 }
 
 void WebViewImpl::DidLosePointerLock() {
