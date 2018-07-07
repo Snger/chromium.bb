@@ -276,3 +276,8 @@ D. Local Modifications
 
  - patches/curr_sr.patch
    upstream bug: https://unicode.org/cldr/trac/ticket/10794
+
+8. Fix an integer overflow in Islamic calendar
+
+  - patches/islamcal.patch
+    upstream bug: https://ssl.icu-project.org/trac/ticket/13538
