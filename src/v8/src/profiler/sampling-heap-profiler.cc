@@ -112,14 +112,13 @@ void SamplingHeapProfiler::SampleObject(Address soon_object, size_t size) {
   Sample* sample = new Sample(size, node, loc, this);
   samples_.insert(sample);
   sample->global.SetWeak(sample, OnWeakCallback, WeakCallbackType::kParameter);
-  sample->global.MarkIndependent();
 }
 
 void SamplingHeapProfiler::OnWeakCallback(
     const WeakCallbackInfo<Sample>& data) {
   Sample* sample = data.GetParameter();
   AllocationNode* node = sample->owner;
-  DCHECK(node->allocations_[sample->size] > 0);
+  DCHECK_GT(node->allocations_[sample->size], 0);
   node->allocations_[sample->size]--;
   if (node->allocations_[sample->size] == 0) {
     node->allocations_.erase(sample->size);
@@ -144,7 +143,7 @@ SamplingHeapProfiler::AllocationNode::FindOrAddChildNode(const char* name,
   FunctionId id = function_id(script_id, start_position, name);
   auto it = children_.find(id);
   if (it != children_.end()) {
-    DCHECK(strcmp(it->second->name_, name) == 0);
+    DCHECK_EQ(strcmp(it->second->name_, name), 0);
     return it->second;
   }
   auto child = new AllocationNode(this, name, script_id, start_position);
@@ -158,12 +157,21 @@ SamplingHeapProfiler::AllocationNode* SamplingHeapProfiler::AddStack() {
   std::vector<SharedFunctionInfo*> stack;
   JavaScriptFrameIterator it(isolate_);
   int frames_captured = 0;
+  bool found_arguments_marker_frames = false;
   while (!it.done() && frames_captured < stack_depth_) {
     JavaScriptFrame* frame = it.frame();
-    SharedFunctionInfo* shared = frame->function()->shared();
-    stack.push_back(shared);
-
-    frames_captured++;
+    // If we are materializing objects during deoptimization, inlined
+    // closures may not yet be materialized, and this includes the
+    // closure on the stack. Skip over any such frames (they'll be
+    // in the top frames of the stack). The allocations made in this
+    // sensitive moment belong to the formerly optimized frame anyway.
+    if (frame->unchecked_function()->IsJSFunction()) {
+      SharedFunctionInfo* shared = frame->function()->shared();
+      stack.push_back(shared);
+      frames_captured++;
+    } else {
+      found_arguments_marker_frames = true;
+    }
     it.Advance();
   }
 
@@ -210,6 +218,12 @@ SamplingHeapProfiler::AllocationNode* SamplingHeapProfiler::AddStack() {
     }
     node = node->FindOrAddChildNode(name, script_id, shared->start_position());
   }
+
+  if (found_arguments_marker_frames) {
+    node =
+        node->FindOrAddChildNode("(deopt)", v8::UnboundScript::kNoScriptId, 0);
+  }
+
   return node;
 }
 
