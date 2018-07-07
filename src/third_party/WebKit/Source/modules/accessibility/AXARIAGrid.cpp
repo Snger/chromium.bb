@@ -46,10 +46,13 @@ AXARIAGrid* AXARIAGrid::Create(LayoutObject* layout_object,
 }
 
 bool AXARIAGrid::AddRow(AXObject* possible_row) {
-  if (!possible_row || possible_row->RoleValue() != kRowRole)
+  // This does not yet handle the case where the row is not an AXARIAGridRow or
+  // AXTable row because it is in a canvas or is a virtual node, as those
+  // do not have a layout object, cannot be an AXARIAGridRow, and cannot
+  // currently implement the rest of our table logic.
+  if (!possible_row || !possible_row->IsTableRow())
     return false;
 
-  DCHECK(possible_row->IsTableRow());
   AXTableRow* row = ToAXTableRow(possible_row);
   row->SetRowIndex(static_cast<int>(rows_.size()));
   rows_.push_back(possible_row);
@@ -75,8 +78,8 @@ unsigned AXARIAGrid::CalculateNumColumns() {
   unsigned num_cols = 0;
   for (const auto& row : rows_) {
     // Store the maximum number of columns.
-    // TODO do not assume that the children of the rows are the cells.
-    const unsigned num_cells_in_row = row->Children().size();
+    DCHECK(row->IsTableRow());
+    const unsigned num_cells_in_row = ToAXTableRow(row)->Cells().size();
     if (num_cells_in_row > num_cols)
       num_cols = num_cells_in_row;
   }

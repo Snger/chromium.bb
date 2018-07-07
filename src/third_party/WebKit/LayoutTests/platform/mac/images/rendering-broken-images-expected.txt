@@ -18,54 +18,59 @@ layer at (8,50) size 180x1449 backgroundClip at (0,0) size 785x600 clip at (0,0)
       LayoutBlockFlow (anonymous) at (0,34) size 180.25x90
         LayoutText {#text} at (0,0) size 12x18
           text run at (0,0) width 12: "1."
-        LayoutBlockFlow {IMG} at (12,0) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,0) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,0) size 5x18
-          text run at (55,0) width 5: " "
-        LayoutBR {BR} at (59,0) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,0) size 5x18
+          text run at (71,0) width 5: " "
+        LayoutBR {BR} at (75,0) size 1x18
         LayoutText {#text} at (0,18) size 12x18
           text run at (0,18) width 12: "2."
-        LayoutBlockFlow {IMG} at (12,18) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,18) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,18) size 5x18
-          text run at (55,18) width 5: " "
-        LayoutBR {BR} at (59,18) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,18) size 5x18
+          text run at (71,18) width 5: " "
+        LayoutBR {BR} at (75,18) size 1x18
         LayoutText {#text} at (0,36) size 12x18
           text run at (0,36) width 12: "3."
-        LayoutBlockFlow {IMG} at (12,36) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,36) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutBR {BR} at (55,36) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutBR {BR} at (71,36) size 1x18
         LayoutText {#text} at (0,54) size 12x18
           text run at (0,54) width 12: "4."
-        LayoutBlockFlow {IMG} at (12,54) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,54) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutBR {BR} at (55,54) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutBR {BR} at (71,54) size 1x18
         LayoutText {#text} at (0,72) size 12x18
           text run at (0,72) width 12: "5."
-        LayoutBlockFlow {IMG} at (12,72) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,72) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
         LayoutText {#text} at (0,0) size 0x0
-    LayoutBlockFlow {DIV} at (0,156) size 180.25x189
+    LayoutBlockFlow {DIV} at (0,156) size 180.25x195
       LayoutBlockFlow {P} at (0,0) size 180.25x36
         LayoutText {#text} at (0,0) size 180x36
           text run at (0,0) width 180: "Different dimensions, no alt"
           text run at (0,18) width 24: "text"
-      LayoutBlockFlow (anonymous) at (0,52) size 180.25x137
+      LayoutBlockFlow (anonymous) at (0,52) size 180.25x143
         LayoutText {#text} at (0,11) size 12x18
           text run at (0,11) width 12: "1."
         LayoutBlockFlow {IMG} at (12,0) size 25x25 [bgcolor=#008000]
@@ -74,22 +79,25 @@ layer at (8,50) size 180x1449 backgroundClip at (0,0) size 785x600 clip at (0,0)
           text run at (0,65) width 12: "2."
         LayoutBlockFlow {IMG} at (12,29) size 50x50 [bgcolor=#008000]
         LayoutBR {BR} at (62,65) size 0x18
-        LayoutText {#text} at (0,83) size 12x18
-          text run at (0,83) width 12: "3."
-        LayoutBlockFlow {IMG} at (12,97) size 0x0 [bgcolor=#008000]
+        LayoutText {#text} at (0,85) size 12x18
+          text run at (0,85) width 12: "3."
+        LayoutBlockFlow {IMG} at (12,83) size 16x16 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 0x0
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 0x0
-        LayoutBR {BR} at (12,83) size 0x18
-        LayoutText {#text} at (0,101) size 12x18
-          text run at (0,101) width 12: "4."
-        LayoutBlockFlow {IMG} at (12,115) size 0x0 [bgcolor=#008000]
+        LayoutBR {BR} at (28,85) size 0x18
+        LayoutText {#text} at (0,105) size 12x18
+          text run at (0,105) width 12: "4."
+        LayoutBlockFlow {IMG} at (12,103) size 16x16 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 0x0
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 0x0
-        LayoutBR {BR} at (12,101) size 0x18
-        LayoutText {#text} at (0,119) size 12x18
-          text run at (0,119) width 12: "5."
-        LayoutBlockFlow {IMG} at (12,133) size 0x0
+        LayoutBR {BR} at (28,105) size 0x18
+        LayoutText {#text} at (0,125) size 12x18
+          text run at (0,125) width 12: "5."
+        LayoutBlockFlow {IMG} at (12,123) size 16x16
           LayoutInline {SPAN} at (0,0) size 0x0
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 0x0
         LayoutText {#text} at (0,0) size 0x0
     LayoutBlockFlow {DIV} at (0,383) size 180.25x189
@@ -168,44 +176,48 @@ layer at (8,50) size 180x1449 backgroundClip at (0,0) size 785x600 clip at (0,0)
       LayoutBlockFlow (anonymous) at (0,52) size 180.25x90
         LayoutText {#text} at (0,0) size 12x18
           text run at (0,0) width 12: "1."
-        LayoutBlockFlow {IMG} at (12,0) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,0) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,0) size 5x18
-          text run at (55,0) width 5: " "
-        LayoutBR {BR} at (59,0) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,0) size 5x18
+          text run at (71,0) width 5: " "
+        LayoutBR {BR} at (75,0) size 1x18
         LayoutText {#text} at (0,18) size 12x18
           text run at (0,18) width 12: "2."
-        LayoutBlockFlow {IMG} at (12,18) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,18) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,18) size 5x18
-          text run at (55,18) width 5: " "
-        LayoutBR {BR} at (59,18) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,18) size 5x18
+          text run at (71,18) width 5: " "
+        LayoutBR {BR} at (75,18) size 1x18
         LayoutText {#text} at (0,36) size 12x18
           text run at (0,36) width 12: "3."
-        LayoutBlockFlow {IMG} at (12,36) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,36) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,36) size 5x18
-          text run at (55,36) width 5: " "
-        LayoutBR {BR} at (59,36) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,36) size 5x18
+          text run at (71,36) width 5: " "
+        LayoutBR {BR} at (75,36) size 1x18
         LayoutText {#text} at (0,54) size 12x18
           text run at (0,54) width 12: "4."
-        LayoutBlockFlow {IMG} at (12,54) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,54) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,54) size 5x18
-          text run at (55,54) width 5: " "
-        LayoutBR {BR} at (59,54) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,54) size 5x18
+          text run at (71,54) width 5: " "
+        LayoutBR {BR} at (75,54) size 1x18
         LayoutText {#text} at (0,72) size 12x18
           text run at (0,72) width 12: "5."
         LayoutBlockFlow {IMG} at (12,86) size 0x0
@@ -222,54 +234,59 @@ layer at (8,50) size 180x1449 backgroundClip at (0,0) size 785x600 clip at (0,0)
       LayoutBlockFlow (anonymous) at (0,52) size 180.25x90
         LayoutText {#text} at (0,0) size 12x18
           text run at (0,0) width 12: "1."
-        LayoutBlockFlow {IMG} at (12,0) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,0) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,0) size 5x18
-          text run at (55,0) width 5: " "
-        LayoutBR {BR} at (59,0) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,0) size 5x18
+          text run at (71,0) width 5: " "
+        LayoutBR {BR} at (75,0) size 1x18
         LayoutText {#text} at (0,18) size 12x18
           text run at (0,18) width 12: "2."
-        LayoutBlockFlow {IMG} at (12,18) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,18) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,18) size 5x18
-          text run at (55,18) width 5: " "
-        LayoutBR {BR} at (59,18) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,18) size 5x18
+          text run at (71,18) width 5: " "
+        LayoutBR {BR} at (75,18) size 1x18
         LayoutText {#text} at (0,36) size 12x18
           text run at (0,36) width 12: "3."
-        LayoutBlockFlow {IMG} at (12,36) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,36) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,36) size 5x18
-          text run at (55,36) width 5: " "
-        LayoutBR {BR} at (59,36) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,36) size 5x18
+          text run at (71,36) width 5: " "
+        LayoutBR {BR} at (75,36) size 1x18
         LayoutText {#text} at (0,54) size 12x18
           text run at (0,54) width 12: "4."
-        LayoutBlockFlow {IMG} at (12,54) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,54) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,54) size 5x18
-          text run at (55,54) width 5: " "
-        LayoutBR {BR} at (59,54) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,54) size 5x18
+          text run at (71,54) width 5: " "
+        LayoutBR {BR} at (75,54) size 1x18
         LayoutText {#text} at (0,72) size 12x18
           text run at (0,72) width 12: "5."
-        LayoutBlockFlow {IMG} at (12,72) size 43.98x18
+        LayoutBlockFlow {IMG} at (12,72) size 59.98x18
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,72) size 5x18
-          text run at (55,72) width 5: " "
-        LayoutBR {BR} at (59,72) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,72) size 5x18
+          text run at (71,72) width 5: " "
+        LayoutBR {BR} at (75,72) size 1x18
     LayoutBlockFlow {DIV} at (0,1307) size 180.25x142
       LayoutBlockFlow {P} at (0,0) size 180.25x36
         LayoutText {#text} at (0,0) size 160x36
@@ -279,44 +296,48 @@ layer at (8,50) size 180x1449 backgroundClip at (0,0) size 785x600 clip at (0,0)
       LayoutBlockFlow (anonymous) at (0,52) size 180.25x90
         LayoutText {#text} at (0,0) size 12x18
           text run at (0,0) width 12: "1."
-        LayoutBlockFlow {IMG} at (12,0) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,0) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,0) size 5x18
-          text run at (55,0) width 5: " "
-        LayoutBR {BR} at (59,0) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,0) size 5x18
+          text run at (71,0) width 5: " "
+        LayoutBR {BR} at (75,0) size 1x18
         LayoutText {#text} at (0,18) size 12x18
           text run at (0,18) width 12: "2."
-        LayoutBlockFlow {IMG} at (12,18) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,18) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,18) size 5x18
-          text run at (55,18) width 5: " "
-        LayoutBR {BR} at (59,18) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,18) size 5x18
+          text run at (71,18) width 5: " "
+        LayoutBR {BR} at (75,18) size 1x18
         LayoutText {#text} at (0,36) size 12x18
           text run at (0,36) width 12: "3."
-        LayoutBlockFlow {IMG} at (12,36) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,36) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,36) size 5x18
-          text run at (55,36) width 5: " "
-        LayoutBR {BR} at (59,36) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,36) size 5x18
+          text run at (71,36) width 5: " "
+        LayoutBR {BR} at (75,36) size 1x18
         LayoutText {#text} at (0,54) size 12x18
           text run at (0,54) width 12: "4."
-        LayoutBlockFlow {IMG} at (12,54) size 43.98x18 [bgcolor=#008000]
+        LayoutBlockFlow {IMG} at (12,54) size 59.98x18 [bgcolor=#008000]
           LayoutInline {SPAN} at (0,0) size 44x18
+            LayoutImage (floating) {IMG} at (0,0) size 16x16
             LayoutInline {SPAN} at (0,0) size 44x18
-              LayoutText {#text} at (0,0) size 44x18
-                text run at (0,0) width 44: "alt text"
-        LayoutText {#text} at (55,54) size 5x18
-          text run at (55,54) width 5: " "
-        LayoutBR {BR} at (59,54) size 1x18
+              LayoutText {#text} at (16,0) size 44x18
+                text run at (16,0) width 44: "alt text"
+        LayoutText {#text} at (71,54) size 5x18
+          text run at (71,54) width 5: " "
+        LayoutBR {BR} at (75,54) size 1x18
         LayoutText {#text} at (0,72) size 12x18
           text run at (0,72) width 12: "5."
         LayoutBlockFlow {IMG} at (12,86) size 0x0

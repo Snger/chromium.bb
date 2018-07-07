@@ -73,7 +73,6 @@ cr.define('cr.login', function() {
     'constrained',   // Whether the extension is loaded in a constrained
                      // window.
     'clientId',      // Chrome client id.
-    'useEafe',       // Whether to use EAFE.
     'needPassword',  // Whether the host is interested in getting a password.
                      // If this set to |false|, |confirmPasswordCallback| is
                      // not called before dispatching |authCopleted|.
@@ -92,6 +91,9 @@ cr.define('cr.login', function() {
     'menuGuestMode',             // Enables "Guest mode" menu item
     'menuKeyboardOptions',       // Enables "Keyboard options" menu item
     'menuEnterpriseEnrollment',  // Enables "Enterprise enrollment" menu item.
+    'lsbReleaseBoard',           // Chrome OS Release board name
+    'isFirstUser',               // True if this is non-enterprise device,
+                                 // and there are no users yet.
 
     // The email fields allow for the following possibilities:
     //
@@ -144,7 +146,6 @@ cr.define('cr.login', function() {
     this.newGapsCookie_ = null;
     this.readyFired_ = false;
 
-    this.useEafe_ = false;
     this.clientId_ = null;
 
     this.samlHandler_ = new cr.login.SamlHandler(this.webview_);
@@ -168,7 +169,6 @@ cr.define('cr.login', function() {
     this.webview_.addEventListener(
         'contentload', this.onContentLoad_.bind(this));
     this.webview_.addEventListener('loadabort', this.onLoadAbort_.bind(this));
-    this.webview_.addEventListener('loadstop', this.onLoadStop_.bind(this));
     this.webview_.addEventListener('loadcommit', this.onLoadCommit_.bind(this));
     this.webview_.request.onCompleted.addListener(
         this.onRequestCompleted_.bind(this),
@@ -232,7 +232,6 @@ cr.define('cr.login', function() {
         this.continueUrl_;
     this.isConstrainedWindow_ = data.constrained == '1';
     this.isNewGaiaFlow = data.isNewGaiaFlow;
-    this.useEafe_ = data.useEafe || false;
     this.clientId_ = data.clientId;
     this.gapsCookie_ = data.gapsCookie;
     this.gapsCookieSent_ = false;
@@ -332,6 +331,11 @@ cr.define('cr.login', function() {
           mi += 'ee,';
         if (mi.length)
           url = appendParam(url, 'mi', mi);
+
+        if (data.lsbReleaseBoard)
+          url = appendParam(url, 'chromeos_board', data.lsbReleaseBoard);
+        if (data.isFirstUser)
+          url = appendParam(url, 'is_first_user', true);
       }
     } else {
       url = appendParam(url, 'continue', this.continueUrl_);
@@ -432,8 +436,10 @@ cr.define('cr.login', function() {
    * @private
    */
   Authenticator.prototype.onFocus_ = function(e) {
-    if (this.authMode == AuthMode.DESKTOP)
+    if (this.authMode == AuthMode.DESKTOP &&
+        document.activeElement == document.body) {
       this.webview_.focus();
+    }
   };
 
   /**
@@ -560,17 +566,6 @@ cr.define('cr.login', function() {
     // The event origin does not have a trailing slash.
     if (e.origin != this.idpOrigin_.substring(0, this.idpOrigin_.length - 1)) {
       return false;
-    }
-
-    // EAFE passes back auth code via message.
-    if (this.useEafe_ && typeof e.data == 'object' &&
-        e.data.hasOwnProperty('authorizationCode')) {
-      assert(!this.oauthCode_);
-      this.oauthCode_ = e.data.authorizationCode;
-      this.dispatchEvent(new CustomEvent(
-          'authCompleted',
-          {detail: {authCodeOnly: true, authCode: this.oauthCode_}}));
-      return;
     }
 
     // Gaia messages must be an object with 'method' property.
@@ -843,27 +838,6 @@ cr.define('cr.login', function() {
   Authenticator.prototype.onLoadAbort_ = function(e) {
     this.dispatchEvent(
         new CustomEvent('loadAbort', {detail: {error: e.reason, src: e.url}}));
-  };
-
-  /**
-   * Invoked when the webview finishes loading a page.
-   * @private
-   */
-  Authenticator.prototype.onLoadStop_ = function(e) {
-    // Sends client id to EAFE on every loadstop after a small timeout. This is
-    // needed because EAFE sits behind SSO and initialize asynchrounouly
-    // and we don't know for sure when it is loaded and ready to listen
-    // for message. The postMessage is guarded by EAFE's origin.
-    if (this.useEafe_) {
-      // An arbitrary small timeout for delivering the initial message.
-      var EAFE_INITIAL_MESSAGE_DELAY_IN_MS = 500;
-      window.setTimeout(
-          (function() {
-            var msg = {'clientId': this.clientId_};
-            this.webview_.contentWindow.postMessage(msg, this.idpOrigin_);
-          }).bind(this),
-          EAFE_INITIAL_MESSAGE_DELAY_IN_MS);
-    }
   };
 
   /**

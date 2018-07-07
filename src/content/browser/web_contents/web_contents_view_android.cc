@@ -89,7 +89,7 @@ WebContentsViewAndroid::WebContentsViewAndroid(
     : web_contents_(web_contents),
       content_view_core_(NULL),
       delegate_(delegate),
-      view_(this),
+      view_(this, ui::ViewAndroid::LayoutType::NORMAL),
       synchronous_compositor_client_(nullptr) {}
 
 WebContentsViewAndroid::~WebContentsViewAndroid() {
@@ -196,7 +196,7 @@ void WebContentsViewAndroid::Focus() {
   RenderWidgetHostViewAndroid* rwhv = GetRenderWidgetHostViewAndroid();
   if (web_contents_->ShowingInterstitialPage()) {
     web_contents_->GetInterstitialPage()->Focus();
-  } else {
+  } else if (rwhv) {
     rwhv->Focus();
   }
 }
