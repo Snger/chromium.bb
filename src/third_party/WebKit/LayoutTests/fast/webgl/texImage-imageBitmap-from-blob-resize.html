@@ -1,0 +1,23 @@
+<html>
+<script src="./resources/webgl-test-utils-full.js"></script>
+<script src="./resources/tex-image-and-sub-image-utils.js"></script>
+<script src="./resources/tex-image-and-sub-image-image-bitmap-utils-resize.js"></script>
+<script src="../../resources/testharness.js"></script>
+<script src="../../resources/testharnessreport.js"></script>
+<body>
+<script>
+
+var testOptions = {sourceName: "Blob", sourceIsPremul: true,
+                   resizeWidth: 4, resizeHeight: 4};
+prepareWebGLContext();
+
+var xhr = new XMLHttpRequest();
+xhr.open("GET", 'resources/red-green-semi-transparent-2x2.png');
+xhr.responseType = 'blob';
+xhr.send();
+xhr.onload = function() {
+    testOptions.imageSource = xhr.response;
+    prepareResizedImageBitmapsAndRuntTests(testOptions);
+};
+
+</script>

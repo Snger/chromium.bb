@@ -1,0 +1,69 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <title>RTCPeerConnection.createOffer</title>
+    <script src="../../resources/testharness.js"></script>
+    <script src="../../resources/testharnessreport.js"></script>
+  </head>
+  <body>
+    <script>
+      pc = new RTCPeerConnection();
+
+      // Test some combinations of parameters to createOffer.
+      promise_test(function() {
+        return pc.createOffer({voiceActivityDetection:true, iceRestart:true, offerToReceiveAudio:1, offerToReceiveVideo:1})
+      }, 'createOffer({voiceActivityDetection:true, iceRestart:true})');
+
+      promise_test(function() {
+        return pc.createOffer({iceRestart:true, offerToReceiveAudio:1, offerToReceiveVideo:1})
+      }, 'createOffer({iceRestart:true})');
+
+      // Test type error
+      promise_test(function() {
+        return promise_rejects(this, new TypeError(), pc.createOffer(1));
+      }, 'createOffer(1)' );
+
+      // Test closed connection
+      closedPC = new RTCPeerConnection();
+      closedPC.close();
+      promise_test(function() {
+        var invalidStateError = new DOMException('', 'InvalidStateError');
+        return promise_rejects(this, invalidStateError, closedPC.createOffer({iceRestart:true}));
+      }, 'createOffer() with closed peer connection' );
+
+
+      // These tests are testing the non-standard "sdpFormat" extension.
+      promise_test(function() {
+        pc = new RTCPeerConnection({sdpSemantics: "plan-b"});
+        return navigator.mediaDevices.getUserMedia({audio:true})
+          .then((stream) => {
+            console.log('got stream');
+            stream2 = stream.clone();
+            pc.addTrack(stream.getAudioTracks()[0]);
+            pc.addTrack(stream2.getAudioTracks()[0]);
+            return pc.createOffer();
+          })
+          .then((offer) => {
+            let section_count = offer.sdp.match(/\nm=audio /g || []).length;
+            assert_equals(section_count, 1);
+          });
+      }, 'plan B create offer creates only one media section');
+
+      promise_test(function() {
+        pc = new RTCPeerConnection({sdpSemantics: "unified-plan"});
+        return navigator.mediaDevices.getUserMedia({audio:true})
+          .then((stream) => {
+            console.log('got stream');
+            stream2 = stream.clone();
+            pc.addTrack(stream.getAudioTracks()[0]);
+            pc.addTrack(stream2.getAudioTracks()[0]);
+            return pc.createOffer();
+          })
+          .then((offer) => {
+            let section_count = offer.sdp.match(/\nm=audio /g || []).length;
+            assert_equals(section_count, 2);
+          });
+      }, 'Unified plan create offer creates two media sections');
+    </script>
+  </body>
+</html>

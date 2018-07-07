@@ -1,0 +1,24 @@
+<html>
+<script src="./resources/webgl-test-utils-full.js"></script>
+<script src="./resources/tex-image-and-sub-image-utils.js"></script>
+<script src="./resources/tex-image-and-sub-image-image-bitmap-utils-resize.js"></script>
+<script src="../../resources/testharness.js"></script>
+<script src="../../resources/testharnessreport.js"></script>
+<body>
+<script>
+
+var imageData = new ImageData(new Uint8ClampedArray(
+                              [255, 0, 0, 255,
+                               255, 0, 0, 26,
+                               0, 255, 0, 255,
+                               0, 255, 0, 26]),
+                               2, 2);
+
+var testOptions = {sourceName: "ImageData",
+                   imageSource: imageData, sourceIsPremul: false,
+                   resizeWidth: 4, resizeHeight: 4};
+
+prepareWebGLContext();
+prepareResizedImageBitmapsAndRuntTests(testOptions);
+
+</script>
