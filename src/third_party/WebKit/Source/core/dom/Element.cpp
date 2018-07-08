@@ -82,6 +82,8 @@
 #include "core/editing/SetSelectionOptions.h"
 #include "core/editing/iterators/TextIterator.h"
 #include "core/editing/serializers/Serialization.h"
+#include "core/editing/spellcheck/SpellChecker.h"
+#include "core/editing/spellcheck/SpellCheckRequester.h"
 #include "core/events/FocusEvent.h"
 #include "core/frame/HostsUsingFeatures.h"
 #include "core/frame/LocalDOMWindow.h"
@@ -112,6 +114,7 @@
 #include "core/html/custom/CustomElementRegistry.h"
 #include "core/html/custom/V0CustomElement.h"
 #include "core/html/custom/V0CustomElementRegistrationContext.h"
+#include "core/html/TextControlElement.h"
 #include "core/html/parser/HTMLParserIdioms.h"
 #include "core/input/EventHandler.h"
 #include "core/intersection_observer/ElementIntersectionObserverData.h"
@@ -1137,6 +1140,51 @@ bool Element::HasNonEmptyLayoutSize() const {
   if (LayoutBoxModelObject* box = GetLayoutBoxModelObject())
     return box->HasNonEmptyLayoutSize();
   return false;
+}
+
+void Element::bbRequestSpellCheck()
+{
+  if (!GetDocument().GetFrame() ||
+    !GetDocument().GetFrame()->GetSpellChecker().IsSpellCheckingEnabled()) {
+    return;
+  }
+
+  SpellCheckRequester& spellCheckRequester = GetDocument().GetFrame()->GetSpellChecker().GetSpellCheckRequester();
+  Element* element = this;
+  Node* stayWithin = this;
+  while (element) {
+    if (element->IsFrameOwnerElement()) {
+      Document* contentDocument = ToHTMLFrameOwnerElement(element)->contentDocument();
+      if (contentDocument && contentDocument->documentElement()) {
+        contentDocument->documentElement()->bbRequestSpellCheck();
+      }
+      element = ElementTraversal::NextSkippingChildren(*element, stayWithin);
+    }
+    else if (element->IsTextControl()) {
+      HTMLElement* innerElement = ToTextControlElement(element)->InnerEditorElement();
+      if (innerElement && HasEditableStyle(*innerElement->ToNode()) && innerElement->IsSpellCheckingEnabled()) {
+        VisiblePosition startPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::FirstPositionInNode(*innerElement));
+        VisiblePosition endPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::LastPositionInNode(*innerElement));
+        if (startPos.IsNotNull() && endPos.IsNotNull()) {
+          EphemeralRange rangeToCheck(startPos.DeepEquivalent(), endPos.DeepEquivalent());
+          spellCheckRequester.RequestCheckingFor(rangeToCheck);
+        }
+      }
+      element = ElementTraversal::NextSkippingChildren(*element, stayWithin);
+    }
+    else if (HasEditableStyle(*element->ToNode()) && element->IsSpellCheckingEnabled()) {
+      VisiblePosition startPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::FirstPositionInNode(*element));
+      VisiblePosition endPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::LastPositionInNode(*element));
+      if (startPos.IsNotNull() && endPos.IsNotNull()) {
+        EphemeralRange rangeToCheck(startPos.DeepEquivalent(), endPos.DeepEquivalent());
+        spellCheckRequester.RequestCheckingFor(rangeToCheck);
+      }
+      element = ElementTraversal::NextSkippingChildren(*element, stayWithin);
+    }
+    else {
+      element = ElementTraversal::Next(*element, stayWithin);
+    }
+  }
 }
 
 IntRect Element::BoundsInViewport() const {

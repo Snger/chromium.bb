@@ -117,11 +117,15 @@ std::vector<SpellCheckResult> SpellCheckHostImpl::FilterCustomWordResults(
     const SpellcheckCustomDictionary& custom_dictionary,
     const std::vector<SpellCheckResult>& service_results) {
   std::vector<SpellCheckResult> results;
+
+  // blpwtk2: Remove dependency on Chrome's custom dictionary
+#if 0
   for (const auto& result : service_results) {
     const std::string word = text.substr(result.location, result.length);
     if (!custom_dictionary.HasWord(word))
       results.push_back(result);
   }
+#endif
 
   return results;
 }

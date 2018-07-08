@@ -800,7 +800,8 @@ void TypingCommand::DeleteKeyPressed(TextGranularity granularity,
 
   // If the caret is at the start of a paragraph after a table, move content
   // into the last table cell.
-  if (IsStartOfParagraph(visible_start) &&
+  if (false && // blpwtk2
+      IsStartOfParagraph(visible_start) &&
       TableElementJustBefore(
           PreviousPositionOf(visible_start, kCannotCrossEditingBoundary))) {
     // Unless the caret is just before a table.  We don't want to move a

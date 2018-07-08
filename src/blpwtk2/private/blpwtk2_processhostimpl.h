@@ -151,6 +151,10 @@ class ProcessHostImpl final : public mojom::ProcessHost
     void addBypassRule(const std::string& rule) override;
     void clearBypassRules() override;
     void setPacUrl(const std::string& url) override;
+    void enableSpellCheck(bool enabled) override;
+    void setLanguages(const std::vector<std::string>& languages) override;
+    void addCustomWords(const std::vector<std::string>& words) override;
+    void removeCustomWords(const std::vector<std::string>& words) override;
 };
 
                         // ===========================
