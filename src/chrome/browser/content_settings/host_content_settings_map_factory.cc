@@ -79,13 +79,11 @@ scoped_refptr<RefcountedKeyedService>
     GetForProfile(profile->GetOriginalProfile());
   }
 
-  bool store_last_modified = base::FeatureList::IsEnabled(features::kTabsInCbd);
-
   scoped_refptr<HostContentSettingsMap> settings_map(new HostContentSettingsMap(
       profile->GetPrefs(),
       profile->GetProfileType() == Profile::INCOGNITO_PROFILE,
       profile->GetProfileType() == Profile::GUEST_PROFILE,
-      store_last_modified));
+      /*store_last_modified=*/true));
 
 #if BUILDFLAG(ENABLE_EXTENSIONS)
   // These must be registered before before the HostSettings are passed over to
@@ -105,8 +103,9 @@ scoped_refptr<RefcountedKeyedService>
 #endif // BUILDFLAG(ENABLE_SUPERVISED_USERS)
 
 #if defined(OS_ANDROID)
+  if (profile->GetProfileType() != Profile::INCOGNITO_PROFILE) {
     auto channels_provider =
-        base::MakeUnique<NotificationChannelsProviderAndroid>();
+        std::make_unique<NotificationChannelsProviderAndroid>();
     if (base::FeatureList::IsEnabled(features::kSiteNotificationChannels)) {
       channels_provider->MigrateToChannelsIfNecessary(
           profile->GetPrefs(), settings_map->GetPrefProvider());
@@ -118,6 +117,7 @@ scoped_refptr<RefcountedKeyedService>
       // flag once we're confident a kill-switch is no longer necessary (M63?).
       channels_provider->UnmigrateChannelsIfNecessary(
           profile->GetPrefs(), settings_map->GetPrefProvider());
+    }
   }
 #endif  // defined (OS_ANDROID)
   return settings_map;

@@ -121,6 +121,7 @@
 <translation id="3581045510967524389">無法連上網路，請確認裝置是否處於上線狀態。</translation>
 <translation id="3596628256176442606">這項服務允許來自 Chromoting 用戶端的連線。</translation>
 <translation id="3606997049964069799">您尚未登入 Chromium，請登入並再試一次。</translation>
+<translation id="3608841044971751032">安全存取你的電腦</translation>
 <translation id="3649256019230929621">將視窗縮到最小</translation>
 <translation id="369442766917958684">離線。</translation>
 <translation id="3695446226812920698">操作說明</translation>
@@ -173,7 +174,7 @@
 支援
 電腦
 PC</translation>
-<translation id="4736223761657662401">連線紀錄</translation>
+<translation id="4736223761657662401">連線記錄</translation>
 <translation id="4741792197137897469">驗證失敗，請重新登入 Chrome。</translation>
 <translation id="477305884757156764">應用程式的運作速度過慢。</translation>
 <translation id="4784508858340177375">X 伺服器當機或無法啟動。</translation>
@@ -244,7 +245,7 @@ PC</translation>
 <translation id="6441316101718669559">這個平台不支援桌面整合。您仍然可以使用該應用程式，但使用者體驗可能不如預期。</translation>
 <translation id="652218476070540101">正在更新這台電腦的 PIN...</translation>
 <translation id="6527303717912515753">分享</translation>
-<translation id="6541219117979389420">應用程式紀錄可能含有私人資訊，包括您的身分 (電子郵件地址)，以及 Google 雲端硬碟檔案與資料夾的名稱和屬性。</translation>
+<translation id="6541219117979389420">應用程式記錄可能含有私人資訊，包括您的身分 (電子郵件地址)，以及 Google 雲端硬碟檔案與資料夾的名稱和屬性。</translation>
 <translation id="6542902059648396432">回報問題…</translation>
 <translation id="6550675742724504774">選項</translation>
 <translation id="6570205395680337606">重設應用程式。所有未儲存的變更都會遺失。</translation>
@@ -255,7 +256,7 @@ PC</translation>
 <translation id="6668065415969892472">你的 PIN 已更新。</translation>
 <translation id="6681800064886881394">Copyright 2013 Google Inc. 保留所有權利。</translation>
 <translation id="6705482892455291412">對方輸入存取碼後，系統會提示你接受連線，展開共用工作階段。</translation>
-<translation id="6746493157771801606">清除紀錄</translation>
+<translation id="6746493157771801606">清除記錄</translation>
 <translation id="6748108480210050150">寄件者</translation>
 <translation id="677755392401385740">已為下列使用者啟動主機：<ph name="HOST_USERNAME" />。</translation>
 <translation id="6865175692670882333">檢視/編輯</translation>
@@ -290,6 +291,7 @@ PC</translation>
 <translation id="7672203038394118626">這台電腦的遠端連線已停用。</translation>
 <translation id="7678209621226490279">靠左固定</translation>
 <translation id="7693372326588366043">重新整理主機清單</translation>
+<translation id="7714222945760997814">回報這個問題</translation>
 <translation id="7782471917492991422">請檢查電腦的電源管理設定，確認電腦在閒置時不會進入休眠狀態。</translation>
 <translation id="7810127880729796595">顯示統計資料 (連線品質：<ph name="QUALITY" />)</translation>
 <translation id="7836926030608666805">找不到部分必要元件。請確認您執行的是最新版本的 Chrome，然後再試一次。</translation>
@@ -316,7 +318,7 @@ PC</translation>
 <translation id="8244400547700556338">瞭解詳情</translation>
 <translation id="8261506727792406068">刪除</translation>
 <translation id="8355326866731426344">這個存取碼將於 <ph name="TIMEOUT" /> 後失效</translation>
-<translation id="8355485110405946777">包括應用程式紀錄，以協助我們解決您的問題 (紀錄可能含有私人資訊)。</translation>
+<translation id="8355485110405946777">包括應用程式記錄，以協助我們解決您的問題 (記錄可能含有私人資訊)。</translation>
 <translation id="837021510621780684">從這台電腦</translation>
 <translation id="8383794970363966105">你必須在裝置上新增 Google 帳戶，才能使用 Chromoting。</translation>
 <translation id="8386846956409881180">用於設定主機的 OAuth 憑證無效。</translation>

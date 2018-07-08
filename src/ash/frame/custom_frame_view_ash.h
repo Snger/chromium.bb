@@ -14,6 +14,7 @@
 #include "base/macros.h"
 #include "base/optional.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/aura/window_observer.h"
 #include "ui/views/window/non_client_view.h"
 
 namespace views {
@@ -41,7 +42,8 @@ enum class FrameBackButtonState {
 // BrowserNonClientFrameViewAsh.
 class ASH_EXPORT CustomFrameViewAsh : public views::NonClientFrameView,
                                       public ShellObserver,
-                                      public SplitViewController::Observer {
+                                      public SplitViewController::Observer,
+                                      public aura::WindowObserver {
  public:
   // Internal class name.
   static const char kViewClassName[];
@@ -102,10 +104,11 @@ class ASH_EXPORT CustomFrameViewAsh : public views::NonClientFrameView,
   void SchedulePaintInRect(const gfx::Rect& r) override;
   void SetVisible(bool visible) override;
 
-  // Called when splitview state changes. Depending on |state| and if the window
-  // associated with |widget_| is the snapped window, paint the header in
-  // overview mode.
-  void MaybePaintHeaderForSplitview(SplitViewController::State state);
+  // aura::WindowObserver:
+  void OnWindowDestroying(aura::Window* window) override;
+  void OnWindowPropertyChanged(aura::Window* window,
+                               const void* key,
+                               intptr_t old) override;
 
   // If |paint| is false, we should not paint the header. Used for overview mode
   // with OnOverviewModeStarting() and OnOverviewModeEnded() to hide/show the
@@ -121,6 +124,9 @@ class ASH_EXPORT CustomFrameViewAsh : public views::NonClientFrameView,
                                SplitViewController::State state) override;
 
   const views::View* GetAvatarIconViewForTest() const;
+
+  SkColor GetActiveFrameColorForTest() const;
+  SkColor GetInactiveFrameColorForTest() const;
 
  private:
   class AvatarObserver;
@@ -139,6 +145,12 @@ class ASH_EXPORT CustomFrameViewAsh : public views::NonClientFrameView,
 
   // Height from top of window to top of client area.
   int NonClientTopBorderHeight() const;
+
+  // Called when overview mode or split view state changed. If overview mode and
+  // split view mode are both active at the same time, the header of the window
+  // in split view should be visible, but the headers of other windows in
+  // overview are not.
+  void OnOverviewOrSplitViewModeChanged();
 
   // Not owned.
   views::Widget* frame_;

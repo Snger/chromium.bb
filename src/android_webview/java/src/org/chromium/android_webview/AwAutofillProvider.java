@@ -17,6 +17,7 @@ import android.view.ViewGroup;
 import android.view.ViewStructure;
 import android.view.autofill.AutofillValue;
 
+import org.chromium.base.BuildInfo;
 import org.chromium.base.ThreadUtils;
 import org.chromium.components.autofill.AutofillProvider;
 import org.chromium.components.autofill.FormData;
@@ -297,7 +298,7 @@ public class AwAutofillProvider extends AutofillProvider {
     public void onTextFieldDidScroll(int index, float x, float y, float width, float height) {
         // crbug.com/730764 - from P and above, Android framework listens to the onScrollChanged()
         // and repositions the autofill UI automatically.
-        if (Build.VERSION.SDK_INT > Build.VERSION_CODES.O_MR1) return;
+        if (BuildInfo.isAtLeastP()) return;
         if (mRequest == null) return;
 
         short sIndex = (short) index;

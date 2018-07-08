@@ -11,11 +11,13 @@
 #include "ash/frame/caption_buttons/frame_caption_button.h"
 #include "ash/frame/caption_buttons/frame_caption_button_container_view.h"
 #include "ash/frame/header_view.h"
+#include "ash/public/cpp/window_properties.h"
 #include "ash/shell.h"
 #include "ash/test/ash_test_base.h"
 #include "ash/wm/overview/window_selector_controller.h"
 #include "ash/wm/tablet_mode/tablet_mode_controller.h"
 #include "ash/wm/window_state.h"
+#include "ash/wm/window_state_delegate.h"
 #include "ash/wm/wm_event.h"
 #include "services/ui/public/interfaces/window_manager_constants.mojom.h"
 #include "ui/aura/client/aura_constants.h"
@@ -364,12 +366,15 @@ TEST_F(CustomFrameViewAshTest, HeaderVisibilityInSplitview) {
   auto* delegate2 = new CustomFrameTestWidgetDelegate();
   auto widget2 = create_widget(delegate2);
 
+  Shell::Get()->tablet_mode_controller()->EnableTabletModeWindowManager(true);
+
   // Verify that when one window is snapped, the header is drawn for the snapped
   // window, but not drawn for the window still in overview.
   Shell::Get()->window_selector_controller()->ToggleOverview();
   Shell::Get()->split_view_controller()->SnapWindow(widget1->GetNativeWindow(),
                                                     SplitViewController::LEFT);
   EXPECT_TRUE(delegate1->header_view()->should_paint());
+  EXPECT_EQ(0, delegate1->GetCustomFrameViewTopBorderHeight());
   EXPECT_FALSE(delegate2->header_view()->should_paint());
 
   // Verify that when both windows are snapped, the header is drawn for both.
@@ -377,6 +382,8 @@ TEST_F(CustomFrameViewAshTest, HeaderVisibilityInSplitview) {
                                                     SplitViewController::RIGHT);
   EXPECT_TRUE(delegate1->header_view()->should_paint());
   EXPECT_TRUE(delegate2->header_view()->should_paint());
+  EXPECT_EQ(0, delegate1->GetCustomFrameViewTopBorderHeight());
+  EXPECT_EQ(0, delegate2->GetCustomFrameViewTopBorderHeight());
 
   // Toggle overview mode so we return back to left snapped mode. Verify that
   // the header is again drawn for the snapped window, but not for the unsnapped
@@ -385,6 +392,7 @@ TEST_F(CustomFrameViewAshTest, HeaderVisibilityInSplitview) {
   ASSERT_EQ(SplitViewController::LEFT_SNAPPED,
             Shell::Get()->split_view_controller()->state());
   EXPECT_TRUE(delegate1->header_view()->should_paint());
+  EXPECT_EQ(0, delegate1->GetCustomFrameViewTopBorderHeight());
   EXPECT_FALSE(delegate2->header_view()->should_paint());
 
   Shell::Get()->split_view_controller()->EndSplitView();
@@ -491,5 +499,84 @@ TEST_F(CustomFrameViewAshTest, FrameVisibility) {
   EXPECT_EQ(gfx::Size(200, 67), widget->client_view()->GetLocalBounds().size());
   EXPECT_TRUE(widget->non_client_view()->frame_view()->visible());
 }
+
+namespace {
+
+class CustomFrameViewAshFrameColorTest
+    : public CustomFrameViewAshTest,
+      public testing::WithParamInterface<bool> {
+ public:
+  CustomFrameViewAshFrameColorTest() = default;
+  ~CustomFrameViewAshFrameColorTest() override = default;
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(CustomFrameViewAshFrameColorTest);
+};
+
+class TestWidgetDelegate : public TestWidgetConstraintsDelegate {
+ public:
+  TestWidgetDelegate(bool custom) : custom_(custom) {}
+  ~TestWidgetDelegate() override = default;
+
+  // views::WidgetDelegate:
+  views::NonClientFrameView* CreateNonClientFrameView(
+      views::Widget* widget) override {
+    if (custom_) {
+      ash::wm::WindowState* window_state =
+          ash::wm::GetWindowState(widget->GetNativeWindow());
+      window_state->SetDelegate(std::make_unique<wm::WindowStateDelegate>());
+    }
+    return TestWidgetConstraintsDelegate::CreateNonClientFrameView(widget);
+  }
+
+ private:
+  bool custom_;
+
+  DISALLOW_COPY_AND_ASSIGN(TestWidgetDelegate);
+};
+
+}  // namespace
+
+// Verify that CustomFrameViewAsh updates the active color based on the
+// ash::kFrameActiveColorKey window property.
+TEST_P(CustomFrameViewAshFrameColorTest, kFrameActiveColorKey) {
+  TestWidgetDelegate* delegate = new TestWidgetDelegate(GetParam());
+  std::unique_ptr<views::Widget> widget(CreateWidget(delegate));
+
+  SkColor active_color =
+      widget->GetNativeWindow()->GetProperty(ash::kFrameActiveColorKey);
+  constexpr SkColor new_color = SK_ColorWHITE;
+  EXPECT_NE(active_color, new_color);
+
+  widget->GetNativeWindow()->SetProperty(ash::kFrameActiveColorKey, new_color);
+  active_color =
+      widget->GetNativeWindow()->GetProperty(ash::kFrameActiveColorKey);
+  EXPECT_EQ(active_color, new_color);
+  EXPECT_EQ(new_color,
+            delegate->custom_frame_view()->GetActiveFrameColorForTest());
+}
+
+// Verify that CustomFrameViewAsh updates the inactive color based on the
+// ash::kFrameInactiveColorKey window property.
+TEST_P(CustomFrameViewAshFrameColorTest, KFrameInactiveColor) {
+  TestWidgetDelegate* delegate = new TestWidgetDelegate(GetParam());
+  std::unique_ptr<views::Widget> widget(CreateWidget(delegate));
+
+  SkColor active_color =
+      widget->GetNativeWindow()->GetProperty(ash::kFrameInactiveColorKey);
+  constexpr SkColor new_color = SK_ColorWHITE;
+  EXPECT_NE(active_color, new_color);
+
+  widget->GetNativeWindow()->SetProperty(ash::kFrameInactiveColorKey,
+                                         new_color);
+  active_color =
+      widget->GetNativeWindow()->GetProperty(ash::kFrameInactiveColorKey);
+  EXPECT_EQ(active_color, new_color);
+  EXPECT_EQ(new_color,
+            delegate->custom_frame_view()->GetInactiveFrameColorForTest());
+}
+
+// Run frame color tests with and without custom wm::WindowStateDelegate.
+INSTANTIATE_TEST_CASE_P(, CustomFrameViewAshFrameColorTest, testing::Bool());
 
 }  // namespace ash

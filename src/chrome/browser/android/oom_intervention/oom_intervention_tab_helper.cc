@@ -108,7 +108,7 @@ void OomInterventionTabHelper::AcceptIntervention() {
 
 void OomInterventionTabHelper::DeclineIntervention() {
   RecordInterventionUserDecision(false);
-  intervention_.reset();
+  ResetInterfaces();
   intervention_state_ = InterventionState::DECLINED;
 
   if (decider_) {
@@ -125,7 +125,7 @@ void OomInterventionTabHelper::WebContentsDestroyed() {
 
 void OomInterventionTabHelper::RenderProcessGone(
     base::TerminationStatus status) {
-  intervention_.reset();
+  ResetInterfaces();
 
   // Skip background process termination.
   if (!IsLastVisibleWebContents(web_contents())) {
@@ -167,7 +167,7 @@ void OomInterventionTabHelper::DidStartNavigation(
   if (navigation_handle->IsSameDocument())
     return;
 
-  intervention_.reset();
+  ResetInterfaces();
 
   // Filter out background navigation.
   if (!IsLastVisibleWebContents(navigation_handle->GetWebContents())) {
@@ -195,13 +195,14 @@ void OomInterventionTabHelper::DocumentAvailableInMainFrame() {
     StartMonitoringIfNeeded();
 }
 
-void OomInterventionTabHelper::WasShown() {
-  StartMonitoringIfNeeded();
-  SetLastVisibleWebContents(web_contents());
-}
-
-void OomInterventionTabHelper::WasHidden() {
-  StopMonitoring();
+void OomInterventionTabHelper::OnVisibilityChanged(
+    content::Visibility visibility) {
+  if (visibility == content::Visibility::VISIBLE) {
+    StartMonitoringIfNeeded();
+    SetLastVisibleWebContents(web_contents());
+  } else {
+    StopMonitoring();
+  }
 }
 
 void OomInterventionTabHelper::OnForegroundOOMDetected(
@@ -256,7 +257,7 @@ void OomInterventionTabHelper::StartMonitoringIfNeeded() {
 
 void OomInterventionTabHelper::StopMonitoring() {
   if (ShouldDetectInRenderer()) {
-    intervention_.reset();
+    ResetInterfaces();
   } else {
     subscription_.reset();
   }
@@ -283,7 +284,7 @@ void OomInterventionTabHelper::StartDetectionInRenderer() {
 
 void OomInterventionTabHelper::OnNearOomDetected() {
   DCHECK(!ShouldDetectInRenderer());
-  DCHECK(web_contents()->IsVisible());
+  DCHECK_EQ(web_contents()->GetVisibility(), content::Visibility::VISIBLE);
   DCHECK(!near_oom_detected_time_);
   subscription_.reset();
 
@@ -299,7 +300,7 @@ void OomInterventionTabHelper::OnNearOomDetected() {
 void OomInterventionTabHelper::
     OnDetectionWindowElapsedWithoutHighMemoryUsage() {
   ResetInterventionState();
-  intervention_.reset();
+  ResetInterfaces();
   StartMonitoringIfNeeded();
 }
 
@@ -307,4 +308,10 @@ void OomInterventionTabHelper::ResetInterventionState() {
   near_oom_detected_time_.reset();
   intervention_state_ = InterventionState::NOT_TRIGGERED;
   renderer_detection_timer_.AbandonAndStop();
+}
+
+void OomInterventionTabHelper::ResetInterfaces() {
+  intervention_.reset();
+  if (binding_.is_bound())
+    binding_.Close();
 }

@@ -8,6 +8,7 @@
 #include "ash/frame/caption_buttons/frame_caption_button.h"
 #include "ash/frame/caption_buttons/frame_caption_button_container_view.h"
 #include "ash/frame/frame_header_util.h"
+#include "ash/public/cpp/vector_icons/vector_icons.h"
 #include "ash/resources/grit/ash_resources.h"
 #include "ash/resources/vector_icons/vector_icons.h"
 #include "base/debug/leak_annotations.h"
@@ -160,7 +161,6 @@ void DefaultFrameHeader::LayoutHeader() {
 
   caption_button_container_->SetUseLightImages(ShouldUseLightImages());
   UpdateSizeButtonImages();
-  caption_button_container_->Layout();
 
   gfx::Size caption_button_container_size =
       caption_button_container_->GetPreferredSize();
@@ -215,11 +215,26 @@ void DefaultFrameHeader::SetPaintAsActive(bool paint_as_active) {
     back_button_->set_paint_as_active(paint_as_active);
 }
 
+void DefaultFrameHeader::OnShowStateChanged(ui::WindowShowState show_state) {
+  if (show_state == ui::SHOW_STATE_MINIMIZED)
+    return;
+  LayoutHeader();
+}
+
 void DefaultFrameHeader::SetFrameColors(SkColor active_frame_color,
                                         SkColor inactive_frame_color) {
-  active_frame_color_ = active_frame_color;
-  inactive_frame_color_ = inactive_frame_color;
-  UpdateAllButtonImages();
+  bool updated = false;
+  if (active_frame_color_ != active_frame_color) {
+    active_frame_color_ = active_frame_color;
+    updated = true;
+  }
+  if (inactive_frame_color_ != inactive_frame_color) {
+    inactive_frame_color_ = inactive_frame_color;
+    updated = true;
+  }
+
+  if (updated)
+    UpdateAllButtonImages();
 }
 
 SkColor DefaultFrameHeader::GetActiveFrameColor() const {
@@ -298,6 +313,13 @@ void DefaultFrameHeader::PaintHeaderContentSeparator(gfx::Canvas* canvas) {
 
 void DefaultFrameHeader::UpdateAllButtonImages() {
   caption_button_container_->SetUseLightImages(ShouldUseLightImages());
+  if (back_button_) {
+    back_button_->set_use_light_images(ShouldUseLightImages());
+    back_button_->SetImage(CAPTION_BUTTON_ICON_BACK,
+                           FrameCaptionButton::ANIMATE_NO,
+                           kWindowControlBackIcon);
+  }
+
   caption_button_container_->SetButtonImage(CAPTION_BUTTON_ICON_MINIMIZE,
                                             kWindowControlMinimizeIcon);
 
@@ -314,6 +336,10 @@ void DefaultFrameHeader::UpdateAllButtonImages() {
 }
 
 void DefaultFrameHeader::UpdateSizeButtonImages() {
+  // When |frame_| minimized, avoid tablet mode toggling to update caption
+  // buttons as it would cause mismatch beteen window state and size button.
+  if (frame_->IsMinimized())
+    return;
   const gfx::VectorIcon& icon = frame_->IsMaximized() || frame_->IsFullscreen()
                                     ? kWindowControlRestoreIcon
                                     : kWindowControlMaximizeIcon;
@@ -329,7 +355,7 @@ gfx::Rect DefaultFrameHeader::GetAvailableTitleBounds() const {
   views::View* left_view = left_header_view_ ? left_header_view_ : back_button_;
   return FrameHeaderUtil::GetAvailableTitleBounds(
       left_view, caption_button_container_,
-      views::NativeWidgetAura::GetWindowTitleFontList());
+      views::NativeWidgetAura::GetWindowTitleFontList(), GetHeaderHeight());
 }
 
 bool DefaultFrameHeader::UsesCustomFrameColors() const {

@@ -81,7 +81,9 @@ class VideoDetectorTest : public testing::Test {
   ~VideoDetectorTest() override {}
 
   void SetUp() override {
-    mock_task_runner_ = base::MakeRefCounted<base::TestMockTimeTaskRunner>();
+    mock_task_runner_ = base::MakeRefCounted<base::TestMockTimeTaskRunner>(
+        base::Time() + base::TimeDelta::FromSeconds(1),
+        base::TimeTicks() + base::TimeDelta::FromSeconds(1));
 
     detector_ = frame_sink_manager_.CreateVideoDetectorForTesting(
         mock_task_runner_->GetMockTickClock(), mock_task_runner_);
@@ -112,7 +114,8 @@ class VideoDetectorTest : public testing::Test {
   }
 
   void CreateDisplayFrame() {
-    surface_aggregator_.Aggregate(root_frame_sink_->current_surface_id());
+    surface_aggregator_.Aggregate(root_frame_sink_->last_activated_surface_id(),
+                                  mock_task_runner_->NowTicks());
   }
 
   void EmbedClient(CompositorFrameSinkSupport* frame_sink) {
@@ -129,18 +132,19 @@ class VideoDetectorTest : public testing::Test {
       SurfaceDrawQuad* quad =
           render_pass->CreateAndAppendDrawQuad<SurfaceDrawQuad>();
       quad->SetNew(shared_quad_state, gfx::Rect(0, 0, 10, 10),
-                   gfx::Rect(0, 0, 5, 5), frame_sink->current_surface_id(),
-                   base::nullopt, SK_ColorMAGENTA, false);
+                   gfx::Rect(0, 0, 5, 5),
+                   frame_sink->last_activated_surface_id(), base::nullopt,
+                   SK_ColorMAGENTA, false);
     }
     root_frame_sink_->SubmitCompositorFrame(
-        root_frame_sink_->local_surface_id(), std::move(frame));
+        root_frame_sink_->last_activated_local_surface_id(), std::move(frame));
   }
 
   void SendUpdate(CompositorFrameSinkSupport* frame_sink,
                   const gfx::Rect& damage) {
     LocalSurfaceId local_surface_id =
-        frame_sink->local_surface_id().is_valid()
-            ? frame_sink->local_surface_id()
+        frame_sink->last_activated_local_surface_id().is_valid()
+            ? frame_sink->last_activated_local_surface_id()
             : parent_local_surface_id_allocator_.GenerateId();
     frame_sink->SubmitCompositorFrame(local_surface_id,
                                       MakeDamagedCompositorFrame(damage));
