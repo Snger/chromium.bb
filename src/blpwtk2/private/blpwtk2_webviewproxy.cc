@@ -42,6 +42,108 @@
 #include <unordered_map>
 #include <unordered_set>
 
+namespace {
+
+const int DEFAULT_DPI_X = 96;
+
+float getScreenScaleFactor()
+{
+    static float scale_x = -1;
+
+    if (scale_x < 0) {
+        HWND desktop_window = ::GetDesktopWindow();
+        HDC screen_dc = ::GetDC(desktop_window);
+        if (screen_dc == NULL) {
+            return 1.0;
+        }
+        int dpi_x = ::GetDeviceCaps(screen_dc, LOGPIXELSX);
+        ::ReleaseDC(desktop_window, screen_dc);
+        scale_x = (float)dpi_x / DEFAULT_DPI_X;
+
+        if (scale_x <= 1.25) {
+            // From WebKit: Force 125% and below to 100% scale. We do this to
+            // maintain previous (non-DPI-aware) behavior where only the font
+            // size was boosted.
+            scale_x = 1.0;
+        }
+    }
+
+    return scale_x;  // Windows zooms are always symmetric
+}
+
+bool disableResizeOptimization()
+{
+    static bool scale_read = false;
+    static bool resizeOptimizationDisabled = false;
+    static long lastCallMS = 0;
+    SYSTEMTIME st;
+    ::GetSystemTime(&st);
+    long time = st.wHour * 3600000 + st.wMinute * 60000 + st.wSecond * 1000 + st.wMilliseconds;
+    bool hasBeenFullSecond = time < lastCallMS || time - lastCallMS > 1000;
+
+    // To workaround a very rare case where a webview is initially sized
+    // incorrectly, we only apply the resize optimization when the last resize
+    // operation occured less than a second ago.  This allows the optimization
+    // to be used for user-driven interactive resize sessions.
+    lastCallMS = time;
+
+    if (!scale_read) {
+        HKEY userKey;
+        if (ERROR_SUCCESS != ::RegOpenCurrentUser(KEY_QUERY_VALUE, &userKey)) {
+            return false;
+        }
+
+        HKEY dwmKey;
+        long result = ::RegOpenKeyExW(userKey,
+                                      L"Software\\Microsoft\\Windows\\DWM",
+                                      0,
+                                      KEY_QUERY_VALUE,
+                                      &dwmKey);
+
+        ::RegCloseKey(userKey);
+
+        if (ERROR_SUCCESS != result) {
+            return false;
+        }
+
+        scale_read = true;
+
+        unsigned long dpiScaling;
+        unsigned long size = sizeof(dpiScaling);
+        result = ::RegQueryValueExW(dwmKey,
+                                    L"UseDpiScaling",
+                                    NULL,
+                                    NULL,
+                                    reinterpret_cast<unsigned char*>(&dpiScaling),
+                                    &size);
+
+        unsigned long compPolicy;
+        long result2 = ::RegQueryValueExW(
+                                     dwmKey,
+                                     L"CompositionPolicy",
+                                     NULL,
+                                     NULL,
+                                     reinterpret_cast<unsigned char*>(&compPolicy),
+                                     &size);
+
+        ::RegCloseKey(dwmKey);
+
+        BOOL compEnabled;
+        HRESULT result3 = ::DwmIsCompositionEnabled(&compEnabled);
+
+        if (ERROR_SUCCESS != result || ERROR_SUCCESS != result2 || !SUCCEEDED(result3)) {
+            resizeOptimizationDisabled = false;
+            return false;
+        }
+
+        resizeOptimizationDisabled = !dpiScaling || compPolicy || !compEnabled ? true : false;
+    }
+
+    return hasBeenFullSecond || blpwtk2::Statics::inProcessResizeOptimizationDisabled || (resizeOptimizationDisabled && getScreenScaleFactor() > 1.0);
+}
+
+}  // close anonymous namespace
+
 #define GetAValue(argb)      (LOBYTE((argb)>>24))
 
 namespace blpwtk2 {
@@ -516,6 +618,16 @@ void WebViewProxy::findReply(int  numberOfMatches,
 
 void WebViewProxy::preResize(const gfx::Size& size)
 {
+    if (d_gotRenderViewInfo && !size.IsEmpty() && !disableResizeOptimization()) {
+        // If we have renderer info (only happens if we are in-process), we can
+        // start resizing the RenderView while we are in the main thread.  This
+        // is to avoid a round-trip delay waiting for the resize to get to the
+        // browser thread, and it sending a ViewMsg_Resize back to this thread.
+        // We disable this optimization in XP-style DPI scaling.
+        content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+        DCHECK(rv);
+        rv->SetSize(size);
+    }
 }
 
 void WebViewProxy::notifyRoutingId(int id)

@@ -761,6 +761,8 @@ void RenderWidget::OnResize(const ResizeParams& params) {
   }
 
   Resize(params);
+
+  browser_size_ = params.new_size;
 }
 
 void RenderWidget::OnEnableDeviceEmulation(
