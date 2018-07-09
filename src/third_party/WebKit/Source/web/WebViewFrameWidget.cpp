@@ -165,6 +165,10 @@ void WebViewFrameWidget::didNotAcquirePointerLock() {
   return m_webView->didNotAcquirePointerLock();
 }
 
+void WebViewFrameWidget::didChangeWindowRect() {
+  return m_webView->didChangeWindowRect();
+}
+
 void WebViewFrameWidget::didLosePointerLock() {
   return m_webView->didLosePointerLock();
 }
