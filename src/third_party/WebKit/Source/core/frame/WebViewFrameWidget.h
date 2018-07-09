@@ -79,6 +79,7 @@ class CORE_EXPORT WebViewFrameWidget : public WebFrameWidgetBase {
   bool IsWebView() const override { return false; }
   bool IsPagePopup() const override { return false; }
   void WillCloseLayerTreeView() override;
+  void didChangeWindowRect() override;
   WebColor BackgroundColor() const override;
   WebPagePopup* GetPagePopup() const override;
   bool GetCompositionCharacterBounds(WebVector<WebRect>& bounds) override;

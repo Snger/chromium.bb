@@ -160,6 +160,10 @@ void WebViewFrameWidget::WillCloseLayerTreeView() {
   return web_view_->WillCloseLayerTreeView();
 }
 
+void WebViewFrameWidget::didChangeWindowRect() {
+  return m_webView->didChangeWindowRect();
+}
+
 WebColor WebViewFrameWidget::BackgroundColor() const {
   return web_view_->BackgroundColor();
 }
