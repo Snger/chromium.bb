@@ -27,6 +27,7 @@
 #include "core/editing/VisiblePosition.h"
 #include "core/editing/VisibleUnits.h"
 #include "core/html/TextControlElement.h"
+#include "core/layout/LayoutTableCell.h"
 #include "core/layout/LayoutText.h"
 #include "core/layout/LayoutTextFragment.h"
 #include "core/layout/LayoutView.h"
@@ -309,7 +310,7 @@ static void SetShouldInvalidateSelection(const SelectionMarkingRange& new_range,
     }
 
     // blpwtk2: Include the fully-selected table cells.
-    else if (layout_block->isTableCell() && toLayoutTableCell(layout_block)->isFullySelected()) {
+    else if (layout_block->IsTableCell() && ToLayoutTableCell(layout_block)->IsFullySelected()) {
       layout_block->SetShouldInvalidateSelection();
       old_invalidation_set.layout_blocks.erase(layout_block);
       continue;

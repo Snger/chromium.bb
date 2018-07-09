@@ -184,8 +184,8 @@ class CORE_EXPORT LayoutTableCell final : public LayoutBlockFlow {
   // a column-spanning cell starts in a collapsed column.
   bool IsFirstColumnCollapsed() const;
 
-  bool isFullySelected() const { return is_fully_selected_; }
-  void setSelectionState(SelectionState) override;
+  bool IsFullySelected() const { return is_fully_selected_; }
+  void SetSelectionState(SelectionState) override;
 
   LayoutUnit BorderLeft() const override;
   LayoutUnit BorderRight() const override;

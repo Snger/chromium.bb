@@ -250,7 +250,7 @@ void BlockPainter::PaintObject(const PaintInfo& paint_info,
 
   if (ShouldPaintSelfBlockBackground(paint_phase)) {
     if (layout_block_.Style()->Visibility() == EVisibility::kVisible &&
-       (layout_block_.HasBoxDecorationBackground() || (layout_block_.isTableCell() && toLayoutTableCell(layout_block_).isFullySelected())))
+       (layout_block_.HasBoxDecorationBackground() || (layout_block_.IsTableCell() && ToLayoutTableCell(layout_block_).IsFullySelected())))
       layout_block_.PaintBoxDecorationBackground(paint_info, paint_offset);
     // Record the scroll hit test after the background so background squashing
     // is not affected. Hit test order would be equivalent if this were
