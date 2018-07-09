@@ -120,6 +120,8 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     void clearBypassRules() override;
     void clearWebCache() override;
     void setPacUrl(const StringRef& url) override;
+    void dumpDiagnostics(DiagnosticInfoType type,
+                         const StringRef&   path) override;
 
     void enableSpellCheck(bool enabled) override;
 

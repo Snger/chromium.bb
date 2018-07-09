@@ -182,6 +182,9 @@ class ProfileImpl : public Profile {
 
     void removeCustomWords(const StringRef *words,
                            size_t           numWords) override;
+
+    void dumpDiagnostics(DiagnosticInfoType type,
+                         const StringRef&   path) override;
 };
 
 }  // close namespace blpwtk2

@@ -92,6 +92,7 @@ enum {
     IDM_TEST_DUMP_LAYOUT_TREE,
     IDM_SPELLCHECK,
     IDM_SPELLCHECK_ENABLED,
+    IDM_TEST_DUMP_GPU_INFO,
     IDM_LANGUAGES,
     IDM_LANGUAGE_DE,
     IDM_LANGUAGE_EN_GB,
@@ -1047,6 +1048,10 @@ LRESULT CALLBACK shellWndProc(HWND hwnd,        // handle to window
             g_spellCheckEnabled = !g_spellCheckEnabled;
             updateSpellCheckConfig(shell->d_profile);
             return 0;
+        case IDM_TEST_DUMP_GPU_INFO:
+            shell->d_profile->dumpDiagnostics(
+                    blpwtk2::Profile::DiagnosticInfoType::GPU, "gpuInfo.txt");
+            return 0;
         case IDM_LANGUAGE_DE:
             toggleLanguage(shell->d_profile, LANGUAGE_DE);
             return 0;
@@ -1252,6 +1257,7 @@ Shell* createShell(blpwtk2::Profile* profile, blpwtk2::WebView* webView, bool fo
     AppendMenu(testMenu, MF_STRING, IDM_TEST_LOGICAL_BLUR, L"Test Logical Blur");
     AppendMenu(testMenu, MF_STRING, IDM_TEST_PLAY_KEYBOARD_EVENTS, L"Test Play Keyboard Events");
     AppendMenu(testMenu, MF_STRING, IDM_TEST_DUMP_LAYOUT_TREE, L"Dump Layout Tree");
+    AppendMenu(testMenu, MF_STRING, IDM_TEST_DUMP_GPU_INFO, L"Dump GPU Information");
     AppendMenu(menu, MF_POPUP, (UINT_PTR)testMenu, L"&Test");
     HMENU spellCheckMenu = CreateMenu();
     AppendMenu(spellCheckMenu, MF_STRING, IDM_SPELLCHECK_ENABLED, L"Enable &Spellcheck");

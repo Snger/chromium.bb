@@ -345,6 +345,13 @@ void ProfileImpl::removeCustomWords(const StringRef *words,
     d_hostPtr->removeCustomWords(wordList);
 }
 
+void ProfileImpl::dumpDiagnostics(DiagnosticInfoType type,
+                                  const StringRef&   path)
+{
+    d_hostPtr->dumpDiagnostics(static_cast<int>(type),
+                               std::string(path.data(), path.size()));
+}
+
 }  // close namespace blpwtk2
 
 // vim: ts=4 et
