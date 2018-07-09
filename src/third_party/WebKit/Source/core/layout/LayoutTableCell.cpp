@@ -28,6 +28,8 @@
 #include "core/HTMLNames.h"
 #include "core/css/StylePropertySet.h"
 #include "core/editing/EditingUtilities.h"
+#include "core/editing/FrameSelection.h"
+#include "core/editing/VisiblePosition.h"
 #include "core/html/HTMLTableCellElement.h"
 #include "core/layout/CollapsedBorderValue.h"
 #include "core/layout/LayoutAnalyzer.h"
@@ -37,6 +39,7 @@
 #include "core/paint/PaintLayer.h"
 #include "core/paint/TableCellPaintInvalidator.h"
 #include "core/paint/TableCellPainter.h"
+#include "core/frame/LocalFrame.h"
 #include "platform/geometry/FloatQuad.h"
 #include "platform/geometry/TransformState.h"
 #include "platform/wtf/PtrUtil.h"
@@ -58,6 +61,7 @@ static_assert(sizeof(CollapsedBorderValue) == 8,
 
 LayoutTableCell::LayoutTableCell(Element* element)
     : LayoutBlockFlow(element),
+      is_fully_selected_(false),
       absolute_column_index_(kUnsetColumnIndex),
       cell_children_need_layout_(false),
       is_spanning_collapsed_row_(false),
@@ -294,6 +298,42 @@ void LayoutTableCell::SetCellLogicalWidth(int table_layout_logical_width,
 
   SetLogicalWidth(LayoutUnit(table_layout_logical_width));
   SetCellChildrenNeedLayout(true);
+}
+
+void LayoutTableCell::SetSelectionState(SelectionState state)
+{
+    LayoutBlockFlow::SetSelectionState(state);
+
+    if (!GetNode() || !GetNode()->GetDocument().GetFrame()) {
+        is_fully_selected_ = false;
+        return;
+    }
+
+    // Let's get back the *actual* selection state.
+    //
+    // NOTE: After calling 'SetSelectionState(state)', the actual
+    //       'selectionState()' might be different from 'state'.
+    //       See the logic in 'LayoutBoxModelObject::SetSelectionState'.
+    state = GetSelectionState();
+
+    if (SelectionState::kStart == state || SelectionState::kStartAndEnd == state) {
+        VisiblePosition selectionStart = GetNode()->GetDocument().GetFrame()->Selection().ComputeVisibleSelectionInDOMTree().VisibleStart();
+        VisiblePosition firstPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::FirstPositionInNode(*GetNode()), TextAffinity::kDownstream);
+        if (selectionStart.DeepEquivalent() != firstPos.DeepEquivalent()) {
+            is_fully_selected_ = false;
+            return;
+        }
+    }
+    if (SelectionState::kEnd == state || SelectionState::kStartAndEnd == state) {
+        VisiblePosition selectionEnd = GetNode()->GetDocument().GetFrame()->Selection().ComputeVisibleSelectionInDOMTree().VisibleEnd();
+        VisiblePosition lastPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::LastPositionInNode(*GetNode()), TextAffinity::kUpstream);
+        if (selectionEnd.DeepEquivalent() != lastPos.DeepEquivalent()) {
+            is_fully_selected_ = false;
+            return;
+        }
+    }
+
+    is_fully_selected_ = (SelectionState::kNone != state);
 }
 
 void LayoutTableCell::UpdateLayout() {
