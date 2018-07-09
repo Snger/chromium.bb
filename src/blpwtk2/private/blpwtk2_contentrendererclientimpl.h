@@ -24,9 +24,11 @@
 #define INCLUDED_BLPWTK2_CONTENTRENDERERCLIENTIMPL_H
 
 #include <blpwtk2_config.h>
-
+#include <components/spellcheck/renderer/spellcheck_provider.h>
 #include <content/public/renderer/content_renderer_client.h>
 #include <content/public/renderer/render_thread_observer.h>
+
+class SpellCheck;
 
 namespace blpwtk2 {
 
@@ -38,14 +40,19 @@ namespace blpwtk2 {
 // content module.  This is created during the startup process.
 class ContentRendererClientImpl : public content::ContentRendererClient
 {
+    std::unique_ptr<SpellCheck> d_spellcheck;
+
     DISALLOW_COPY_AND_ASSIGN(ContentRendererClientImpl);
 
   public:
     ContentRendererClientImpl();
     virtual ~ContentRendererClientImpl();
 
+    void RenderThreadStarted() override;
+
     void RenderViewCreated(content::RenderView *render_view) override;
         // Notifies that a new RenderView has been created.
+    void RenderFrameCreated(content::RenderFrame *render_frame) override;
 
     void GetNavigationErrorStrings(
         content::RenderFrame        *render_frame,
