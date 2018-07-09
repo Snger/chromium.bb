@@ -307,6 +307,13 @@ static void SetShouldInvalidateSelection(const SelectionMarkingRange& new_range,
       old_invalidation_set.layout_blocks.erase(layout_block);
       continue;
     }
+
+    // blpwtk2: Include the fully-selected table cells.
+    else if (layout_block->isTableCell() && toLayoutTableCell(layout_block)->isFullySelected()) {
+      layout_block->SetShouldInvalidateSelection();
+      old_invalidation_set.layout_blocks.erase(layout_block);
+      continue;
+    }
   }
 
   // Invalidate previous selected LayoutObjects except already invalidated
