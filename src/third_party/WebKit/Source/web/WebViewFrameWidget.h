@@ -80,6 +80,7 @@ class WebViewFrameWidget : public WebFrameWidgetBase {
   void willCloseLayerTreeView() override;
   void didAcquirePointerLock() override;
   void didNotAcquirePointerLock() override;
+  void didChangeWindowRect() override;
   void didLosePointerLock() override;
   WebColor backgroundColor() const override;
   WebPagePopup* pagePopup() const override;
