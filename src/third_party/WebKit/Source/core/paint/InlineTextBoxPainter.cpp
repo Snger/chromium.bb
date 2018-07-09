@@ -1044,9 +1044,9 @@ void InlineTextBoxPainter::PaintSelection(GraphicsContext& context,
   // then don't paint the selection highlight.
   LayoutBlock* cb = inline_text_box_.containingBlock();
   while (cb) {
-    if (cb->isTableCell() && toLayoutTableCell(cb)->isFullySelected())
+    if (cb->IsTableCell() && ToLayoutTableCell(cb)->IsFullySelected())
       return;
-    cb = cb->containingBlock();
+    cb = cb->ContainingBlock();
   }
 
   // See if we have a selection to paint at all.

@@ -49,8 +49,8 @@ void TableCellPainter::PaintBackground(const PaintInfo& paint_info,
   if (layout_table_cell_.BackgroundStolenForBeingBody())
     return;
 
-  Color c = layout_table_cell_.isFullySelected()
-      ? layout_table_cell_.selectionBackgroundColor()
+  Color c = layout_table_cell_.IsFullySelected()
+      ? layout_table_cell_.SelectionBackgroundColor()
       : background_object.ResolveColor(CSSPropertyBackgroundColor);
 
   const FillLayer& bg_layer = background_object.StyleRef().BackgroundLayers();
@@ -88,7 +88,7 @@ void TableCellPainter::PaintBoxDecorationBackground(
   bool has_box_shadow = style.BoxShadow();
   bool needs_to_paint_border =
       style.HasBorderDecoration() && !table->ShouldCollapseBorders();
-  bool is_fully_selected = layout_table_cell_.isFullySelected();
+  bool is_fully_selected = layout_table_cell_.IsFullySelected();
   if (!has_background && !has_box_shadow && !needs_to_paint_border && !is_fully_selected)
     return;
 
