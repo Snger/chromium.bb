@@ -11,6 +11,7 @@
 #include "base/macros.h"
 #include "base/memory/ref_counted.h"
 #include "gin/gin_export.h"
+#include "gin/public/multi_heap_tracer.h"
 #include "gin/public/isolate_holder.h"
 #include "gin/public/v8_idle_task_runner.h"
 #include "gin/public/wrapper_info.h"
@@ -73,6 +74,7 @@ class GIN_EXPORT PerIsolateData {
 
   v8::Isolate* isolate() { return isolate_; }
   v8::ArrayBuffer::Allocator* allocator() { return allocator_; }
+  MultiHeapTracer* heap_tracer() { return &heap_tracer_; }
   base::SingleThreadTaskRunner* task_runner() { return task_runner_.get(); }
   V8IdleTaskRunner* idle_task_runner() {
     return idle_task_runner_.get();
@@ -95,6 +97,7 @@ class GIN_EXPORT PerIsolateData {
   v8::Isolate* isolate_;
   v8::ArrayBuffer::Allocator* allocator_;
   IsolateHolder::AccessMode access_mode_;
+  MultiHeapTracer heap_tracer_;
   ObjectTemplateMap object_templates_;
   FunctionTemplateMap function_templates_;
   IndexedPropertyInterceptorMap indexed_interceptors_;
