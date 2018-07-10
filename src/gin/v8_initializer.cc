@@ -45,7 +45,7 @@ base::MemoryMappedFile* g_mapped_natives = nullptr;
 base::MemoryMappedFile* g_mapped_snapshot = nullptr;
 base::MemoryMappedFile* g_mapped_v8_context_snapshot = nullptr;
 
-const char kV8ContextSnapshotFileName[] = "v8_context_snapshot.bin";
+const char kV8ContextSnapshotFileName[] = BLPV8_CONTEXT_SNAPSHOT_NAME;
 
 // File handles intentionally never closed. Not using File here because its
 // Windows implementation guards against two instances owning the same
