@@ -200,27 +200,16 @@ template("generate_mini_installer") {
     }
 
     if (icu_use_data_file) {
-      if (bb_version == "") {
-        inputs += [ "$root_out_dir/icudtl.dat" ]
-      } else {
-        inputs += [ "$root_out_dir/icudtl.$bb_version.dat" ]
-      }
+      inputs += [ "$root_out_dir/icudtl.dat" ]
     } else {
       inputs += [ "$root_out_dir/icudt.dll" ]
     }
 
     if (v8_use_external_startup_data) {
-    if (bb_version == "") {
       inputs += [
         "$root_out_dir/natives_blob.bin",
         "$root_out_dir/snapshot_blob.bin",
       ]
-    } else {
-      inputs += [
-        "$root_out_dir/natives_blob.$bb_version.bin",
-        "$root_out_dir/snapshot_blob.$bb_version.bin",
-      ]
-    }
       deps += [ "//v8" ]
     }
 
