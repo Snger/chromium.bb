@@ -106,6 +106,7 @@ def copyBin(destDir, version):
     'blpv8' + productAppend + '.dll',
     'natives_blob' + productAppend + '.bin',
     'snapshot_blob' + productAppend + '.bin',
+    'v8_context_snapshot' + productAppend + '.bin',
     'blpwtk2' + productAppend + '.dll',
     'blpcr_egl' + productAppend + '.dll',
     'blpcr_glesv2' + productAppend + '.dll',
