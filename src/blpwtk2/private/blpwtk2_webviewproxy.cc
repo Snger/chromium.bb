@@ -36,6 +36,7 @@
 #include <content/public/renderer/render_view.h>
 #include <third_party/WebKit/public/web/WebLocalFrame.h>
 #include <third_party/WebKit/public/web/WebView.h>
+#include <cc/trees/proxy_main.h>
 
 #include <dwmapi.h>
 #include <windows.h>
@@ -146,6 +147,82 @@ bool disableResizeOptimization()
 
 #define GetAValue(argb)      (LOBYTE((argb)>>24))
 
+namespace {
+                        // =========================
+                        // class PerformanceProfiler
+                        // =========================
+
+class PerformanceProfiler final : public cc::Profiler {
+    typedef std::unordered_map<int, blpwtk2::WebViewDelegate *> DelegateMap;
+    typedef std::unordered_set<int> ProfileSet;
+
+    bool d_isProfilerSet;
+    DelegateMap d_delegateMap;
+    ProfileSet d_activeProfiles;
+
+  public:
+    PerformanceProfiler();
+
+    void setDelegate(int routingId, blpwtk2::WebViewDelegate *delegate);
+    void beginProfile(int routingId) override;
+    void endProfile(int routingId) override;
+};
+
+                        // -------------------------
+                        // class PerformanceProfiler
+                        // -------------------------
+
+PerformanceProfiler::PerformanceProfiler()
+    : d_isProfilerSet(false)
+{
+}
+
+void PerformanceProfiler::setDelegate(int routingId, blpwtk2::WebViewDelegate *delegate)
+{
+    // Remove any existing delegate associated with this routing id
+    DelegateMap::iterator iter = d_delegateMap.find(routingId);
+    if (iter != d_delegateMap.end()) {
+        if (d_activeProfiles.find(routingId) != d_activeProfiles.end()) {
+            endProfile(routingId);
+        }
+        d_delegateMap.erase(iter);
+    }
+
+    if (delegate) {
+        d_delegateMap[routingId] = delegate;
+
+        if (!d_isProfilerSet) {
+            d_isProfilerSet = true;
+            cc::ProxyMain::SetProfiler(this);
+        }
+    }
+}
+
+void PerformanceProfiler::beginProfile(int routingId)
+{
+    DelegateMap::iterator iter = d_delegateMap.find(routingId);
+    if (iter == d_delegateMap.end()) {
+        return;
+    }
+
+    d_activeProfiles.insert(routingId);
+    iter->second->startPerformanceTiming();
+}
+
+void PerformanceProfiler::endProfile(int routingId)
+{
+    DelegateMap::iterator iter = d_delegateMap.find(routingId);
+    if (iter == d_delegateMap.end()) {
+        return;
+    }
+
+    d_activeProfiles.erase(routingId);
+    iter->second->stopPerformanceTiming();
+}
+
+PerformanceProfiler s_profiler;
+}
+
 namespace blpwtk2 {
 
                         // ------------------
@@ -181,6 +258,7 @@ void WebViewProxy::destroy()
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(!d_pendingDestroy);
+    s_profiler.setDelegate(d_renderViewRoutingId, nullptr);
 
     // Schedule a deletion of this WebViewProxy.  The reason we don't delete
     // the object right here right now is because there may be a callback
@@ -474,6 +552,8 @@ void WebViewProxy::setDelegate(WebViewDelegate *delegate)
 {
     DCHECK(Statics::isInApplicationMainThread());
     d_delegate = delegate;
+
+    s_profiler.setDelegate(d_renderViewRoutingId, d_delegate);
 }
 
 int WebViewProxy::getRoutingId() const
@@ -652,6 +732,8 @@ void WebViewProxy::notifyRoutingId(int id)
     }
 
     d_gotRenderViewInfo = true;
+    s_profiler.setDelegate(d_renderViewRoutingId, nullptr);
+    s_profiler.setDelegate(id, d_delegate);
 
     d_renderViewRoutingId = id;
     LOG(INFO) << "routingId=" << id;

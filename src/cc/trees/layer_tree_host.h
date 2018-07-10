@@ -75,6 +75,7 @@ class CC_EXPORT LayerTreeHost : public viz::SurfaceReferenceOwner,
     LayerTreeSettings const* settings = nullptr;
     scoped_refptr<base::SingleThreadTaskRunner> main_task_runner;
     MutatorHost* mutator_host = nullptr;
+    int routing_id =0;
 
     // The image worker task runner is used to schedule image decodes. The
     // compositor thread may make sync calls to this thread, analogous to the
@@ -237,6 +238,10 @@ class CC_EXPORT LayerTreeHost : public viz::SurfaceReferenceOwner,
   // The LayerTreeHost tracks whether the content is suitable for Gpu raster.
   // Calling this will reset it back to not suitable state.
   void ResetGpuRasterizationTracking();
+
+  virtual int GetRoutingId() const {
+    return routing_id_;
+  };
 
   void SetRootLayer(scoped_refptr<Layer> root_layer);
   Layer* root_layer() { return root_layer_.get(); }
@@ -537,7 +542,7 @@ class CC_EXPORT LayerTreeHost : public viz::SurfaceReferenceOwner,
   base::WeakPtr<InputHandler> input_handler_weak_ptr_;
 
   scoped_refptr<base::SequencedTaskRunner> image_worker_task_runner_;
-
+  
  private:
   friend class LayerTreeHostSerializationTest;
 
@@ -668,6 +673,8 @@ class CC_EXPORT LayerTreeHost : public viz::SurfaceReferenceOwner,
   bool has_copy_request_ = false;
 
   MutatorHost* mutator_host_;
+
+  int routing_id_;
 
   std::vector<std::pair<PaintImage, base::Callback<void(bool)>>>
       queued_image_decodes_;
