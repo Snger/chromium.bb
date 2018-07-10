@@ -89,7 +89,7 @@ const char kSnapshotFileName32[] = "snapshot_blob_32.bin";
 #endif
 
 #else  // defined(OS_ANDROID)
-const char kV8ContextSnapshotFileName[] = "v8_context_snapshot.bin";
+const char kV8ContextSnapshotFileName[] = BLPV8_CONTEXT_SNAPSHOT_NAME;
 const char kSnapshotFileName[] = BLPV8_SNAPSHOT_BLOB_NAME;
 #endif  // defined(OS_ANDROID)
 

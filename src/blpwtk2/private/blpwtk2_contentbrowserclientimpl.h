@@ -60,9 +60,14 @@ class ContentBrowserClientImpl : public content::ContentBrowserClient {
 
     void RenderProcessWillLaunch(content::RenderProcessHost* host,
         service_manager::mojom::ServiceRequest* service_request) override;
+
     // Notifies that a render process will be created. This is called
     // before the content layer adds its own BrowserMessageFilters, so
     // that the embedder's IPC filters have priority.
+    content::BrowserMainParts* CreateBrowserMainParts(
+        const content::MainFunctionParams& parameters) override;
+        // A non-nullptr return value is needed because
+        // BrowserMainLoop::PreShutdown() assumes a non-nullptr
 
     void OverrideWebkitPrefs(content::RenderViewHost *render_view_host,
                              content::WebPreferences *prefs) override;

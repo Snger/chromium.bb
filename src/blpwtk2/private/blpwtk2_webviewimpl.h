@@ -130,6 +130,13 @@ class WebViewImpl final : public WebView,
         // (e.g. which of audio and/or video devices are requested, and lists
         // of available devices).
 
+    bool CheckMediaAccessPermission(content::RenderFrameHost*,
+                                    const GURL&,
+                                    content::MediaStreamType) override;
+        // Checks if we have permission to access the microphone or camera.
+        // Note that this does not query the user. |type| must be
+        // MEDIA_DEVICE_AUDIO_CAPTURE or MEDIA_DEVICE_VIDEO_CAPTURE.
+
     void FindReply(content::WebContents *source_contents,
                    int                   request_id,
                    int                   number_of_matches,

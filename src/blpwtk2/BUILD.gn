@@ -96,16 +96,16 @@ repack("pak") {
 
   sources = [
     "$root_gen_dir/content/browser/devtools/devtools_resources.pak",
-    "$root_gen_dir/third_party/blink/public/resources/blink_inspector_resources.pak",
     "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
-    "$root_gen_dir/third_party/blink/public/resources/blink_scaled_resources_100_percent.pak",
+    "$root_gen_dir/third_party/blink/public/resources/blink_inspector_resources.pak",
+    "$root_gen_dir/third_party/blink/renderer/modules/media_controls/resources/media_controls_resources_100_percent.pak",
   ]
 
   deps = [
     "//content/browser/devtools:devtools_resources",
-    "//third_party/blink/public:inspector_resources",
     "//third_party/blink/public:resources",
-    "//third_party/blink/public:scaled_resources_100_percent",
+    "//third_party/blink/public:inspector_resources",
+    "//third_party/blink/renderer/modules/media_controls:media_controls_resources",
   ]
 }
 
@@ -356,7 +356,7 @@ executable("blpwtk2_shell") {
 
   if (is_official_build) {
     configs -= [ "//build/config/compiler:default_optimization" ]
-    configs += [ "//build/config/compiler:optimize_max" ] 
+    configs += [ "//build/config/compiler:optimize_max" ]
   }
 
   deps = [

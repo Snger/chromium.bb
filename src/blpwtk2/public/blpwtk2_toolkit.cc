@@ -53,15 +53,5 @@ int SubProcessMain(HINSTANCE hInstance,
     return content::ContentMain(params);
 }
 
-#if BUILDFLAG(USE_ALLOCATOR_SHIM)
-extern __int64 allocator_shim_counter;
-extern "C" {
-__declspec(dllexport) __int64 GetAllocatorShimCounter()
-{
-    return allocator_shim_counter;
-}
-}
-#endif
-
 // vim: ts=4 et
 

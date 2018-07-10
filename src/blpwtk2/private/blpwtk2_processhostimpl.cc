@@ -178,9 +178,6 @@ inline content::RenderProcessHost& ProcessHostImpl::Impl::renderProcessHost() {
 bool ProcessHostImpl::Impl::onRenderLaunched(
     base::ProcessHandle render_process_handle,
     mojo::edk::ScopedPlatformHandle server_channel_handle) const {
-  if (Statics::isInProcessRendererEnabled) {
-    return false;
-  }
   content::RenderProcessHostImpl* impl_ptr =
       static_cast<content::RenderProcessHostImpl*>(d_renderProcessHost.get());
   if (!impl_ptr) {
@@ -251,12 +248,13 @@ int ProcessHostImpl::createPipeHandleForChild(base::ProcessId processId,
     // Let the ProcessHostImpl::Impl hold the process handle so it can
     // close it upon object destruction.
     d_impl->processHandle() = processHandle;
+
+    d_impl->onRenderLaunched(processHandle,
+                           channel_pair.PassServerHandle());
   } else {
     processHandle = base::GetCurrentProcessHandle();
     fileDescriptor = channel_pair.PassClientHandle().release().handle;
   }
-  d_impl->onRenderLaunched(processHandle,
-                           channel_pair.PassServerHandle());
   return HandleToLong(fileDescriptor);
 }
 

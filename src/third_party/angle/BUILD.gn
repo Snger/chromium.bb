@@ -751,6 +751,10 @@ shared_library("libEGL${angle_libs_suffix}") {
     ":internal_config",
   ]
 
+  if (bb_generate_map_files) {
+    configs += [ "//blpwtk2:blpwtk2_gen_map" ]
+  }
+
   defines = [ "LIBEGL_IMPLEMENTATION" ]
   if (is_win) {
     defines += [ "EGLAPI=" ]

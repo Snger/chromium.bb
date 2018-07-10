@@ -735,7 +735,8 @@ int main(int, const char**)
     g_url = "http://www.google.com";
     std::string hostChannel;
     std::string fileMapping;
-    bool isHost = false;
+    bool isProcessHost = false;
+    blpwtk2::ThreadMode host = blpwtk2::ThreadMode::ORIGINAL;
     int proxyPort = -1;
 
     {
@@ -746,8 +747,13 @@ int main(int, const char**)
         }
 
         for (int i = 1; i < argc; ++i) {
-            if (0 == wcscmp(L"--host", argv[i])) {
-                isHost = true;
+            if (0 == wcscmp(L"--original-mode-host", argv[i])) {
+                host = blpwtk2::ThreadMode::ORIGINAL;
+                isProcessHost = true;
+            }
+            else if (0 == wcscmp(L"--renderer-main-mode-host", argv[i])) {
+                host = blpwtk2::ThreadMode::RENDERER_MAIN;
+                isProcessHost = true;
             }
             else if (0 == wcsncmp(L"--file-mapping=", argv[i], 15)) {
                 char buf[1024];
@@ -804,16 +810,17 @@ int main(int, const char**)
         hostChannel = (char *) buffer;
     }
 
-    if (isHost) {
+    if (isProcessHost && host == blpwtk2::ThreadMode::ORIGINAL) {
         g_in_process_renderer = false;
     }
 
-    std::cout << "URL(" << g_url << ") isHost(" << (isHost ? 1 : 0)
+    std::cout << "URL(" << g_url << ") host(" << (isProcessHost ? 1 : 0)
               << ") hostChannel(" << hostChannel << ")" << std::endl;
 
     blpwtk2::ToolkitCreateParams toolkitParams;
 
-    if (!isHost && (g_in_process_renderer || !hostChannel.empty())) {
+    if ((!isProcessHost || host == blpwtk2::ThreadMode::RENDERER_MAIN) &&
+        (g_in_process_renderer || !hostChannel.empty())) {
         toolkitParams.setThreadMode(blpwtk2::ThreadMode::RENDERER_MAIN);
         toolkitParams.setInProcessResourceLoader(createInProcessResourceLoader());
         toolkitParams.setHostChannel(hostChannel);
@@ -832,7 +839,7 @@ int main(int, const char**)
 
     g_toolkit = blpwtk2::ToolkitFactory::create(toolkitParams);
 
-    if (isHost) {
+    if (isProcessHost && host == blpwtk2::ThreadMode::ORIGINAL) {
         runHost();
         g_toolkit->destroy();
         g_toolkit = 0;
@@ -856,12 +863,17 @@ int main(int, const char**)
 
     g_languages.insert(LANGUAGE_EN_US);
 
-    Shell* firstShell = createShell(g_profile);
-    firstShell->webView()->loadUrl(g_url);
-    ShowWindow(firstShell->d_mainWnd, SW_SHOW);
-    UpdateWindow(firstShell->d_mainWnd);
+    if (isProcessHost && host == blpwtk2::ThreadMode::RENDERER_MAIN) {
+        runHost();
+    }
+    else {
+        Shell* firstShell = createShell(g_profile);
+        firstShell->webView()->loadUrl(g_url);
+        ShowWindow(firstShell->d_mainWnd, SW_SHOW);
+        UpdateWindow(firstShell->d_mainWnd);
 
-    runMessageLoop();
+        runMessageLoop();
+    }
 
     g_profile->destroy();
     g_toolkit->destroy();

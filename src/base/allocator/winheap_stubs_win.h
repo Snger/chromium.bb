@@ -28,10 +28,6 @@ void* WinHeapRealloc(void* ptr, size_t size);
 // the allocation |ptr|.
 size_t WinHeapGetSizeEstimate(void* ptr);
 
-// Returns a lower-bound estimate for the full amount of memory consumed for
-// a requested memory allocation of |size| bytes.
-size_t WinHeapGetSizeEstimateFromUserSize(size_t size);
-
 // Call the new handler, if one has been set.
 // Returns true on successfully calling the handler, false otherwise.
 bool WinCallNewHandler(size_t size);
