@@ -35,6 +35,7 @@
 #include <ipc/ipc_sync_channel.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/common/service_manager/child_connection.h>
+#include <components/printing/renderer/print_render_frame_helper.h>
 #include <mojo/public/cpp/bindings/strong_binding.h>
 #include <services/service_manager/public/cpp/connector.h>
 
@@ -298,6 +299,12 @@ void ProfileImpl::clearBypassRules()
 void ProfileImpl::setPacUrl(const StringRef& url)
 {
     d_hostPtr->setPacUrl(std::string(url.data(), url.size()));
+}
+
+void ProfileImpl::setDefaultPrinter(const StringRef& name)
+{
+    printing::PrintRenderFrameHelper::UseDefaultPrintSettings();
+    d_hostPtr->setDefaultPrinter(std::string(name.data(), name.size()));
 }
 
 }  // close namespace blpwtk2
