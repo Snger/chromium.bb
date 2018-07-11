@@ -557,7 +557,7 @@ if (is_android) {
     ]
 
     data = []
-    if (bb_version != "") {
+    if (bb_version == "") {
       data += [
         "$root_out_dir/v8_context_snapshot.bin",
       ]
@@ -639,19 +639,9 @@ if (is_mac) {
   bundle_data("content_shell_framework_resources") {
     sources = [
       "$root_out_dir/content_shell.pak",
+      "$root_out_dir/v8_context_snapshot.bin",
       "resources/missingImage.png",
     ]
-
-    if (bb_version != "") {
-      sources += [
-        "$root_out_dir/v8_context_snapshot.bin",
-      ]
-    }
-    else {
-      sources += [
-        "$root_out_dir/v8_context_snapshot.$bb_version.bin"
-      ]
-    }
 
     public_deps = [
       ":pak",
