@@ -188,6 +188,18 @@ WebStyleSheetId WebDocument::InsertStyleSheet(const WebString& source_code) {
   return document->GetStyleEngine().InjectAuthorSheet(parsed_sheet);
 }
 
+WebString WebDocument::bbHeaderText() const {
+  return WebString(ConstUnwrap<Document>()->bbHeaderText());
+}
+
+WebString WebDocument::bbFooterText() const {
+  return WebString(ConstUnwrap<Document>()->bbFooterText());
+}
+
+bool WebDocument::bbPrintPageNumbers() const {
+  return ConstUnwrap<Document>()->bbPrintPageNumbers();
+}
+
 void WebDocument::RemoveInsertedStyleSheet(WebStyleSheetId stylesheet_id) {
   Unwrap<Document>()->GetStyleEngine().RemoveInjectedAuthorSheet(stylesheet_id);
 }

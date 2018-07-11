@@ -135,6 +135,9 @@ class Profile
 
     virtual void setPacUrl(const StringRef& url) = 0;
 
+    virtual void setDefaultPrinter(const StringRef& name) = 0;
+        // Sets the printer to use by default
+
   protected:
     virtual ~Profile();
         // Destroy this Profile object.  Note that embedders of blpwtk2 should

@@ -46,6 +46,7 @@
 #include <components/keyed_service/content/browser_context_dependency_manager.h>
 #include <components/pref_registry/pref_registry_syncable.h>
 #include <components/user_prefs/user_prefs.h>
+#include <components/printing/renderer/print_render_frame_helper.h>
 #include <net/proxy/proxy_config.h>
 #include <printing/backend/print_backend.h>
 
@@ -109,6 +110,8 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     }
 
     // Register this context with the dependency manager.
+    d_prefRegistry->RegisterBooleanPref(prefs::kPrintingEnabled, true);
+    
     auto dependencyManager = BrowserContextDependencyManager::GetInstance();
     dependencyManager->CreateBrowserContextServices(this);
 
@@ -417,6 +420,13 @@ void BrowserContextImpl::setPacUrl(const StringRef& url)
 
     d_proxyConfig->set_pac_url(GURL(std::string(url.data(), url.size())));
     d_requestContextGetter->setProxyConfig(*d_proxyConfig);
+}
+
+void BrowserContextImpl::setDefaultPrinter(const StringRef& name)
+{
+    printing::PrintRenderFrameHelper::UseDefaultPrintSettings();
+    printing::PrintBackend::SetUserDefaultPrinterName(
+            std::string(name.data(), name.size()));
 }
 
 // content::BrowserContext overrides

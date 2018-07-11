@@ -879,6 +879,14 @@ class CORE_EXPORT Document : public ContainerNode,
   String domain() const;
   void setDomain(const String& new_domain, ExceptionState&);
 
+  // Bloomberg-specific extensions
+  String bbHeaderText() const { return m_bbHeaderText; }
+  void setBbHeaderText(const String& value) { m_bbHeaderText = value; }
+  String bbFooterText() const { return m_bbFooterText; }
+  void setBbFooterText(const String& value) { m_bbFooterText = value; }
+  bool bbPrintPageNumbers() const { return m_bbPrintPageNumbers; }
+  void setBbPrintPageNumbers(bool value) { m_bbPrintPageNumbers = value; }
+
   String lastModified() const;
 
   // The cookieURL is used to query the cookie database for this document's
@@ -1601,6 +1609,10 @@ class CORE_EXPORT Document : public ContainerNode,
 
   std::unique_ptr<TransformSource> transform_source_;
 
+  // Bloomberg-specific extensions
+  String m_bbHeaderText;
+  String m_bbFooterText;
+
   String xml_encoding_;
   String xml_version_;
   unsigned xml_standalone_ : 2;
@@ -1626,6 +1638,7 @@ class CORE_EXPORT Document : public ContainerNode,
   Vector<AnnotatedRegionValue> annotated_regions_;
   bool has_annotated_regions_;
   bool annotated_regions_dirty_;
+  bool m_bbPrintPageNumbers;
 
   std::unique_ptr<SelectorQueryCache> selector_query_cache_;
 

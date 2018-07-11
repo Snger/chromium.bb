@@ -1015,7 +1015,7 @@ void ChromeContentBrowserClient::RenderProcessWillLaunch(
   host->AddFilter(new cast::CastTransportHostFilter);
 #endif
 #if BUILDFLAG(ENABLE_PRINTING)
-  host->AddFilter(new printing::PrintingMessageFilter(id, profile));
+  host->AddFilter(new printing::PrintingMessageFilter(id));
 #endif
 #if BUILDFLAG(USE_BROWSER_SPELLCHECKER)
   host->AddFilter(new SpellCheckMessageFilterPlatform(id));
