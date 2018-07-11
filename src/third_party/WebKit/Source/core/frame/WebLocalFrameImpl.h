@@ -238,6 +238,10 @@ class CORE_EXPORT WebLocalFrameImpl final
   WebString GetLayerTreeAsTextForTesting(
       bool show_debug_info = false) const override;
 
+  void DrawInCanvas(const WebRect& rect,
+                    const WebString& styleClass,
+                    SkCanvas& canvas) const override;
+
   // WebLocalFrame methods:
   WebLocalFrameImpl* CreateLocalChild(WebTreeScopeType,
                                       WebFrameClient*,
