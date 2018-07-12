@@ -221,7 +221,7 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
 
         if ((size != d_size && !(windowpos->flags & SWP_NOSIZE)) ||
              windowpos->flags & SWP_FRAMECHANGED) {
-            d_compositor->Resize(gfx::Size());
+            d_compositor->DisableSwapUntilResize();
         }
     } break;
     case WM_WINDOWPOSCHANGED: {
