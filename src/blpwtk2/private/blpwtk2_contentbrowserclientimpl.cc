@@ -33,6 +33,7 @@
 #include <base/message_loop/message_loop.h>
 #include <base/threading/thread.h>
 #include <base/threading/platform_thread.h>
+#include <content/public/browser/browser_main_parts.h>
 #include <content/public/browser/render_view_host.h>
 #include <content/public/browser/render_process_host.h>
 #include <content/public/browser/resource_dispatcher_host.h>
@@ -80,6 +81,12 @@ ContentBrowserClientImpl::ContentBrowserClientImpl()
 
 ContentBrowserClientImpl::~ContentBrowserClientImpl()
 {
+}
+
+content::BrowserMainParts* ContentBrowserClientImpl::CreateBrowserMainParts(
+    const content::MainFunctionParams& parameters)
+{
+    return new content::BrowserMainParts{};
 }
 
 void ContentBrowserClientImpl::RenderProcessWillLaunch(

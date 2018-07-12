@@ -58,6 +58,11 @@ class ContentBrowserClientImpl : public content::ContentBrowserClient {
     explicit ContentBrowserClientImpl();
     virtual ~ContentBrowserClientImpl();
 
+    content::BrowserMainParts* CreateBrowserMainParts(
+        const content::MainFunctionParams& parameters) override;
+        // A non-nullptr return value is needed because
+        // BrowserMainLoop::PreShutdown() assumes a non-nullptr
+
     void RenderProcessWillLaunch(content::RenderProcessHost *host) override;
         // Notifies that a render process will be created. This is called
         // before the content layer adds its own BrowserMessageFilters, so
