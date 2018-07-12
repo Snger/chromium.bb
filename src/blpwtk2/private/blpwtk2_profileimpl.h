@@ -185,6 +185,8 @@ class ProfileImpl : public Profile {
 
     void dumpDiagnostics(DiagnosticInfoType type,
                          const StringRef&   path) override;
+
+    void setDefaultPrinter(const StringRef& name) override;
 };
 
 }  // close namespace blpwtk2

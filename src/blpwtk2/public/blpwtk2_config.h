@@ -61,6 +61,7 @@
 #define BLPWTK2_FEATURE_FASTRESIZE
 // feature 10
 // feature 11
+#define BLPWTK2_FEATURE_DOCPRINTER
 // feature 12
 #define BLPWTK2_FEATURE_CUSTOMFONTS
 // feature 13

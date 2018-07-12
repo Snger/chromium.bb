@@ -134,6 +134,8 @@ class ProcessHostImpl final : public mojom::ProcessHost
 
     void dumpDiagnostics(int type, const std::string& path) override;
 
+    void setDefaultPrinter(const std::string& name) override;
+
     void addHttpProxy(mojom::ProxyConfigType type,
                       const std::string&     host,
                       int                    port) override;

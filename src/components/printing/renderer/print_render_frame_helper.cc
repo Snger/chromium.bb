@@ -89,6 +89,28 @@ const double kMinDpi = 1.0;
 // Also set in third_party/WebKit/Source/core/page/PrintContext.h
 const float kPrintingMinimumShrinkFactor = 1.33333333f;
 
+bool g_use_default_print_settings_ = false;
+
+class EmptyPrintWebViewHelperDelegate : public PrintRenderFrameHelper::Delegate {
+ public:
+  EmptyPrintWebViewHelperDelegate() {}
+  bool CancelPrerender(content::RenderFrame* render_frame) override {
+    return false;
+  }
+  blink::WebElement GetPdfElement(blink::WebLocalFrame* frame) override {
+    return blink::WebElement();
+  }
+  bool IsPrintPreviewEnabled() override {
+    return false;
+  }
+  bool OverridePrint(blink::WebLocalFrame* frame) override {
+    return false;
+  }
+
+ private:
+  DISALLOW_COPY_AND_ASSIGN(EmptyPrintWebViewHelperDelegate);
+};
+
 #if BUILDFLAG(ENABLE_PRINT_PREVIEW)
 bool g_is_preview_enabled = true;
 #else
@@ -614,9 +636,7 @@ void PrintRenderFrameHelper::PrintHeaderAndFooter(
   blink::WebWidgetClient web_widget_client;
   blink::WebFrameWidget::Create(&web_widget_client, frame);
 
-  base::Value html(
-      base::UTF8ToUTF16(ResourceBundle::GetSharedInstance().GetRawDataResource(
-          IDR_PRINT_PREVIEW_PAGE)));
+  base::Value html(params.header_footer_html);
   // Load page with script to avoid async operations.
   ExecuteScript(frame, kPageLoadScriptFormat, html);
 
@@ -632,6 +652,13 @@ void PrintRenderFrameHelper::PrintHeaderAndFooter(
   options->SetString("url", params.url);
   base::string16 title = source_frame.GetDocument().Title().Utf16();
   options->SetString("title", title.empty() ? params.title : title);
+
+#ifdef BB_HAS_WEB_DOCUMENT_EXTENSIONS
+  // Bloomberg-specific extensions
+  options->SetString("headerText", source_frame.GetDocument().bbHeaderText().Utf8());
+  options->SetString("footerText", source_frame.GetDocument().bbFooterText().Utf8());
+  options->SetBoolean("printPageNumbers", source_frame.GetDocument().bbPrintPageNumbers());
+#endif
 
   ExecuteScript(frame, kPageSetupScriptFormat, *options);
 
@@ -951,7 +978,7 @@ void PrepareFrameAndViewForPrint::FinishPrinting() {
 }
 
 bool PrintRenderFrameHelper::Delegate::IsAskPrintSettingsEnabled() {
-  return true;
+  return !g_use_default_print_settings_;
 }
 
 bool PrintRenderFrameHelper::Delegate::IsScriptedPrintEnabled() {
@@ -991,6 +1018,16 @@ PrintRenderFrameHelper::~PrintRenderFrameHelper() {}
 // static
 void PrintRenderFrameHelper::DisablePreview() {
   g_is_preview_enabled = false;
+}
+
+// static
+void PrintRenderFrameHelper::UseDefaultPrintSettings() {
+  g_use_default_print_settings_ = true;
+}
+
+// static
+PrintRenderFrameHelper::Delegate* PrintRenderFrameHelper::CreateEmptyDelegate() {
+  return new EmptyPrintWebViewHelperDelegate();
 }
 
 bool PrintRenderFrameHelper::IsScriptInitiatedPrintAllowed(

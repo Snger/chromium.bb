@@ -31,9 +31,11 @@
 #include <base/strings/utf_string_conversions.h>
 #include <components/spellcheck/renderer/spellcheck.h>
 #include <components/spellcheck/renderer/spellcheck_provider.h>
+#include <components/printing/renderer/print_render_frame_helper.h>
 #include <content/child/font_warmup_win.h>
 #include <content/public/renderer/render_frame.h>
 #include <content/public/renderer/render_thread.h>
+#include <content/public/renderer/render_view.h>
 #include <net/base/net_errors.h>
 #include <skia/ext/fontmgr_default_win.h>
 #include <third_party/skia/include/ports/SkFontMgr.h>
@@ -85,6 +87,19 @@ void ContentRendererClientImpl::RenderFrameCreated(
 {
     // Create an instance of SpellCheckProvider.
     new SpellCheckProvider(render_frame, d_spellcheck.get());
+}
+
+void ContentRendererClientImpl::RenderFrameCreated(
+    content::RenderFrame *render_frame)
+{
+    // Create an instance of PrintWebViewHelper.  This is an observer that is
+    // registered with the RenderFrame.  The RenderFrameImpl's destructor
+    // will call OnDestruct() on all observers, which will delete this
+    // instance of PrintWebViewHelper.
+    new printing::PrintRenderFrameHelper(
+            render_frame,
+            std::unique_ptr<printing::PrintRenderFrameHelper::Delegate>(
+                printing::PrintRenderFrameHelper::CreateEmptyDelegate()));
 }
 
 void ContentRendererClientImpl::GetNavigationErrorStrings(

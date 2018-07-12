@@ -127,6 +127,8 @@ WebViewImpl::WebViewImpl(WebViewDelegate          *delegate,
     prefs->use_bitmaps              = fontRenderParams.use_bitmaps;
     prefs->subpixel_rendering       = fontRenderParams.subpixel_rendering;
 
+    printing::PrintViewManager::CreateForWebContents(d_webContents.get());
+
     createWidget(parent);
 
     if (initiallyVisible) {

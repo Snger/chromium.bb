@@ -52,6 +52,7 @@
 #include <components/keyed_service/content/browser_context_dependency_manager.h>
 #include <components/pref_registry/pref_registry_syncable.h>
 #include <components/user_prefs/user_prefs.h>
+#include <components/printing/renderer/print_render_frame_helper.h>
 #include <net/proxy/proxy_config.h>
 #include <printing/backend/print_backend.h>
 
@@ -128,6 +129,8 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     }
 
     // Register this context with the dependency manager.
+    d_prefRegistry->RegisterBooleanPref(prefs::kPrintingEnabled, true);
+    
     auto dependencyManager = BrowserContextDependencyManager::GetInstance();
     dependencyManager->CreateBrowserContextServices(this);
 
@@ -508,6 +511,13 @@ void BrowserContextImpl::dumpDiagnostics(DiagnosticInfoType type,
     if (DiagnosticInfoType::GPU == type) {
         DumpGpuInfo(std::string(path.data(), path.size()));
     }
+}
+
+void BrowserContextImpl::setDefaultPrinter(const StringRef& name)
+{
+    printing::PrintRenderFrameHelper::UseDefaultPrintSettings();
+    printing::PrintBackend::SetUserDefaultPrinterName(
+            std::string(name.data(), name.size()));
 }
 
 // content::BrowserContext overrides
