@@ -32,6 +32,7 @@
 #include <blpwtk2_webviewclientdelegate.h>
 #include <blpwtk2_webviewproperties.h>
 
+#include <content/public/renderer/render_view_observer.h>
 #include <content/browser/renderer_host/input/mouse_wheel_event_queue.h>
 #include <content/common/cursors/webcursor.h>
 #include <content/common/text_input_state.h>
@@ -95,12 +96,25 @@ class RenderWebView final : public WebView
                           , private DragDropDelegate
                           , private content::MouseWheelEventQueueClient
 {
+    class RenderViewObserver : public content::RenderViewObserver {
+      private:
+
+        RenderWebView *d_renderWebView;
+
+      public:
+
+        RenderViewObserver(
+            content::RenderView *renderView, RenderWebView *renderWebView);
+
+        void OnDestruct() override;
+    };
+
     // DATA
     WebViewClient *d_client;
     WebViewDelegate *d_delegate;
 
     ProfileImpl *d_profile;
-    int d_renderViewRoutingId;
+    int d_renderViewRoutingId, d_mainFrameRoutingId;
     bool d_gotRenderViewInfo;
     bool d_pendingLoadStatus;
     bool d_isMainFrameAccessible;
@@ -171,6 +185,7 @@ class RenderWebView final : public WebView
     // Attempts to force the window to be redrawn, ensuring that it gets
     // onscreen.
     void ForceRedrawWindow(int attempts);
+    void OnRenderViewDestruct();
 
 #if defined(BLPWTK2_FEATURE_RUBBERBAND)
     void updateAltDragRubberBanding();
@@ -334,7 +349,7 @@ class RenderWebView final : public WebView
 #if defined(BLPWTK2_FEATURE_RUBBERBAND)
     void OnHideRubberbandRect();
     void OnSetRubberbandRect(const gfx::Rect& rect);
-#endif    
+#endif
 
 #if defined(BLPWTK2_FEATURE_PRINTPDF)
     String printToPDF(const StringRef& propertyName) override;

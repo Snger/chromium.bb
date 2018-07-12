@@ -131,6 +131,7 @@ class RenderCompositor {
     ~RenderCompositor();
 
     void SetVisible(bool visible);
+    void DisableSwapUntilResize();
     void Resize(const gfx::Size& size);
     void Correlate(int routing_id);
     std::unique_ptr<cc::CompositorFrameSink> CreateCompositorFrameSink();
@@ -158,12 +159,9 @@ class RenderCompositor {
         base::WeakPtr<CompositorFrameSink>        d_output_surface;
 
         void ConstructImpl(
-            scoped_refptr<gpu::GpuChannelHost> gpu_channel,
-            scoped_refptr<base::SingleThreadTaskRunner> compositor_task_runner,
-            RenderCompositorContext::Details *context,
-            gpu::SurfaceHandle gpu_surface_handle);
+            RenderCompositorContext::Details *context);
         void SetVisibleImpl(bool visible);
-        void ResizeImpl(const gfx::Size& size);
+        void ResizeImpl(const gfx::Size& size, base::WaitableEvent *event);
         void CreateCompositorFrameSinkImpl(
             scoped_refptr<gpu::GpuChannelHost> gpu_channel,
             scoped_refptr<base::SingleThreadTaskRunner> compositor_task_runner,

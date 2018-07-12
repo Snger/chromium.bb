@@ -762,10 +762,7 @@ RenderCompositor::RenderCompositor(
             FROM_HERE,
             base::Bind(&RenderCompositor::Details::ConstructImpl,
                 base::Unretained(d_details.get()),
-                std::move(gpu_channel),
-                content::RenderThreadImpl::current()->compositor_task_runner(),
-                context->d_details.get(),
-                gpu_surface_handle));
+                context->d_details.get()));
 }
 
 RenderCompositor::~RenderCompositor()
@@ -793,6 +790,23 @@ void RenderCompositor::SetVisible(bool visible)
                 visible));
 }
 
+void RenderCompositor::DisableSwapUntilResize()
+{
+    base::WaitableEvent event(
+        base::WaitableEvent::ResetPolicy::AUTOMATIC,
+        base::WaitableEvent::InitialState::NOT_SIGNALED);
+
+    content::RenderThreadImpl::current()->compositor_task_runner()->
+        PostTask(
+            FROM_HERE,
+            base::Bind(&RenderCompositor::Details::ResizeImpl,
+                base::Unretained(d_details.get()),
+                gfx::Size(0, 0),
+                &event));
+
+    event.Wait();
+}
+
 void RenderCompositor::Resize(const gfx::Size& size)
 {
     content::RenderThreadImpl::current()->compositor_task_runner()->
@@ -800,7 +814,8 @@ void RenderCompositor::Resize(const gfx::Size& size)
             FROM_HERE,
             base::Bind(&RenderCompositor::Details::ResizeImpl,
                 base::Unretained(d_details.get()),
-                size));
+                size,
+                nullptr));
 }
 
 void RenderCompositor::Correlate(int routing_id)
@@ -854,16 +869,11 @@ RenderCompositor::Details::~Details()
 }
 
 void RenderCompositor::Details::ConstructImpl(
-    scoped_refptr<gpu::GpuChannelHost> gpu_channel,
-    scoped_refptr<base::SingleThreadTaskRunner> compositor_task_runner,
-    RenderCompositorContext::Details *context,
-    gpu::SurfaceHandle gpu_surface_handle)
+    RenderCompositorContext::Details *context)
 {
     d_frame_sink_id = cc::FrameSinkId(0, context->d_next_frame_sink_id++);
 
     d_vsync_manager = new ui::CompositorVSyncManager();
-
-    auto worker_context_provider = context->d_worker_context_provider;
 }
 
 void RenderCompositor::Details::SetVisibleImpl(bool visible)
@@ -875,12 +885,16 @@ void RenderCompositor::Details::SetVisibleImpl(bool visible)
     }
 }
 
-void RenderCompositor::Details::ResizeImpl(const gfx::Size& size)
+void RenderCompositor::Details::ResizeImpl(const gfx::Size& size, base::WaitableEvent *event)
 {
     d_size = size;
 
     if (d_display) {
         d_display->Resize(d_size);
+    }
+
+    if (event) {
+        event->Signal();
     }
 }
 
