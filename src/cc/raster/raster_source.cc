@@ -240,12 +240,7 @@ void RasterSource::DidBeginTracing() {
 }
 
 SkColor RasterSource::DefaultLCDBackgroundColor() const {
-  if (can_use_lcd_text_) {
-    return default_lcd_background_color_;
-  }
-  else {
-    return SK_ColorTRANSPARENT;
-  }
+  return default_lcd_background_color_;
 }
 
 RasterSource::PlaybackSettings::PlaybackSettings()

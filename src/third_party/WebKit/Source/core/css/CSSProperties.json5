@@ -1564,6 +1564,20 @@
       field_group: "rare-inherited",
     },
     {
+      name: "-bb-lcd-background-color",
+      api_class: "CSSPropertyAPIBbLcdBackgroundColor",
+      api_methods: ["ParseSingleValue"],
+      inherited: true,
+      field_template: "storage_only",
+      type_name: "Color",
+      name_for_methods: "LcdBackgroundColor",
+      default_value: "Color::kTransparent",
+      field_group: "rare-inherited",
+      custom_all: true,
+      include_paths: ["platform/graphics/Color.h"],
+      default_generated_functions: ["getter", "setter"],
+    },
+    {
       name: "isolation",
       field_template: "keyword",
       keywords: ["auto", "isolate"],
@@ -4497,14 +4511,6 @@
     {
       name: "-webkit-user-select",
       alias_for: "user-select",
-    },
-    {
-      name: "-bb-lcd-background-color",
-      api_class: true,
-      api_methods: ["ParseSingleValue"],
-      name_for_methods: "LcdBackgroundColor",
-      field_group: "rare-inherited",
-      custom_all: true
     },
   ],
 }

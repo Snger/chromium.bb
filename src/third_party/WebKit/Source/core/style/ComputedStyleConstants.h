@@ -301,12 +301,6 @@ enum TextEmphasisPosition {
   kUnderLeft,
 };
 
-enum LcdBackgroundColorSource {
-  LcdBackgroundColorSourceNone,
-  LcdBackgroundColorSourceAuto,
-  LcdBackgroundColorSourceColor
-};
-
 }  // namespace blink
 
 #endif  // ComputedStyleConstants_h

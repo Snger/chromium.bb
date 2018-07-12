@@ -39,7 +39,7 @@ RecordingSource::RecordingSource()
       clear_canvas_with_debug_color_(kDefaultClearCanvasSetting),
       solid_color_(SK_ColorTRANSPARENT),
       background_color_(SK_ColorTRANSPARENT),
-      default_lcd_background_color_(SK_ColorTRANSPARENT) {},
+      default_lcd_background_color_(SK_ColorTRANSPARENT),
       recording_scale_factor_(1.f) {}
 
 RecordingSource::~RecordingSource() {}

@@ -4,15 +4,15 @@
 
 namespace blink {
 
-const CSSValue* CSSPropertyAPILineHeight::ParseSingleValue(
+const CSSValue* CSSPropertyAPIBbLcdBackgroundColor::ParseSingleValue(
     CSSPropertyID,
     CSSParserTokenRange& range,
     const CSSParserContext& context,
     const CSSParserLocalContext&) const {
 
-  if (range.peek().id() == CSSValueAuto || range.peek().id() == CSSValueNone)
+  if (range.Peek().Id() == CSSValueAuto || range.Peek().Id() == CSSValueNone)
     return CSSPropertyParserHelpers::ConsumeIdent(range);
-  return CSSPropertyParserHelpers::ConsumeColor(range, cssParserMode);
+  return CSSPropertyParserHelpers::ConsumeColor(range, context.Mode());
 }
 
 }  // namespace blink

@@ -102,6 +102,7 @@ bool PictureLayer::Update() {
   recording_source_->SetRequiresClear(
       !contents_opaque() &&
       !picture_layer_inputs_.client->FillsBoundsCompletely());
+
   recording_source_->SetDefaultLCDBackgroundColor(
       picture_layer_inputs_.default_lcd_background_color);
 

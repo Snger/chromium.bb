@@ -1000,53 +1000,53 @@ void StyleBuilderFunctions::applyValueCSSPropertyCaretColor(
 
 void StyleBuilderFunctions::applyInitialCSSPropertyBbLcdBackgroundColor(
     StyleResolverState& state) {
-  state.style()->setLcdBackgroundColorSource(
-    ComputedStyle::initialLcdBackgroundColorSource());
-  state.style()->setLcdBackgroundColor(
-    ComputedStyle::initialLcdBackgroundColor());
+  state.Style()->SetLcdBackgroundColorSource(
+    ComputedStyle::InitialLcdBackgroundColorSource());
+  state.Style()->SetLcdBackgroundColor(
+    ComputedStyle::InitialLcdBackgroundColor());
 }
 
 void StyleBuilderFunctions::applyInheritCSSPropertyBbLcdBackgroundColor(
     StyleResolverState& state) {
-  state.style()->setLcdBackgroundColorSource(
-    state.parentStyle()->lcdBackgroundColorSource());
-  state.style()->setLcdBackgroundColor(
-    state.parentStyle()->lcdBackgroundColor());
+  state.Style()->SetLcdBackgroundColorSource(
+    state.ParentStyle()->GetLcdBackgroundColorSource());
+  state.Style()->SetLcdBackgroundColor(
+    state.ParentStyle()->LcdBackgroundColor());
 }
 
 void StyleBuilderFunctions::applyValueCSSPropertyBbLcdBackgroundColor(
     StyleResolverState& state, const CSSValue& value) {
-  if (value.isIdentifierValue()) {
-      CSSValueID id = toCSSIdentifierValue(value).getValueID();
+  if (value.IsIdentifierValue()) {
+      CSSValueID id = ToCSSIdentifierValue(value).GetValueID();
 
       switch (id) {
       case CSSValueNone:
-          state.style()->setLcdBackgroundColorSource(
-              LcdBackgroundColorSourceNone);
-          state.style()->setLcdBackgroundColor(
-              Color::transparent);
+          state.Style()->SetLcdBackgroundColorSource(
+              LcdBackgroundColorSource::kNone);
+          state.Style()->SetLcdBackgroundColor(
+              Color::kTransparent);
           return;
       case CSSValueAuto:
-          state.style()->setLcdBackgroundColorSource(
-              LcdBackgroundColorSourceAuto);
-          state.style()->setLcdBackgroundColor(
-              Color::transparent);
+          state.Style()->SetLcdBackgroundColorSource(
+              LcdBackgroundColorSource::kAuto);
+          state.Style()->SetLcdBackgroundColor(
+              Color::kTransparent);
           return;
       default:
-          if (StyleColor::isColorKeyword(id)) {
-              state.style()->setLcdBackgroundColorSource(
-                  LcdBackgroundColorSourceColor);
-              state.style()->setLcdBackgroundColor(
-                  StyleBuilderConverter::convertColor(state, value));
+          if (StyleColor::IsColorKeyword(id)) {
+              state.Style()->SetLcdBackgroundColorSource(
+                  LcdBackgroundColorSource::kColor);
+              state.Style()->SetLcdBackgroundColor(
+                  StyleBuilderConverter::ConvertColor(state, value));
           }
           return;
       }
   }
-  else if (value.isColorValue()) {
-      state.style()->setLcdBackgroundColorSource(
-          LcdBackgroundColorSourceColor);
-      state.style()->setLcdBackgroundColor(
-          StyleBuilderConverter::convertColor(state, value));
+  else if (value.IsColorValue()) {
+      state.Style()->SetLcdBackgroundColorSource(
+          LcdBackgroundColorSource::kColor);
+      state.Style()->SetLcdBackgroundColor(
+          StyleBuilderConverter::ConvertColor(state, value));
   }
 }
 
