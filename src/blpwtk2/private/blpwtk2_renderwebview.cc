@@ -92,6 +92,7 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
     , d_delegate(delegate)
     , d_profile(profile)
     , d_renderViewRoutingId(0)
+    , d_mainFrameRoutingId(0)
     , d_gotRenderViewInfo(false)
     , d_pendingLoadStatus(false)
     , d_isMainFrameAccessible(false)
@@ -149,6 +150,20 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
         base::Bind(&RenderWebView::OnSessionChange,
                    base::Unretained(this))
     ));
+}
+
+RenderWebView::RenderViewObserver::RenderViewObserver(
+    content::RenderView *renderView,
+    RenderWebView *renderWebView)
+: content::RenderViewObserver(renderView)
+, d_renderWebView(renderWebView)
+{
+}
+
+void RenderWebView::RenderViewObserver::OnDestruct()
+{
+    d_renderWebView->OnRenderViewDestruct();
+    delete this;
 }
 
 LPCTSTR RenderWebView::GetWindowClass()
@@ -656,23 +671,32 @@ void RenderWebView::ForceRedrawWindow(int attempts) {
     InvalidateRect(d_hwnd.get(), NULL, FALSE);
 }
 
+void RenderWebView::OnRenderViewDestruct()
+{
+    DCHECK(d_gotRenderViewInfo);
+
+    d_mainFrame.release();
+    d_isMainFrameAccessible = false;
+
+    RenderMessageDelegate::GetInstance()->RemoveRoute(
+        d_mainFrameRoutingId);
+    RenderMessageDelegate::GetInstance()->RemoveRoute(
+        d_renderViewRoutingId);
+
+    d_mainFrameRoutingId = 0;
+    d_renderViewRoutingId = 0;
+
+    d_gotRenderViewInfo = false;
+}
+
 void RenderWebView::destroy()
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(!d_pendingDestroy);
 
     if (d_gotRenderViewInfo) {
-        content::RenderView *rv =
-            content::RenderView::FromRoutingID(d_renderViewRoutingId);
-        DCHECK(rv);
-
         dispatchToRenderViewImpl(
             ViewMsg_Close(d_renderViewRoutingId));
-
-        RenderMessageDelegate::GetInstance()->RemoveRoute(
-            rv->GetMainRenderFrame()->GetRoutingID());
-        RenderMessageDelegate::GetInstance()->RemoveRoute(
-            d_renderViewRoutingId);
     }
 
     // Schedule a deletion of this RenderWebView.  The reason we don't delete
@@ -1214,8 +1238,8 @@ void RenderWebView::notifyRoutingId(int id)
         return;
     }
 
-    content::RenderView *rv =
-        content::RenderView::FromRoutingID(id);
+    content::RenderViewImpl *rv =
+        content::RenderViewImpl::FromRoutingID(id);
 
     if (!rv) {
         // The RenderView has not been created yet.  Keep reposting this task
@@ -1233,18 +1257,19 @@ void RenderWebView::notifyRoutingId(int id)
     d_renderViewRoutingId = id;
     LOG(INFO) << "routingId=" << id;
 
+    d_mainFrameRoutingId = rv->GetMainRenderFrame()->GetRoutingID();
+
     RenderMessageDelegate::GetInstance()->AddRoute(
         d_renderViewRoutingId, this);
     RenderMessageDelegate::GetInstance()->AddRoute(
-        rv->GetMainRenderFrame()->GetRoutingID(), this);
+        d_mainFrameRoutingId, this);
+
+    new RenderViewObserver(rv, this);
 
     d_compositor->Correlate(d_renderViewRoutingId);
 
     // Force the compositor to re-create the compositor frame sink:
-    content::RenderWidget *rw =
-        content::RenderViewImpl::FromRoutingID(id);
-    DCHECK(rw);
-    rw->compositor()->ReleaseCompositorFrameSink();
+    rv->compositor()->ReleaseCompositorFrameSink();
 
     updateVisibility();
     updateSize();
