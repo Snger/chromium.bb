@@ -161,6 +161,51 @@ void RendererUtil::handleInputEvents(content::RenderWidget *rw, const WebView::I
 }
 
 // hunk separator
+void RendererUtil::drawContentsToBlob(content::RenderView        *rv,
+                                      Blob                       *blob,
+                                      const WebView::DrawParams&  params)
+{
+    blink::WebFrame* webFrame = rv->GetWebView()->MainFrame();
+    DCHECK(webFrame->IsWebLocalFrame());
+
+    int srcWidth = params.srcRegion.right - params.srcRegion.left;
+    int srcHeight = params.srcRegion.bottom - params.srcRegion.top;
+
+    if (params.rendererType == WebView::DrawParams::RendererType::PDF) {
+        SkDynamicMemoryWStream& pdf_stream = blob->makeSkStream();
+        {
+            sk_sp<SkDocument> document(
+                    SkDocument::MakePDF(&pdf_stream,
+                                        params.dpi,
+                                        SkDocument::PDFMetadata(),
+                                        nullptr,
+                                        false).release());
+
+            SkCanvas *canvas = document->beginPage(params.destWidth, params.destHeight);
+            DCHECK(canvas);
+            canvas->scale(params.destWidth / srcWidth, params.destHeight / srcHeight);
+
+            webFrame->DrawInCanvas(blink::WebRect(params.srcRegion.left, params.srcRegion.top, srcWidth, srcHeight),
+                                   blink::WebString::FromUTF8(params.styleClass.data(), params.styleClass.length()),
+                                   *canvas);
+            canvas->flush();
+            document->endPage();
+        }
+    }
+    else if (params.rendererType == WebView::DrawParams::RendererType::Bitmap) {
+        SkBitmap& bitmap = blob->makeSkBitmap();        
+        bitmap.allocN32Pixels(params.destWidth + 0.5, params.destHeight + 0.5);
+
+        SkCanvas canvas(bitmap);
+        canvas.scale(params.destWidth / srcWidth, params.destHeight / srcHeight);
+
+        webFrame->DrawInCanvas(blink::WebRect(params.srcRegion.left, params.srcRegion.top, srcWidth, srcHeight),
+                               blink::WebString::FromUTF8(params.styleClass.data(), params.styleClass.length()),
+                               canvas);
+
+        canvas.flush();
+    }
+}
 
 }  // close namespace blpwtk2
 

@@ -261,6 +261,11 @@ int WebViewImpl::loadUrl(const StringRef& url)
     return 0;
 }
 
+void WebViewImpl::drawContentsToBlob(Blob *blob, const DrawParams& params)
+{
+    NOTREACHED() << "drawContentsToBlob() not supported in WebViewImpl";
+}
+
 int WebViewImpl::getRoutingId() const
 {
     DCHECK(Statics::isInBrowserMainThread());

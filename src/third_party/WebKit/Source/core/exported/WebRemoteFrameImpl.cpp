@@ -341,4 +341,11 @@ WebRemoteFrameImpl::WebRemoteFrameImpl(WebTreeScopeType scope,
   DCHECK(client);
 }
 
+void WebRemoteFrameImpl::DrawInCanvas(const WebRect& rect,
+                                      const WebString& styleClass,
+                                      SkCanvas& canvas) const
+{
+  CHECK(false);
+}
+
 }  // namespace blink

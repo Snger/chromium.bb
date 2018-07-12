@@ -235,6 +235,9 @@
 #include "public/web/WebScriptSource.h"
 #include "public/web/WebSerializedScriptValue.h"
 #include "public/web/WebTreeScopeType.h"
+#include "third_party/skia/include/core/SkCanvas.h"
+
+#include <unordered_map>
 
 namespace blink {
 
@@ -484,6 +487,52 @@ class ChromePluginPrintContext final : public ChromePrintContext {
 static WebDocumentLoader* DocumentLoaderForDocLoader(DocumentLoader* loader) {
   return loader ? WebDocumentLoaderImpl::FromDocumentLoader(loader) : nullptr;
 }
+
+static void CollectAllFrames(std::vector<const LocalFrame*>& list,
+                             const LocalFrame* frame) {
+  list.push_back(frame);
+
+  for (auto childFrame = frame->Tree().FirstChild(); childFrame;
+       childFrame = childFrame->Tree().NextSibling()) {
+    if (!childFrame->IsLocalFrame())
+      continue;
+
+    CollectAllFrames(list, ToLocalFrame(childFrame));
+  }
+}
+
+class CanvasPainterContext : public DisplayItemClient {
+  FloatRect d_visualRect;
+
+  void PaintToGraphicsContext(GraphicsContext& context,
+                              LocalFrameView* view,
+                              const FloatRect& floatRect) {
+    // Enter a translation transform
+    AffineTransform transform;
+    transform.Translate(-floatRect.X(), -floatRect.Y());
+    TransformRecorder transformRecorder(context, *this, transform);
+
+    // Enter a clipped region
+    ClipRecorder clipRecorder(context, *this, DisplayItem::kPageWidgetDelegateClip,
+                              IntRect(floatRect));
+
+    view->UpdateAllLifecyclePhases();
+
+    view->PaintContents(context, kGlobalPaintFlattenCompositingLayers,
+                        IntRect(floatRect));
+  }
+
+ public:
+  void Paint(SkCanvas& canvas, LocalFrameView* view, const FloatRect& floatRect) {
+    d_visualRect = floatRect;
+    PaintRecordBuilder builder(floatRect, &(canvas.getMetaData()));
+    PaintToGraphicsContext(builder.Context(), view, floatRect);
+    builder.EndRecording()->Playback(&canvas);
+  }
+
+  String DebugName() const override { return "CanvasPainterContext"; }
+  LayoutRect VisualRect() const override { return LayoutRect(d_visualRect); }
+};
 
 // WebFrame -------------------------------------------------------------------
 
@@ -2535,6 +2584,51 @@ void WebLocalFrameImpl::SetSpellCheckPanelHostClient(
 
 WebFrameWidgetBase* WebLocalFrameImpl::LocalRootFrameWidget() {
   return LocalRoot()->FrameWidget();
+}
+
+void WebLocalFrameImpl::DrawInCanvas(const WebRect& rect,
+                                     const WebString& styleClass,
+                                     SkCanvas& canvas) const {
+  // Set the new "style" attribute if specified
+  static const WTF::String classAttribute("class");
+  // To avoid problems where the same document body is referenced multiple
+  // times in frames, hash map is used to prevent getting & setting the
+  // temporarily updated style attribute.
+  std::unordered_map<HTMLElement*, WTF::String> originalStyleClasses;
+
+  if (!styleClass.IsEmpty()) {
+    std::vector<const LocalFrame*> frames;
+    CollectAllFrames(frames, GetFrame());
+    for (auto localFrame : frames) {
+      auto htmlBody = localFrame->GetDocument()->body();
+
+      // Some documents (ie. SVG documents) do not have body elements
+      if (!htmlBody || originalStyleClasses.count(htmlBody))
+        continue;
+
+      auto webBody = WebElement(htmlBody);
+      if (webBody.HasAttribute(classAttribute)) {
+        WTF::String originalStyleClass = webBody.GetAttribute(classAttribute);
+        WTF::String newClass(originalStyleClass);
+        newClass.append(" ");
+        newClass.append(styleClass);
+        webBody.SetAttribute(classAttribute, WebString(newClass));
+        originalStyleClasses.emplace(htmlBody, std::move(originalStyleClass));
+      } else {
+        originalStyleClasses.emplace(htmlBody, WTF::String());
+        webBody.SetAttribute(classAttribute, styleClass);
+      }
+    }
+  }
+
+  CanvasPainterContext painterContext;
+  painterContext.Paint(canvas, GetFrameView(), FloatRect(rect));
+
+  // Restore the original "style" attribute
+  for (auto& item : originalStyleClasses) {
+    auto webBody = WebElement(item.first);
+    webBody.SetAttribute(classAttribute, item.second);
+  }
 }
 
 }  // namespace blink
