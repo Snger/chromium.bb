@@ -298,6 +298,12 @@ BrowserGpuChannelHostFactory::EstablishGpuChannelSync() {
   return gpu_channel_;
 }
 
+
+scoped_refptr<gpu::GpuChannelHost>
+BrowserGpuChannelHostFactory::EstablishPrivilegedGpuChannelSync() {
+  return EstablishGpuChannelSync();
+}
+
 gpu::GpuMemoryBufferManager*
 BrowserGpuChannelHostFactory::GetGpuMemoryBufferManager() {
   return gpu_memory_buffer_manager_.get();

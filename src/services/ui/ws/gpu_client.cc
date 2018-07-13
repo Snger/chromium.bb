@@ -55,6 +55,17 @@ void GpuClient::EstablishGpuChannel(
       base::Bind(&GpuClient::OnGpuChannelEstablished,
                  weak_factory_.GetWeakPtr(), callback));
 }
+void GpuClient::EstablishPrivilegedGpuChannel(
+    const EstablishGpuChannelCallback& callback) {
+  // TODO(sad): crbug.com/617415 figure out how to generate a meaningful
+  // tracing id.
+  const uint64_t client_tracing_id = 0;
+  constexpr bool is_gpu_host = true;
+  gpu_service_->EstablishGpuChannel(
+      client_id_, client_tracing_id, is_gpu_host,
+      base::Bind(&GpuClient::OnGpuChannelEstablished,
+                 weak_factory_.GetWeakPtr(), callback));
+}
 
 void GpuClient::CreateJpegDecodeAccelerator(
     media::mojom::GpuJpegDecodeAcceleratorRequest jda_request) {

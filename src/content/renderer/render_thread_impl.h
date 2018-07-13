@@ -266,6 +266,7 @@ class CONTENT_EXPORT RenderThreadImpl
   // If there is a pending asynchronous request, it will be completed by the
   // time this routine returns.
   scoped_refptr<gpu::GpuChannelHost> EstablishGpuChannelSync();
+  scoped_refptr<gpu::GpuChannelHost> EstablishPrivilegedGpuChannelSync();
 
   gpu::GpuMemoryBufferManager* GetGpuMemoryBufferManager();
 
@@ -681,6 +682,7 @@ class CONTENT_EXPORT RenderThreadImpl
 
   // The channel from the renderer process to the GPU process.
   scoped_refptr<gpu::GpuChannelHost> gpu_channel_;
+  scoped_refptr<gpu::GpuChannelHost> privileged_gpu_channel_;
 
   // The message loop of the renderer main thread.
   // This message loop should be destructed before the RenderThreadImpl

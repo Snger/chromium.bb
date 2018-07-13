@@ -20,6 +20,11 @@ interface Gpu {
                             handle<message_pipe>? channel_handle,
                             gpu.mojom.GpuInfo gpu_info);
 
+  [Sync]
+  EstablishPrivilegedGpuChannel() => (int32 client_id,
+                            handle<message_pipe>? channel_handle,
+                            gpu.mojom.GpuInfo gpu_info);
+
   // Creates a new JpegDecodeAccelerator and binds it to |jda|.
   CreateJpegDecodeAccelerator(media.mojom.GpuJpegDecodeAccelerator& jda);
 

@@ -54,6 +54,7 @@ class GPU_EXPORT GpuChannelEstablishFactory {
   virtual void EstablishGpuChannel(
       const GpuChannelEstablishedCallback& callback) = 0;
   virtual scoped_refptr<GpuChannelHost> EstablishGpuChannelSync() = 0;
+  virtual scoped_refptr<GpuChannelHost> EstablishPrivilegedGpuChannelSync() = 0;
   virtual GpuMemoryBufferManager* GetGpuMemoryBufferManager() = 0;
 };
 
