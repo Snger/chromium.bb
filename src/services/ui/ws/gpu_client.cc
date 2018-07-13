@@ -43,7 +43,8 @@ void GpuClient::OnGpuChannelEstablished(
 }
 
 // mojom::Gpu overrides:
-void GpuClient::EstablishGpuChannel(EstablishGpuChannelCallback callback) {
+void GpuClient::EstablishGpuChannel(bool privileged,
+                                    EstablishGpuChannelCallback callback) {
   // TODO(sad): crbug.com/617415 figure out how to generate a meaningful
   // tracing id.
   const uint64_t client_tracing_id = 0;

@@ -2095,6 +2095,16 @@ scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishGpuChannelSync() {
   return gpu_channel;
 }
 
+scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishPrivilegedGpuChannelSync() {
+  TRACE_EVENT0("gpu", "RenderThreadImpl::EstablishPrivilegedGpuChannelSync");
+
+  scoped_refptr<gpu::GpuChannelHost> gpu_channel =
+      gpu_->EstablishPrivilegedGpuChannelSync();
+  if (gpu_channel)
+    GetContentClient()->SetGpuInfo(gpu_channel->gpu_info());
+  return gpu_channel;
+}
+
 void RenderThreadImpl::RequestNewLayerTreeFrameSink(
     int routing_id,
     scoped_refptr<FrameSwapMessageQueue> frame_swap_message_queue,
