@@ -31,6 +31,7 @@
 
 #include <base/bind.h>
 #include <base/message_loop/message_loop.h>
+#include <base/process/process_handle.h>
 #include <ipc/ipc_sender.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/common/service_manager/child_connection.h>
@@ -240,7 +241,9 @@ void ProfileImpl::createWebView(WebViewDelegate            *delegate,
     auto taskRunner =
         base::MessageLoop::current()->task_runner();
 
-    if (Statics::rendererUIEnabled && Statics::isInProcessRendererEnabled) {
+    if (Statics::rendererUIEnabled &&
+        Statics::isInProcessRendererEnabled &&
+        params.rendererAffinity() == (int)base::GetCurrentProcId()) {
         WebViewProperties properties;
 
 #if defined(BLPWTK2_FEATURE_FOCUS)

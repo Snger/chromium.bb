@@ -132,7 +132,6 @@ gfx::Vector2dF RenderWidgetHostView::GetLastScrollOffset() const
 
 gfx::NativeView RenderWidgetHostView::GetNativeView() const
 {
-    NOTREACHED();
     return nullptr;
 }
 
