@@ -1997,6 +1997,11 @@ void RenderThreadImpl::RequestNewLayerTreeFrameSink(
     scoped_refptr<FrameSwapMessageQueue> frame_swap_message_queue,
     const GURL& url,
     const LayerTreeFrameSinkCallback& callback) {
+  if (GetContentClient()->renderer()->RequestNewLayerTreeFrameSink(
+        use_software, routing_id, callback)) {
+    return;
+  }
+
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
   if (command_line.HasSwitch(switches::kDisableGpuCompositing))
