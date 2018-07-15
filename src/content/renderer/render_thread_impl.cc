@@ -2122,6 +2122,11 @@ void RenderThreadImpl::RequestNewLayerTreeFrameSink(
     return;
   }
 
+  if (GetContentClient()->renderer()->RequestNewLayerTreeFrameSink(
+        is_gpu_compositing_disabled_, routing_id, callback)) {
+    return;
+  }
+
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
   viz::ClientLayerTreeFrameSink::InitParams params;

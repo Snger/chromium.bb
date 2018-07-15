@@ -287,4 +287,12 @@ bool ContentRendererClient::Dispatch(IPC::Message* msg) {
   return false;
 }
 
+bool ContentRendererClient::RequestNewLayerTreeFrameSink(
+    bool use_software,
+    int routing_id,
+    const LayerTreeFrameSinkCallback& callback)
+{
+  return false;
+}
+
 }  // namespace content

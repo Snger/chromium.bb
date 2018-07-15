@@ -58,6 +58,10 @@ struct WebPluginParams;
 struct WebURLError;
 }  // namespace blink
 
+namespace cc {
+class LayerTreeFrameSink;
+}  // namespace cc
+
 namespace IPC {
 class Message;
 }
@@ -443,6 +447,15 @@ class CONTENT_EXPORT ContentRendererClient {
   // 'msg' and return 'true'. If the function does not handle the message,
   // it should return 'false' without deleting 'msg'.
   virtual bool Dispatch(IPC::Message* msg);
+
+  // Allows the embedder to override construction of the compositor
+  // frame sink for the 'content::RenderView' identified by 'routing_id'.
+  using LayerTreeFrameSinkCallback =
+      base::Callback<void(std::unique_ptr<cc::LayerTreeFrameSink>)>;
+  virtual bool RequestNewLayerTreeFrameSink(
+      bool use_software,
+      int routing_id,
+      const LayerTreeFrameSinkCallback& callback);
 };
 
 }  // namespace content
