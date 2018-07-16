@@ -121,6 +121,7 @@ class CONTENT_EXPORT RenderWidgetCompositor
   void SetContentSourceId(uint32_t source_id);
   void SetViewportSize(const gfx::Size& device_viewport_size,
                        const viz::LocalSurfaceId& local_surface_id);
+  void ReleaseLayerTreeFrameSink();
 
   // WebLayerTreeView implementation.
   viz::FrameSinkId GetFrameSinkId() override;

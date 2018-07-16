@@ -782,6 +782,11 @@ void RenderWidgetCompositor::SetViewportSize(
   layer_tree_host_->SetViewportSize(device_viewport_size, local_surface_id);
 }
 
+void RenderWidgetCompositor::ReleaseLayerTreeFrameSink()
+{
+  layer_tree_host_->ReleaseLayerTreeFrameSink();
+}
+
 viz::FrameSinkId RenderWidgetCompositor::GetFrameSinkId() {
   return frame_sink_id_;
 }
