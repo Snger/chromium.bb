@@ -686,6 +686,20 @@ void WebViewImpl::RequestMediaAccessPermission(
     callback.Run(devices, content::MEDIA_DEVICE_OK, std::move(ui));
 }
 
+bool WebViewImpl::CheckMediaAccessPermission(WebContents *,
+                                             const GURL&,
+                                             MediaStreamType)
+{
+    // When CheckMediaAccessPermission returns true,
+    // the user will be able to access MediaDeviceInfo.label
+    // (for example "External USB Webcam"), while enumerating media devices
+    // https://developer.mozilla.org/en-US/docs/Web/API/MediaDeviceInfo
+    // Also the user will be allowed to set the audio output device to a
+    // HTMLMediaElement
+    // https://developer.mozilla.org/en-US/docs/Web/API/HTMLMediaElement/setSinkId
+    return true;
+}
+
 bool WebViewImpl::OnNCHitTest(int *result)
 {
     if (d_ncHitTestEnabled && d_delegate) {
