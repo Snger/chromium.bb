@@ -1156,7 +1156,7 @@ Tôi không cho rằng nên chặn trang web này!</translation>
 <translation id="2749756011735116528">Đăng nhập vào <ph name="PRODUCT_NAME" /></translation>
 <translation id="2749881179542288782">Kiểm tra Ngữ pháp và Chính tả</translation>
 <translation id="2751739896257479635">Xác thực EAP giai đoạn 2</translation>
-<translation id="2755367719610958252">Quản lý tính năng trợ năng</translation>
+<translation id="2755367719610958252">Quản lý tính năng hỗ trợ tiếp cận</translation>
 <translation id="275662540872599901">màn hình tắt</translation>
 <translation id="2762441749940182211">Máy ảnh bị chặn</translation>
 <translation id="2765217105034171413">Nhỏ</translation>
@@ -2108,7 +2108,7 @@ Tạo người dùng được giám sát sẽ không tạo Tài khoản Google, 
 <translation id="4193154014135846272">Tài liệu Google</translation>
 <translation id="4194570336751258953">Cho phép gõ để nhấp</translation>
 <translation id="4195643157523330669">Mở bằng tab mới</translation>
-<translation id="4195814663415092787">Tiếp tục từ điểm bạn đã dừng lại</translation>
+<translation id="4195814663415092787">Tiếp tục từ nơi bạn đã dừng lại</translation>
 <translation id="4197674956721858839">Chọn file nén zip</translation>
 <translation id="4198146608511578238">Bạn chỉ cần giữ biểu tượng Trình khởi chạy để nói chuyện với Trợ lý Google của mình.</translation>
 <translation id="4200689466366162458">Từ tùy chỉnh</translation>
@@ -2207,7 +2207,7 @@ Tạo người dùng được giám sát sẽ không tạo Tài khoản Google, 
 <translation id="4375035964737468845">Mở các tệp đã tải xuống</translation>
 <translation id="4377039040362059580">Chủ đề và hình nền</translation>
 <translation id="4377363674125277448">Đã xảy ra sự cố với chứng chỉ của máy chủ.</translation>
-<translation id="4378154925671717803">Điện thoại</translation>
+<translation id="4378154925671717803">Điện thoại</translation>
 <translation id="4378551569595875038">Đang kết nối…</translation>
 <translation id="4378556263712303865">Yêu cầu thiết bị</translation>
 <translation id="4384312707950789900">Thêm vào ưa thích</translation>
@@ -5106,7 +5106,7 @@ Giữ tệp khóa của bạn ở nơi an toàn. Bạn sẽ cần tệp khóa đ
 <translation id="8898786835233784856">Chọn Tab Tiếp theo</translation>
 <translation id="8898840733695078011">Cường độ tín hiệu</translation>
 <translation id="8899851313684471736">Mở liên kết bằng cửa sổ &amp;mới</translation>
-<translation id="8902667442496790482">Mở cài đặt chọn để nói</translation>
+<translation id="8902667442496790482">Mở mục cài đặt chọn để nói</translation>
 <translation id="8903921497873541725">Phóng to</translation>
 <translation id="8904976895050290827">Chrome Sync</translation>
 <translation id="8908902564709148335">Cảnh báo: Bạn đã bật cờ --scripts-require-action trên máy tính này, điều này hạn chế khả năng của tiện ích này. Tuy nhiên, các thiết bị khác có thể không hỗ trợ cờ này hoặc đã bật cờ này. Trên các thiết bị này, tiện ích này cũng có thể:</translation>
