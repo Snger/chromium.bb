@@ -126,6 +126,7 @@ class CONTENT_EXPORT RenderWidgetCompositor
                                const viz::LocalSurfaceId& local_surface_id);
   void SetViewportVisibleRect(const gfx::Rect& visible_rect);
   void SetURLForUkm(const GURL& url);
+  void ReleaseLayerTreeFrameSink();
 
   // WebLayerTreeView implementation.
   viz::FrameSinkId GetFrameSinkId() override;
