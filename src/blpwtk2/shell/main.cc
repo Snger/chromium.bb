@@ -1245,14 +1245,6 @@ LRESULT CALLBACK shellWndProc(HWND hwnd,        // handle to window
             shell->d_profile->dumpDiagnostics(
                     blpwtk2::Profile::DiagnosticInfoType::GPU, "gpuInfo.txt");
             return 0;
-        case IDM_SPELLCHECK_ENABLED:
-            g_spellCheckEnabled = !g_spellCheckEnabled;
-            updateSpellCheckConfig(shell->d_profile);
-            return 0;
-        case IDM_TEST_DUMP_GPU_INFO:
-            shell->d_profile->dumpDiagnostics(
-                    blpwtk2::Profile::DiagnosticInfoType::GPU, "gpuInfo.txt");
-            return 0;
         case IDM_TEST_GET_PDF:
             testGetPicture(shell->d_mainWnd, shell->d_webView, blpwtk2::WebView::DrawParams::RendererType::PDF, 2, 2);
             return 0;

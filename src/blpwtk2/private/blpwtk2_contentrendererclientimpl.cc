@@ -87,11 +87,7 @@ void ContentRendererClientImpl::RenderFrameCreated(
 {
     // Create an instance of SpellCheckProvider.
     new SpellCheckProvider(render_frame, d_spellcheck.get());
-}
 
-void ContentRendererClientImpl::RenderFrameCreated(
-    content::RenderFrame *render_frame)
-{
     // Create an instance of PrintWebViewHelper.  This is an observer that is
     // registered with the RenderFrame.  The RenderFrameImpl's destructor
     // will call OnDestruct() on all observers, which will delete this
