@@ -1032,12 +1032,12 @@ void InlineTextBoxPainter::PaintDocumentMarker(GraphicsContext& context,
   bool hide_spelling_marker = false;
 
   if (inline_text_box_.node()) {
-      const Element *element = rootEditableElement(*GetLineLayoutItem().GetNode());
+      const Element *element = RootEditableElement(*inline_text_box_.GetLineLayoutItem().GetNode());
       if (element) {
           AtomicString colorAttr =
               element->getAttribute(HTMLNames::bb_hide_spelling_markerAttr);
 
-          if (colorAttr != nullAtom) {
+          if (!colorAttr.IsNull()) {
               hide_spelling_marker = true;
           }
       }
