@@ -47,6 +47,8 @@
 #include "core/editing/markers/SuggestionMarkerListImpl.h"
 #include "core/editing/markers/TextMatchMarker.h"
 #include "core/editing/markers/TextMatchMarkerListImpl.h"
+#include "core/editing/markers/HighlightMarker.h"
+#include "core/editing/markers/HighlightMarkerListImpl.h"
 #include "core/frame/LocalFrameView.h"
 #include "core/layout/LayoutObject.h"
 
@@ -73,6 +75,8 @@ DocumentMarker::MarkerTypeIndex MarkerTypeToMarkerIndex(
       return DocumentMarker::kActiveSuggestionMarkerIndex;
     case DocumentMarker::kSuggestion:
       return DocumentMarker::kSuggestionMarkerIndex;
+    case DocumentMarker::kHighlight:
+      return DocumentMarker::kHighlightMarkerIndex;
   }
 
   NOTREACHED();
@@ -93,6 +97,8 @@ DocumentMarkerList* CreateListForType(DocumentMarker::MarkerType type) {
       return new SuggestionMarkerListImpl();
     case DocumentMarker::kTextMatch:
       return new TextMatchMarkerListImpl();
+    case DocumentMarker::kHighlight:
+      return new HighlightMarkerListImpl();
   }
 
   NOTREACHED();
@@ -172,6 +178,19 @@ void DocumentMarkerController::AddCompositionMarker(
                                int start_offset, int end_offset) {
     return new CompositionMarker(start_offset, end_offset, underline_color,
                                  thickness, background_color);
+  });
+}
+
+void DocumentMarkerController::AddHighlightMarker(
+    const EphemeralRange& range,
+    Color foreground_color,
+    Color background_color,
+    bool include_nonselectable_text) {
+  DCHECK(!document_->NeedsLayoutTreeUpdate());
+  AddMarkerInternal(range, [foreground_color, background_color, include_nonselectable_text](
+                               int start_offset, int end_offset) {
+    return new HighlightMarker(start_offset, end_offset, foreground_color,
+                               background_color, include_nonselectable_text);
   });
 }
 
