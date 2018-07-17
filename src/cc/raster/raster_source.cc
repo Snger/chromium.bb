@@ -56,8 +56,9 @@ void RasterSource::PlaybackToCanvas(
   raster_canvas->clipRect(SkRect::MakeFromIRect(raster_bounds));
   raster_canvas->translate(raster_transform.translation().x(),
                            raster_transform.translation().y());
-  raster_canvas->scale(raster_transform.scale() / recording_scale_factor_,
-                       raster_transform.scale() / recording_scale_factor_);
+  raster_canvas->scale(
+      raster_transform.scale().width() / recording_scale_factor_,
+      raster_transform.scale().height() / recording_scale_factor_);
   PlaybackToCanvas(raster_canvas, target_color_space, settings);
   raster_canvas->restore();
 }
@@ -239,8 +240,7 @@ void RasterSource::DidBeginTracing() {
 }
 
 RasterSource::PlaybackSettings::PlaybackSettings()
-    : playback_to_shared_canvas(false),
-      use_lcd_text(true) {}
+    : playback_to_shared_canvas(false), use_lcd_text(true) {}
 
 RasterSource::PlaybackSettings::PlaybackSettings(const PlaybackSettings&) =
     default;
