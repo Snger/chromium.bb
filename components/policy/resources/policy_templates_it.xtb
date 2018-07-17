@@ -389,7 +389,7 @@ Questa norma viene rispettata soltanto se la norma "DefaultSearchProviderEnabled
 <translation id="2231817271680715693">Importa cronologia di navigazione dal browser predefinito alla prima esecuzione</translation>
 <translation id="2236488539271255289">Non consentire ai siti di impostare i dati locali</translation>
 <translation id="2240879329269430151">Permette di stabilire se consentire o meno la visualizzazione dei popup nei siti web. La visualizzazione dei popup può essere consentita o negata per tutti i siti web. Se questa norma non viene impostata, verrà utilizzato il valore "BlockPopups", che potrà essere modificato dagli utenti.</translation>
-<translation id="2269319728625047531">Abilita la visualizzazione del consenso alla sincronizzazione durante l'accesso</translation>
+<translation id="2269319728625047531">Abilita la visualizzazione del consenso di sincronizzazione durante l'accesso</translation>
 <translation id="2274864612594831715">Questa norma consente di configurare l'attivazione della tastiera virtuale come dispositivo di immissione su Chrome OS. Gli utenti non possono sostituire questa norma.
 
       Se la norma viene impostata su true, la tastiera virtuale sullo schermo sarà sempre attiva.
@@ -2584,9 +2584,9 @@ Il valore della norma deve essere specificato in millisecondi. I valori devono e
 
       Se questa norma non viene impostata, viene usata l'opzione <ph name="PRINTERS_ALLOW_ALL" />.
       </translation>
-<translation id="8942616385591203339">Questa norma consente di controllare se il consenso alla sincronizzazione può essere mostrato all'utente durante il primo accesso. Dovrebbe essere impostata su false se tale consenso non è mai necessario per l'utente.
-      Se impostata su false, il consenso alla sincronizzazione non verrà visualizzato.
-      Se impostata su true o non viene impostata, il consenso alla sincronizzazione può essere visualizzato.</translation>
+<translation id="8942616385591203339">Questa norma consente di controllare se il consenso di sincronizzazione può essere mostrato all'utente durante il primo accesso. Dovrebbe essere impostato su false se tale consenso non è mai necessario per l'utente.
+      Se impostato su false, il consenso di sincronizzazione non verrà visualizzato.
+      Se impostato su true o non viene impostato, il consenso di sincronizzazione può essere visualizzato.</translation>
 <translation id="8947415621777543415">Segnala posizione del dispositivo</translation>
 <translation id="8951350807133946005">Impostazione directory della cache su disco</translation>
 <translation id="8952317565138994125">Consente di disattivare la sincronizzazione dei dati in <ph name="PRODUCT_NAME" /> tramite servizi di sincronizzazione in hosting su Google e di impedire agli utenti di modificare questa impostazione.

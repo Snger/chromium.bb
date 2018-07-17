@@ -9,7 +9,7 @@
 <translation id="1025074108959230262">रोचक मोड अक्षम</translation>
 <translation id="1031961866430398710">फिर</translation>
 <translation id="1038643060055067718">रेखाएं:</translation>
-<translation id="1038795173450935438">किसी पेज पर आइटम के बीच आगे बढ़ने के लिए, Search + दाएं तीर के निशान वाला बटन दबाएं या सीधे वापस आने के लिए Search + बाएं तीर के निशान वाला बटन दबाएं. अगली पंक्ति पर जाने के लिए, Search + नीचे तीर के निशान वाला बटन दबाएं. पिछली पंक्ति पर जाने के लिए, Search + ऊपर तीर के निशान वाले बटन का उपयोग करें. अगर आप किसी ऐसे आइटम पर पहुंचते हैं, जिसे आप क्लिक करना चाहते हैं तो, Search + Space दबाएं.</translation>
+<translation id="1038795173450935438">किसी पेज पर आइटम के बीच आगे बढ़ने के लिए, Search + दायां तीर दबाएं या सीधे वापस आने के लिए Search + बायां तीर दबाएं. अगली पंक्ति पर जाने के लिए, Search + नीचे तीर दबाएं. पिछली पंक्ति पर जाने के लिए, Search + ऊपर तीर का उपयोग करें. यदि आप किसी ऐसे आइटम पर पहुंचते हैं, जिसे आप क्लिक करना चाहते हैं, तो Search + Space दबाएं.</translation>
 <translation id="1044777062731150180">कोई शीर्षलेख नहीं</translation>
 <translation id="106222400312645156">rwhdr</translation>
 <translation id="1065552602950927991">अमान्य इनपुट</translation>
@@ -30,8 +30,8 @@
 <translation id="1201402288615127009">अगला</translation>
 <translation id="1206619573307042055">मार्की</translation>
 <translation id="1213216066620407844">ChromeVox - Chrome को ध्‍वनि देना</translation>
-<translation id="1225437811932752266">बधाई हो! आपने ChromeVox का उपयोग करने की ज़रूरी बातें सीख ली हैं. याद रखें कि आप Search+Period दबाकर किसी भी समय ChromeVox का निर्देश मेन्यू खोल सकते हैं. ChromeVox और Chrome OS के बारे में और भी ज़्यादा जानने के लिए, नीचे दिए गए लेखों पर जाएं.
-अगर आपने ट्यूटोरियल पूरा कर लिया है तो, ChromeVox का इस्तेमाल करके 'बंद करें' बटन पर जाएं और उस पर क्लिक करें.</translation>
+<translation id="1225437811932752266">बधाई हो! आपने ChromeVox का उपयोग करने के लिए ज़रूरी बातें सफलतापूर्वक सीख ली हैं. याद रखें कि आप Search+Period दबाकर किसी भी समय ChromeVox का निर्देश मेन्यू खोल सकते हैं. ChromeVox और Chrome OS के बारे में और भी अधिक जानने के लिए, नीचे दिए गए लेखों पर जाएं.
+अगर आपने ट्यूटोरियल पूरा कर लिया है, तो ChromeVox का इस्तेमाल करके बंद करें बटन पर जाएं और उस पर क्लिक करें.</translation>
 <translation id="1229276918471378188">पिछला जंप</translation>
 <translation id="1237866625126425153">rdgrp</translation>
 <translation id="1251750620252348585">अगले स्‍तर 6 का शीर्षक</translation>
@@ -46,7 +46,7 @@
 <translation id="1346748346194534595">दाएं</translation>
 <translation id="135978014023467274">आपको ChromeVox 63 में अपडेट किया गया है!</translation>
 <translation id="136718599399906424">अगली तालिका पंक्ति</translation>
-<translation id="1377925789329510816">यह आखिरी शीर्षक है. पहले शीर्षक पर जाने के लिए Search+H दबाएं या इसी पेज के दूसरे शीर्षक पर जाने के लिए Search+Shift+H दबाएं.</translation>
+<translation id="1377925789329510816">यह अंतिम शीर्षक है. पहले शीर्षक पर जाने के लिए Search+H दबाएं या इस पेज के दूसरे शीर्षक पर जाने के लिए Search+Shift+H दबाएं.</translation>
 <translation id="1383876407941801731">खोज</translation>
 <translation id="1385214448885562192">स्वीकार करने के लिए enter या रद्द करने के लिए escape, अगले के लिए down और पिछले के लिए up दबाएं.</translation>
 <translation id="1396114365388024581">tablst</translation>
@@ -54,7 +54,7 @@
 <translation id="1452236308086741652"><ph name="VALUE" />, पासवर्ड लेख बॉक्‍स</translation>
 <translation id="1467432559032391204">बाएं</translation>
 <translation id="1474557363159888097">कोई पिछला एंकर नहीं.</translation>
-<translation id="1487494366197411587">Chromebook में 'सर्च की', बाईं तरफ़ की 'शिफ़्ट की' के ठीक ऊपर होती है.</translation>
+<translation id="1487494366197411587">Chromebook पर Search की, बाईं Shift की के ठीक ऊपर होती है.</translation>
 <translation id="1499041187027566160">वॉल्‍यूम बढ़ाएं</translation>
 <translation id="1502086903961450562">पिछला ग्राफ़‍िक</translation>
 <translation id="1506187449813838456">पिच बढ़ाएं</translation>
@@ -67,7 +67,7 @@
 <translation id="1594072653727561613">mnu</translation>
 <translation id="1610130962244179598">6 बिंदु ब्रेल पर स्विच करें</translation>
 <translation id="1611168825862729585">स्तंभ शीर्षलेख:</translation>
-<translation id="1611649489706141841">आगे जाएं</translation>
+<translation id="1611649489706141841">अग्रेषित करें</translation>
 <translation id="1613476421962910979">ईयरकॉन चालू हैं</translation>
 <translation id="1618597272655350600">वर्तमान स्थिति का संपूर्ण विवरण दर्शाता है</translation>
 <translation id="1639634871799530612">{COUNT,plural, =1{इससे बड़ा}one{# इससे बड़ा चिह्न}other{# इससे बड़ा चिह्न}}</translation>
@@ -137,7 +137,7 @@
 <translation id="2416512023405990736">अनचेक किया गया चेकबॉक्स</translation>
 <translation id="2417569100218200841">सामग्री की जानकारी</translation>
 <translation id="2422937916923936891">मेनू आइटम चेक बॉक्स</translation>
-<translation id="2428534162001909979">निर्देश मेन्यू</translation>
+<translation id="2428534162001909979">आदेश मेनू</translation>
 <translation id="2429669115401274487">अपराह्न</translation>
 <translation id="2435413342408885429"><ph name="KEY" /> अब नया ChromeVox संशोधक है.</translation>
 <translation id="2450814015951372393">चेक बॉक्स</translation>
@@ -177,7 +177,7 @@
 <translation id="2800780099804980316">कोई पिछला स्‍तर 1 शीर्षक नहीं.</translation>
 <translation id="280499067616661124">पेज में ChromeVox ढूंढें</translation>
 <translation id="2808001342598757276">स्क्रीन का गहरापन हटाएं</translation>
-<translation id="2811019999044652585">टूलबार या सिस्टम ट्रे जैसे स्क्रीन के अन्य हिस्सों पर सीधे जाने के लिए, Control+Forward बटन दबाएं. Chromebook पर Forward बटन की जगह, 2 नंबर के बटन के ठीक ऊपर होती है.</translation>
+<translation id="2811019999044652585">स्क्रीन के टूलबार या सिस्टम ट्रे जैसे अन्य भागों पर सीधे जाने के लिए, Control+Forward दबाएं. Chromebook पर Forward कुंजी, संख्या 2 कुंजी के ठीक ऊपर होती है.</translation>
 <translation id="2811204574343810641">पंक्ति</translation>
 <translation id="2816654101880605877">कोई अगला स्लाइडर नहीं.</translation>
 <translation id="2841013758207633010">समय</translation>
@@ -186,7 +186,7 @@
 <translation id="2849332794118375855">कोई अगला चेकबॉक्स नहीं.</translation>
 <translation id="2864481629947106776">पिछला लिंक</translation>
 <translation id="2873259058405069099">तालिका के प्रारंभ पर जाएं</translation>
-<translation id="288178314850623291">सीधे किसी खास तरह के आइटम पर पहुंचने के लिए 'जंप कमांड' का इस्तेमाल करें. एक शीर्षक से दूसरे शीर्षक पर सीधे जाने के लिए, Search + H या पिछले शीर्षक पर वापस जाने के लिए Search + Shift + H दबाएं.</translation>
+<translation id="288178314850623291">तत्वों के विशिष्ट प्रकारों पर सीधे पहुंचने के लिए, सीधे जाने वाले आदेश का उपयोग करें. शीर्षकों के बीच सीधे आगे की ओर जाने के लिए, Search + H दबाएं या पीछे जाने के लिए Search + Shift + H दबाएं.</translation>
 <translation id="2894654529758326923">जानकारी</translation>
 <translation id="2899328121302785497">{COUNT,plural, =1{बायां कोष्ठक}one{# बाएं कोष्ठक}other{# बाएं कोष्ठक}}</translation>
 <translation id="2911433807131383493">ChromeVox निर्देश खोलें</translation>
@@ -240,7 +240,7 @@
 <translation id="3299925995433437805">बाद में देखा गया कोई लिंक नहीं.</translation>
 <translation id="3300348286427369683">रिच टेक्स्ट के साथ काम करता है. अब ChromeVox रिच टेक्स्ट वाली फ़ील्ड के साथ काम करता है जिसमें कहीं भी सीधे पहुंचाने के निर्देश, ब्रेल कर्सर की रूटिंग, चयन वगैरह शामिल हैं.</translation>
 <translation id="3307886118343381874">तालिका के अंत में जाएं</translation>
-<translation id="3311969765485641742">अलर्ट की समीक्षा करने के लिए Alt+Shift+A दबाएं</translation>
+<translation id="3311969765485641742">नोटिफ़िकेशन की समीक्षा करने के लिए Alt+Shift+A दबाएं</translation>
 <translation id="3312997241656799641">बाद में देखा गया लिंक</translation>
 <translation id="3313245066383501820">ChromeVox बदलने वाली की</translation>
 <translation id="3317212938060708859">स्लाइडर</translation>
@@ -302,7 +302,7 @@
 <translation id="3457000393508828486">आंशिक रूप से दबाया गया</translation>
 <translation id="3458865416877308321"><ph name="NAME" />, बंद करें</translation>
 <translation id="3462439746547587373"><ph name="NAME" />, बटन</translation>
-<translation id="3466530247399808663">कोई गलत बटन दबाया गया</translation>
+<translation id="3466530247399808663">अमान्य कुंजी दबाया जाना</translation>
 <translation id="3468959318854349468">कोई शीर्षक नहीं</translation>
 <translation id="3473644018603298796">sld <ph name="COUNT" /></translation>
 <translation id="3486232535569802404"><ph name="V1" /> से <ph name="V2" /></translation>
@@ -387,7 +387,7 @@
 <translation id="4271521365602459209">और अधिक परिणाम नहीं.</translation>
 <translation id="4287520460805643128">कोई अगला लेख नहीं.</translation>
 <translation id="4289540628985791613">संक्षिप्त विवरण</translation>
-<translation id="4300318234632215983">किसी लिंक के पीछे का URL दिखाएं</translation>
+<translation id="4300318234632215983">किसी लिंक के पीछे का URL प्रदर्शित करें</translation>
 <translation id="4301352596632316575">सबमेनू है</translation>
 <translation id="4342180618051828363">{COUNT,plural, =1{बिंदु}=3{पदलोप चिह्न}one{# बिंदु}other{# बिंदु}}</translation>
 <translation id="4347461890115250064">कोई अगली सूची नहीं.</translation>
@@ -428,7 +428,7 @@
 <translation id="4729095194763193578">पिछली तालिका पंक्ति</translation>
 <translation id="4736221692378411923">अगस्त</translation>
 <translation id="4740661827607246557">सहायता आदेश</translation>
-<translation id="4755857887974653209">ChromeVox को बंद करें</translation>
+<translation id="4755857887974653209">ChromeVox अक्षम करें</translation>
 <translation id="4763296182459741068">नीचे तक लपेटा गया</translation>
 <translation id="4763480195061959176">वीडियो</translation>
 <translation id="4764692524839457597">डिफ़ॉल्ट</translation>
@@ -487,7 +487,7 @@
 <translation id="5183440668879371625">पिछली पंक्ति को ब्रेल में लिखें</translation>
 <translation id="5184944171021383281">कोई अगला फ़ॉर्म फ़ील्‍ड नहीं.</translation>
 <translation id="5189244881767082992">पंक्ति</translation>
-<translation id="5203930734796605961"><ph name="KEY" /> पहले से किसी निर्देश को असाइन की हुई है.</translation>
+<translation id="5203930734796605961"><ph name="KEY" /> पहले से किसी आदेश को असाइन की हुई है.</translation>
 <translation id="5205493599117157272"><ph name="TYPE" /> सूची.</translation>
 <translation id="520883772648104506">कोई अगला रेडियो बटन नहीं.</translation>
 <translation id="5263344797180442561">h2</translation>
@@ -549,13 +549,13 @@
 <translation id="5682113568322255809">स्थानचिह्न</translation>
 <translation id="5683155931978483559">पिछला चेकबॉक्स</translation>
 <translation id="5684277895745049190">सूची</translation>
-<translation id="5695831708991916435">अगले कुछ शॉर्टकट ChromeVox निर्देश नहीं हैं लेकिन Chrome का ज़्यादा से ज़्यादा फ़ायदा उठाने के लिए वे बहुत उपयोगी हैं.
-बटन और लिंक जैसे कार्रवाई आइटम से आगे जाने के लिए, Tab बटन दबाएं. पीछे जाने के लिए, Shift+Tab दबाएं.
-'Chrome ब्राउज़र पता बॉक्स' खोलने के लिए, जिसे omnibox भी कहा जाता है, Control + L दबाएं.
-अपने आप नया टैब खोलने और उस पर जाने के लिए, Control+T दबाएं. आपका कर्सर omnibox में होगा.
-कोई टैब बंद करने के लिए, Control+W दबाएं.
-अगले खुले हुए टैब में जाने के लिए, Control+Tab का इस्तेमाल करें.
-'Chrome ब्राउज़र मेन्यू' खोलने के लिए, Alt+F दबाएं.</translation>
+<translation id="5695831708991916435">अगले कुछ शॉर्टकट ChromeVox आदेश नहीं हैं, लेकिन फिर भी Chrome का अधिकतम लाभ प्राप्त करने के लिए वे बहुत उपयोगी हैं.
+बटन और लिंक जैसे कार्रवाई योग्य आइटम के माध्यम से आगे नेविगेट करने के लिए, Tab कुंजी दबाएं. पीछे नेविगेट करने के लिए, Shift+Tab दबाएं. 
+Chrome ब्राउज़र पता बॉक्स डालने के लिए, जिसे खोज वाली पट्टी भी कहा जाता है, Control + L दबाएं. 
+अपने आप नया टैब खोलने और उस पर जाने के लिए, Control+T दबाएं. आपका कर्सर खोज वाली पट्टी में होगा. 
+कोई टैब बंद करने के लिए, Control+W दबाएं. 
+खुले टैब में आगे जाने के लिए, Control+Tab का उपयोग करें. 
+Chrome ब्राउज़र मेनू खोलने के लिए, Alt+F दबाएं.</translation>
 <translation id="5700650669149824506">कोई पिछला स्तर 4 शीर्षक नहीं.</translation>
 <translation id="5703716265115423771">वॉल्‍यूम कम करें</translation>
 <translation id="5709192780268610569">कोई बड़ा विवरण नहीं</translation>
@@ -691,7 +691,7 @@
 <translation id="7161771961008409533">पॉप-अप बटन</translation>
 <translation id="7165714724802225287">वर्तमान प्रदर्शन शैली इंटरलीव है.</translation>
 <translation id="7167657087543110">वर्ण इको</translation>
-<translation id="7170733337935166589">लगातार पढ़ने के दौरान, आगे जाएं का इस्तेमाल न करें</translation>
+<translation id="7170733337935166589">निरंतर पढ़ने के दौरान आगे जाएं छोड़ें</translation>
 <translation id="7181697990050180700">अक्‍सर उपयोग किए जाने वाले आदेशों को नीचे दी गई संबंधित फ़ील्‍ड में लिखकर उनके लिए कीबोर्ड शॉर्टकट कस्‍टमाइज़ करें.</translation>
 <translation id="7203150201908454328">विस्तृत</translation>
 <translation id="7210211103303402262">मिनट</translation>
@@ -737,7 +737,7 @@
 <translation id="7596919493010894443">साफ़ किया गया अनुभाग</translation>
 <translation id="7604026522577407655">वर्तमान स्‍तंभ के प्रारंभ पर जाएं</translation>
 <translation id="7604451927827590395">hdng</translation>
-<translation id="7609342235116740824">मौजूदा पेज का यूआरएल दिखाएं</translation>
+<translation id="7609342235116740824">वर्तमान पेज का URL प्रदर्शित करें</translation>
 <translation id="7609363189280667021">ब्रेल कैप्शन टॉगल करें</translation>
 <translation id="762020119231868829">वर्तमान में चल रहे सभी मीडिया विजेट को रोकता है</translation>
 <translation id="7625690649919402823">अगली तालिका</translation>
@@ -747,7 +747,7 @@
 <translation id="7663318257180412551">शीर्षक 2</translation>
 <translation id="7674576868851035240">अगला लिंक</translation>
 <translation id="7674768236845044097">चिह्नित करें</translation>
-<translation id="7684431668231950609">लेख, URL में बदलाव करें</translation>
+<translation id="7684431668231950609">लेख, URL प्रविष्टि संपादित करें</translation>
 <translation id="7685589220304187312">tlbar</translation>
 <translation id="7693840228159394336">पिछला रेडियो बटन</translation>
 <translation id="7701196182766842984">autolst</translation>
@@ -821,7 +821,7 @@
 <translation id="8520472399088452386">स्पिन बटन</translation>
 <translation id="8538744478902126321">वर्तमान सेल के पंक्ति शीर्षलेख पर कोई अनुमान लगाएं</translation>
 <translation id="8540054775867439484">शीर्ष पर लपेटा गया</translation>
-<translation id="8542271685829952264">सभी ChromeVox निर्देश और शॉर्टकट एक्सप्लोर करने के लिए, Search + Period दबाएं, फिर मेन्यू पर नेविगेट करने के लिए 'तीर कुंजियों' का उपयोग करें और किसी निर्देश को चालू करने के लिए Enter का उपयोग करें. Search+o फिर t दबाकर यहां वापस आएं.</translation>
+<translation id="8542271685829952264">सभी ChromeVox आदेश और शॉर्टकट एक्सप्लोर करने के लिए, Search + Period दबाएं, फिर मेनू पर नेविगेट करने के लिए तीर कुंजियों का उपयोग करें और किसी आदेश को सक्रिय करने के लिए Enter का उपयोग करें. Search+o फिर t दबाकर यहां वापस लौटें.</translation>
 <translation id="8548973727659841685">अक्षर</translation>
 <translation id="8561322612995434619">पॉप अप है</translation>
 <translation id="8571096049907249734">एकाधिक चयन</translation>
@@ -892,7 +892,7 @@
 <translation id="930275611743429116">चयन प्रारंभ या समाप्त करें.</translation>
 <translation id="948171205378458592">बोली की दर घटाएं</translation>
 <translation id="962913030769097253">अगले स्तर 1 का शीर्षक</translation>
-<translation id="973955474346881951">स्टिकी मोड चालू/बंद करें</translation>
+<translation id="973955474346881951">रोचक मोड सक्षम/अक्षम करें</translation>
 <translation id="976849232629612000">कोई आइटम नहीं.</translation>
 <translation id="995852680044449248">स्ट्राइक थ्रू शुरू</translation>
 </translationbundle>

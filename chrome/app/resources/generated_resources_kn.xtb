@@ -264,7 +264,6 @@
 <translation id="1396963298126346194">ನೀವು ನಮೂದಿಸಿದ ಬಳಕೆದಾರ ಹೆಸರು ಮತ್ತು ಪಾಸ್‌ವರ್ಡ್‌ ಹೊಂದಿಕೆಯಾಗುವುದಿಲ್ಲ</translation>
 <translation id="1397854323885047133">ಸಿಂಕ್‌ ಮತ್ತು ವೈಯಕ್ತೀಕರಣ</translation>
 <translation id="1398853756734560583">ಗರಿಷ್ಠಗೊಳಿಸು</translation>
-<translation id="1399511500114202393">ಯಾವುದೇ ಬಳಕೆದಾರ ಪ್ರಮಾಣಪತ್ರವಿಲ್ಲ</translation>
 <translation id="140250605646987970">ನಿಮ್ಮ ಫೋನ್ ಕಂಡುಬಂದಿದೆ. ಆದರೆ Smart Lock ಕೇವಲ Android 5.0 ಮತ್ತು ಉನ್ನತ ಸಾಧನಗಳಲ್ಲಿ ಮಾತ್ರ ಕಾರ್ಯನಿರ್ವಹಿಸುತ್ತದೆ. &lt;a&gt;ಇನ್ನಷ್ಟು ತಿಳಿಯಿರಿ&lt;/a&gt;</translation>
 <translation id="140520891692800925"><ph name="PROFILE_DISPLAY_NAME" /> (ಮೇಲ್ವಿಚಾರಣೆ ಮಾಡಲಾಗಿದೆ)</translation>
 <translation id="1405476660552109915">ಈ ಸೈಟ್‌ಗೆ ನಿಮ್ಮ ಖಾತೆಯನ್ನು <ph name="PASSWORD_MANAGER_BRAND" /> ಉಳಿಸಬೇಕೆಂದು ನೀವು ಬಯಸುವಿರಾ?</translation>
@@ -2084,7 +2083,7 @@
 <translation id="4140559601186535628">ಪುಶ್‌ ಸಂದೇಶಗಳು</translation>
 <translation id="4146026355784316281">ಯಾವಾಗಲೂ ಸಿಸ್ಟಂ ವೀಕ್ಷಕದ ಜೊತೆಗೆ ತೆರೆಯಿರಿ</translation>
 <translation id="4146785383423576110">ಮರುಹೊಂದಿಸಿ ಮತ್ತು ಸ್ವಚ್ಛಗೊಳಿಸಿ</translation>
-<translation id="4150201353443180367">ಡಿಸ್‌ಪ್ಲೇ</translation>
+<translation id="4150201353443180367">ಪ್ರದರ್ಶನ</translation>
 <translation id="4152670763139331043">{NUM_TABS,plural, =1{1 ಟ್ಯಾಬ್}one{# ಟ್ಯಾಬ್‌ಗಳು}other{# ಟ್ಯಾಬ್‌ಗಳು}}</translation>
 <translation id="4154664944169082762">ಫಿಂಗರ್‌ಪ್ರಿಂಟ್‌ಗಳು</translation>
 <translation id="4157869833395312646">Microsoft Server Gated Cryptography</translation>
@@ -5299,7 +5298,7 @@
 <translation id="9220525904950070496">ಖಾತೆಯನ್ನು ತೆಗೆದುಹಾಕಿ</translation>
 <translation id="923467487918828349">ಎಲ್ಲಾ ತೋರಿಸಿ</translation>
 <translation id="930268624053534560">ವಿವರವಾದ ಸಮಯಮೊಹರುಗಳು</translation>
-<translation id="932327136139879170">Home</translation>
+<translation id="932327136139879170">ಮುಖಪುಟ</translation>
 <translation id="932508678520956232">ಮುದ್ರಣವನ್ನು ಪ್ರಾರಂಭಿಸುವುದಕ್ಕೆ ಆಗುವುದಿಲ್ಲ.</translation>
 <translation id="93393615658292258">ಪಾಸ್‌ವರ್ಡ್ ಮಾತ್ರ</translation>
 <translation id="934503638756687833">ಅಗತ್ಯವಿದ್ದರೆ, ಇಲ್ಲಿ ಪಟ್ಟಿ ಮಾಡಿರದ ಐಟಂಗಳನ್ನು ಸಹ ತೆಗೆದುಹಾಕಲಾಗುತ್ತದೆ. &lt;a href="<ph name="URL" />"&gt;ಅನಪೇಕ್ಷಿತ ಸಾಫ್ಟ್‌ವೇರ್‌ನಿಂದ ಸಂರಕ್ಷಣೆ&lt;/a&gt; ಕುರಿತು Chrome ಗೌಪ್ಯತೆ ಬಿಳಿ ಹಾಳೆಯಲ್ಲಿ ಇನ್ನಷ್ಟು ತಿಳಿಯಿರಿ.</translation>

@@ -123,7 +123,7 @@
 <translation id="1177138678118607465">శోధన, ప్రకటనలు మరియు ఇతర Google సేవలను వ్యక్తిగతీకరించడం కోసం Google మీ బ్రౌజింగ్ చరిత్రను ఉపయోగించవచ్చు. మీరు ఏ సమయంలో అయినా myaccount.google.com/activitycontrols/searchలో దీనిని మార్చవచ్చు</translation>
 <translation id="1177863135347784049">అనుకూలీకరించిన</translation>
 <translation id="1178581264944972037">పాజ్ చేయి</translation>
-<translation id="1181037720776840403">తీసివేయి</translation>
+<translation id="1181037720776840403">తొలగించు</translation>
 <translation id="1183237619868651138">స్థానిక కాష్‌లో <ph name="EXTERNAL_CRX_FILE" />ని ఇన్‌స్టాల్ చేయడం సాధ్యపడదు.</translation>
 <translation id="1185924365081634987">మీరు ఈ నెట్‌వర్క్ లోపాన్ని పరిష్కరించడానికి <ph name="GUEST_SIGNIN_LINK_START" />అతిథిగా బ్రౌజ్ చేయడాన్ని<ph name="GUEST_SIGNIN_LINK_END" /> కూడా ప్రయత్నించవచ్చు.</translation>
 <translation id="1186771945450942097">హానికరమైన సాఫ్ట్‌వేర్‌ని తీసివేయండి</translation>
@@ -268,7 +268,6 @@
 <translation id="1396963298126346194">మీరు నమోదు చేసిన వినియోగదారు పేరు మరియు పాస్‌వర్డ్ సరిపోలలేదు</translation>
 <translation id="1397854323885047133">సమకాలీకరణ మరియు వ్యక్తిగతీకరణ</translation>
 <translation id="1398853756734560583">గరిష్ఠీకరించు</translation>
-<translation id="1399511500114202393">వినియోగదారు సర్టిఫికెట్ లేదు</translation>
 <translation id="140250605646987970">మీ ఫోన్ కనుగొనబడింది. కానీ Smart Lock Android 5.0 మరియు తదుపరి సంస్కరణ ఉన్న పరికరాల్లో మాత్రమే పని చేస్తుంది. &lt;a&gt;మరింత తెలుసుకోండి&lt;/a&gt;</translation>
 <translation id="140520891692800925"><ph name="PROFILE_DISPLAY_NAME" /> (పర్యవేక్షించబడేవారు)</translation>
 <translation id="1405476660552109915">ఈ సైట్ కోసం మీ ఖాతాను <ph name="PASSWORD_MANAGER_BRAND" /> సేవ్ చేయాలని మీరు కోరుకుంటున్నారా?</translation>
@@ -2087,7 +2086,7 @@
 <translation id="4140559601186535628">పుష్ సందేశాలు</translation>
 <translation id="4146026355784316281">ఎల్లప్పుడూ సిస్టమ్ వ్యూయర్‌తో తెరువు</translation>
 <translation id="4146785383423576110">రీసెట్ చేసి హానికరమైన వాటిని తీసివేయండి</translation>
-<translation id="4150201353443180367">డిస్‌ప్లే</translation>
+<translation id="4150201353443180367">ప్రదర్శన</translation>
 <translation id="4152670763139331043">{NUM_TABS,plural, =1{1 ట్యాబ్}other{# ట్యాబ్‌లు}}</translation>
 <translation id="4154664944169082762">వేలిముద్రలు</translation>
 <translation id="4157869833395312646">Microsoft Server Gated Cryptography</translation>
@@ -3463,7 +3462,7 @@
 <translation id="6317369057005134371">అనువర్తన విండో కోసం వేచి ఉంది...</translation>
 <translation id="6318407754858604988">డౌన్‌లోడ్ ప్రారంభించబడింది</translation>
 <translation id="6325191661371220117">స్వీయ-ప్రారంభాన్ని నిలిపివేయి</translation>
-<translation id="6326175484149238433">Chrome నుండి తీసివేయండి</translation>
+<translation id="6326175484149238433">Chrome నుండి తీసివేయి</translation>
 <translation id="6326855256003666642">సక్రియ కార్యాచరణల గణన</translation>
 <translation id="632744581670418035">కీబోర్డ్ అతివ్యాప్తి</translation>
 <translation id="6327785803543103246">వెబ్ ప్రాక్సీ స్వీయశోధన</translation>

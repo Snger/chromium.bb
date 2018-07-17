@@ -1281,7 +1281,7 @@
 <translation id="2916745397441987255">بحث في الإضافات</translation>
 <translation id="2921081876747860777">يُرجى إنشاء كلمة مرور لحماية بياناتك المحلية.</translation>
 <translation id="2925966894897775835">جداول البيانات</translation>
-<translation id="2927017729816812676">سعة التخزين لذاكرة التخزين المؤقت</translation>
+<translation id="2927017729816812676">السعة التخزينية لذاكرة التخزين المؤقت</translation>
 <translation id="2932330436172705843"><ph name="PROFILE_DISPLAY_NAME" /> (حساب للأطفال)</translation>
 <translation id="2932483646085333864">الخروج ثم إعادة تسجيل الدخول لبدء المزامنة</translation>
 <translation id="2932883381142163287">الإبلاغ عن إساءة الاستخدام</translation>
@@ -2202,7 +2202,7 @@
 <translation id="4375035964737468845">فتح الملفات التي تم تنزيلها</translation>
 <translation id="4377039040362059580">المظاهر والخلفيات</translation>
 <translation id="4377363674125277448">هناك مشكلة مع شهادة الخادم.</translation>
-<translation id="4378154925671717803">هاتف</translation>
+<translation id="4378154925671717803">الهاتف</translation>
 <translation id="4378551569595875038">جارٍ الاتصال...</translation>
 <translation id="4378556263712303865">طلب الجهاز</translation>
 <translation id="4384312707950789900">إضافة إلى الشبكات المُفضلة</translation>
@@ -2300,7 +2300,7 @@
 <translation id="4552031286893852992">‏حظَر Chrome الإعلانات على هذا الموقع لأن هذا الموقع يميل إلى عرض إعلانات متداخلة.</translation>
 <translation id="4552089082226364758">الفلاش</translation>
 <translation id="4552495056028768700">الوصول إلى الصفحة</translation>
-<translation id="4552678318981539154">شراء المزيد من سعة التخزين</translation>
+<translation id="4552678318981539154">شراء المزيد من السعة التخزينية</translation>
 <translation id="4554591392113183336">الإضافة الخارجية في نفس الإصدار أو إصدار أقل مقارنة بالموجودة حاليًا.</translation>
 <translation id="4555769855065597957">ظل</translation>
 <translation id="4555979468244469039">‏اسم جهاز Chromebook</translation>
@@ -3960,7 +3960,7 @@
 <translation id="7099337801055912064">‏يتعذّر تحميل ملف PPD كبير الحجم. الحد الأقصى للحجم هو 250 كيلوبايت.</translation>
 <translation id="7100897339030255923"><ph name="COUNT" /> من العناصر المحددة</translation>
 <translation id="7102687220333134671">تم تشغيل التحديثات التلقائية</translation>
-<translation id="7106346894903675391">شراء المزيد من سعة التخزين...</translation>
+<translation id="7106346894903675391">شراء المزيد من السعة التخزينية...</translation>
 <translation id="7108338896283013870">إخفاء</translation>
 <translation id="7108634116785509031">يريد <ph name="HOST" /> استخدام الكاميرا.</translation>
 <translation id="7108668606237948702">إدخال</translation>

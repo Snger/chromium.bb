@@ -14,7 +14,7 @@
 <translation id="1016566241875885511">Informació addicional (opcional)</translation>
 <translation id="1017280919048282932">&amp;Afegeix al diccionari</translation>
 <translation id="1018656279737460067">S'ha cancel·lat</translation>
-<translation id="102272308210570439">Permet que l'Assistent utilitzi el que es mostra a la pantalla</translation>
+<translation id="102272308210570439">Permet que l'Assistent utilitzi el contingut de la pantalla</translation>
 <translation id="1026822031284433028">Carrega la imatge</translation>
 <translation id="1029317248976101138">Zoom</translation>
 <translation id="1030706264415084469"><ph name="URL" /> vol emmagatzemar una gran quantitat de dades al dispositiu de manera permanent</translation>
@@ -1422,7 +1422,7 @@ Per obtenir més informació sobre els usuaris supervisats, consulteu el <ph nam
 <translation id="3129140854689651517">Cerca el text</translation>
 <translation id="3129173833825111527">Marge esquerre</translation>
 <translation id="3130528281680948470">El dispositiu es restablirà i tots els comptes d'usuari i les dades del dispositiu s'eliminaran. Aquesta acció no es pot desfer.</translation>
-<translation id="313205617302240621">Has oblidat la contrasenya?</translation>
+<translation id="313205617302240621">Heu oblidat la contrasenya?</translation>
 <translation id="3135204511829026971">Gira la pantalla</translation>
 <translation id="313963229645891001">S'està baixant, <ph name="STATUS" /></translation>
 <translation id="3139925690611372679">Avatar groc predeterminat</translation>
@@ -1573,7 +1573,7 @@ Per obtenir més informació sobre els usuaris supervisats, consulteu el <ph nam
 <translation id="3368922792935385530">Connectat</translation>
 <translation id="3369624026883419694">Resolent l'amfitrió...</translation>
 <translation id="337286756654493126">Llegir carpetes que s'obrin a l'aplicació</translation>
-<translation id="3378503599595235699">Desa les dades locals només fins que surtis del navegador</translation>
+<translation id="3378503599595235699">Desa les dades locals només fins que surti del navegador</translation>
 <translation id="3378572629723696641">És possible que aquesta extensió estigui malmesa.</translation>
 <translation id="3378630551672149129">Inicieu la sessió i premeu la tecla de tabulació per interaccionar amb els elements d'entrada</translation>
 <translation id="337920581046691015">S'instal·larà <ph name="PRODUCT_NAME" />.</translation>
@@ -1790,7 +1790,7 @@ Per obtenir més informació sobre els usuaris supervisats, consulteu el <ph nam
 <translation id="3691267899302886494"><ph name="HOST" /> vol compartir la teva pantalla</translation>
 <translation id="3693415264595406141">Contrasenya:</translation>
 <translation id="3694027410380121301">Selecciona la pestanya anterior</translation>
-<translation id="3697100740575341996">L'administrador de TI ha desactivat els productes extra de Chrome per al dispositiu. <ph name="MORE_INFO_LINK" /></translation>
+<translation id="3697100740575341996">L'administrador de TI ha desactivat Chrome Goodies per al vostre dispositiu. <ph name="MORE_INFO_LINK" /></translation>
 <translation id="3699624789011381381">Adreça electrònica</translation>
 <translation id="3700888195348409686">S'està presentant (<ph name="PAGE_ORIGIN" />)</translation>
 <translation id="3702500414347826004">Les pàgines d'inici han canviat per incloure <ph name="URL" />.</translation>
@@ -2151,7 +2151,7 @@ Per obtenir més informació sobre els usuaris supervisats, consulteu el <ph nam
 <translation id="4270393598798225102">Versió <ph name="NUMBER" /></translation>
 <translation id="4271396100647220620">Cap coincidència</translation>
 <translation id="4275830172053184480">Reinici del dispositiu</translation>
-<translation id="4278390842282768270">Permès</translation>
+<translation id="4278390842282768270">Permeses</translation>
 <translation id="4280864916190672950">Atura la càrrega</translation>
 <translation id="4281844954008187215">Termes i condicions</translation>
 <translation id="4282196459431406533">Smart Lock està activat</translation>
@@ -3018,7 +3018,7 @@ Per obtenir més informació sobre els usuaris supervisats, consulteu el <ph nam
 <translation id="5618972959246891967">Data del sistema</translation>
 <translation id="56197088284879152">La connexió es congestiona al dispositiu remot <ph name="DEVICE_NAME" />.</translation>
 <translation id="5620568081365989559">DevTools sol·licita accés complet a <ph name="FOLDER_PATH" />.
-Assegureu-vos que no es pugui accedir a informació sensible.</translation>
+Assegureu-vos que no es pugui accedir a informació confidencial.</translation>
 <translation id="5620612546311710611">estadístiques d'ús</translation>
 <translation id="5620655347161642930">Exporta les contrasenyes...</translation>
 <translation id="5623842676595125836">Registre</translation>
@@ -4604,7 +4604,7 @@ Deseu el fitxer de clau en una ubicació segura. El necessitareu per crear versi
 <translation id="8086015605808120405">S'està configurant <ph name="PRINTER_NAME" />…</translation>
 <translation id="8090234456044969073">Llegir una llista dels llocs web més visitats</translation>
 <translation id="8093359998839330381"><ph name="PLUGIN_NAME" /> no respon</translation>
-<translation id="8093832608898425674"><ph name="DOMAIN" /> vol que Google verifiqui la identitat del dispositiu per determinar si s'hi pot utilitzar la reproducció millorada de contingut protegit. <ph name="LEARN_MORE" />.</translation>
+<translation id="8093832608898425674"><ph name="DOMAIN" /> vol que Google verifiqui la identitat del teu dispositiu per determinar si compleixes els requisits per a la reproducció millorada de contingut protegit. <ph name="LEARN_MORE" />.</translation>
 <translation id="80974698889265265">Els PIN no coincideixen</translation>
 <translation id="8101987792947961127">Es requereix Powerwash la propera vegada que es reiniciï</translation>
 <translation id="8102535138653976669"><ph name="PRODUCT_NAME" /> sincronitza les vostres dades de manera segura amb el vostre compte de Google. Manteniu-ho tot sincronitzat o personalitzeu els tipus de dades que se sincronitzaran i les opcions d'encriptació.</translation>

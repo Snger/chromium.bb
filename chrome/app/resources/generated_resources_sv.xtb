@@ -25,7 +25,7 @@
 <translation id="1035590878859356651">Lägg till ett bokmärke för denna sida…</translation>
 <translation id="1036348656032585052">Inaktivera</translation>
 <translation id="1036511912703768636">Komma åt någon av dessa USB-enheter</translation>
-<translation id="1036982837258183574">Tryck på |<ph name="ACCELERATOR" />| för att stänga helskärmen</translation>
+<translation id="1036982837258183574">Tryck på |<ph name="ACCELERATOR" />| om du vill stänga helskärmen</translation>
 <translation id="1038168778161626396">Endast chiffrering</translation>
 <translation id="1039337018183941703">Ogiltig eller skadad fil</translation>
 <translation id="1042174272890264476">Datorn har även RLZ-biblioteket för <ph name="SHORT_PRODUCT_NAME" /> inbyggt. RLZ tilldelar en icke-unik, icke-personligt identifierbar tagg för att mäta antalet sökningar och användningen av <ph name="SHORT_PRODUCT_NAME" /> som drivs av en viss reklamkampanj. Dessa etiketter visas ibland vid sökningar på Google i <ph name="PRODUCT_NAME" />.</translation>
@@ -2205,7 +2205,7 @@ Besök vårt <ph name="BEGIN_LINK" />hjälpcenter<ph name="END_LINK" /> om du vi
 <translation id="4375035964737468845">Öppna nedladdade filer</translation>
 <translation id="4377039040362059580">Teman och bakgrunder</translation>
 <translation id="4377363674125277448">Det fanns ett problem i serverns certifikat.</translation>
-<translation id="4378154925671717803">Mobil</translation>
+<translation id="4378154925671717803">Telefon</translation>
 <translation id="4378551569595875038">Ansluter ...</translation>
 <translation id="4378556263712303865">Enhetsrekvirering</translation>
 <translation id="4384312707950789900">Lägg till i prioriterade nätverk</translation>
@@ -4103,7 +4103,7 @@ Besök vårt <ph name="BEGIN_LINK" />hjälpcenter<ph name="END_LINK" /> om du vi
 <translation id="7328867076235380839">Ogiltig kombination</translation>
 <translation id="7329154610228416156">Inloggningen misslyckades eftersom den har konfigurerats att använda en webbadress som inte är säker (<ph name="BLOCKED_URL" />). Kontakta administratören.</translation>
 <translation id="7334190995941642545">Smart Lock är för närvarande inte tillgängligt. Försök igen senare.</translation>
-<translation id="7334274148831027933">Aktivera dockad skärmförstoring</translation>
+<translation id="7334274148831027933">Aktivera dockad skärmförstorare</translation>
 <translation id="7339763383339757376">PKCS #7, enstaka certifikat</translation>
 <translation id="7339785458027436441">Kontrollera stavning medan jag skriver</translation>
 <translation id="7339898014177206373">Nytt fönster</translation>
@@ -4485,7 +4485,7 @@ När du installerar <ph name="APP_NAME" /> laddas <ph name="DOWNLOAD_SIZE" /> da
 <translation id="7912080627461681647">Lösenordet har ändrats på servern. Logga ut och logga sedan in igen.</translation>
 <translation id="7912883689016444961">Konfigurera mobilnätverk</translation>
 <translation id="7915471803647590281">Berätta för oss vad som händer innan du skickar feedback.</translation>
-<translation id="792514962475806987">Zoomnivå för dockad skärmförstoring</translation>
+<translation id="792514962475806987">Zoomnivå för dockad skärmförstorare</translation>
 <translation id="7925247922861151263">Kontroll med AAA misslyckades</translation>
 <translation id="7925285046818567682">Väntar på <ph name="HOST_NAME" />...</translation>
 <translation id="7925686952655276919">Använd inte mobildata för synkronisering</translation>

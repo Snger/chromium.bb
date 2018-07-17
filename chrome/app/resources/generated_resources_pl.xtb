@@ -2051,7 +2051,7 @@ Więcej informacji znajduje się w naszym <ph name="BEGIN_LINK" />Centrum pomocy
 <translation id="4087089424473531098">Utworzono rozszerzenie:
 
 <ph name="EXTENSION_FILE" /></translation>
-<translation id="4087470595660267445">Instaluj gry i aplikacje z Google Play na Chromebooku. &lt;a target="_blank" href="<ph name="URL" />"&gt;Więcej informacji&lt;/a&gt;</translation>
+<translation id="4087470595660267445">Instaluj aplikacje i gry z Google Play na Chromebooku. &lt;a target="_blank" href="<ph name="URL" />"&gt;Więcej informacji&lt;/a&gt;</translation>
 <translation id="4088095054444612037">Zaakceptuj dla grupy</translation>
 <translation id="4089235344645910861">Ustawienia zapisane. Synchronizacja rozpoczęta.</translation>
 <translation id="4090103403438682346">Włącz weryfikację dostępu</translation>
@@ -3760,7 +3760,7 @@ Więcej informacji znajduje się w naszym <ph name="BEGIN_LINK" />Centrum pomocy
 <translation id="6780439250949340171">zarządzać innymi ustawieniami</translation>
 <translation id="6782111308708962316">Nie pozwalaj witrynom innych firm zapisywać ani odczytywać danych z plików cookie</translation>
 <translation id="6786747875388722282">Rozszerzenia</translation>
-<translation id="6787839852456839824">Skróty klawiszowe</translation>
+<translation id="6787839852456839824">Skróty klawiaturowe</translation>
 <translation id="6788210894632713004">Rozszerzenie bez pakietu</translation>
 <translation id="6790428901817661496">Odtwórz</translation>
 <translation id="6790497603648687708">Dodano zdalnie: <ph name="EXTENSION_NAME" /></translation>
@@ -5273,7 +5273,7 @@ Osoby z wolnym połączeniem mogą nie zobaczyć treści, które przesyłasz.</
 <translation id="9158715103698450907">Ups! Podczas uwierzytelniania wystąpił problem z komunikacją sieciową. Sprawdź połączenie z siecią i spróbuj ponownie.</translation>
 <translation id="9161070040817969420">Ramki podrzędne dla <ph name="PARENT_SITE" /></translation>
 <translation id="916501514001398070">Wysyłanie danych systemowych. Obecnie to urządzenie automatycznie wysyła do Google dane diagnostyczne oraz dotyczące używania urządzenia i aplikacji. To ustawienie jest wybierane przez właściciela urządzenia. Jeśli masz włączoną dodatkowo Aktywność w internecie i aplikacjach, dane te będą zapisywane na Twoim koncie, co umożliwi Ci zarządzanie nimi na stronie Moja aktywność. <ph name="BEGIN_LINK1" />Więcej informacji<ph name="END_LINK1" /></translation>
-<translation id="9169496697824289689">Pokaż skróty klawiszowe</translation>
+<translation id="9169496697824289689">Pokaż skróty klawiaturowe</translation>
 <translation id="9169931577761441333">Dodaj aplikację <ph name="APP_NAME" /> do ekranu głównego</translation>
 <translation id="9170397650136757332">Teraz powoli przesuń palec, by dokładnie zeskanować linie papilarne</translation>
 <translation id="9170848237812810038">&amp;Cofnij</translation>
