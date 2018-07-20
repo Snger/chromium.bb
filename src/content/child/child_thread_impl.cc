@@ -613,9 +613,14 @@ void ChildThreadImpl::Init(const Options& options) {
         *base::CommandLine::ForCurrentProcess());
   }
 
-#if defined(OS_WIN)
-  UpdateDWriteFontProxySender(thread_safe_sender());
-#endif
+// The original intent of UpdateDWriteFontProxySender is to support OffScreenCanvas
+// In single process mode, gpu is running as a background thread. 
+// The main thread overrides font ipc sender first and then gpu thread overrides the font ipc sender again. 
+// It results in wrong IPC sender for the render to get the font.
+// It is safe to remove UpdateDWriteFontProxySender because we don't use OffScreenCanvas.
+// #if defined(OS_WIN)
+//   UpdateDWriteFontProxySender(thread_safe_sender());
+// #endif  
 }
 
 ChildThreadImpl::~ChildThreadImpl() {
