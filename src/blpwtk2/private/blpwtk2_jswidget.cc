@@ -130,7 +130,7 @@ void JsWidget::UpdateVisibility(bool isVisible)
     detailObj->Set(v8::String::NewFromUtf8(isolate, "isVisible"), v8::Boolean::New(isolate, isVisible));
 
     blink::WebDOMEvent event = blink::WebDOMEvent::CreateCustomEvent(isolate, "bbOnUpdateVisibility", false, false,
-                                                                     v8::Local<v8::Value>{});
+                                                                     detailObj);
     DispatchEvent(event);
 }
 
