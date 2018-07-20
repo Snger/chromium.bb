@@ -130,7 +130,7 @@ size_t EmbedderHeapTracerShim::NumberOfWrappersToTrace()
 }
 
 inline
-void EmbedderHeapTracerShim::TraceEpilogue
+void EmbedderHeapTracerShim::TraceEpilogue()
 {
     d_tracer_p->TraceEpilogue();
 }
