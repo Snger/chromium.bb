@@ -26,13 +26,17 @@
 #include <blpwtk2_config.h>
 
 #include <blpwtk2_contentmaindelegateimpl.h>
+#include <blpwtk2_embedderheaptracer.h>
+#include <blpwtk2_embedderheaptracershim.h>
 #include <blpwtk2_toolkit.h>
 
 #include <mojo/public/cpp/bindings/sync_call_restrictions.h>
 #include <sandbox/win/src/sandbox_types.h>
 #include "base/metrics/field_trial.h"
 
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace base {
@@ -69,7 +73,7 @@ class ToolkitImpl : public Toolkit {
     ContentMainDelegateImpl d_mainDelegate;
     std::unique_ptr<content::ContentMainRunner> d_mainRunner;
     MainMessagePump *d_messagePump;
-	std::unique_ptr<base::FieldTrialList> field_trial_list;
+    std::unique_ptr<base::FieldTrialList> field_trial_list;
 
     std::unique_ptr<BrowserThread> d_browserThread;
         // Only used for the RENDERER_MAIN thread mode and when an external
@@ -85,6 +89,9 @@ class ToolkitImpl : public Toolkit {
         // host process is unavailable.  This object lifts the "disable sync
         // call" restriction placed by the browser code so the renderer can
         // freely make sync calls.
+
+    std::unordered_map<int, std::unique_ptr<EmbedderHeapTracerShim>> d_heapTracers;
+        // Registered heap tracers.
 
     ~ToolkitImpl() override;
         // Shutdown all threads and delete the toolkit.  To ensure the same
@@ -139,7 +146,7 @@ class ToolkitImpl : public Toolkit {
     void addOriginToTrustworthyList(const StringRef& originString) override;
     void setWebViewHostObserver(WebViewHostObserver* observer) override;
     void setTraceThreshold(unsigned int timeoutMS) override;
-    int addV8HeapTracer(v8::EmbedderHeapTracer *tracer) override;
+    int addV8HeapTracer(EmbedderHeapTracer *tracer) override;
     void removeV8HeapTracer(int embedder_id) override;
 };
 

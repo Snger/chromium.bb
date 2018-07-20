@@ -71,6 +71,9 @@
 #include <third_party/WebKit/public/web/WebScriptBindings.h>
 #include <gin/public/multi_heap_tracer.h>
 
+#include <tuple>
+#include <utility>
+
 namespace blpwtk2 {
 
 static ToolkitImpl *g_instance;
@@ -680,16 +683,34 @@ void ToolkitImpl::setTraceThreshold(unsigned int timeoutMS)
     d_messagePump->setTraceThreshold(timeoutMS);
 }
 
-int ToolkitImpl::addV8HeapTracer(v8::EmbedderHeapTracer *tracer)
+int ToolkitImpl::addV8HeapTracer(EmbedderHeapTracer *tracer)
 {
     auto *multiHeapTracer = gin::MultiHeapTracer::From(v8::Isolate::GetCurrent());
-    return multiHeapTracer->AddHeapTracer(tracer);
+
+    // We wrap the specified 'tracer' in an 'EmbedderHeapTracerShim' to avoid
+    // passing C++ objects across dll boundaries.
+
+    auto tracerShim = std::make_unique<EmbedderHeapTracerShim>(tracer);
+
+    const int embedder_id = multiHeapTracer->AddHeapTracer(tracerShim.get());
+
+    DCHECK(0 == d_heapTracers.count(embedder_id));
+
+    d_heapTracers.emplace(std::piecewise_construct,
+                          std::forward_as_tuple(embedder_id),
+                          std::forward_as_tuple(std::move(tracerShim)));
+
+    return embedder_id;
 }
 
 void ToolkitImpl::removeV8HeapTracer(int embedder_id)
 {
     auto *multiHeapTracer = gin::MultiHeapTracer::From(v8::Isolate::GetCurrent());
     multiHeapTracer->RemoveHeapTracer(embedder_id);
+
+    DCHECK(1 == d_heapTracers.count(embedder_id));
+
+    d_heapTracers.erase(embedder_id);
 }
 
 }  // close namespace blpwtk2
