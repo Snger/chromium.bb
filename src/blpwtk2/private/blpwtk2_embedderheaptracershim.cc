@@ -24,6 +24,8 @@
 
 #include <cstdlib>
 
+namespace blpwtk2 {
+
                         // ----------------------------
                         // class EmbedderHeapTracerShim
                         // ----------------------------
@@ -60,10 +62,13 @@ void EmbedderHeapTracerShim::RegisterV8References(
 
     void *(*fields)[2] = static_cast<void *(*)[2]>(d_fields_p);
 
-    for (std::size_t index = 0; index < length; ++index) {
+    for (std::size_t index = 0; index < fieldsSize; ++index) {
         fields[index][0] = embedder_fields[index].first;
         fields[index][1] = embedder_fields[index].second;
     }
 
     d_tracer_p->RegisterV8References(fields, fieldsSize);
 }
+
+}  // close blpwtk2 namespace
+
