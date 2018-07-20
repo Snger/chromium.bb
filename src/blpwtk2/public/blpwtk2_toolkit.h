@@ -88,6 +88,7 @@
 
 namespace blpwtk2 {
 
+class EmbedderHeapTracer;
 class Profile;
 class String;
 class StringRef;
@@ -190,7 +191,7 @@ class Toolkit {
         // If non-zero, defines the time threshold for enabling trace
         // (in milliseconds)
 
-    virtual int addV8HeapTracer(v8::EmbedderHeapTracer *tracer) = 0;
+    virtual int addV8HeapTracer(EmbedderHeapTracer *tracer) = 0;
         // Registers an embedder heap tracer with the multi heap tracer.
         // Once an embedder heap is registered, it will be notified of all
         // references during GC.  The embedder is expected to ignore any
