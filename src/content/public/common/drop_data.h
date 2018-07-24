@@ -43,7 +43,7 @@ struct CONTENT_EXPORT DropData {
     LAST = FILESYSTEMFILE
   };
 
-  struct Metadata {
+  struct CONTENT_EXPORT Metadata {
     Metadata();
     static Metadata CreateForMimeType(const Kind& kind,
                                       const base::string16& mime_type);

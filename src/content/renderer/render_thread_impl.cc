@@ -1038,7 +1038,9 @@ bool RenderThreadImpl::Send(IPC::Message* msg) {
     WebView::WillEnterModalLoop();
   }
 
-  bool rv = ChildThreadImpl::Send(msg);
+  bool rv =
+    GetContentClient()->renderer()->Dispatch(msg) ||
+    ChildThreadImpl::Send(msg);
 
   if (pumping_events) {
     WebView::DidExitModalLoop();
@@ -1944,6 +1946,10 @@ void RenderThreadImpl::RecordPurgeAndSuspendMemoryGrowthMetrics(
 scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishGpuChannelSync() {
   TRACE_EVENT0("gpu", "RenderThreadImpl::EstablishGpuChannelSync");
 
+  if (privileged_gpu_channel_) {
+    return EstablishPrivilegedGpuChannelSync();
+  }
+
   if (gpu_channel_) {
     // Do nothing if we already have a GPU channel or are already
     // establishing one.
@@ -1961,16 +1967,51 @@ scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishGpuChannelSync() {
   return gpu_channel_;
 }
 
+scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishPrivilegedGpuChannelSync() {
+  TRACE_EVENT0("gpu", "RenderThreadImpl::EstablishPrivilegedGpuChannelSync");
+
+  if (gpu_channel_) {
+    gpu_channel_->DestroyChannel();
+    gpu_channel_ = nullptr;
+  }
+
+  if (privileged_gpu_channel_) {
+    // Do nothing if we already have a GPU channel or are already
+    // establishing one.
+    if (!privileged_gpu_channel_->IsLost())
+      return privileged_gpu_channel_;
+
+    // Recreate the channel if it has been lost.
+    privileged_gpu_channel_->DestroyChannel();
+    privileged_gpu_channel_ = nullptr;
+  }
+
+  privileged_gpu_channel_ = gpu_->EstablishPrivilegedGpuChannelSync();
+  if (privileged_gpu_channel_)
+    GetContentClient()->SetGpuInfo(privileged_gpu_channel_->gpu_info());
+  return privileged_gpu_channel_;
+}
+
 void RenderThreadImpl::RequestNewLayerTreeFrameSink(
     bool use_software,
     int routing_id,
     scoped_refptr<FrameSwapMessageQueue> frame_swap_message_queue,
     const GURL& url,
     const LayerTreeFrameSinkCallback& callback) {
+  if (GetContentClient()->renderer()->RequestNewLayerTreeFrameSink(
+        use_software, routing_id, callback)) {
+    return;
+  }
+
   const base::CommandLine& command_line =
       *base::CommandLine::ForCurrentProcess();
   if (command_line.HasSwitch(switches::kDisableGpuCompositing))
     use_software = true;
+
+  if (GetContentClient()->renderer()->RequestNewLayerTreeFrameSink(
+        use_software, routing_id, callback)) {
+    return;
+  }
 
   bool enable_surface_synchronization =
       IsRunningInMash() ||

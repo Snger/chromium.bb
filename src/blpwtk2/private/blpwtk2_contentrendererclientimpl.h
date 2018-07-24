@@ -83,6 +83,12 @@ class ContentRendererClientImpl : public content::ContentRendererClient
         // true, then |plugin| will contain the created plugin, although it
         // could be NULL. If it returns false, the content layer will create
         // the plugin.
+
+    bool Dispatch(IPC::Message *msg) override;
+
+    bool RequestNewLayerTreeFrameSink(
+        bool use_software, int routing_id,
+        const LayerTreeFrameSinkCallback& callback) override;
 };
 
 }  // close namespace blpwtk2

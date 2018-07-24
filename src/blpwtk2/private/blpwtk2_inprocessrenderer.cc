@@ -21,6 +21,7 @@
  */
 
 #include <blpwtk2_inprocessrenderer.h>
+#include <blpwtk2_rendercompositor.h>
 
 #include <blpwtk2_statics.h>
 
@@ -31,8 +32,15 @@
 #include <content/child/dwrite_font_proxy/dwrite_font_proxy_init_win.h>
 #include <third_party/WebKit/public/platform/WebRuntimeFeatures.h>
 #include <third_party/WebKit/public/web/win/WebFontRendering.h>
+#include <ui/base/win/scoped_ole_initializer.h>
 #include <ui/gfx/win/direct_write.h>
 #include <ui/display/win/dpi.h>
+
+namespace {
+
+std::unique_ptr<ui::ScopedOleInitializer> g_oleInitializer;
+
+}
 
 namespace blpwtk2 {
 
@@ -95,6 +103,8 @@ void InProcessRendererThread::Init()
 
 void InProcessRendererThread::CleanUp()
 {
+    RenderCompositorContext::Terminate();
+
     content::RenderThread::CleanUpInProcessRenderer();
     Statics::rendererMessageLoop = 0;
 }
@@ -156,6 +166,8 @@ void InProcessRenderer::init(
                                                 mojoHandle));
 
         DCHECK(Statics::rendererMessageLoop);
+
+        g_oleInitializer.reset(new ui::ScopedOleInitializer());
     }
 }
 
@@ -170,6 +182,10 @@ void InProcessRenderer::cleanup()
         g_inProcessRendererThread = 0;
     }
     else {
+        RenderCompositorContext::Terminate();
+
+        g_oleInitializer.reset();
+
         DCHECK(Statics::rendererMessageLoop);
         DCHECK(!g_inProcessRendererThread);
         content::RenderThread::CleanUpInProcessRenderer();

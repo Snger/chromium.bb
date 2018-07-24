@@ -1782,18 +1782,25 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
   WebContentsViewDelegate* delegate =
       GetContentClient()->browser()->GetWebContentsViewDelegate(this);
 
-  if (GuestMode::IsCrossProcessFrameGuest(this)) {
-    view_.reset(new WebContentsViewChildFrame(
-        this, delegate, &render_view_host_delegate_view_));
-  } else {
-    view_.reset(CreateWebContentsView(this, delegate,
-                                      &render_view_host_delegate_view_));
+  if (params.host && params.render_view_host_delegate_view) {
+    view_.reset(params.host);
+    render_view_host_delegate_view_ = params.render_view_host_delegate_view;
   }
 
-  if (browser_plugin_guest_ && !GuestMode::IsCrossProcessFrameGuest(this)) {
-    view_.reset(new WebContentsViewGuest(this, browser_plugin_guest_.get(),
-                                         std::move(view_),
-                                         &render_view_host_delegate_view_));
+  if (!view_) {
+    if (GuestMode::IsCrossProcessFrameGuest(this)) {
+      view_.reset(new WebContentsViewChildFrame(
+          this, delegate, &render_view_host_delegate_view_));
+    } else {
+      view_.reset(CreateWebContentsView(this, delegate,
+                                        &render_view_host_delegate_view_));
+    }
+
+    if (browser_plugin_guest_ && !GuestMode::IsCrossProcessFrameGuest(this)) {
+      view_.reset(new WebContentsViewGuest(this, browser_plugin_guest_.get(),
+                                           std::move(view_),
+                                           &render_view_host_delegate_view_));
+    }
   }
   CHECK(render_view_host_delegate_view_);
   CHECK(view_.get());

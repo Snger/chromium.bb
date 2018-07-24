@@ -28,6 +28,7 @@
 #include <blpwtk2_devtoolsmanagerdelegateimpl.h>
 #include <blpwtk2_nativeviewwidget.h>
 #include <blpwtk2_products.h>
+#include <blpwtk2_renderwebcontentsview.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
 #include <blpwtk2_webframeimpl.h>
@@ -87,6 +88,7 @@ WebViewImpl::WebViewImpl(WebViewDelegate          *delegate,
                          BrowserContextImpl       *browserContext,
                          int                       hostAffinity,
                          bool                      initiallyVisible,
+                         bool                      rendererUI,
                          const WebViewProperties&  properties)
     : d_delegate(delegate)
     , d_implClient(0)
@@ -102,6 +104,7 @@ WebViewImpl::WebViewImpl(WebViewDelegate          *delegate,
     , d_altDragRubberbandingEnabled(false)
     , d_lastNCHitTestResult(HTCLIENT)
     , d_hostId(hostAffinity)
+    , d_rendererUI(rendererUI)
 {
     DCHECK(Statics::isInBrowserMainThread());
     DCHECK(browserContext);
@@ -111,6 +114,13 @@ WebViewImpl::WebViewImpl(WebViewDelegate          *delegate,
 
     content::WebContents::CreateParams createParams(browserContext);
     createParams.render_process_affinity = hostAffinity;
+
+    if (rendererUI) {
+        auto web_contents_view = new RenderWebContentsView();
+        createParams.host = web_contents_view;
+        createParams.render_view_host_delegate_view = web_contents_view;
+    }
+
     d_webContents.reset(content::WebContents::Create(createParams));
     d_webContents->SetDelegate(this);
     Observe(d_webContents.get());
@@ -356,7 +366,7 @@ void WebViewImpl::loadInspector(unsigned int pid, int routingId)
                                                      inspectedContents));
 
             GURL url = GetDevToolsFrontendURL();
-            loadUrl(url.spec());           
+            loadUrl(url.spec());
             LOG(INFO) << "Loaded devtools for routing id: " << routingId;
             return;
         }
@@ -404,7 +414,7 @@ int WebViewImpl::reload()
     DCHECK(!d_wasDestroyed);
 
     // TODO: do we want to make this an argument
-    const bool checkForRepost = false; 
+    const bool checkForRepost = false;
 
     d_webContents->GetController().Reload(content::ReloadType::NORMAL, checkForRepost);
     return 0;
@@ -445,7 +455,8 @@ void WebViewImpl::show()
     if (!d_widget) {
         createWidget(ui::GetHiddenWindow());
     }
-    d_widget->show();
+    if (d_widget)
+        d_widget->show();
 }
 
 void WebViewImpl::hide()
@@ -455,7 +466,8 @@ void WebViewImpl::hide()
     if (!d_widget) {
         createWidget(ui::GetHiddenWindow());
     }
-    d_widget->hide();
+    if (d_widget)
+        d_widget->hide();
 }
 
 void WebViewImpl::setParent(NativeView parent)
@@ -482,7 +494,9 @@ void WebViewImpl::move(int left, int top, int width, int height)
     if (!d_widget) {
         createWidget(ui::GetHiddenWindow());
     }
-    d_widget->move(left, top, width, height);
+
+    if (d_widget)
+        d_widget->move(left, top, width, height);
 }
 
 void WebViewImpl::cutSelection()
@@ -632,7 +646,7 @@ void WebViewImpl::rootWindowPositionChanged()
     content::RenderWidgetHostViewBase *rwhv =
         static_cast<content::RenderWidgetHostViewBase*>(
             d_webContents->GetRenderWidgetHostView());
-    if (rwhv)
+    if (rwhv && !d_rendererUI)
         rwhv->UpdateScreenInfo(rwhv->GetNativeView());
 }
 
@@ -643,7 +657,7 @@ void WebViewImpl::rootWindowSettingsChanged()
     content::RenderWidgetHostViewBase *rwhv =
         static_cast<content::RenderWidgetHostViewBase*>(
             d_webContents->GetRenderWidgetHostView());
-    if (rwhv)
+    if (rwhv && !d_rendererUI)
         rwhv->UpdateScreenInfo(rwhv->GetNativeView());
 }
 
@@ -662,6 +676,10 @@ void WebViewImpl::createWidget(blpwtk2::NativeView parent)
 {
     DCHECK(!d_widget);
     DCHECK(!d_wasDestroyed);
+
+    if (d_rendererUI) {
+        return;
+    }
 
     // This creates the HWND that will host the WebContents.  The widget
     // will be deleted when the HWND is destroyed.
@@ -850,7 +868,7 @@ aura::Window *WebViewImpl::GetDefaultActivationWindow()
 {
     DCHECK(Statics::isInBrowserMainThread());
     content::RenderWidgetHostView *rwhv = d_webContents->GetRenderWidgetHostView();
-    if (rwhv) {
+    if (rwhv && !d_rendererUI) {
         return rwhv->GetNativeView();
     }
     return nullptr;

@@ -23,6 +23,8 @@
 #include <blpwtk2_contentrendererclientimpl.h>
 #include <blpwtk2_inprocessresourceloaderbridge.h>
 #include <blpwtk2_jswidget.h>
+#include <blpwtk2_rendercompositor.h>
+#include <blpwtk2_rendermessagedelegate.h>
 #include <blpwtk2_renderviewobserverimpl.h>
 #include <blpwtk2_resourceloader.h>
 #include <blpwtk2_statics.h>
@@ -182,7 +184,27 @@ bool ContentRendererClientImpl::OverrideCreatePlugin(
     return true;
 }
 
+bool ContentRendererClientImpl::Dispatch(IPC::Message *msg)
+{
+    if (Statics::rendererUIEnabled &&
+        RenderMessageDelegate::GetInstance()->OnMessageReceived(*msg)) {
+        delete msg;
+        return true;
+    }
+
+    return false;
+}
+
+bool ContentRendererClientImpl::RequestNewLayerTreeFrameSink(
+    bool use_software, int routing_id,
+    const LayerTreeFrameSinkCallback& callback)
+{
+    if (Statics::rendererUIEnabled) {
+        return RenderCompositorContext::GetInstance()->RequestNewLayerTreeFrameSink(
+            use_software, routing_id, callback);
+    }
+
+    return false;
+}
+
 }  // close namespace blpwtk2
-
-// vim: ts=4 et
-
