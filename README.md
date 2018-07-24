@@ -5,13 +5,12 @@ all the modifications made by Bloomberg in order to use it in our environment.
 
 This repository serves a couple of purposes for us:
 
-* **Provide a trimmed snapshot of the Chromium tree**
-  A typical Chromium checkout is about 3GB and fetches code from several
-different repositories.  Most of that code is not used by Bloomberg (we only
-use the `content` portion of Chromium, and only for the Windows platform).
-
-  Our checkout is about 300MB, and this all comes from a single repo, which
-makes it much easier for us to use internally.
+* **Provide a single repository**
+  A typical Chromium checkout using gclient fetches code from multiple
+repositories.  Rather than maintaining multiple repositories for this project,
+we merge all sub-repositories as sub-trees under the root repository.  This
+allows us to keep the history from each repository into a self contained
+repository and also eliminates the need to run gclient for every checkout.
 
 * **Provide a space for us to make/publish changes**
   We have made a bunch of changes to different parts of Chromium in order to
@@ -37,50 +36,64 @@ development happens in one of the `bugfix/*` or `feature/*` branches.
 
 Each `bugfix/*` or `feature/*` branch is based on the `upstream/latest` branch,
 which contains a snapshot of the code we get from the upstream Chromium
-project.  (Note: The `upstream/latest` is not an *exact* copy of the upstream
-Chromium repo.  There are some minor modifications made to the build files and
-code, in order to aid and optimize our tree minimization process).
+project.
 
 The `release/candidate` branch contains changes that are scheduled to be
 included in the next release.
 
+## Cloning the repository
+
+By default, Git for Windows has a very small limit on the maximum filename
+length.  Some files in this repository exceed this 260 character limit so it's
+important to configure Git to allow long filenames.
+
+            git config --global core.longpaths true
+            git clone https://github.com/bloomberg/chromium.bb.git
+            git checkout master
+
+If you don't want to set this configuration at the global level, you can do
+the following instead:
+
+            git init
+            git config core.longpaths true
+            git remote add origin https://github.com/bloomberg/chromium.bb.git
+            git fetch origin master
+            git checkout master
 
 ## Build Instructions
 
-**Bloomberg Employees:** [Build steps](https://cms.prod.bloomberg.com/team/display/rfwk/WTK.howto.gn.build.blpwtk2)
+**Bloomberg Employees:** [Build steps](https://cms.prod.bloomberg.com/team/display/rwf/Maintenance+of+blpwtk2)
 
 If you are **not** a Bloomberg employee, the following instructions should still
 work:
 
+* Download the dependencies:
+    * [Python 2.7](https://www.python.org/downloads/release/python-2715/)
+    * Visual Studio 2015 Update 3
+    * Windows 10 SDK 10.0.14393
+    * [Depot Tools](https://storage.googleapis.com/chrome-infra/depot_tools.zip)
+
 * Setup your build environment:
-    * [Python 2.7](https://www.python.org/download/releases/2.7.6/)
-    * Visual Studio 2013 Update 4 (see [VS updates](https://support.microsoft.com/en-us/kb/2829760))
-    * [Ninja](https://github.com/martine/ninja)
+
+            export PATH="${DEPOT_TOOLS_PATH}:${PATH}"
+            export DEPOT_TOOLS_WIN_TOOLCHAIN=0
+
+  Please replace ${DEPOT_TOOLS_PATH} with the path to your depot_tools.
+
 * Run the following command from inside the top-level directory:
 
-            src/build/runhooks
+            cd src
+            build/runhooks.py
+            build/blpwtk2.py
 
-* You can build it either on the command-line or from Visual Studio.
-* If building from the command line:
+  This will generate the necessary ninja makefiles needed for the build.
 
-            ninja -C src/out/Debug     # for Debug builds
-            ninja -C src/out/Release   # for Release builds
+* Run the following commands to start the build:
 
-* If building from Visual Studio:
-    * **Note:** Even though you are using Visual Studio, it will internally
-      build using ninja.  The Visual Studio projects simply invoke ninja when
-      you build them.  *Pure* MSVC builds are **not supported**.  These Visual
-      Studio projects are useful only for browsing the code and debugging
-      (setting breakpoints etc).
-    * Open `src/blpwtk2/blpwtk2.sln`.  This solution file should be generated
-      from the previous step.
-    * Build the `blpwtk2_all` project.
-    * Now, you can either run the `content_shell` project or the
-      `blpwtk2_shell` project:
-        * The `content_shell` project is from the upstream Chromium project,
-          and uses the `content` layer directly.
-        * The `blpwtk2_shell` project is from our `feature/blpwtk2` branch, and
-          uses our `blpwtk2` integration layer.
+            ninja -C out/shared/Debug blpwtk2_all    # for component Debug builds
+            ninja -C out/shared/Release blpwtk2_all  # for component Release builds
+            ninja -C out/static/Debug blpwtk2_all    # for non-component Debug builds
+            ninja -C out/static/Release blpwtk2_all  # for non-component Release builds
 
 ---
 ###### Microsoft, Windows, Visual Studio and ClearType are registered trademarks of Microsoft Corp.
