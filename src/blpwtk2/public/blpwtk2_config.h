@@ -46,6 +46,7 @@
 // feature 1
 #define BLPWTK2_FEATURE_SCREENPRINT
 // feature 2
+#define BLPWTK2_FEATURE_PRINTPDF
 // feature 3
 #define BLPWTK2_FEATURE_CRTHANDLER
 // feature 4
