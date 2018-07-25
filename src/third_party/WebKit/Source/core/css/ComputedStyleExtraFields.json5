@@ -355,6 +355,15 @@
       field_group: "rare-inherited",
     },
     {
+      name: "LcdBackgroundColorSource",
+      inherited: true,
+      field_template: "keyword",
+      type_name: "LcdBackgroundColorSource",
+      default_value: "none",
+      keywords: ["none", "auto", "color"],
+      field_group: "rare-inherited",
+    },
+    {
       name: "VisitedLinkTextStrokeColorIsCurrentColor",
       inherited: true,
       field_template: "storage_only",

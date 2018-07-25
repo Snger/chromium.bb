@@ -207,6 +207,12 @@ public:
     bool erase(SkColor color) const { return this->erase(color, this->bounds()); }
     bool erase(const SkColor4f&, const SkIRect* subset = nullptr) const;
 
+    /**
+     * Returns the color that LCD text should be blended with when the background
+     * would otherwise be transparent.
+     */
+    SkColor defaultLCDBackgroundColor() const { return fInfo.defaultLCDBackgroundColor(); }
+
 private:
     const void*     fPixels;
     size_t          fRowBytes;

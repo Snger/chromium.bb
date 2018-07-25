@@ -3933,6 +3933,8 @@ const CSSValue* ComputedStyleCSSValueMapping::Get(
       return nullptr;
     case CSSPropertyAll:
       return nullptr;
+    case CSSPropertyBbLcdBackgroundColor:
+      return CurrentColorOrValidColor(style, style.LcdBackgroundColor());
     default:
       break;
   }

@@ -73,6 +73,10 @@ gfx::Rect WebContentLayerImpl::PaintableRegion() {
   return client_->PaintableRegion();
 }
 
+void WebContentLayerImpl::setDefaultLCDBackgroundColor(blink::WebColor default_lcd_background_color) {
+  static_cast<PictureLayer*>(layer_->layer())->SetDefaultLCDBackgroundColor(default_lcd_background_color);
+}
+
 scoped_refptr<cc::DisplayItemList>
 WebContentLayerImpl::PaintContentsToDisplayList(
     cc::ContentLayerClient::PaintingControlSetting painting_control) {

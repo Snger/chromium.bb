@@ -998,4 +998,56 @@ void StyleBuilderFunctions::applyValueCSSPropertyCaretColor(
   }
 }
 
+void StyleBuilderFunctions::applyInitialCSSPropertyBbLcdBackgroundColor(
+    StyleResolverState& state) {
+  state.Style()->SetLcdBackgroundColorSource(
+    ComputedStyle::InitialLcdBackgroundColorSource());
+  state.Style()->SetLcdBackgroundColor(
+    ComputedStyle::InitialLcdBackgroundColor());
+}
+
+void StyleBuilderFunctions::applyInheritCSSPropertyBbLcdBackgroundColor(
+    StyleResolverState& state) {
+  state.Style()->SetLcdBackgroundColorSource(
+    state.ParentStyle()->GetLcdBackgroundColorSource());
+  state.Style()->SetLcdBackgroundColor(
+    state.ParentStyle()->LcdBackgroundColor());
+}
+
+void StyleBuilderFunctions::applyValueCSSPropertyBbLcdBackgroundColor(
+    StyleResolverState& state, const CSSValue& value) {
+  if (value.IsIdentifierValue()) {
+      CSSValueID id = ToCSSIdentifierValue(value).GetValueID();
+
+      switch (id) {
+      case CSSValueNone:
+          state.Style()->SetLcdBackgroundColorSource(
+              LcdBackgroundColorSource::kNone);
+          state.Style()->SetLcdBackgroundColor(
+              Color::kTransparent);
+          return;
+      case CSSValueAuto:
+          state.Style()->SetLcdBackgroundColorSource(
+              LcdBackgroundColorSource::kAuto);
+          state.Style()->SetLcdBackgroundColor(
+              Color::kTransparent);
+          return;
+      default:
+          if (StyleColor::IsColorKeyword(id)) {
+              state.Style()->SetLcdBackgroundColorSource(
+                  LcdBackgroundColorSource::kColor);
+              state.Style()->SetLcdBackgroundColor(
+                  StyleBuilderConverter::ConvertColor(state, value));
+          }
+          return;
+      }
+  }
+  else if (value.IsColorValue()) {
+      state.Style()->SetLcdBackgroundColorSource(
+          LcdBackgroundColorSource::kColor);
+      state.Style()->SetLcdBackgroundColor(
+          StyleBuilderConverter::ConvertColor(state, value));
+  }
+}
+
 }  // namespace blink

@@ -104,6 +104,8 @@ class WebLayer {
 
   virtual void SetPosition(const WebFloatPoint&) = 0;
   virtual WebFloatPoint GetPosition() const = 0;
+  virtual void setOpaqueForLCDText(bool) = 0;
+  virtual bool opaqueForLCDText() const = 0;
 
   virtual void SetTransform(const SkMatrix44&) = 0;
   virtual SkMatrix44 Transform() const = 0;
