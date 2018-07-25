@@ -387,7 +387,7 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         // Mousewheel:
         case WM_MOUSEWHEEL:
         case WM_MOUSEHWHEEL: {
-#if 0
+#if defined(BLPWTK2_FEATURE_REROUTEMOUSEWHEEL)
             if (ui::RerouteMouseWheel(
                 d_hwnd.get(),
                 wParam, lParam,
