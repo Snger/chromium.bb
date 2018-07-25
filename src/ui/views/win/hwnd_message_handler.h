@@ -223,6 +223,10 @@ class VIEWS_EXPORT HWNDMessageHandler : public gfx::WindowImpl,
   }
   bool is_translucent() const { return is_translucent_; }
 
+  void set_reroute_mouse_wheel_to_any_related_window(bool reroute_mouse_wheel_to_any_related_window) {
+    reroute_mouse_wheel_to_any_related_window_ = reroute_mouse_wheel_to_any_related_window;
+  }
+
  private:
   typedef std::set<DWORD> TouchIDs;
   enum class DwmFrameState { OFF, ON };
@@ -791,6 +795,8 @@ class VIEWS_EXPORT HWNDMessageHandler : public gfx::WindowImpl,
 
   // The factory used with BEGIN_SAFE_MSG_MAP_EX.
   base::WeakPtrFactory<HWNDMessageHandler> weak_factory_;
+
+  bool reroute_mouse_wheel_to_any_related_window_;
 
   DISALLOW_COPY_AND_ASSIGN(HWNDMessageHandler);
 };
