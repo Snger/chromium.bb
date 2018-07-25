@@ -55,6 +55,7 @@ static_library("chrome_blpwtk2") {
   deps = [
      # required by //chrome/utility/printing_handler.cc
      "//components/printing/browser",
+     "//components/printing/renderer",
      "//components/signin/core/common:signin_features",
      "//components/safe_browsing/web_ui:constants",
      "//content",

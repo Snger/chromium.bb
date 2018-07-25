@@ -213,6 +213,9 @@ class WebView
                                                    v8::Local<v8::Value> *argv) = 0;
         // Call the specified V8 function with instrumentation
 
+    virtual String printToPDF(const StringRef& propertyName) = 0;
+        // TODO(imran)
+
   protected:
     virtual ~WebView();
         // Destroy this WebView.  Note that clients of blpwtk2 should use the
