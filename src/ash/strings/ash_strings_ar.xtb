@@ -26,11 +26,13 @@
 <translation id="1537254971476575106">مكبّر بملء الشاشة</translation>
 <translation id="15373452373711364">مؤشر الماوس الكبير</translation>
 <translation id="1550523713251050646">انقر للحصول على المزيد من الخيارات</translation>
+<translation id="1567387640189251553">تم توصيل لوحة مفاتيح مختلفة منذ آخر إدخال لكلمة المرور، وقد يكون ذلك محاولةً لسرقة ضغطات المفاتيح.</translation>
 <translation id="1608626060424371292">إزالة هذا المستخدم</translation>
 <translation id="1621499497873603021">الوقت المتبقي حتى تصبح البطارية فارغة <ph name="TIME_LEFT" /></translation>
 <translation id="1658406695958299976">عذرًا، لا يمكن التحقق من كلمة المرور حتى الآن. ملاحظة: في حال تغيير كلمة المرور مؤخرًا، سيتم تطبيق كلمة المرور الجديدة بعد تسجيل الخروج، يُرجى استخدام كلمة المرور القديمة هنا.</translation>
 <translation id="1677472565718498478">الوقت المتبقي <ph name="TIME" /></translation>
 <translation id="1698760176351776263">‏عنوان IPv6:‏ <ph name="ADDRESS" /></translation>
+<translation id="170389796989115980">قد يتمكن مشرف الجهاز من مراقبة نشاطك.</translation>
 <translation id="1734367976349034509">يخضع هذا الجهاز لإدارة المؤسسة</translation>
 <translation id="1746730358044914197">تتم تهيئة طرق الإدخال بواسطة المشرف.</translation>
 <translation id="1747827819627189109">تم تفعيل لوحة المفاتيح على الشاشة</translation>
@@ -41,9 +43,11 @@
 <translation id="1882897271359938046">نسخ إلى <ph name="DISPLAY_NAME" /></translation>
 <translation id="1919743966458266018">لقد تغيّر اختصار فتح إدارة المهام. يُرجى استخدام <ph name="NEW_SHORTCUT" /> بدلاً من <ph name="OLD_SHORTCUT" />.</translation>
 <translation id="1923539912171292317">النقرات التلقائية</translation>
+<translation id="1928739107511554905">‏للحصول على التحديث، استخدم الشاشة التي تعمل باللمس لإعادة تشغيل جهاز Chromebook، مع توصيل لوحة المفاتيح المرفقة.</translation>
 <translation id="1942830294380034169">زر تجاوز السعة</translation>
 <translation id="1951012854035635156">المساعد</translation>
 <translation id="1957803754585243749">0 درجة</translation>
+<translation id="1957958912175573503">تعيين اللغة</translation>
 <translation id="1969011864782743497"><ph name="DEVICE_NAME" /> (USB)</translation>
 <translation id="1995660704900986789">إيقاف التشغيل</translation>
 <translation id="2012624427112548395">Ctrl+Search+H</translation>
@@ -63,6 +67,7 @@
 <translation id="2292698582925480719">مقياس العرض</translation>
 <translation id="2303600792989757991">نظرة عامة لنافذة التبديل</translation>
 <translation id="2338501278241028356">تشغيل البلوتوث لاكتشاف الأجهزة القريبة</translation>
+<translation id="2351266942280602854">اللغة والإدخال</translation>
 <translation id="2352467521400612932">إعدادات قلم الشاشة</translation>
 <translation id="2354174487190027830">تفعيل <ph name="NAME" /></translation>
 <translation id="2365393535144473978">سيؤدي تفعيل ميزة بيانات الجوّال إلى تفعيل البلوتوث.</translation>
@@ -78,6 +83,9 @@
 <translation id="2653659639078652383">إرسال</translation>
 <translation id="2675319268637823299">منع أحد المشرفين الدخول المتعدد لـ <ph name="USER_EMAIL" />.
     يجب على جميع المستخدمين تسجيل الخروج للمتابعة.</translation>
+<translation id="2696763960464195425">ستتم إزالة معلوماتك عند تسجيل الخروج. <ph name="LEARN_MORE" /></translation>
+<translation id="2700493154570097719">تعيين لوحة المفاتيح</translation>
+<translation id="2718395828230677721">الإضاءة الليلية</translation>
 <translation id="2727977024730340865">تمّ توصيل شاحن منخفض الطاقة. لذا قد لا تكون عملية شحن البطارية جديرة بالثقة.</translation>
 <translation id="2761704814324807722">علبة الحالة، والوقت <ph name="TIME" />، و<ph name="BATTERY" /></translation>
 <translation id="277257480934873581">إعادة الاتصال بـ <ph name="NAME" /></translation>
@@ -100,9 +108,11 @@
 <translation id="3077734595579995578">shift</translation>
 <translation id="3087734570205094154">أسفل</translation>
 <translation id="3105990244222795498"><ph name="DEVICE_NAME" /> (بلوتوث)</translation>
+<translation id="3112378005171663295">تصغير</translation>
 <translation id="3126069444801937830">إعادة التشغيل للتحديث</translation>
 <translation id="3147142846278915599">‏Launcher (مزامنة التطبيقات...)</translation>
 <translation id="315116470104423982">بيانات الجوال</translation>
+<translation id="3151786313568798007">الاتجاه</translation>
 <translation id="3153444934357957346">يمكنك الحصول فقط على ما يصل إلى <ph name="MULTI_PROFILE_USER_LIMIT" /> حساب في الدخول المتعدد.</translation>
 <translation id="3236488194889173876">ليست هناك شبكة جوّال متاحة</translation>
 <translation id="3294437725009624529">ضيف</translation>
@@ -124,6 +134,7 @@
 <translation id="3621202678540785336">الإدخال</translation>
 <translation id="3626281679859535460">السطوع</translation>
 <translation id="3631369015426612114">السماح بالإشعارات من المصادر التالية</translation>
+<translation id="3705722231355495246">-</translation>
 <translation id="3712407551474845318">التقاط منطقة</translation>
 <translation id="371370241367527062">الميكروفون الأمامي</translation>
 <translation id="3771549900096082774">وضع التباين العالي</translation>
@@ -168,6 +179,7 @@
 <translation id="4905614135390995787">تم تغيير اختصار تشغيل وضع التباين العالي. يُرجى استخدام <ph name="NEW_SHORTCUT" /> بدلاً من <ph name="OLD_SHORTCUT" />.</translation>
 <translation id="4918086044614829423">قبول</translation>
 <translation id="4961318399572185831">إرسال الشاشة</translation>
+<translation id="5136175204352732067">تم توصيل لوحة مفاتيح مختلفة</translation>
 <translation id="5168181903108465623">أجهزة البث متاحة</translation>
 <translation id="5207949376430453814">تمييز علامة إقحام النص</translation>
 <translation id="5222676887888702881">الخروج</translation>
@@ -179,6 +191,7 @@
 <translation id="5431825016875453137">OpenVPN / L2TP</translation>
 <translation id="544691375626129091">تمت إضافة كل المستخدمين المتوفرين لهذه الجلسة.</translation>
 <translation id="5457599981699367932">تصفَّح كزائر</translation>
+<translation id="54609108002486618">تتم إدارته</translation>
 <translation id="553675580533261935">جارٍ الخروج من الجلسة</translation>
 <translation id="5548285847212963613">يمكن أن تساعد الإضافة " <ph name="EXTENSION_NAME" /> "على الاتصال بهذه الشبكة.</translation>
 <translation id="5571066253365925590">تم تفعيل البلوتوث</translation>
@@ -203,6 +216,7 @@
 <translation id="5977415296283489383">سماعة رأس</translation>
 <translation id="5978382165065462689">مشاركة التحكم في شاشتك عن طريق المساعدة عن بُعد.</translation>
 <translation id="5980301590375426705">إنهاء جلسة الضيف</translation>
+<translation id="598882571027504733">‏للحصول على التحديث، يُرجى إعادة تشغيل جهاز Chromebook مع توصيل لوحة المفاتيح.</translation>
 <translation id="5992218262414051481">‏تم تفعيل وضع التباين العالي. اضغط على "Ctrl+Search+H" مرة أخرى لإيقافه.</translation>
 <translation id="6018164090099858612">جارٍ الخروج من وضع المرآة</translation>
 <translation id="6043212731627905357">لا تتوافق هذه الشاشة مع <ph name="DEVICE_TYPE" /> (هذه الشاشة غير مدعومة).</translation>
@@ -240,6 +254,7 @@
 <translation id="6650933572246256093">يريد جهاز بلوتوث "<ph name="DEVICE_NAME" />" الحصول على إذن للإقران. يُرجى إدخال مفتاح المرور هذا في هذا الجهاز: <ph name="PASSKEY" /></translation>
 <translation id="6657585470893396449">كلمة المرور</translation>
 <translation id="6691659475504239918">Search+Shift+H</translation>
+<translation id="6696025732084565524">تحتاج لوحة المفاتيح القابلة للفصل إلى تحديث مهم</translation>
 <translation id="6700713906295497288">‏زر قائمة أداة تحرير أسلوب الإدخال (IME)</translation>
 <translation id="6713285437468012787">تم إقران جهاز بلوتوث "<ph name="DEVICE_NAME" />" وهو الآن متاح لجميع المستخدمين. يمكنك إزالة هذا الإقران باستخدام الإعدادات.</translation>
 <translation id="6715542151869432661">لم يتم العثور على أي أجهزة جوّال.</translation>
@@ -259,6 +274,7 @@
 <translation id="7098389117866926363">‏جهاز USB-C (المنفذ الأيسر في الخلف)</translation>
 <translation id="7131634465328662194">سيتم تسجيل خروجك تلقائيًا.</translation>
 <translation id="7165278925115064263">Alt+Shift+K</translation>
+<translation id="7165511658052620796">‏(TEMP) عرض تسجيل دخول WebUI في حال استخدام ملف خطأ (crbug.com) أو تقديم تعليقات (alt+shift+i)</translation>
 <translation id="7168224885072002358">سيتم الرجوع إلى درجة الدقة القديمة في غضون <ph name="TIMEOUT_SECONDS" /></translation>
 <translation id="7256634071279256947">الميكروفون الخلفي</translation>
 <translation id="726276584504105859">السحب هنا لاستخدام وضع تقسيم الشاشة</translation>
@@ -318,6 +334,8 @@
 <translation id="8652175077544655965">غلق الإعدادات</translation>
 <translation id="8673028979667498656">270 درجة</translation>
 <translation id="8676770494376880701">تمّ توصيل شاحن منخفض الطاقة</translation>
+<translation id="8734991477317290293">قد تحاول لوحة المفاتيح سرقة ضغطات المفاتيح.</translation>
+<translation id="8809737090443522491">كتابة اسم التطبيق أو المستند</translation>
 <translation id="8814190375133053267">‏لاسلكي، Wi-Fi</translation>
 <translation id="8814715559352963456">قد ينتج عن نقل النوافذ إلى سطح مكتب آخر سلوك غير متوقع.
 
@@ -331,12 +349,13 @@
 <translation id="8921624153894383499">‏لا يتحدث مساعد Google هذه اللغة.</translation>
 <translation id="8938800817013097409">‏جهاز USB-C (المنفذ الأيمن في الخلف)</translation>
 <translation id="8940956008527784070">طاقة البطارية منخفضة (<ph name="PERCENTAGE" />%)</translation>
+<translation id="8995603266996330174">مدار بواسطة <ph name="DOMAIN" /></translation>
 <translation id="9074739597929991885">بلوتوث</translation>
 <translation id="9079731690316798640">‏Wi-Fi:‏ <ph name="ADDRESS" /></translation>
 <translation id="9080206825613744995">الميكروفون قيد الاستخدام</translation>
 <translation id="9089416786594320554">أساليب الإدخال</translation>
 <translation id="9091626656156419976">تمت إزالة عرض <ph name="DISPLAY_NAME" /></translation>
-<translation id="9111102763498581341">إلغاء التأمين</translation>
+<translation id="9111102763498581341">فتح القفل</translation>
 <translation id="9151726767154816831">‏إعادة التشغيل وإجراء Powerwash للتحديث</translation>
 <translation id="9194617393863864469">تسجيل دخول مستخدم آخر...</translation>
 <translation id="9201131092683066720">اكتمل شحن <ph name="PERCENTAGE" />% من البطارية.</translation>

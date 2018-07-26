@@ -92,9 +92,11 @@ class VIZ_SERVICE_EXPORT FrameSinkVideoCapturerImpl final
   void SetFormat(media::VideoPixelFormat format,
                  media::ColorSpace color_space) final;
   void SetMinCapturePeriod(base::TimeDelta min_capture_period) final;
+  void SetMinSizeChangePeriod(base::TimeDelta min_period) final;
   void SetResolutionConstraints(const gfx::Size& min_size,
                                 const gfx::Size& max_size,
                                 bool use_fixed_aspect_ratio) final;
+  void SetAutoThrottlingEnabled(bool enabled) final;
   void ChangeTarget(const FrameSinkId& frame_sink_id) final;
   void Start(mojom::FrameSinkVideoConsumerPtr consumer) final;
   void Stop() final;
@@ -187,6 +189,10 @@ class VIZ_SERVICE_EXPORT FrameSinkVideoCapturerImpl final
                          scoped_refptr<media::VideoFrame> frame,
                          const gfx::Rect& content_rect);
 
+  // For ARGB format, ensures that every dimension of |size| is positive. For
+  // I420 format, ensures that every dimension is even and at least 2.
+  gfx::Size AdjustSizeForPixelFormat(const gfx::Size& size);
+
   // Owner/Manager of this instance.
   FrameSinkVideoCapturerManager* const frame_sink_manager_;
 
@@ -201,7 +207,7 @@ class VIZ_SERVICE_EXPORT FrameSinkVideoCapturerImpl final
 
   // Use the default base::TimeTicks clock; but allow unit tests to provide a
   // replacement.
-  base::TickClock* clock_;
+  const base::TickClock* clock_;
 
   // Current image format.
   media::VideoPixelFormat pixel_format_ = kDefaultPixelFormat;

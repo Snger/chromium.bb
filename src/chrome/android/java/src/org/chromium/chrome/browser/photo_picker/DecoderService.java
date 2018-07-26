@@ -17,6 +17,7 @@ import org.chromium.base.CommandLine;
 import org.chromium.base.Log;
 import org.chromium.base.PathUtils;
 import org.chromium.base.ThreadUtils;
+import org.chromium.base.annotations.MainDex;
 import org.chromium.base.library_loader.LibraryLoader;
 import org.chromium.base.library_loader.LibraryProcessType;
 import org.chromium.base.library_loader.ProcessInitException;
@@ -28,6 +29,7 @@ import java.io.IOException;
 /**
  * A service to accept requests to take image file contents and decode them.
  */
+@MainDex
 public class DecoderService extends Service {
     // The keys for the bundle when passing data to and from this service.
     static final String KEY_FILE_DESCRIPTOR = "file_descriptor";

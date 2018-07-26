@@ -34,9 +34,9 @@
 #include "ipc/message_filter.h"
 #include "services/network/public/mojom/network_service.mojom.h"
 #include "storage/common/fileapi/file_system_types.h"
-#include "third_party/WebKit/public/platform/WebInputEvent.h"
-#include "third_party/WebKit/public/platform/WebMouseEvent.h"
-#include "third_party/WebKit/public/platform/WebMouseWheelEvent.h"
+#include "third_party/blink/public/platform/web_input_event.h"
+#include "third_party/blink/public/platform/web_mouse_event.h"
+#include "third_party/blink/public/platform/web_mouse_wheel_event.h"
 #include "ui/accessibility/ax_node_data.h"
 #include "ui/accessibility/ax_tree_update.h"
 #include "ui/events/keycodes/dom/dom_code.h"
@@ -199,7 +199,7 @@ void SimulateTapAt(WebContents* web_contents, const gfx::Point& point);
 // Generates a TouchStart at |point|.
 void SimulateTouchPressAt(WebContents* web_contents, const gfx::Point& point);
 
-void SimulateLongPressAt(WebContents* web_contents, const gfx::Point& point);
+void SimulateLongTapAt(WebContents* web_contents, const gfx::Point& point);
 #endif
 
 // Taps the screen with modifires at |point|.
@@ -715,6 +715,14 @@ class RenderFrameSubmissionObserver
   // Blocks the browser ui thread until the next OnRenderFrameMetadataChanged.
   void WaitForMetadataChange();
 
+  // Blocks the browser ui thread until RenderFrameMetadata arrives where its
+  // scroll offset matches |expected_offset|.
+  void WaitForScrollOffset(const gfx::Vector2dF& expected_offset);
+
+  // Blocks the browser ui thread until RenderFrameMetadata arrives where its
+  // scroll offset at top matches |expected_scroll_offset_at_top|.
+  void WaitForScrollOffsetAtTop(bool expected_scroll_offset_at_top);
+
   const cc::RenderFrameMetadata& LastRenderFrameMetadata() const;
 
   // Returns the number of frames submitted since the observer's creation.
@@ -870,9 +878,6 @@ class BrowserTestClipboardScope {
 
 // This observer is used to wait for its owner Frame to become focused.
 class FrameFocusedObserver {
-  // Private impl struct which hides non public types including FrameTreeNode.
-  class FrameTreeNodeObserverImpl;
-
  public:
   explicit FrameFocusedObserver(RenderFrameHost* owner_host);
   ~FrameFocusedObserver();
@@ -880,10 +885,31 @@ class FrameFocusedObserver {
   void Wait();
 
  private:
+  // Private impl struct which hides non public types including FrameTreeNode.
+  class FrameTreeNodeObserverImpl;
+
   // FrameTreeNode::Observer
   std::unique_ptr<FrameTreeNodeObserverImpl> impl_;
 
   DISALLOW_COPY_AND_ASSIGN(FrameFocusedObserver);
+};
+
+// This observer is used to wait for its owner FrameTreeNode to become deleted.
+class FrameDeletedObserver {
+ public:
+  explicit FrameDeletedObserver(RenderFrameHost* owner_host);
+  ~FrameDeletedObserver();
+
+  void Wait();
+
+ private:
+  // Private impl struct which hides non public types including FrameTreeNode.
+  class FrameTreeNodeObserverImpl;
+
+  // FrameTreeNode::Observer
+  std::unique_ptr<FrameTreeNodeObserverImpl> impl_;
+
+  DISALLOW_COPY_AND_ASSIGN(FrameDeletedObserver);
 };
 
 // This class can be used to pause and resume navigations, based on a URL
@@ -1114,6 +1140,10 @@ int LoadBasicRequest(network::mojom::NetworkContext* network_context,
                      const GURL& url,
                      int process_id = 0,
                      int render_frame_id = 0);
+
+// Ensures that all StoragePartitions for the given BrowserContext have their
+// cookies flushed to disk.
+void EnsureCookiesFlushed(BrowserContext* browser_context);
 
 // Returns true if there is a valid process for |process_group_name|. Must be
 // called on the IO thread.

@@ -59,6 +59,12 @@ namespace extensions {
 
 namespace {
 
+bool IsExtensionProcessSharingAllowed() {
+  // TODO(nick): Currently, process sharing is allowed even in
+  // --site-per-process. Lock this down.  https://crbug.com/766267
+  return true;
+}
+
 void AddFrameToSet(std::set<content::RenderFrameHost*>* frames,
                    content::RenderFrameHost* rfh) {
   if (rfh->IsRenderFrameLive())
@@ -405,14 +411,14 @@ IN_PROC_BROWSER_TEST_F(ProcessManagerBrowserTest,
   EXPECT_FALSE(pm->IsBackgroundHostClosing(popup->id()));
 
   // Simulate clicking on the action to open a popup.
-  BrowserActionTestUtil test_util(browser());
+  auto test_util = BrowserActionTestUtil::Create(browser());
   content::WindowedNotificationObserver frame_observer(
       content::NOTIFICATION_LOAD_COMPLETED_MAIN_FRAME,
       content::NotificationService::AllSources());
   // Open popup in the first extension.
-  test_util.Press(0);
+  test_util->Press(0);
   frame_observer.Wait();
-  ASSERT_TRUE(test_util.HasPopup());
+  ASSERT_TRUE(test_util->HasPopup());
 
   // We now have a view, but still no background hosts.
   EXPECT_EQ(0u, pm->background_hosts().size());
@@ -719,10 +725,9 @@ IN_PROC_BROWSER_TEST_F(ProcessManagerBrowserTest, ExtensionProcessReuse) {
 
   EXPECT_EQ(kNumExtensions, installed_extensions.size());
 
-  if (content::AreAllSitesIsolatedForTesting()) {
+  if (!IsExtensionProcessSharingAllowed()) {
     EXPECT_EQ(kNumExtensions, processes.size()) << "Extension process reuse is "
-                                                   "expected to be disabled in "
-                                                   "--site-per-process.";
+                                                   "expected to be disabled.";
   } else {
     EXPECT_LT(processes.size(), kNumExtensions)
         << "Expected extension process reuse, but none happened.";

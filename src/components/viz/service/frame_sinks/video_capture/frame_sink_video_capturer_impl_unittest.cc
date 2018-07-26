@@ -128,7 +128,7 @@ class MockConsumer : public mojom::FrameSinkVideoConsumer {
             info->visible_rect.size(), static_cast<uint8_t*>(mapping.get()),
             buffer_size, info->timestamp);
     ASSERT_TRUE(frame);
-    frame->metadata()->MergeInternalValuesFrom(*info->metadata);
+    frame->metadata()->MergeInternalValuesFrom(info->metadata);
     frame->AddDestructionObserver(base::BindOnce(
         [](mojo::ScopedSharedBufferMapping mapping) {}, std::move(mapping)));
     OnFrameCapturedMock(frame, update_rect, callbacks.get());
@@ -198,7 +198,8 @@ class FakeCapturableFrameSink : public CapturableFrameSink {
 
   gfx::Size GetActiveFrameSize() override { return kSourceSize; }
 
-  void RequestCopyOfSurface(
+  void RequestCopyOfOutput(
+      const LocalSurfaceId& local_surface_id,
       std::unique_ptr<CopyOutputRequest> request) override {
     EXPECT_EQ(CopyOutputResult::Format::I420_PLANES, request->result_format());
     EXPECT_NE(base::UnguessableToken(), request->source());
@@ -284,12 +285,12 @@ class FrameSinkVideoCapturerTest : public testing::Test {
         base::Time::Now(), base::TimeTicks() + base::TimeDelta::FromSeconds(1),
         base::TestMockTimeTaskRunner::Type::kStandalone);
     start_time_ = task_runner_->NowTicks();
-    clock_ = task_runner_->GetMockTickClock();
-    capturer_.clock_ = clock_.get();
+    capturer_.clock_ = task_runner_->GetMockTickClock();
 
     // Replace the retry timer with one that uses this test's fake clock and
     // task runner.
-    capturer_.refresh_frame_retry_timer_.emplace(clock_.get());
+    capturer_.refresh_frame_retry_timer_.emplace(
+        task_runner_->GetMockTickClock());
     capturer_.refresh_frame_retry_timer_->SetTaskRunner(task_runner_);
 
     // Before setting the format, ensure the defaults are in-place. Then, for
@@ -356,7 +357,6 @@ class FrameSinkVideoCapturerTest : public testing::Test {
  protected:
   scoped_refptr<base::TestMockTimeTaskRunner> task_runner_;
   base::TimeTicks start_time_;
-  std::unique_ptr<base::TickClock> clock_;
   MockFrameSinkManager frame_sink_manager_;
   FakeCapturableFrameSink frame_sink_;
   FrameSinkVideoCapturerImpl capturer_;
