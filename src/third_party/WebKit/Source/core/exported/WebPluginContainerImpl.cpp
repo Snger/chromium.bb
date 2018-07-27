@@ -132,10 +132,10 @@ void WebPluginContainerImpl::AttachToLayout() {
 
 void WebPluginContainerImpl::DetachFromLayout() {
   DCHECK(is_attached_);
+  SetParentVisible(false);
   if (web_plugin_) {
 	  web_plugin_->DetachFromLayout();
   }  
-  SetParentVisible(false);
   is_attached_ = false;
 }
 
