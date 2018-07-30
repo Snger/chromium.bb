@@ -47,7 +47,9 @@ PaintingControlToWeb(
 
 WebContentLayerImpl::WebContentLayerImpl(blink::WebContentLayerClient* client)
     : client_(client) {
-  layer_ = std::make_unique<WebLayerImpl>(PictureLayer::Create(this));
+  auto picture_layer = PictureLayer::Create(this);
+  picture_layer->SetNearestNeighbor(client->NearestNeighbor());
+  layer_ = std::make_unique<WebLayerImpl>(picture_layer);
   layer_->layer()->SetIsDrawable(true);
 }
 

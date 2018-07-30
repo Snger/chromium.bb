@@ -47,7 +47,7 @@ static sk_sp<PaintRecord> SetupForRaster(
   canvas->translate(-raster_full_rect.x(), -raster_full_rect.y());
   canvas->clipRect(SkRect::MakeFromIRect(gfx::RectToSkIRect(playback_rect)));
   canvas->translate(transform.translation().x(), transform.translation().y());
-  canvas->scale(transform.scale(), transform.scale());
+  canvas->scale(transform.scale().width(), transform.scale().height());
   return recorder.finishRecordingAsPicture();
 }
 

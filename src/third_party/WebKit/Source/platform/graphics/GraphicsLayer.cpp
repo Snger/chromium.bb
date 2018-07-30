@@ -81,11 +81,11 @@ GetRasterInvalidationTrackingMap() {
 }
 
 std::unique_ptr<GraphicsLayer> GraphicsLayer::Create(
-    GraphicsLayerClient* client) {
-  return WTF::WrapUnique(new GraphicsLayer(client));
+    GraphicsLayerClient* client, bool use_nearest_neighbor_filter) {
+  return WTF::WrapUnique(new GraphicsLayer(client, use_nearest_neighbor_filter));
 }
 
-GraphicsLayer::GraphicsLayer(GraphicsLayerClient* client)
+GraphicsLayer::GraphicsLayer(GraphicsLayerClient* client, bool use_nearest_neighbor_filter)
     : client_(client),
       background_color_(Color::kTransparent),
       opacity_(1),
@@ -103,6 +103,7 @@ GraphicsLayer::GraphicsLayer(GraphicsLayerClient* client)
       painted_(false),
       is_tracking_raster_invalidations_(
           client && client->IsTrackingRasterInvalidations()),
+      use_nearest_neighbor_filter_(use_nearest_neighbor_filter),
       painting_phase_(kGraphicsLayerPaintAllWithOverflowClip),
       parent_(0),
       mask_layer_(0),
@@ -1292,6 +1293,10 @@ void GraphicsLayer::PaintContents(WebDisplayItemList* web_display_item_list,
 
 size_t GraphicsLayer::ApproximateUnsharedMemoryUsage() const {
   return GetPaintController().ApproximateUnsharedMemoryUsage();
+}
+
+bool GraphicsLayer::NearestNeighbor() const {
+  return use_nearest_neighbor_filter_;
 }
 
 bool ScopedSetNeedsDisplayInRectForTrackingOnly::s_enabled_ = false;
