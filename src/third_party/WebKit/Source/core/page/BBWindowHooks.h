@@ -55,6 +55,7 @@ namespace blink {
         bool checkSpellingForRange(Range* range);
         void removeMarker(Range* range, long mask);
         void addHighlightMarker(Range* range, long foregroundColor, long backgroundColor, bool includeNonSelectableText = false);
+        void removeHighlightMarker(Range *range);
         Range* findPlainText(Range* range, const String& target, long options);
         bool checkSpellingForNode(Node* node);
         DOMRectReadOnly* getAbsoluteCaretRectAtOffset(Node* node, long offset);
