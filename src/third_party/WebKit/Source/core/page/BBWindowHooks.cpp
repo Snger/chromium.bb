@@ -134,6 +134,11 @@ void BBWindowHooks::addHighlightMarker(Range* range, long foregroundColor, long 
         includeNonSelectableText);
 }
 
+void BBWindowHooks::removeHighlightMarker(Range *range) 
+{
+    removeMarker(range, DocumentMarker::kHighlight);
+}
+
 Range* BBWindowHooks::findPlainText(Range* range, const String& target, long options)
 {
     EphemeralRange result = blink::FindPlainText(EphemeralRange(range), target, options);
