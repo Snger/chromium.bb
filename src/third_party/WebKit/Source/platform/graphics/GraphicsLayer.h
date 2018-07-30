@@ -76,7 +76,7 @@ class PLATFORM_EXPORT GraphicsLayer : public cc::LayerClient,
   USING_FAST_MALLOC(GraphicsLayer);
 
  public:
-  static std::unique_ptr<GraphicsLayer> Create(GraphicsLayerClient*);
+  static std::unique_ptr<GraphicsLayer> Create(GraphicsLayerClient*, bool use_nearest_neighbor_filter = true);
 
   ~GraphicsLayer() override;
 
@@ -288,7 +288,7 @@ class PLATFORM_EXPORT GraphicsLayer : public cc::LayerClient,
   String DebugName(cc::Layer*) const;
   bool ShouldFlattenTransform() const { return should_flatten_transform_; }
 
-  explicit GraphicsLayer(GraphicsLayerClient*);
+  explicit GraphicsLayer(GraphicsLayerClient*, bool use_nearest_neighbor_filter);
   // for testing
   friend class CompositedLayerMappingTest;
   friend class PaintControllerPaintTestBase;
@@ -299,6 +299,7 @@ class PLATFORM_EXPORT GraphicsLayer : public cc::LayerClient,
   void PaintContents(WebDisplayItemList*,
                      PaintingControlSetting = kPaintDefaultBehavior) final;
   size_t ApproximateUnsharedMemoryUsage() const final;
+  bool NearestNeighbor() const final;
 
   // Returns true if PaintController::paintArtifact() changed and needs commit.
   bool PaintWithoutCommit(
@@ -370,6 +371,8 @@ class PLATFORM_EXPORT GraphicsLayer : public cc::LayerClient,
   bool painted_ : 1;
 
   bool is_tracking_raster_invalidations_ : 1;
+
+  bool use_nearest_neighbor_filter_ : 1;
 
   GraphicsLayerPaintingPhase painting_phase_;
 
