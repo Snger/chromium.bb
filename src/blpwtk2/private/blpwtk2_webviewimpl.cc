@@ -784,9 +784,9 @@ void WebViewImpl::RequestMediaAccessPermission(
     std::move(callback).Run(devices, content::MEDIA_DEVICE_OK, std::move(ui));
 }
 
-bool WebViewImpl::CheckMediaAccessPermission(WebContents *,
+bool WebViewImpl::CheckMediaAccessPermission(content::WebContents *,
                                              const GURL&,
-                                             MediaStreamType)
+                                             content::MediaStreamType)
 {
     // When CheckMediaAccessPermission returns true,
     // the user will be able to access MediaDeviceInfo.label
