@@ -93,12 +93,14 @@ repack("pak") {
     "$root_gen_dir/content/browser/devtools/devtools_resources.pak",
     "$root_gen_dir/blink/public/resources/blink_inspector_resources.pak",
     "$root_gen_dir/blink/public/resources/blink_resources.pak",
+    "$root_gen_dir/blink/modules/media_controls/resources/media_controls_resources_100_percent.pak",
   ]
 
   deps = [
     "//content/browser/devtools:devtools_resources",
     "//third_party/WebKit/public:inspector_resources_grit",
     "//third_party/WebKit/public:resources",
+    "//third_party/WebKit/Source/modules/media_controls:media_controls_resources",
   ]
 }
 
