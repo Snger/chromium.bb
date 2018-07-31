@@ -78,7 +78,7 @@ RenderWidgetHostViewChildFrame::RenderWidgetHostViewChildFrame(
       next_surface_sequence_(1u),
       current_surface_scale_factor_(1.f),
       frame_connector_(nullptr),
-      background_color_(SK_ColorWHITE),
+      background_color_(default_background_color_),
       weak_factory_(this) {
   if (!IsUsingMus()) {
     GetHostFrameSinkManager()->RegisterFrameSinkId(frame_sink_id_, this);

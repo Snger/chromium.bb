@@ -38,6 +38,7 @@ namespace blpwtk2 {
 WebViewHostImpl::WebViewHostImpl(
         mojom::WebViewClientPtr&&                    clientPtr,
         const mojom::WebViewCreateParams&            params,
+        bool                                         rendererUI,
         BrowserContextImpl                          *browserContext,
         unsigned int                                 hostAffinity,
         const scoped_refptr<ProcessHostImpl::Impl>&  processHost)
@@ -47,6 +48,12 @@ WebViewHostImpl::WebViewHostImpl(
 {
     WebViewProperties properties;
 
+    properties.takeKeyboardFocusOnMouseDown =
+        params.takeKeyboardFocusOnMouseDown;
+    properties.takeLogicalFocusOnMouseDown =
+        params.takeLogicalFocusOnMouseDown;
+    properties.activateWindowOnMouseDown =
+        params.activateWindowOnMouseDown;
     properties.domPasteEnabled =
         params.domPasteEnabled;
     properties.javascriptCanAccessClipboard =
@@ -59,6 +66,7 @@ WebViewHostImpl::WebViewHostImpl(
                              browserContext,    // browser context
                              hostAffinity,      // host affinity
                              false,             // initially visible
+                             rendererUI,        // rendererUI
                              properties);       // properties
 
     d_impl->setImplClient(this);
@@ -225,6 +233,12 @@ void WebViewHostImpl::ncDragEnd(WebView *source, const POINT& endPoint)
                        base::Unretained(this)));
 }
 
+void WebViewHostImpl::ncDoubleClick(WebView *source, const POINT& point)
+{
+    DCHECK(source == d_impl);
+    d_clientPtr->ncDoubleClick(point.x, point.y);
+}
+
 void WebViewHostImpl::findState(WebView *source,
                                 int      numberOfMatches,
                                 int      activeMatchOrdinal,
@@ -388,6 +402,16 @@ void WebViewHostImpl::stop()
     d_impl->stop();
 }
 
+void WebViewHostImpl::takeKeyboardFocus()
+{
+    d_impl->takeKeyboardFocus();
+}
+
+void WebViewHostImpl::setLogicalFocus(bool focused)
+{
+    d_impl->setLogicalFocus(focused);
+}
+
 void WebViewHostImpl::performCustomContextMenuAction(int id)
 {
     d_impl->performCustomContextMenuAction(id);
@@ -436,6 +460,11 @@ void WebViewHostImpl::deleteSelection()
 void WebViewHostImpl::enableNCHitTest(bool enabled)
 {
     d_impl->enableNCHitTest(enabled);
+}
+
+void WebViewHostImpl::enableAltDragRubberbanding(bool enabled)
+{
+    d_impl->enableAltDragRubberbanding(enabled);
 }
 
 void WebViewHostImpl::find(int                reqId,
@@ -504,6 +533,11 @@ void WebViewHostImpl::clearTooltip()
 void WebViewHostImpl::setParent(unsigned int window)
 {
     d_impl->setParent(reinterpret_cast<NativeView>(window));
+}
+
+void WebViewHostImpl::rootWindowCompositionChanged()
+{
+    d_impl->rootWindowCompositionChanged();
 }
 
 }  // close namespace blpwtk2

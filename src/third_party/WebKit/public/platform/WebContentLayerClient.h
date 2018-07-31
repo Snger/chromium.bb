@@ -75,6 +75,9 @@ class BLINK_PLATFORM_EXPORT WebContentLayerClient {
   // result includes data cached internally during painting.
   virtual size_t ApproximateUnsharedMemoryUsage() const { return 0; }
 
+  // Return the flag if GL_NEAREST should be used for filtering or not
+  virtual bool NearestNeighbor() const { return false; };
+
  protected:
   virtual ~WebContentLayerClient() {}
 };

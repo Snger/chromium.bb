@@ -73,6 +73,8 @@ class CC_BLINK_EXPORT WebLayerImpl : public blink::WebLayer {
   bool ShouldHitTest() override;
   void SetOpaque(bool opaque) override;
   bool Opaque() const override;
+  void setOpaqueForLCDText(bool) override;
+  bool opaqueForLCDText() const override;
   void SetPosition(const blink::WebFloatPoint& position) override;
   blink::WebFloatPoint GetPosition() const override;
   void SetTransform(const SkMatrix44& transform) override;

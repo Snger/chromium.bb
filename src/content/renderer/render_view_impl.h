@@ -325,6 +325,8 @@ class CONTENT_EXPORT RenderViewImpl : public RenderWidget,
   void DidAutoResize(const blink::WebSize& newSize) override;
   blink::WebRect RootWindowRect() override;
   void DidFocus() override;
+  void setRubberbandRect(const blink::WebRect&) override;
+  void hideRubberbandRect() override;
 
 #if defined(OS_ANDROID)
   // Only used on Android since all other platforms implement
@@ -340,6 +342,7 @@ class CONTENT_EXPORT RenderViewImpl : public RenderWidget,
   RenderFrameImpl* GetMainRenderFrame() override;
   int GetRoutingID() const override;
   gfx::Size GetSize() const override;
+  void SetSize(const gfx::Size& new_size) override;
   float GetDeviceScaleFactor() const override;
   const WebPreferences& GetWebkitPreferences() override;
   void SetWebkitPreferences(const WebPreferences& preferences) override;
@@ -533,6 +536,7 @@ class CONTENT_EXPORT RenderViewImpl : public RenderWidget,
   void OnUpdateWebPreferences(const WebPreferences& prefs);
   void OnSetPageScale(float page_scale_factor);
   void OnForceRedraw(const ui::LatencyInfo& latency_info);
+  void OnEnableAltDragRubberbanding(bool enable);
   void OnSelectWordAroundCaret();
   void OnAudioStateChanged(bool is_audio_playing);
 #if defined(OS_ANDROID)

@@ -103,6 +103,7 @@ class VIEWS_EXPORT DesktopWindowTreeHostWin
   bool ShouldUseNativeFrame() const override;
   bool ShouldWindowContentsBeTransparent() const override;
   void FrameTypeChanged() override;
+  void CompositionChanged() override;
   void SetFullscreen(bool fullscreen) override;
   bool IsFullscreen() const override;
   void SetOpacity(float opacity) override;
@@ -184,6 +185,11 @@ class VIEWS_EXPORT DesktopWindowTreeHostWin
   void HandleVisibilityChanging(bool visible) override;
   void HandleVisibilityChanged(bool visible) override;
   void HandleClientSizeChanged(const gfx::Size& new_size) override;
+  bool HandleNCHitTest(LRESULT* result, const gfx::Point& point) override;
+  bool HandleNCDragBegin(int hit_test_code) override;
+  void HandleNCDragMove() override;
+  void HandleNCDragEnd() override;
+  void HandleNCDoubleClick() override;
   void HandleFrameChanged() override;
   void HandleNativeFocus(HWND last_focused_window) override;
   void HandleNativeBlur(HWND focused_window) override;
@@ -270,6 +276,9 @@ class VIEWS_EXPORT DesktopWindowTreeHostWin
 
   // True if the window should have the frame removed.
   bool remove_standard_frame_;
+
+  // Bloomberg: True if we route mouse wheel events to any Chromium window
+  bool reroute_mouse_wheel_to_any_related_window_;
 
   // Owned by TooltipController, but we need to forward events to it so we keep
   // a reference.

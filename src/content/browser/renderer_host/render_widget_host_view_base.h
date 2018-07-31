@@ -115,6 +115,8 @@ class CONTENT_EXPORT RenderWidgetHostViewBase : public RenderWidgetHostView,
       const gfx::Rect& src_rect,
       scoped_refptr<media::VideoFrame> target,
       const base::Callback<void(const gfx::Rect&, bool)>& callback) override;
+  void SetRubberbandRect(const gfx::Rect& rect) override;
+  void HideRubberbandRect() override;
   void BeginFrameSubscription(
       std::unique_ptr<RenderWidgetHostViewFrameSubscriber> subscriber) override;
   void EndFrameSubscription() override;
@@ -492,6 +494,10 @@ class CONTENT_EXPORT RenderWidgetHostViewBase : public RenderWidgetHostView,
   const bool wheel_scroll_latching_enabled_;
 
   WebContentsAccessibility* web_contents_accessibility_;
+
+  // The default background color, which is also used as the initial
+  // background color during construction
+  static const SkColor default_background_color_{SK_ColorBLACK};
 
  private:
   gfx::Rect current_display_area_;

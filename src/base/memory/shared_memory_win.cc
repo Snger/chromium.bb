@@ -231,6 +231,10 @@ bool SharedMemory::Create(const SharedMemoryCreateOptions& options) {
       rounded_size, UnguessableToken::Create());
   if (!shm_.IsValid()) {
     // The error is logged within CreateFileMappingWithReducedPermissions().
+    PLOG(ERROR) << "CreateFileMapping failed"
+                << ", name = " << name_
+                << ", rounded_size = " << rounded_size;
+
     return false;
   }
 
@@ -314,6 +318,10 @@ bool SharedMemory::MapAt(off_t offset, size_t bytes) {
     SharedMemoryTracker::GetInstance()->IncrementMemoryUsage(*this);
     return true;
   }
+  PLOG(ERROR) << "MapViewOfFile failed"
+              << ", offset = " << offset
+              << ", bytes = " << bytes
+              << ", requested_size_ = " << requested_size_;
   return false;
 }
 

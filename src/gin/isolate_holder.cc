@@ -150,4 +150,8 @@ void IsolateHolder::SetUp(
 #endif
 }
 
+MultiHeapTracer* IsolateHolder::heap_tracer() {
+  return isolate_data_->heap_tracer();
+}
+
 }  // namespace gin

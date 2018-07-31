@@ -169,7 +169,24 @@ class ProfileImpl : public Profile {
     void clearBypassRules() override;
         // Requires browser context
 
+    void clearWebCache() override;
+
     void setPacUrl(const StringRef& url) override;
+
+    void enableSpellCheck(bool enabled) override;
+
+    void setLanguages(const StringRef *languages,
+                      size_t           numLanguages) override;
+
+    void addCustomWords(const StringRef *words, size_t numWords) override;
+
+    void removeCustomWords(const StringRef *words,
+                           size_t           numWords) override;
+
+    void dumpDiagnostics(DiagnosticInfoType type,
+                         const StringRef&   path) override;
+
+    void setDefaultPrinter(const StringRef& name) override;
 };
 
 }  // close namespace blpwtk2

@@ -33,6 +33,9 @@ enum ProxyConfigType {
 };
 
 struct WebViewCreateParams {
+    bool takeKeyboardFocusOnMouseDown;
+    bool takeLogicalFocusOnMouseDown;
+    bool activateWindowOnMouseDown;
     bool domPasteEnabled;
     bool javascriptCanAccessClipboard;
     bool rerouteMouseWheelToAnyRelatedWindow;
@@ -60,7 +63,7 @@ interface ProcessHost {
         // to associate the connection of the incoming request with the
         // correct instance of process host.
 
-    createWebView(WebViewHost& host, WebViewCreateParams params) => (WebViewClient& client, int32 status);
+    createWebView(WebViewHost& host, WebViewCreateParams params, bool rendererUI) => (WebViewClient& client, int32 status);
         // Create a new webview.
 
     [Sync]
@@ -70,6 +73,13 @@ interface ProcessHost {
     [Sync]
     registerScreenForStreaming(uint32 view) => (string media_id);
         // Register a Display device as a streaming media source
+
+    dumpDiagnostics(int32 type, string path);
+        // Request process host to dump diagnostic information to the file
+        // located in 'path'.
+
+    setDefaultPrinter(string name);
+        // Sets the printer to use by default
 
     addHttpProxy(ProxyConfigType type, string host, int32 port);
         // Add a new proxy host 'host':'port'.  This will cause the browser
@@ -90,7 +100,7 @@ interface ProcessHost {
 
     clearHttpProxies();
         // Clear the registered HTTP proxies.
-    
+
     clearHttpsProxies();
         // Clear the registered HTTPS proxies.
 
@@ -109,7 +119,18 @@ interface ProcessHost {
     clearBypassRules();
         // Clear the proxy blacklist.
 
+    clearWebCache();
+        // Clear unused resources from global web cache
+
     setPacUrl(string url);
+
+    enableSpellCheck(bool enabled);
+
+    setLanguages(array<string> languages);
+
+    addCustomWords(array<string> words);
+
+    removeCustomWords(array<string> words);
 };
 
 // vim: ts=4 et

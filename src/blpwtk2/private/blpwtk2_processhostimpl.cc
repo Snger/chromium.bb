@@ -42,6 +42,7 @@
 
 #include <base/command_line.h>
 #include <content/public/browser/browser_thread.h>
+#include <printing/backend/print_backend.h>
 
 namespace blpwtk2 {
 
@@ -392,6 +393,7 @@ void ProcessHostImpl::bindProcess(unsigned int pid, bool launchDevToolsServer) {
 
 void ProcessHostImpl::createWebView(mojom::WebViewHostRequest hostRequest,
                                     mojom::WebViewCreateParamsPtr params,
+                                    bool rendererUI,
                                     createWebViewCallback callback) {
   int hostId;
   BrowserContextImpl* browserContext;
@@ -421,6 +423,7 @@ void ProcessHostImpl::createWebView(mojom::WebViewHostRequest hostRequest,
     // well as a new instance of WebViewImpl to the WebViewHost.
     mojo::MakeStrongBinding(
         std::make_unique<WebViewHostImpl>(std::move(clientPtr), *params,
+                                          rendererUI,
                                           browserContext, hostId, d_impl),
         std::move(hostRequest));
   } else {
@@ -443,6 +446,17 @@ void ProcessHostImpl::registerScreenForStreaming(
   String media_id = d_impl->context().registerScreenForStreaming(
       reinterpret_cast<NativeScreen>(screen));
   std::move(callback).Run(std::string(media_id.data(), media_id.size()));
+}
+
+void ProcessHostImpl::dumpDiagnostics(int type, const std::string& path)
+{
+    d_impl->context().dumpDiagnostics(
+            static_cast<Profile::DiagnosticInfoType>(type), StringRef(path));
+}
+
+void ProcessHostImpl::setDefaultPrinter(const std::string& name)
+{
+    d_impl->context().setDefaultPrinter(StringRef(name));
 }
 
 void ProcessHostImpl::addHttpProxy(mojom::ProxyConfigType type,
@@ -497,8 +511,51 @@ void ProcessHostImpl::clearBypassRules() {
   d_impl->context().clearBypassRules();
 }
 
+void ProcessHostImpl::clearWebCache()
+{
+    d_impl->context().clearWebCache();
+}
+
 void ProcessHostImpl::setPacUrl(const std::string& url) {
   d_impl->context().setPacUrl(StringRef(url));
+}
+
+void ProcessHostImpl::enableSpellCheck(bool enabled)
+{
+    d_impl->context().enableSpellCheck(enabled);
+}
+
+void ProcessHostImpl::setLanguages(const std::vector<std::string>& languages)
+{
+    std::vector<StringRef> languageList;
+
+    for (auto& lang : languages) {
+        languageList.push_back(StringRef(lang));
+    }
+
+    d_impl->context().setLanguages(languageList.data(), languageList.size());
+}
+
+void ProcessHostImpl::addCustomWords(const std::vector<std::string>& words)
+{
+    std::vector<StringRef> wordList;
+
+    for (auto& word : words) {
+        wordList.push_back(StringRef(word));
+    }
+
+    d_impl->context().addCustomWords(wordList.data(), wordList.size());
+}
+
+void ProcessHostImpl::removeCustomWords(const std::vector<std::string>& words)
+{
+    std::vector<StringRef> wordList;
+
+    for (auto& word : words) {
+        wordList.push_back(StringRef(word));
+    }
+
+    d_impl->context().removeCustomWords(wordList.data(), wordList.size());
 }
 
 }  // namespace blpwtk2

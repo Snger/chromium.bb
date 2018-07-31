@@ -41,6 +41,7 @@
 namespace content {
 class WebContents;
 struct WebPreferences;
+class RenderWidgetHost;
 }  // close namespace content
 
 namespace views {
@@ -97,8 +98,10 @@ class WebViewImpl final : public WebView,
     bool d_isDeletingSoon;    // when DeleteSoon has been called
     bool d_ncHitTestEnabled;
     bool d_ncHitTestPendingAck;
+    bool d_altDragRubberbandingEnabled;
     int d_lastNCHitTestResult;
     int d_hostId;
+    bool d_rendererUI;
 
     void createWidget(blpwtk2::NativeView parent);
 
@@ -108,6 +111,7 @@ class WebViewImpl final : public WebView,
     bool OnNCDragBegin(int hitTestCode) override;
     void OnNCDragMove() override;
     void OnNCDragEnd() override;
+    void OnNCDoubleClick() override;
     aura::Window* GetDefaultActivationWindow() override;
 
     // content::WebContentsDelegate overrides
@@ -129,6 +133,10 @@ class WebViewImpl final : public WebView,
         // an empty list of devices. |request| has the details of the request
         // (e.g. which of audio and/or video devices are requested, and lists
         // of available devices).
+
+    // Return true if the RWHV should take focus on mouse-down.
+    bool ShouldSetKeyboardFocusOnMouseDown() override;
+    bool ShouldSetLogicalFocusOnMouseDown() override;
 
     bool CheckMediaAccessPermission(content::WebContents *,
                                     const GURL&,
@@ -175,6 +183,12 @@ class WebViewImpl final : public WebView,
         // This method is like DidFinishLoad, but when the load failed or was
         // cancelled, e.g. window.stop() is invoked.
 
+    void OnWebContentsFocused(content::RenderWidgetHost* render_widget_host) override;
+        // Notification that |contents| has gained focus.
+
+    void OnWebContentsLostFocus(content::RenderWidgetHost* render_widget_host) override;
+        // Invoked when focus is lost.
+
     DISALLOW_COPY_AND_ASSIGN(WebViewImpl);
 
   public:
@@ -183,6 +197,7 @@ class WebViewImpl final : public WebView,
                 BrowserContextImpl       *browserContext,
                 int                       hostAffinity,
                 bool                      initiallyVisible,
+                bool                      rendererUI,
                 const WebViewProperties&  properties);
     ~WebViewImpl();
 
@@ -211,6 +226,8 @@ class WebViewImpl final : public WebView,
     int goForward() override;
     int reload() override;
     void stop() override;
+    void takeKeyboardFocus() override;
+    void setLogicalFocus(bool focused) override;
     void show() override;
     void hide() override;
     void setParent(NativeView parent) override;
@@ -222,6 +239,11 @@ class WebViewImpl final : public WebView,
     void enableNCHitTest(bool enabled) override;
     void onNCHitTestResult(int x, int y, int result) override;
     void performCustomContextMenuAction(int actionId) override;
+    void enableAltDragRubberbanding(bool enabled) override;
+    bool forceStartRubberbanding(int x, int y) override;
+    bool isRubberbanding() const override;
+    void abortRubberbanding() override;
+    String getTextInRubberband(const NativeRect&) override;
     void find(const StringRef& text, bool matchCase, bool forward) override;
     void stopFind(bool preserveSelection) override;
     void replaceMisspelledRange(const StringRef& text) override;
@@ -230,10 +252,13 @@ class WebViewImpl final : public WebView,
 
     void handleInputEvents(const InputEvent *events, size_t eventsCount) override;
     void setDelegate(WebViewDelegate* delegate) override;
+    void drawContentsToBlob(Blob *blob, const DrawParams& params) override;
     int getRoutingId() const override;
     void setBackgroundColor(NativeColor color) override;
     void setRegion(NativeRegion region) override;
     void clearTooltip() override;
+    void rootWindowCompositionChanged() override;
+    String printToPDF(const StringRef& propertyName) override;
 };
 
 }  // close namespace blpwtk2

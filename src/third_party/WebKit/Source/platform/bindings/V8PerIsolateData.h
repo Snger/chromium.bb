@@ -234,10 +234,6 @@ class PLATFORM_EXPORT V8PerIsolateData {
     std::unique_ptr<ScriptWrappableVisitor> saved_visitor_;
   };
 
-  void SetScriptWrappableVisitor(
-      std::unique_ptr<ScriptWrappableVisitor> visitor) {
-    script_wrappable_visitor_ = std::move(visitor);
-  }
   ScriptWrappableVisitor* GetScriptWrappableVisitor() {
     return script_wrappable_visitor_.get();
   }

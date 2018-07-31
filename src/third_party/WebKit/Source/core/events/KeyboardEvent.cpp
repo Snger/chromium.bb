@@ -86,7 +86,9 @@ KeyboardEvent* KeyboardEvent::Create(ScriptState* script_state,
   return new KeyboardEvent(type, initializer);
 }
 
-KeyboardEvent::KeyboardEvent() : location_(kDomKeyLocationStandard) {}
+KeyboardEvent::KeyboardEvent() 
+  : is_num_lock(false)
+  , location_(kDomKeyLocationStandard) {}
 
 KeyboardEvent::KeyboardEvent(const WebKeyboardEvent& key,
                              LocalDOMWindow* dom_window)
@@ -106,6 +108,7 @@ KeyboardEvent::KeyboardEvent(const WebKeyboardEvent& key,
       // TODO(crbug.com/482880): Fix this initialization to lazy initialization.
       code_(Platform::Current()->DomCodeStringFromEnum(key.dom_code)),
       key_(Platform::Current()->DomKeyStringFromEnum(key.dom_key)),
+      is_num_lock(key.is_num_lock),
       location_(GetKeyLocationCode(key)),
       is_composing_(HasCurrentComposition(dom_window)) {
   InitLocationModifiers(location_);
@@ -116,6 +119,7 @@ KeyboardEvent::KeyboardEvent(const AtomicString& event_type,
     : UIEventWithKeyState(event_type, initializer),
       code_(initializer.code()),
       key_(initializer.key()),
+      is_num_lock(initializer.hasBbIsNumLock()),
       location_(initializer.location()),
       is_composing_(initializer.isComposing()) {
   if (initializer.repeat())

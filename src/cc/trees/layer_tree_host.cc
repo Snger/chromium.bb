@@ -107,6 +107,7 @@ LayerTreeHost::LayerTreeHost(InitParams* params, CompositorMode mode)
       task_graph_runner_(params->task_graph_runner),
       content_source_id_(0),
       event_listener_properties_(),
+      routing_id_(params->routing_id),
       mutator_host_(params->mutator_host) {
   DCHECK(task_graph_runner_);
   DCHECK(!settings_.enable_checker_imaging || image_worker_task_runner_);

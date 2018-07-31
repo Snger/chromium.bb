@@ -47,6 +47,30 @@ class ToolkitCreateParams
     ToolkitCreateParamsImpl *d_impl;
 
   public:
+    enum LogMessageSeverity {
+        kSeverityVerbose = 0,
+        kSeverityInfo = 1,
+        kSeverityWarning = 2,
+        kSeverityError = 3,
+        kSeverityFatal = 4,
+    };
+
+    // The callback function that will be invoked whenever a log message
+    // happens.
+    typedef void(*LogMessageHandler)(LogMessageSeverity severity,
+                                     const char* file,
+                                     int line,
+                                     const char* message);
+
+    // The callback function that will be invoked whenever a log message
+    // is printed to the Web Console
+    typedef void(*ConsoleLogMessageHandler)(LogMessageSeverity severity,
+                                            const StringRef& file,
+                                            unsigned line,
+                                            unsigned column,
+                                            const StringRef& message,
+                                            const StringRef& stack_trace);
+
     typedef int(__cdecl *WinProcExceptionFilter)(EXCEPTION_POINTERS* info);
         // The callback function that will be invoked whenever SEH exceptions
         // are caught in win procs.
@@ -69,6 +93,15 @@ class ToolkitCreateParams
         // open a print dialog to ask for the target printing device.
         // Calling this will disable the print dialog and use the default
         // printing device on the system.
+
+    BLPWTK2_EXPORT void setLogMessageHandler(LogMessageHandler handler);
+        // By default, log messages go to a "blpwtk2.log" file and to debug output.
+        // Use this method to install a custom log message handler instead.  Note
+        // that the handler callback can be invoked from any thread.
+
+    BLPWTK2_EXPORT void setConsoleLogMessageHandler(ConsoleLogMessageHandler handler);
+        // Use this method to install a custom log message handler for the
+        // Web Console. This handler is only used for in-process renderers.
 
     BLPWTK2_EXPORT void setWinProcExceptionFilter(WinProcExceptionFilter filter);
         // Use this method to install a custom filter that will be invoked
@@ -98,6 +131,13 @@ class ToolkitCreateParams
         // Note, however, that blpwtk2 is based on a different version of
         // chromium, so it may not support *all* the switches mentioned on
         // that page.
+
+    BLPWTK2_EXPORT void appendSideLoadedFontInProcess(const StringRef& fontFile);
+        // Register the specified 'fontFile' to be side-loaded so that it is usable
+        // by the in-process renderer.  The DirectWrite font implementation only
+        // has access to %WINDIR%\Fonts by default.  This function allows
+        // applications to load additional fonts.
+        // Note that right now, this only works for in-process renderers.
 
     BLPWTK2_EXPORT void setInProcessResourceLoader(ResourceLoader*);
         // Install a custom ResourceLoader.  Note that this is only valid when
@@ -185,9 +225,13 @@ class ToolkitCreateParams
         // assuming their toolkits were initialized with an empty profile
         // directory.
 
+    BLPWTK2_EXPORT void setRendererUIEnabled(bool rendererUIEnabled);
+
     // ACCESSORS
     ThreadMode threadMode() const;
     bool useDefaultPrintSettings() const;
+    LogMessageHandler logMessageHandler() const;
+    ConsoleLogMessageHandler consoleLogMessageHandler() const;
     WinProcExceptionFilter winProcExceptionFilter() const;
     ChannelErrorHandler channelErrorHandler() const;
     bool isInProcessRendererEnabled() const;
@@ -195,6 +239,8 @@ class ToolkitCreateParams
     int maxSocketsPerProxy() const;
     size_t numCommandLineSwitches() const;
     StringRef commandLineSwitchAt(size_t index) const;
+    size_t numSideLoadedFonts() const;
+    StringRef sideLoadedFontAt(size_t index) const;
     ResourceLoader* inProcessResourceLoader() const;
     StringRef dictionaryPath() const;
     _invalid_parameter_handler invalidParameterHandler() const;
@@ -210,6 +256,7 @@ class ToolkitCreateParams
     bool isInProcessResizeOptimizationDisabled() const;
     StringRef profileDirectory() const;
     bool isIsolatedProfile() const;
+    bool rendererUIEnabled() const;
 };
 
 }  // close namespace blpwtk2

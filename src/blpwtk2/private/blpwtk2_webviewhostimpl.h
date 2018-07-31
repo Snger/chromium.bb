@@ -104,6 +104,7 @@ class WebViewHostImpl final : private WebViewImplClient
                      const POINT&  startPoint) override;
     void ncDragMove(WebView *source, const POINT& movePoint) override;
     void ncDragEnd(WebView *source, const POINT& endPoint) override;
+    void ncDoubleClick(WebView *source, const POINT& point) override;
     void findState(WebView *source,
                    int      numberOfMatches,
                    int      activeMatchOrdinal,
@@ -121,6 +122,8 @@ class WebViewHostImpl final : private WebViewImplClient
     void forward(forwardCallback callback) override;
     void reload(reloadCallback callback) override;
     void stop() override;
+    void takeKeyboardFocus() override;
+    void setLogicalFocus(bool focused) override;
     void performCustomContextMenuAction(int id) override;
     void show() override;
     void hide() override;
@@ -134,7 +137,7 @@ class WebViewHostImpl final : private WebViewImplClient
     void paste() override;
     void deleteSelection() override;
     void enableNCHitTest(bool enabled) override;
-
+    void enableAltDragRubberbanding(bool enabled) override;
     void find(int                reqId,
               const std::string& text,
               bool               matchCase,
@@ -150,6 +153,7 @@ class WebViewHostImpl final : private WebViewImplClient
                      applyRegionCallback callback) override;
     void clearTooltip() override;
     void setParent(unsigned int window) override;
+    void rootWindowCompositionChanged() override;
 
     DISALLOW_COPY_AND_ASSIGN(WebViewHostImpl);
 
@@ -157,6 +161,7 @@ class WebViewHostImpl final : private WebViewImplClient
     WebViewHostImpl(
             mojom::WebViewClientPtr&&                    clientPtr,
             const mojom::WebViewCreateParams&            params,
+            bool                                         rendererUI,
             BrowserContextImpl                          *browserContext,
             unsigned int                                 hostAffinity,
             const scoped_refptr<ProcessHostImpl::Impl>&  processHost);

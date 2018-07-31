@@ -68,6 +68,8 @@ class WebViewProxy final : public WebView
     int goForward() override;
     int reload() override;
     void stop() override;
+    void takeKeyboardFocus() override;
+    void setLogicalFocus(bool focused) override;
     void show() override;
     void hide() override;
     void setParent(NativeView parent) override;
@@ -79,25 +81,37 @@ class WebViewProxy final : public WebView
     void enableNCHitTest(bool enabled) override;
     void onNCHitTestResult(int x, int y, int result) override;
     void performCustomContextMenuAction(int actionId) override;
+
+    // Begin Rubber Banding
+    void enableAltDragRubberbanding(bool enabled) override;
+    bool forceStartRubberbanding(int x, int y) override;
+    bool isRubberbanding() const override;
+    void abortRubberbanding() override;
+    String getTextInRubberband(const NativeRect&) override;
+    // End Rubber Banding
+
     void find(const StringRef& text, bool matchCase, bool forward) override;
     void stopFind(bool preserveSelection) override;
     void replaceMisspelledRange(const StringRef& text) override;
     void rootWindowPositionChanged() override;
     void rootWindowSettingsChanged() override;
-
     void handleInputEvents(const InputEvent *events,
                            size_t            eventsCount) override;
     void setDelegate(WebViewDelegate *delegate) override;
+    void drawContentsToBlob(Blob *blob, const DrawParams& params) override;
     int getRoutingId() const override;
     void setBackgroundColor(NativeColor color) override;
     void setRegion(NativeRegion region) override;
     void clearTooltip() override;
+    void rootWindowCompositionChanged() override;
+
     v8::MaybeLocal<v8::Value> callFunction(
             v8::Local<v8::Function>  func,
             v8::Local<v8::Value>     recv,
             int                      argc,
             v8::Local<v8::Value>    *argv) override;
 
+    String printToPDF(const StringRef& propertyName) override;
 
     DISALLOW_COPY_AND_ASSIGN(WebViewProxy);
 

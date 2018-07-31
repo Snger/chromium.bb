@@ -77,6 +77,7 @@
 #include "core/inspector/InspectorTraceEvents.h"
 #include "core/loader/DocumentLoader.h"
 #include "core/loader/appcache/ApplicationCache.h"
+#include "core/page/BBWindowHooks.h"
 #include "core/page/ChromeClient.h"
 #include "core/page/CreateWindow.h"
 #include "core/page/Page.h"
@@ -491,6 +492,7 @@ void LocalDOMWindow::Reset() {
   media_ = nullptr;
   custom_elements_ = nullptr;
   application_cache_ = nullptr;
+  bb_window_hooks_ = nullptr;
 }
 
 void LocalDOMWindow::SendOrientationChangeEvent() {
@@ -601,6 +603,17 @@ Navigator* LocalDOMWindow::navigator() const {
   if (!navigator_)
     navigator_ = Navigator::Create(GetFrame());
   return navigator_.Get();
+}
+
+BBWindowHooks* LocalDOMWindow::bbWindowHooks() const
+{
+    if (!IsCurrentlyDisplayedInFrame())
+        return nullptr;
+    if (!bb_window_hooks_)
+        bb_window_hooks_ = BBWindowHooks::Create(GetFrame());
+    if (bb_window_hooks_)
+      return bb_window_hooks_.Get();
+    return nullptr;
 }
 
 void LocalDOMWindow::SchedulePostMessage(MessageEvent* event,
@@ -1628,6 +1641,7 @@ DEFINE_TRACE(LocalDOMWindow) {
   visitor->Trace(post_message_timers_);
   visitor->Trace(visualViewport_);
   visitor->Trace(event_listener_observers_);
+  visitor->Trace(bb_window_hooks_);
   DOMWindow::Trace(visitor);
   Supplementable<LocalDOMWindow>::Trace(visitor);
 }

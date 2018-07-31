@@ -95,6 +95,12 @@ typedef (HTMLScriptElement or SVGScriptElement) HTMLOrSVGScriptElement;
     [PutForwards=href, Unforgeable] readonly attribute Location? location;
     [RaisesException=Setter] attribute DOMString domain;
     readonly attribute DOMString referrer;
+
+    // Bloomberg-specific extensions
+    attribute DOMString bbHeaderText;
+    attribute DOMString bbFooterText;
+    attribute boolean bbPrintPageNumbers;
+
     [RaisesException, RuntimeCallStatsCounter=DocumentCookie] attribute DOMString cookie;
     readonly attribute DOMString lastModified;
     readonly attribute DocumentReadyState readyState;

@@ -34,6 +34,7 @@ RasterSource::RasterSource(const RecordingSource* other)
       clear_canvas_with_debug_color_(other->clear_canvas_with_debug_color_),
       slow_down_raster_scale_factor_for_debug_(
           other->slow_down_raster_scale_factor_for_debug_),
+      default_lcd_background_color_(other->default_lcd_background_color_),
       recording_scale_factor_(other->recording_scale_factor_) {}
 RasterSource::~RasterSource() = default;
 
@@ -56,8 +57,9 @@ void RasterSource::PlaybackToCanvas(
   raster_canvas->clipRect(SkRect::MakeFromIRect(raster_bounds));
   raster_canvas->translate(raster_transform.translation().x(),
                            raster_transform.translation().y());
-  raster_canvas->scale(raster_transform.scale() / recording_scale_factor_,
-                       raster_transform.scale() / recording_scale_factor_);
+  raster_canvas->scale(
+      raster_transform.scale().width() / recording_scale_factor_,
+      raster_transform.scale().height() / recording_scale_factor_);
   PlaybackToCanvas(raster_canvas, target_color_space, settings);
   raster_canvas->restore();
 }
@@ -238,9 +240,12 @@ void RasterSource::DidBeginTracing() {
     display_list_->EmitTraceSnapshot();
 }
 
+SkColor RasterSource::DefaultLCDBackgroundColor() const {
+  return default_lcd_background_color_;
+}
+
 RasterSource::PlaybackSettings::PlaybackSettings()
-    : playback_to_shared_canvas(false),
-      use_lcd_text(true) {}
+    : playback_to_shared_canvas(false), use_lcd_text(true) {}
 
 RasterSource::PlaybackSettings::PlaybackSettings(const PlaybackSettings&) =
     default;

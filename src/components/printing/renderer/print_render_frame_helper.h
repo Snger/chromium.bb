@@ -134,9 +134,16 @@ class PrintRenderFrameHelper
   // printing is build-in. This method is used by CEF.
   static void DisablePreview();
 
+  // Uses the default print settings instead of asking the user everytime.
+  static void UseDefaultPrintSettings();
+
+  static Delegate* CreateEmptyDelegate();
+
   bool IsPrintingEnabled() const;
 
   void PrintNode(const blink::WebNode& node);
+
+  std::vector<char> PrintToPDF(blink::WebLocalFrame* localframe);
 
  private:
   friend class PrintRenderFrameHelperTestBase;
@@ -356,6 +363,7 @@ class PrintRenderFrameHelper
   // Helper function to find document type.
   static SkiaDocumentType GetDocType(const PrintMsg_Print_Params& params);
 
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
   // Given the |device| and |canvas| to draw on, prints the appropriate headers
   // and footers using strings from |header_footer_info| on to the canvas.
   static void PrintHeaderAndFooter(blink::WebCanvas* canvas,
@@ -365,6 +373,7 @@ class PrintRenderFrameHelper
                                    float webkit_scale_factor,
                                    const PageSizeMargins& page_layout_in_points,
                                    const PrintMsg_Print_Params& params);
+#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
   // Script Initiated Printing ------------------------------------------------
 

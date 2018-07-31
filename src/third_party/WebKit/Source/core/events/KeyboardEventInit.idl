@@ -9,5 +9,6 @@ dictionary KeyboardEventInit : EventModifierInit {
     DOMString code = "";
     unsigned long location = 0;
     boolean repeat = false;
+    boolean bbIsNumLock = false;
     boolean isComposing = false;
 };

@@ -428,6 +428,7 @@ class CORE_EXPORT LayoutObject : public ImageResourceObserver,
 #endif
 
   void AddAbsoluteRectForLayer(IntRect& result);
+  void AddAbsoluteRectForLayer(const IntRect& clip, IntRect& result);
   bool RequiresAnonymousTableWrappers(const LayoutObject*) const;
 
   // Gets ::selection pseudo style from Shadow host(in case of input elements)

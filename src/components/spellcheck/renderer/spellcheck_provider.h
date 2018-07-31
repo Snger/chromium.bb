@@ -21,6 +21,7 @@ struct SpellCheckResult;
 namespace blink {
 class WebTextCheckingCompletion;
 struct WebTextCheckingResult;
+class WebLocalFrame;
 }
 
 // This class deals with asynchronously invoking text spelling and grammar
@@ -55,7 +56,11 @@ class SpellCheckProvider
   // Enables document-wide spellchecking.
   void EnableSpellcheck(bool enabled);
 
+  // Makes a document-wide spellcheck request.
+  void RequestSpellcheck();
+
   // content::RenderFrameObserver:
+  void DidFinishLoad() override;
   bool OnMessageReceived(const IPC::Message& message) override;
   void FocusedNodeChanged(const blink::WebNode& node) override;
 

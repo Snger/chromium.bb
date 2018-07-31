@@ -13,6 +13,7 @@
 #include "cc/trees/layer_tree_host.h"
 #include "cc/trees/layer_tree_impl.h"
 #include "cc/trees/transform_node.h"
+#include "cc/trees/property_tree.h"
 #include "ui/gfx/geometry/rect_conversions.h"
 
 static constexpr int kMaxNumberOfSlowPathsBeforeReporting = 5;
@@ -102,6 +103,9 @@ bool PictureLayer::Update() {
   recording_source_->SetRequiresClear(
       !contents_opaque() &&
       !picture_layer_inputs_.client->FillsBoundsCompletely());
+
+  recording_source_->SetDefaultLCDBackgroundColor(
+      picture_layer_inputs_.default_lcd_background_color);
 
   TRACE_EVENT1("cc", "PictureLayer::Update", "source_frame_number",
                layer_tree_host()->SourceFrameNumber());
@@ -218,6 +222,14 @@ void PictureLayer::SetTransformedRasterizationAllowed(bool allowed) {
   SetNeedsCommit();
 }
 
+void PictureLayer::SetDefaultLCDBackgroundColor(SkColor default_lcd_background_color) {
+  if (picture_layer_inputs_.default_lcd_background_color == default_lcd_background_color)
+    return;
+
+  picture_layer_inputs_.default_lcd_background_color = default_lcd_background_color;
+  SetNeedsDisplay();
+}
+
 bool PictureLayer::HasDrawableContent() const {
   return picture_layer_inputs_.client && Layer::HasDrawableContent();
 }
@@ -255,14 +267,6 @@ bool PictureLayer::ShouldUseTransformedRasterization() const {
   if (!picture_layer_inputs_.transformed_rasterization_allowed)
     return false;
 
-  // Background color overfill is undesirable with transformed rasterization.
-  // However, without background overfill, the tiles will be non-opaque on
-  // external edges, and layer opaque region can't be computed in layer space
-  // due to rounding under extreme scaling. This defeats many opaque layer
-  // optimization. Prefer optimization over quality for this particular case.
-  if (contents_opaque())
-    return false;
-
   const TransformTree& transform_tree =
       layer_tree_host()->property_trees()->transform_tree;
   DCHECK(!transform_tree.needs_update());
@@ -279,13 +283,6 @@ bool PictureLayer::ShouldUseTransformedRasterization() const {
   const gfx::Transform& to_screen =
       transform_tree.ToScreen(transform_tree_index());
   if (!to_screen.IsScaleOrTranslation())
-    return false;
-
-  float origin_x =
-      to_screen.matrix().getFloat(0, 3) + offset_to_transform_parent().x();
-  float origin_y =
-      to_screen.matrix().getFloat(1, 3) + offset_to_transform_parent().y();
-  if (origin_x - floorf(origin_x) == 0.f && origin_y - floorf(origin_y) == 0.f)
     return false;
 
   return true;

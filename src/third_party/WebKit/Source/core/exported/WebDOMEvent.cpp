@@ -31,9 +31,27 @@
 #include "public/web/WebDOMEvent.h"
 
 #include "core/dom/events/Event.h"
+#include "core/dom/events/CustomEvent.h"
+#include "platform/bindings/ScriptState.h"
+#include "bindings/core/v8/ScriptValue.h"
+
 #include "platform/wtf/RefPtr.h"
 
 namespace blink {
+
+WebDOMEvent WebDOMEvent::CreateCustomEvent(
+    v8::Isolate* isolate,
+    const char* name,
+    bool canBubble,
+    bool cancelable,
+    v8::Local<v8::Value> value) {
+  CustomEvent* customEvent = CustomEvent::Create();
+  DCHECK (isolate);
+  DCHECK (!(isolate->GetCurrentContext().IsEmpty()));
+  ScriptState* state = ScriptState::Current(isolate);
+  customEvent->initCustomEvent(state, name, canBubble, cancelable, ScriptValue(state, std::move(value)));
+  return WebDOMEvent(customEvent);
+}
 
 void WebDOMEvent::Reset() {
   Assign(nullptr);

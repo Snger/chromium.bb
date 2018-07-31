@@ -891,7 +891,7 @@ void TileManager::PartitionImagesForCheckering(
   WhichTree tree = tile->tiling()->tree();
 
   for (const auto* original_draw_image : images_in_tile) {
-    DrawImage draw_image(*original_draw_image, tile->raster_transform().scale(),
+    DrawImage draw_image(*original_draw_image, tile->raster_transform().scale().width(),
                          raster_color_space);
     if (checker_image_tracker_.ShouldCheckerImage(
             draw_image, tree, tile->required_for_activation()))
@@ -913,7 +913,7 @@ void TileManager::AddCheckeredImagesToDecodeQueue(
   WhichTree tree = tile->tiling()->tree();
 
   for (const auto* original_draw_image : images_in_tile) {
-    DrawImage draw_image(*original_draw_image, tile->raster_transform().scale(),
+    DrawImage draw_image(*original_draw_image, tile->raster_transform().scale().width(),
                          raster_color_space);
     if (checker_image_tracker_.ShouldCheckerImage(
             draw_image, tree, tile->required_for_activation())) {

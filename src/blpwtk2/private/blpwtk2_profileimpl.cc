@@ -23,6 +23,7 @@
 #include <blpwtk2_profileimpl.h>
 
 #include <blpwtk2_browsercontextimpl.h>
+#include <blpwtk2_renderwebview.h>
 #include <blpwtk2_webviewproxy.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
@@ -31,10 +32,12 @@
 
 #include <base/bind.h>
 #include <base/message_loop/message_loop.h>
+#include <base/process/process_handle.h>
 #include <ipc/ipc_sender.h>
 #include <ipc/ipc_sync_channel.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/common/service_manager/child_connection.h>
+#include <components/printing/renderer/print_render_frame_helper.h>
 #include <mojo/public/cpp/bindings/strong_binding.h>
 #include <services/service_manager/public/cpp/connector.h>
 
@@ -200,6 +203,37 @@ static void onWebViewCreated(
     delegate->created(proxy);
     delete webViewHostPtr;
 }
+static void onRenderWebViewCreated(
+        RenderWebView               *renderWebView,
+        WebViewDelegate             *delegate,
+        mojom::WebViewHostPtr       *webViewHostPtr,
+        mojom::WebViewClientRequest  webViewClientRequest,
+        int                          status)
+{
+    DCHECK(0 == status);
+    if (status) {
+        static_cast<WebView*>(renderWebView)->destroy();
+        renderWebView = nullptr;
+    }
+    else {
+        // Create a webview client and a render webview.  They both have a
+        // reference to one another so that when one goes away, it can tell
+        // the other to dispose dangling references.
+        std::unique_ptr<WebViewClientImpl> webViewClientImpl =
+            std::make_unique<WebViewClientImpl>(std::move(*webViewHostPtr),
+                                                renderWebView);
+
+        renderWebView->setClient(webViewClientImpl.get());
+
+        // Bind the webview client to the request from process host.  This
+        // will make its lifetime managed by Mojo.
+        mojo::MakeStrongBinding(std::move(webViewClientImpl),
+                                std::move(webViewClientRequest));
+    }
+
+    delegate->created(renderWebView);
+    delete webViewHostPtr;
+}
 
 void ProfileImpl::createWebView(WebViewDelegate            *delegate,
                                 const WebViewCreateParams&  params)
@@ -209,24 +243,61 @@ void ProfileImpl::createWebView(WebViewDelegate            *delegate,
     const mojom::WebViewCreateParams *createParams =
         getWebViewCreateParamsImpl(params);
 
-    // Create a new instance of WebViewProxy.
-    WebViewProxy *proxy = new WebViewProxy(delegate, this);
-
-    // Ask the process host to create a webview host. 
+    // Ask the process host to create a webview host.
     mojom::WebViewHostPtr *webViewHostPtr =
         new mojom::WebViewHostPtr;
 
     auto taskRunner =
         base::MessageLoop::current()->task_runner();
 
-    d_hostPtr->createWebView(
-        mojo::MakeRequest(webViewHostPtr, taskRunner),
-        createParams->Clone(),
-        base::Bind(
-            &onWebViewCreated,
-            proxy,
-            delegate,
-            webViewHostPtr));
+    if (Statics::rendererUIEnabled &&
+        Statics::isInProcessRendererEnabled &&
+        params.rendererAffinity() == (int)base::GetCurrentProcId()) {
+        WebViewProperties properties;
+
+#if defined(BLPWTK2_FEATURE_FOCUS)
+        properties.takeKeyboardFocusOnMouseDown =
+            params.takeKeyboardFocusOnMouseDown();
+        properties.takeLogicalFocusOnMouseDown =
+            params.takeLogicalFocusOnMouseDown();
+        properties.activateWindowOnMouseDown =
+            params.activateWindowOnMouseDown();
+#endif
+
+        properties.domPasteEnabled =
+            params.domPasteEnabled();
+        properties.javascriptCanAccessClipboard =
+            params.javascriptCanAccessClipboard();
+        properties.rerouteMouseWheelToAnyRelatedWindow =
+            params.rerouteMouseWheelToAnyRelatedWindow();
+
+        // Create a new instance of RenderWebView.
+        RenderWebView *renderWebView = new RenderWebView(delegate, this, properties);
+
+        d_hostPtr->createWebView(
+            mojo::MakeRequest(webViewHostPtr, taskRunner),
+            createParams->Clone(),
+            true,
+            base::Bind(
+                &onRenderWebViewCreated,
+                renderWebView,
+                delegate,
+                webViewHostPtr));
+    }
+    else {
+        // Create a new instance of WebViewProxy.
+        WebViewProxy *proxy = new WebViewProxy(delegate, this);
+
+        d_hostPtr->createWebView(
+            mojo::MakeRequest(webViewHostPtr, taskRunner),
+            createParams->Clone(),
+            false,
+            base::Bind(
+                &onWebViewCreated,
+                proxy,
+                delegate,
+                webViewHostPtr));
+    }
 }
 
 void ProfileImpl::addHttpProxy(ProxyType        type,
@@ -295,9 +366,67 @@ void ProfileImpl::clearBypassRules()
     d_hostPtr->clearBypassRules();
 }
 
+void ProfileImpl::clearWebCache()
+{
+    d_hostPtr->clearWebCache();
+}
+
 void ProfileImpl::setPacUrl(const StringRef& url)
 {
     d_hostPtr->setPacUrl(std::string(url.data(), url.size()));
+}
+
+void ProfileImpl::enableSpellCheck(bool enabled)
+{
+    d_hostPtr->enableSpellCheck(enabled);
+}
+
+void ProfileImpl::setLanguages(const StringRef *languages,
+                               size_t           numLanguages)
+{
+    std::vector<std::string> languageList;
+
+    for (size_t i=0; i<numLanguages; ++i) {
+        languageList.push_back(languages[i].toStdString());
+    }
+
+    d_hostPtr->setLanguages(languageList);
+}
+
+void ProfileImpl::addCustomWords(const StringRef *words, size_t numWords)
+{
+    std::vector<std::string> wordList;
+
+    for (size_t i=0; i<numWords; ++i) {
+        wordList.push_back(words[i].toStdString());
+    }
+
+    d_hostPtr->addCustomWords(wordList);
+}
+
+void ProfileImpl::removeCustomWords(const StringRef *words,
+                                    size_t           numWords)
+{
+    std::vector<std::string> wordList;
+
+    for (size_t i=0; i<numWords; ++i) {
+        wordList.push_back(words[i].toStdString());
+    }
+
+    d_hostPtr->removeCustomWords(wordList);
+}
+
+void ProfileImpl::dumpDiagnostics(DiagnosticInfoType type,
+                                  const StringRef&   path)
+{
+    d_hostPtr->dumpDiagnostics(static_cast<int>(type),
+                               std::string(path.data(), path.size()));
+}
+
+void ProfileImpl::setDefaultPrinter(const StringRef& name)
+{
+    printing::PrintRenderFrameHelper::UseDefaultPrintSettings();
+    d_hostPtr->setDefaultPrinter(std::string(name.data(), name.size()));
 }
 
 }  // close namespace blpwtk2

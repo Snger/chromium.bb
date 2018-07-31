@@ -58,8 +58,16 @@ struct WebPluginParams;
 struct WebURLError;
 }  // namespace blink
 
+namespace cc {
+class LayerTreeFrameSink;
+}  // namespace cc
+
 namespace media {
 class KeySystemProperties;
+}
+
+namespace IPC {
+class Message;
 }
 
 namespace content {
@@ -392,6 +400,21 @@ class CONTENT_EXPORT ContentRendererClient {
   // Whether the renderer allows idle media players to be automatically
   // suspended after a period of inactivity.
   virtual bool AllowIdleMediaSuspend();
+
+  // Allows the embedder to intercept IPC messages before they are sent to
+  // the browser. If the function handles the message, it should delete
+  // 'msg' and return 'true'. If the function does not handle the message,
+  // it should return 'false' without deleting 'msg'.
+  virtual bool Dispatch(IPC::Message* msg) { return false; }
+
+  // Allows the embedder to override construction of the compositor
+  // frame sink for the 'content::RenderView' identified by 'routing_id'.
+  using LayerTreeFrameSinkCallback =
+      base::Callback<void(std::unique_ptr<cc::LayerTreeFrameSink>)>;
+  virtual bool RequestNewLayerTreeFrameSink(
+      bool use_software,
+      int routing_id,
+      const LayerTreeFrameSinkCallback& callback) { return false; }
 };
 
 }  // namespace content

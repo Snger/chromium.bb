@@ -129,6 +129,14 @@ CORE_EXPORT Node* EnclosingNodeOfType(
     bool (*node_is_of_type)(const Node*),
     EditingBoundaryCrossingRule = kCannotCrossEditingBoundary);
 
+Node* previousRenderedSibling(const Node* node);
+Node* nextRenderedSibling(const Node* node);
+Node* previousRenderedSiblingExcludingWhitespace(const Node* node);
+Node* nextRenderedSiblingExcludingWhitespace(const Node* node);
+
+Node* blockExtentStart(Node* node, const Node* stayWithin = 0);
+Node* blockExtentEnd(Node* node, const Node* stayWithin = 0);
+
 HTMLSpanElement* TabSpanElement(const Node*);
 Element* TableElementJustAfter(const VisiblePosition&);
 CORE_EXPORT Element* TableElementJustBefore(const VisiblePosition&);
@@ -173,7 +181,7 @@ bool IsInline(const Node*);
 bool IsTableCell(const Node*);
 bool IsEmptyTableCell(const Node*);
 bool IsTableStructureNode(const Node*);
-bool IsHTMLListElement(Node*);
+bool IsHTMLListElement(const Node*);
 bool IsListItem(const Node*);
 bool IsPresentationalHTMLElement(const Node*);
 bool IsNodeRendered(const Node&);

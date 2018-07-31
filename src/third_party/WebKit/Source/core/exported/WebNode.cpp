@@ -40,6 +40,7 @@
 #include "core/dom/TagCollection.h"
 #include "core/dom/TaskRunnerHelper.h"
 #include "core/dom/events/Event.h"
+#include "core/dom/events/EventDispatcher.h"
 #include "core/editing/EditingUtilities.h"
 #include "core/editing/serializers/Serialization.h"
 #include "core/exported/WebPluginContainerImpl.h"
@@ -53,6 +54,13 @@
 #include "public/web/WebDocument.h"
 #include "public/web/WebElement.h"
 #include "public/web/WebElementCollection.h"
+
+namespace {
+void DispatchImpl(blink::Node* node_ptr, blink::Event* evt) {
+  blink::EventDispatcher::DispatchScopedEvent(*node_ptr, evt->CreateMediator());
+}
+
+}
 
 namespace blink {
 
@@ -77,6 +85,13 @@ void WebNode::Reset() {
 
 void WebNode::Assign(const WebNode& other) {
   private_ = other.private_;
+}
+ 
+void WebNode::DispatchEvent(WebDOMEvent event)
+{
+  Event* evt = event;
+  auto taskRunner = TaskRunnerHelper::Get(TaskType::kUserInteraction, private_->GetExecutionContext());
+  taskRunner->PostTask(FROM_HERE, WTF::Bind(&DispatchImpl, WrapWeakPersistent(private_.Get()), base::Unretained(evt)));
 }
 
 bool WebNode::Equals(const WebNode& n) const {

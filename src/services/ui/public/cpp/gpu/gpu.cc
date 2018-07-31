@@ -147,6 +147,26 @@ scoped_refptr<gpu::GpuChannelHost> Gpu::EstablishGpuChannelSync() {
   return gpu_channel_;
 }
 
+scoped_refptr<gpu::GpuChannelHost> Gpu::EstablishPrivilegedGpuChannelSync() {
+  DCHECK(IsMainThread());
+  if (GetGpuChannel())
+    return gpu_channel_;
+  if (!gpu_ || !gpu_.is_bound())
+    gpu_ = factory_.Run();
+
+  int client_id = 0;
+  mojo::ScopedMessagePipeHandle channel_handle;
+  gpu::GPUInfo gpu_info;
+  mojo::SyncCallRestrictions::ScopedAllowSyncCall allow_sync_call;
+  if (!gpu_->EstablishPrivilegedGpuChannel(&client_id, &channel_handle, &gpu_info)) {
+    DLOG(WARNING) << "Encountered error while establishing gpu channel.";
+    return nullptr;
+  }
+  OnEstablishedGpuChannel(client_id, std::move(channel_handle), gpu_info);
+
+  return gpu_channel_;
+}
+
 gpu::GpuMemoryBufferManager* Gpu::GetGpuMemoryBufferManager() {
   return gpu_memory_buffer_manager_.get();
 }

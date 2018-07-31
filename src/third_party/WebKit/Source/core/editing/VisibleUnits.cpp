@@ -696,6 +696,8 @@ static InlineTextBox* SearchAheadForBetterMatch(LayoutObject* layout_object) {
     if (IsNonTextLeafChild(next))
       return 0;
     if (next->IsText()) {
+      if (next->Style()->UserModify() == EUserModify::kReadOnly)
+        return 0;
       InlineTextBox* match = 0;
       int min_offset = INT_MAX;
       for (InlineTextBox* box : InlineTextBoxesOf(*ToLayoutText(next))) {

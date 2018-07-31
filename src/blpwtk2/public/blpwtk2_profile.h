@@ -30,6 +30,7 @@
 namespace blpwtk2 {
 
 class ProxyConfig;
+class SpellCheckConfig;
 class StringRef;
 class WebView;
 class WebViewDelegate;
@@ -61,6 +62,11 @@ enum class ProxyType {
 class Profile
 {
   public:
+    // TYPES
+    enum class DiagnosticInfoType {
+        GPU
+    };
+
     virtual void destroy() = 0;
         // Destroy this profile.  Note that all WebViews created from this
         // profile must be destroyed before the profile is destroyed.  The
@@ -133,7 +139,34 @@ class Profile
     virtual void clearBypassRules() = 0;
         // Clear the proxy blacklist.
 
+    virtual void clearWebCache() = 0;
+        // Clear unused resources from global web cache
+
     virtual void setPacUrl(const StringRef& url) = 0;
+
+    virtual void enableSpellCheck(bool enabled) = 0;
+        // Enable/Disable spellchecker.  Default: enabled
+
+    virtual void setLanguages(const StringRef *languages,
+                              size_t           numLanguages) = 0;
+        // Update the list of spellchecker languages.
+
+    virtual void addCustomWords(const StringRef *words, size_t numWords) = 0;
+        // Add the specified 'words' to the list of custom words used in this
+        // profile.
+
+    virtual void removeCustomWords(const StringRef *words,
+                                   size_t           numWords) = 0;
+        // Remove the specified 'words' from the list of custom words used in
+        // this profile.
+
+    virtual void dumpDiagnostics(DiagnosticInfoType type,
+                                 const StringRef&   path) = 0;
+        // Write diagnostic information of the specified 'type' onto the
+        // file 'filepath'
+
+    virtual void setDefaultPrinter(const StringRef& name) = 0;
+        // Sets the printer to use by default
 
   protected:
     virtual ~Profile();

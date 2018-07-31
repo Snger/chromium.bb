@@ -108,6 +108,7 @@ class VIEWS_EXPORT DesktopNativeWidgetAura
   bool ShouldUseNativeFrame() const override;
   bool ShouldWindowContentsBeTransparent() const override;
   void FrameTypeChanged() override;
+  void CompositionChanged() override;
   Widget* GetWidget() override;
   const Widget* GetWidget() const override;
   gfx::NativeView GetNativeView() const override;
@@ -135,6 +136,7 @@ class VIEWS_EXPORT DesktopNativeWidgetAura
   gfx::Rect GetRestoredBounds() const override;
   std::string GetWorkspace() const override;
   void SetBounds(const gfx::Rect& bounds) override;
+  void SetBoundsNoDPIAdjustment(const gfx::Rect& bounds) override;
   void SetSize(const gfx::Size& size) override;
   void StackAbove(gfx::NativeView native_view) override;
   void StackAtTop() override;
@@ -256,6 +258,8 @@ class VIEWS_EXPORT DesktopNativeWidgetAura
   std::string name_;
 
   std::unique_ptr<DesktopCaptureClient> capture_client_;
+
+  aura::Window* content_window_container_;
 
   // This is the return value from GetNativeView().
   // WARNING: this may be NULL, in particular during shutdown it becomes NULL.

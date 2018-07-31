@@ -175,10 +175,15 @@ void ApplyStyleCommand::UpdateStartEnd(const Position& new_start,
   if (!use_ending_selection_ && (new_start != start_ || new_end != end_))
     use_ending_selection_ = true;
   GetDocument().UpdateStyleAndLayoutIgnorePendingStylesheets();
+
+  bool wasBaseFirst = StartingSelection().IsBaseFirst() && StartingSelection().IsDirectional();
+  Position base = wasBaseFirst ? new_start : new_end;
+  Position extent = wasBaseFirst ? new_end : new_start;
+
   const VisibleSelection& visible_selection = CreateVisibleSelection(
       SelectionInDOMTree::Builder()
-          .Collapse(new_start)
-          .Extend(new_end)
+          .Collapse(base)
+          .Extend(extent)
           .SetIsDirectional(EndingSelection().IsDirectional())
           .Build());
   SetEndingSelection(

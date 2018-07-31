@@ -63,6 +63,47 @@ class WebView
         bool isRight;
     };
 
+    struct DrawParams {
+        enum class RendererType {
+            PDF,
+            Bitmap
+        };
+
+        NativeRect srcRegion;
+            // The region of the webview that will be captured.  The units are
+            // specified in terms of pixels.
+
+        float destWidth;
+        float destHeight;
+            // The size of the generated document.  The units are specified in
+            // terms of points (1/72th of an inch) as described in
+            // https://drafts.csswg.org/css-values-3/#absolute-lengths
+            // If a device dependent renderer is selected (ie. bitmap), the
+            // size will be assumed to be of the native resolution unit of the
+            // device.
+
+        StringRef styleClass;
+            // A space separated class list that will be applied to the body
+            // element.  The application is only temporary and the style
+            // attribute is reverted once the draw operation is complete.
+
+        RendererType rendererType;
+            // The picture format of the generated output.
+
+        int dpi;
+            // The 'dpi' field is only applicable for PDF renderer and when
+            // the target is a Blob.
+
+        DrawParams()
+            : srcRegion({ 0 })
+            , destWidth(0.0)
+            , destHeight(0.0)
+            , rendererType(RendererType::PDF)
+            , dpi(72)
+        {
+        }
+    };
+
     virtual void destroy() = 0;
         // Destroy the WebView and release any resources.  Do not use this
         // WebView after calling this method.
@@ -107,6 +148,20 @@ class WebView
     virtual void stop() = 0;
         // Stop loading the current contents.  This is a no-op if the WebView
         // is not loading any content.
+
+    virtual void takeKeyboardFocus() = 0;
+        // Make this WebView take keyboard focus.  This means all Windows
+        // keyboard messages will now be handled by the WebView.  Note that
+        // even though Windows keyboard messages are being processed by the
+        // WebView, they will not actually do anything unless the WebView
+        // also has logical focus.
+
+    virtual void setLogicalFocus(bool focused) = 0;
+        // Enable/disable logical focus.  This controls whether or not the
+        // WebView will display a focused UI, including whether or not the
+        // caret will be visible.  Note that setting logical focus will not
+        // cause keyboard events to be automatically processed by the
+        // WebView, unless it has keyboard focus.
 
     virtual void show() = 0;
         // Show this WebView.
@@ -158,6 +213,37 @@ class WebView
         // Execute a custom context menu action provided by blink.  An example
         // of such custom action is the selection of a spellcheck suggestion.
 
+    virtual void enableAltDragRubberbanding(bool enabled) = 0;
+        // If set the 'true', rubberbanding will be enabled via Alt+Mousedrag.
+        // This allows users to draw a rectangle within this WebView to copy
+        // text to the clipboard.
+
+    virtual bool forceStartRubberbanding(int x, int y) = 0;
+        // Begin rubberbanding, regardless of the state of the mouse/alt key.
+        // This method will internally invoke 'preStartRubberbanding' and, on
+        // success, 'startRubberBanding'.  Rubberbanding will begin at the
+        // specified 'x' and 'y' in WebView client coordinates. Returns
+        // 'true' if rubberbanding began or was already in progress, and
+        // 'false' otherwise. The behavior is undefined if the mouse is not
+        // currently down when this function is called.
+
+    virtual bool isRubberbanding() const = 0;
+        // Returns true if a rubberband is in progress.
+
+    virtual void abortRubberbanding() = 0;
+        // Abort rubberbanding.  Also, dispatch a "rubberbandaborted" event
+        // from the main document.  The behavior is undefined if
+        // 'isRubberbanding()' returns false.  Note that after this method
+        // returns, 'isRubberbanding()' will return false.
+
+    virtual String getTextInRubberband(const NativeRect&) = 0;
+        // Get the text in the specified rectangle (in WebView client
+        // coordinates), without actually starting and finishing a
+        // rubberband.  The behavior is undefined if 'isRubberbanding()'
+        // returns true.  Note that after this method returns,
+        // 'isRubberbanding()' will remain false.  Also note that the
+        // rubberband events will not be dispatched.
+
     virtual void find(const StringRef& text,
                       bool             matchCase,
                       bool             forward = true) = 0;
@@ -190,6 +276,9 @@ class WebView
         // Set a new web view delegate. From this point on, all callbacks will
         // be sent to the new delegate.
 
+    virtual void drawContentsToBlob(Blob *blob, const DrawParams& params) = 0;
+        // Draw the specified region of the main web frame onto a blob.
+
     virtual int getRoutingId() const = 0;
         // Return the routingId for this WebView.  This can only be used in
         // the RENDERER_MAIN mode.  The routingId is a unique number generated
@@ -207,11 +296,18 @@ class WebView
     virtual void clearTooltip() = 0;
         // TODO(imran)
 
+    virtual void rootWindowCompositionChanged() = 0;
+        // Notify the webview that desktop composition has been enabled or
+        // disabled.
+
     virtual v8::MaybeLocal<v8::Value> callFunction(v8::Local<v8::Function> func,
                                                    v8::Local<v8::Value> recv,
                                                    int argc,
                                                    v8::Local<v8::Value> *argv) = 0;
         // Call the specified V8 function with instrumentation
+
+    virtual String printToPDF(const StringRef& propertyName) = 0;
+        // TODO(imran)
 
   protected:
     virtual ~WebView();

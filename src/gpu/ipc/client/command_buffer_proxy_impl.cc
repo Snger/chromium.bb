@@ -193,11 +193,15 @@ bool CommandBufferProxyImpl::Initialize(
   TRACE_EVENT0("gpu", "CommandBufferProxyImpl::Initialize");
   shared_state_shm_ =
       channel->factory()->AllocateSharedMemory(sizeof(*shared_state()));
-  if (!shared_state_shm_)
+  if (!shared_state_shm_) {
+    LOG(ERROR) << "Could not allocate shared memory of " << sizeof(*shared_state()) << " bytes.";
     return false;
+  }
 
-  if (!shared_state_shm_->Map(sizeof(*shared_state())))
+  if (!shared_state_shm_->Map(sizeof(*shared_state()))) {
+    LOG(ERROR) << "Could not map shared memory.";
     return false;
+  }
 
   shared_state()->Initialize();
 
@@ -206,8 +210,10 @@ bool CommandBufferProxyImpl::Initialize(
   // sending of the CreateCommandBuffer IPC below.
   base::SharedMemoryHandle handle =
       channel->ShareToGpuProcess(shared_state_shm_->handle());
-  if (!base::SharedMemory::IsHandleValid(handle))
+  if (!base::SharedMemory::IsHandleValid(handle)) {
+    LOG(ERROR) << "Failed to share handle with GPU process.";
     return false;
+  }
 
   // TODO(vadimt): Remove ScopedTracker below once crbug.com/125248 is fixed.
   tracked_objects::ScopedTracker tracking_profile(

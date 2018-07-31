@@ -29,6 +29,14 @@ bool RenderWidgetHostDelegate::PreHandleGestureEvent(
   return false;
 }
 
+bool RenderWidgetHostDelegate::ShouldSetKeyboardFocusOnMouseDown() {
+  return true;
+}
+
+bool RenderWidgetHostDelegate::ShouldSetLogicalFocusOnMouseDown() {
+  return true;
+}
+
 BrowserAccessibilityManager*
     RenderWidgetHostDelegate::GetRootBrowserAccessibilityManager() {
   return NULL;

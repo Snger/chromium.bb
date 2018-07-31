@@ -64,6 +64,7 @@
 #include "third_party/WebKit/public/web/WebImeTextSpan.h"
 #include "ui/accessibility/platform/aura_window_properties.h"
 #include "ui/aura/client/aura_constants.h"
+#include "ui/aura/client/capture_client.h"
 #include "ui/aura/client/cursor_client.h"
 #include "ui/aura/client/cursor_client_observer.h"
 #include "ui/aura/client/focus_client.h"
@@ -81,6 +82,7 @@
 #include "ui/base/ime/input_method.h"
 #include "ui/base/ui_base_switches.h"
 #include "ui/base/ui_base_types.h"
+#include "ui/base/win/rubberband_windows.h"
 #include "ui/compositor/compositor_vsync_manager.h"
 #include "ui/compositor/dip_util.h"
 #include "ui/display/screen.h"
@@ -395,7 +397,7 @@ RenderWidgetHostViewAura::RenderWidgetHostViewAura(RenderWidgetHost* host,
       popup_child_host_view_(nullptr),
       is_loading_(false),
       has_composition_text_(false),
-      background_color_(SK_ColorWHITE),
+      background_color_(default_background_color_),
       needs_begin_frames_(false),
       added_frame_observer_(false),
       cursor_visibility_state_in_renderer_(UNKNOWN),
@@ -653,8 +655,23 @@ void RenderWidgetHostViewAura::Focus() {
   // situations we may not yet be in a valid Window hierarchy (such as reloading
   // after out of memory discarded the tab).
   aura::client::FocusClient* client = aura::client::GetFocusClient(window_);
-  if (client)
+  if (client) {
+    bool should_recapture = false;
+
+    if (event_handler_->has_capture_from_mouse_down() && aura::client::GetCaptureWindow(window_) == window_) {
+      should_recapture = true;
+      window_->ReleaseCapture();
+    }
     window_->Focus();
+    if (should_recapture)
+      window_->SetCapture();
+  }
+}
+
+void RenderWidgetHostViewAura::Blur() {
+  aura::client::FocusClient* client = aura::client::GetFocusClient(window_);
+  if (client)
+    client->FocusWindow(NULL);
 }
 
 bool RenderWidgetHostViewAura::HasFocus() const {
@@ -1192,6 +1209,20 @@ void RenderWidgetHostViewAura::UnlockMouse() {
   event_handler_->UnlockMouse();
 }
 
+void RenderWidgetHostViewAura::SetRubberbandRect(const gfx::Rect& rect) {
+  if (!rubberband_outline_.get())
+    rubberband_outline_.reset(new ui::RubberbandOutline());
+
+  // TODO(SHEZ): Replace this windows-specific code with an Aura view
+  HWND hwnd = window_->GetHost()->GetAcceleratedWidget();
+  RECT wrect = rect.ToRECT();
+  rubberband_outline_->SetRect(hwnd, wrect);
+}
+
+void RenderWidgetHostViewAura::HideRubberbandRect() {
+  rubberband_outline_.reset();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // RenderWidgetHostViewAura, ui::TextInputClient implementation:
 void RenderWidgetHostViewAura::SetCompositionText(
@@ -1524,6 +1555,10 @@ gfx::NativeCursor RenderWidgetHostViewAura::GetCursor(const gfx::Point& point) {
 int RenderWidgetHostViewAura::GetNonClientComponent(
     const gfx::Point& point) const {
   return HTCLIENT;
+}
+
+bool RenderWidgetHostViewAura::ShouldTryFocusOnMouseDown() const {
+  return !host_ || host_->ShouldSetLogicalFocusOnMouseDown();
 }
 
 bool RenderWidgetHostViewAura::ShouldDescendIntoChildForEventHandling(
@@ -2176,7 +2211,7 @@ void RenderWidgetHostViewAura::UpdateLegacyWin() {
         LegacyRenderWidgetHostHWND::Create(GetHostWindowHWND());
   }
 
-  if (legacy_render_widget_host_HWND_) {
+  if (legacy_render_widget_host_HWND_ && GetNativeView()->GetHost()) {
     legacy_render_widget_host_HWND_->set_host(this);
     legacy_render_widget_host_HWND_->UpdateParent(GetHostWindowHWND());
     legacy_render_widget_host_HWND_->SetBounds(

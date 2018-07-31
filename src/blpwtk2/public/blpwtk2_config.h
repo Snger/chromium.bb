@@ -42,35 +42,54 @@
 // for each feature.
 
 // feature 0
+#define BLPWTK2_FEATURE_FOCUS
 // feature 1
+#define BLPWTK2_FEATURE_SCREENPRINT
 // feature 2
+#define BLPWTK2_FEATURE_PRINTPDF
 // feature 3
+#define BLPWTK2_FEATURE_CRTHANDLER
 // feature 4
+#define BLPWTK2_FEATURE_SPELLCHECK
 // feature 5
 // feature 6
+#define BLPWTK2_FEATURE_DUMPDIAGNOSTICS
 // feature 7
+#define BLPWTK2_FEATURE_PERFORMANCETIMING
 // feature 8
+#define BLPWTK2_FEATURE_RUBBERBAND
 // feature 9
+#define BLPWTK2_FEATURE_FASTRESIZE
 // feature 10
 // feature 11
+#define BLPWTK2_FEATURE_DOCPRINTER
 // feature 12
+#define BLPWTK2_FEATURE_CUSTOMFONTS
 // feature 13
 // feature 14
 // feature 15
+#define BLPWTK2_FEATURE_UPDATETOOLTIP
 // feature 16
+#define BLPWTK2_FEATURE_SEARCHHIGHLIGHT
 // feature 17
 // feature 18
+#define BLPWTK2_FEATURE_WEB_CACHE_FLUSH
 // feature 19
 // feature 20
 // feature 21
 // feature 22
+#define BLPWTK2_FEATURE_LOGMESSAGEHANDLER
 // feature 23
 // feature 24
 // feature 25
 // feature 26
+#define BLPWTK2_FEATURE_DWM
 // feature 27
+#define BLPWTK2_FEATURE_RENDERER_UI
 // feature 28
+#define BLPWTK2_FEATURE_MULTIHEAPTRACER
 // feature 29
+#define BLPWTK2_FEATURE_REROUTEMOUSEWHEEL
 // feature 30
 // feature 31
 // feature 32

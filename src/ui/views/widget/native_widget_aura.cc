@@ -273,6 +273,9 @@ void NativeWidgetAura::FrameTypeChanged() {
   GetWidget()->GetRootView()->SchedulePaint();
 }
 
+void NativeWidgetAura::CompositionChanged() {
+}
+
 Widget* NativeWidgetAura::GetWidget() {
   return delegate_->AsWidget();
 }
@@ -475,6 +478,11 @@ void NativeWidgetAura::SetBounds(const gfx::Rect& bounds) {
     }
   }
   window_->SetBounds(bounds);
+}
+
+void NativeWidgetAura::SetBoundsNoDPIAdjustment(const gfx::Rect& bounds) {
+  if (window_)
+    window_->SetBounds(bounds);
 }
 
 void NativeWidgetAura::SetSize(const gfx::Size& size) {

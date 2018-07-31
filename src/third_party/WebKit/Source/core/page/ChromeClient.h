@@ -153,6 +153,7 @@ class CORE_EXPORT ChromeClient : public PlatformChromeClient {
                                    MessageLevel,
                                    const String& message,
                                    unsigned line_number,
+                                   unsigned columnNumber,
                                    const String& source_id,
                                    const String& stack_trace) = 0;
 
@@ -366,7 +367,7 @@ class CORE_EXPORT ChromeClient : public PlatformChromeClient {
  protected:
   ~ChromeClient() override {}
 
-  virtual void ShowMouseOverURL(const HitTestResult&) = 0;
+  virtual void ShowMouseOverURL(LocalFrame&, const HitTestResult&) = 0;
   virtual void SetWindowRect(const IntRect&, LocalFrame&) = 0;
   virtual bool OpenBeforeUnloadConfirmPanelDelegate(LocalFrame*,
                                                     bool is_reload) = 0;

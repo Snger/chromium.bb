@@ -303,6 +303,8 @@ component("base") {
     "win/osk_display_manager.cc",
     "win/osk_display_manager.h",
     "win/osk_display_observer.h",
+    "win/rubberband_windows.cc",
+    "win/rubberband_windows.h",
     "win/scoped_ole_initializer.cc",
     "win/scoped_ole_initializer.h",
     "win/shell.cc",

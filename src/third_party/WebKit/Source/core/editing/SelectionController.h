@@ -118,6 +118,12 @@ class CORE_EXPORT SelectionController final
       TextGranularity,
       HandleVisibility);
 
+
+  HitTestResult AdjustHitTestResultForSelectability(
+      const HitTestResult& result,
+      Node* mousePressNode,
+      const IntPoint& lastKnownMousePosition);
+
   FrameSelection& Selection() const;
 
   // Implements |SynchronousMutationObserver|.

@@ -675,6 +675,9 @@ class CONTENT_EXPORT RenderWidget
   // The size of the RenderWidget.
   gfx::Size size_;
 
+  // The size of the RenderWidget expected by the host.
+  gfx::Size browser_size_;
+
   // The size of the view's backing surface in non-DPI-adjusted pixels.
   gfx::Size physical_backing_size_;
 
@@ -906,9 +909,10 @@ class CONTENT_EXPORT RenderWidget
 
   base::WeakPtrFactory<RenderWidget> weak_ptr_factory_;
 
-  bool bb_OnHandleInputEvent_no_ack_;
-
   DISALLOW_COPY_AND_ASSIGN(RenderWidget);
+
+ private:
+  bool bb_OnHandleInputEvent_no_ack_;
 };
 
 }  // namespace content

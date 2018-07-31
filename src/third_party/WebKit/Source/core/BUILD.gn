@@ -505,6 +505,7 @@ code_generator("make_core_generated_css_property_apis") {
     "$blink_core_output_dir/css/properties/CSSPropertyAPIBorderRadius.h",
     "$blink_core_output_dir/css/properties/CSSPropertyAPIBorderWidth.h",
     "$blink_core_output_dir/css/properties/CSSPropertyAPIBoxShadow.h",
+    "$blink_core_output_dir/css/properties/CSSPropertyAPIBbLcdBackgroundColor.h",
     "$blink_core_output_dir/css/properties/CSSPropertyAPICaretColor.h",
     "$blink_core_output_dir/css/properties/CSSPropertyAPIClip.h",
     "$blink_core_output_dir/css/properties/CSSPropertyAPIClipPath.h",

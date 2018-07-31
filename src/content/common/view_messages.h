@@ -565,6 +565,9 @@ IPC_MESSAGE_ROUTED3(ViewMsg_ResolveTapDisambiguation,
 // Fetches complete rendered content of a web page as plain text.
 IPC_MESSAGE_ROUTED0(ViewMsg_GetRenderedText)
 
+// Tells the renderer to clear unused resources from its global web cache
+IPC_MESSAGE_CONTROL0(ViewMsg_ClearWebCache)
+
 #if defined(OS_ANDROID)
 // Notifies the renderer whether hiding/showing the browser controls is enabled
 // and whether or not to animate to the proper state.
@@ -574,6 +577,9 @@ IPC_MESSAGE_ROUTED3(ViewMsg_UpdateBrowserControlsState,
                     bool /* animate */)
 
 #endif
+// Tells the renderer to enable/disable alt-mousedrag rubberbanding.
+IPC_MESSAGE_ROUTED1(ViewMsg_EnableAltDragRubberbanding,
+                    bool /* enable */)
 
 IPC_MESSAGE_ROUTED0(ViewMsg_SelectWordAroundCaret)
 
@@ -818,6 +824,13 @@ IPC_MESSAGE_ROUTED3(ViewHostMsg_ShowDisambiguationPopup,
                     gfx::Rect, /* Border of touched targets */
                     gfx::Size, /* Size of zoomed image */
                     viz::SharedBitmapId /* id */)
+
+// Instructs the browser to draw the rubberband rect.
+IPC_MESSAGE_ROUTED1(ViewHostMsg_SetRubberbandRect,
+                    gfx::Rect /* rect */)
+
+// Instructs the browser to stop drawing the rubberband rect.
+IPC_MESSAGE_ROUTED0(ViewHostMsg_HideRubberbandRect)
 
 // Message sent from renderer to the browser when the element that is focused
 // has been touched. A bool is passed in this message which indicates if the

@@ -58,6 +58,7 @@ class Rect;
 namespace ui {
 class InputMethod;
 class LocatedEvent;
+class RubberbandOutline;
 #if defined(OS_WIN)
 class OnScreenKeyboardObserver;
 #endif
@@ -128,6 +129,7 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
                    const gfx::Rect& pos) override;
   void InitAsFullscreen(RenderWidgetHostView* reference_host_view) override;
   void Focus() override;
+  void Blur() override;
   void UpdateCursor(const WebCursor& cursor) override;
   void DisplayCursor(const WebCursor& cursor) override;
   CursorManager* GetCursorManager() override;
@@ -176,6 +178,8 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   void SubmitCompositorFrame(const viz::LocalSurfaceId& local_surface_id,
                              cc::CompositorFrame frame) override;
   void OnDidNotProduceFrame(const viz::BeginFrameAck& ack) override;
+  void SetRubberbandRect(const gfx::Rect& rect) override;
+  void HideRubberbandRect() override;  
   void ClearCompositorFrame() override;
   void DidStopFlinging() override;
   void OnDidNavigateMainFrameToNewPage() override;
@@ -246,6 +250,7 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
                        const gfx::Rect& new_bounds) override;
   gfx::NativeCursor GetCursor(const gfx::Point& point) override;
   int GetNonClientComponent(const gfx::Point& point) const override;
+  bool ShouldTryFocusOnMouseDown() const override;
   bool ShouldDescendIntoChildForEventHandling(
       aura::Window* child,
       const gfx::Point& location) override;
@@ -591,6 +596,9 @@ class CONTENT_EXPORT RenderWidgetHostViewAura
   gfx::SelectionBound selection_end_;
 
   gfx::Insets insets_;
+
+  // The rect to draw the rubberband highlight.
+  std::unique_ptr<ui::RubberbandOutline> rubberband_outline_;
 
   std::vector<ui::LatencyInfo> software_latency_info_;
 

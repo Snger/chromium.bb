@@ -310,7 +310,8 @@ std::unique_ptr<cc::LayerTreeHost> RenderWidgetCompositor::CreateLayerTreeHost(
     cc::MutatorHost* mutator_host,
     CompositorDependencies* deps,
     float device_scale_factor,
-    const ScreenInfo& screen_info) {
+    const ScreenInfo& screen_info,
+    int routingId) {
   base::CommandLine* cmd = base::CommandLine::ForCurrentProcess();
   const bool is_threaded = !!deps->GetCompositorImplThreadTaskRunner();
   cc::LayerTreeSettings settings = GenerateLayerTreeSettings(
@@ -325,6 +326,7 @@ std::unique_ptr<cc::LayerTreeHost> RenderWidgetCompositor::CreateLayerTreeHost(
   params.task_graph_runner = deps->GetTaskGraphRunner();
   params.main_task_runner = deps->GetCompositorMainThreadTaskRunner();
   params.mutator_host = mutator_host;
+  params.routing_id = routingId;
   if (base::TaskScheduler::GetInstance()) {
     // The image worker thread needs to allow waiting since it makes discardable
     // shared memory allocations which need to make synchronous calls to the
@@ -780,6 +782,11 @@ void RenderWidgetCompositor::SetViewportSize(
     const gfx::Size& device_viewport_size,
     const viz::LocalSurfaceId& local_surface_id) {
   layer_tree_host_->SetViewportSize(device_viewport_size, local_surface_id);
+}
+
+void RenderWidgetCompositor::ReleaseLayerTreeFrameSink()
+{
+  layer_tree_host_->ReleaseLayerTreeFrameSink();
 }
 
 viz::FrameSinkId RenderWidgetCompositor::GetFrameSinkId() {

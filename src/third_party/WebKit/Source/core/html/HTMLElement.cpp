@@ -554,7 +554,8 @@ const AtomicString& HTMLElement::EventNameForAttributeName(
 
 void HTMLElement::AttributeChanged(const AttributeModificationParams& params) {
   Element::AttributeChanged(params);
-  if (params.reason != AttributeModificationReason::kDirectly)
+  if (params.reason != AttributeModificationReason::kDirectly &&
+      params.name != contenteditableAttr)
     return;
   // adjustedFocusedElementInTreeScope() is not trivial. We should check
   // attribute names, then call adjustedFocusedElementInTreeScope().
@@ -562,7 +563,8 @@ void HTMLElement::AttributeChanged(const AttributeModificationParams& params) {
     if (AdjustedFocusedElementInTreeScope() == this)
       blur();
   } else if (params.name == contenteditableAttr) {
-    if (GetDocument().GetFrame()) {
+    if ((params.new_value.IsNull() || EqualIgnoringASCIICase(params.new_value, "false"))
+        && GetDocument().GetFrame()) {
       GetDocument()
           .GetFrame()
           ->GetSpellChecker()

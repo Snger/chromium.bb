@@ -101,6 +101,8 @@ class CONTENT_EXPORT RenderWidgetHostView {
 
   // Set focus to the associated View component.
   virtual void Focus() = 0;
+  // Remove focus from the associated View component.
+  virtual void Blur() {}
   // Returns true if the View currently has the focus.
   virtual bool HasFocus() const = 0;
 
@@ -157,6 +159,10 @@ class CONTENT_EXPORT RenderWidgetHostView {
   // Set insets for the visible region of the root window. Used to compute the
   // visible viewport.
   virtual void SetInsets(const gfx::Insets& insets) = 0;
+ 
+  // Show/hide a rubberband rect
+  virtual void SetRubberbandRect(const gfx::Rect& rect) = 0;
+  virtual void HideRubberbandRect() = 0;
 
   // Returns true if the current display surface is available, a prerequisite
   // for CopyFromSurface() or CopyFromSurfaceToVideoFrame() to succeed.

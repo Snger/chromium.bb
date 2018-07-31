@@ -385,7 +385,7 @@ void CompositeEditCommand::RemoveChildrenInRange(Node* node,
 
   size_t size = children.size();
   for (size_t i = 0; i < size; ++i) {
-    RemoveNode(children[i].Release(), editing_state);
+    RemoveNode(children[i], editing_state);
     if (editing_state->IsAborted())
       return;
   }
@@ -431,8 +431,11 @@ void CompositeEditCommand::MoveRemainingSiblingsToNewParent(
     Node* node,
     Node* past_last_node_to_move,
     Element* new_parent,
-    EditingState* editing_state) {
+    EditingState* editing_state,
+    Node* prpRefChild) {
+
   NodeVector nodes_to_remove;
+  Node* refChild = prpRefChild;
 
   for (; node && node != past_last_node_to_move; node = node->nextSibling())
     nodes_to_remove.push_back(node);
@@ -441,7 +444,12 @@ void CompositeEditCommand::MoveRemainingSiblingsToNewParent(
     RemoveNode(nodes_to_remove[i], editing_state);
     if (editing_state->IsAborted())
       return;
-    AppendNode(nodes_to_remove[i], new_parent, editing_state);
+    
+    if (refChild)
+      InsertNodeBefore(nodes_to_remove[i], refChild, editing_state);
+    else
+      AppendNode(nodes_to_remove[i], new_parent, editing_state);
+
     if (editing_state->IsAborted())
       return;
   }
@@ -1157,7 +1165,7 @@ void CompositeEditCommand::CloneParagraphUnderNewElement(
     // Clone every node between start.anchorNode() and outerBlock.
 
     for (size_t i = ancestors.size(); i != 0; --i) {
-      Node* item = ancestors[i - 1].Get();
+      Node* item = ancestors[i - 1];
       Node* child = item->cloneNode(IsDisplayInsideTable(item));
       AppendNode(child, ToElement(last_node), editing_state);
       if (editing_state->IsAborted())
@@ -1875,6 +1883,71 @@ Position CompositeEditCommand::PositionAvoidingSpecialElementBoundary(
     result = original;
 
   return result;
+}
+
+bool CompositeEditCommand::prepareForBlockCommand(VisiblePosition& startOfSelection, VisiblePosition& endOfSelection,
+                                                  ContainerNode*& startScope, ContainerNode*& endScope,
+                                                  int& startIndex, int& endIndex,
+                                                  bool includeEmptyParagraphAtEnd)
+{
+    VisibleSelection ending_selection = CreateVisibleSelection(EndingSelection());
+    VisiblePosition visibleEnd = ending_selection.VisibleEnd();
+    VisiblePosition visibleStart = ending_selection.VisibleStart();
+    if (visibleStart.IsNull() || visibleStart.IsOrphan() || visibleEnd.IsNull() || visibleEnd.IsOrphan())
+        return false;
+
+    // When a selection ends at the start of a paragraph, we rarely paint
+    // the selection gap before that paragraph, because there often is no gap.
+    // In a case like this, it's not obvious to the user that the selection
+    // ends "inside" that paragraph, so it would be confusing if Indent/Outdent
+    // operated on that paragraph.
+    // FIXME: We paint the gap before some paragraphs that are indented with left
+    // margin/padding, but not others.  We should make the gap painting more
+    // consistent and then use a left margin/padding rule here.
+    if (visibleEnd.DeepEquivalent() != visibleStart.DeepEquivalent() &&
+        IsStartOfParagraph(visibleEnd) &&
+	(!includeEmptyParagraphAtEnd || !IsEndOfParagraph(visibleEnd))) {
+
+	SetEndingSelection(
+          SelectionInDOMTree::Builder()
+	      .Collapse(visibleStart.DeepEquivalent())
+	      .Extend(PreviousPositionOf(visibleEnd, kCannotCrossEditingBoundary).DeepEquivalent())
+	      .SetIsDirectional(ending_selection.IsDirectional())
+	      .Build());
+    }
+
+    VisibleSelection selection = SelectionForParagraphIteration(ending_selection);
+    startOfSelection = selection.VisibleStart();
+    endOfSelection = selection.VisibleEnd();
+    DCHECK(!startOfSelection.IsNull());
+    DCHECK(!endOfSelection.IsNull());
+    startIndex = IndexForVisiblePosition(startOfSelection, startScope);
+    endIndex = IndexForVisiblePosition(endOfSelection, endScope);
+    return true;
+}
+
+void CompositeEditCommand::finishBlockCommand(ContainerNode* startScope, ContainerNode* endScope,
+                                              int startIndex, int endIndex)
+{
+    GetDocument().UpdateStyleAndLayoutIgnorePendingStylesheets();
+
+    DCHECK(startScope == endScope);
+    DCHECK(startIndex >= 0);
+    DCHECK(startIndex <= endIndex);
+    if (startScope == endScope && startIndex >= 0 && startIndex <= endIndex) {
+
+        VisiblePosition start(VisiblePositionForIndex(startIndex, startScope));
+        VisiblePosition end(VisiblePositionForIndex(endIndex, endScope));
+        VisibleSelection ending_selection = CreateVisibleSelection(EndingSelection());
+        
+        if (start.IsNotNull() && end.IsNotNull())
+            SetEndingSelection(
+                    SelectionInDOMTree::Builder()
+                .Collapse(start.DeepEquivalent())
+                .Extend(end.DeepEquivalent())
+                .SetIsDirectional(ending_selection.IsDirectional())
+                .Build());
+    }
 }
 
 // Splits the tree parent by parent until we reach the specified ancestor. We

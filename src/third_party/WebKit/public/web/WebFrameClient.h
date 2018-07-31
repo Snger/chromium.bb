@@ -315,6 +315,12 @@ class BLINK_EXPORT WebFrameClient {
                                       unsigned source_line,
                                       const WebString& stack_trace) {}
 
+  virtual void didAddMessageToConsoleWithCol(const WebConsoleMessage&,
+                                             const WebString& source_name,
+                                             unsigned source_line,
+                                             unsigned source_column,
+                                             const WebString& stack_trace) {}
+
   // Load commands -------------------------------------------------------
 
   // The client should handle the request as a download.

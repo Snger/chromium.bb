@@ -59,6 +59,9 @@ WebKeyboardEvent WebKeyboardEventBuilder::Build(HWND hwnd,
   // Record the scan code (along with other context bits) for this key event.
   result.native_key_code = static_cast<int>(lparam);
 
+  if (::GetKeyState(VK_NUMLOCK) & 0x1)
+    result.is_num_lock = true;
+
   if (result.GetType() == WebInputEvent::kChar ||
       result.GetType() == WebInputEvent::kRawKeyDown) {
     result.text[0] = result.windows_key_code;
@@ -113,7 +116,10 @@ WebMouseEvent WebMouseEventBuilder::Build(
     case WM_NCMOUSELEAVE:
       // TODO(rbyers): This should be MouseLeave but is disabled temporarily.
       // See http://crbug.com/450631
-      type = WebInputEvent::kMouseMove;
+      // SHEZ: Undo the above temporary change.  It was made to make behavior
+      //       consistent across all OSes, but we want the correct behavior
+      //       for Windows.
+      type = WebInputEvent::kMouseLeave;
       button = WebMouseEvent::Button::kNoButton;
       // set the current mouse position (relative to the client area of the
       // current window) since none is specified for this event

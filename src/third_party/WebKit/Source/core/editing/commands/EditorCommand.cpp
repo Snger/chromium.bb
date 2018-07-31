@@ -50,6 +50,8 @@
 #include "core/editing/commands/FormatBlockCommand.h"
 #include "core/editing/commands/IndentOutdentCommand.h"
 #include "core/editing/commands/InsertListCommand.h"
+#include "core/editing/commands/IndentBlockCommand.h"
+#include "core/editing/commands/OutdentBlockCommand.h"
 #include "core/editing/commands/ReplaceSelectionCommand.h"
 #include "core/editing/commands/TypingCommand.h"
 #include "core/editing/commands/UnlinkCommand.h"
@@ -951,6 +953,20 @@ static bool ExecuteIndent(LocalFrame& frame,
       ->Apply();
 }
 
+static bool executeIndentBlock(LocalFrame& frame, Event*, EditorCommandSource, const String&)
+{
+    DCHECK(frame.GetDocument());
+    IndentBlockCommand::create(*frame.GetDocument())->Apply();
+    return true;
+}
+
+static bool executeOutdentBlock(LocalFrame& frame, Event*, EditorCommandSource, const String&)
+{
+    DCHECK(frame.GetDocument());
+    OutdentBlockCommand::create(*frame.GetDocument())->Apply();
+    return true;
+}
+
 static bool ExecuteInsertBacktab(LocalFrame& frame,
                                  Event* event,
                                  EditorCommandSource,
@@ -978,6 +994,18 @@ static bool ExecuteInsertHTML(LocalFrame& frame,
   DCHECK(frame.GetDocument());
   return ExecuteInsertFragment(
       frame, CreateFragmentFromMarkup(*frame.GetDocument(), value, ""));
+}
+
+static bool ExecuteInsertHTMLNested(LocalFrame& frame,
+                                    Event*,
+                                    EditorCommandSource,
+                                    const String& value) {
+  DCHECK(frame.GetDocument());
+  ReplaceSelectionCommand::Create(*frame.GetDocument(),
+                                  CreateFragmentFromMarkup(*frame.GetDocument(), value, ""),
+                                  ReplaceSelectionCommand::kInsertNested,
+                                  InputEvent::InputType::kNone)->Apply();
+  return true;
 }
 
 static bool ExecuteInsertImage(LocalFrame& frame,
@@ -2882,6 +2910,9 @@ static const EditorInternalCommand* InternalCommand(
       {WebEditingCommandType::kAlignCenter, ExecuteJustifyCenter,
        SupportedFromMenuOrKeyBinding, EnabledInRichlyEditableText, StateNone,
        ValueStateOrNull, kNotTextInsertion, kDoNotAllowExecutionWhenDisabled},
+      {WebEditingCommandType::kInsertHTMLNested, ExecuteInsertHTMLNested,
+       Supported, EnabledInEditableText, StateNone, ValueStateOrNull,
+       kNotTextInsertion, kDoNotAllowExecutionWhenDisabled },
   };
   // Handles all commands except WebEditingCommandType::Invalid.
   static_assert(

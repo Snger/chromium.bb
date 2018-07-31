@@ -22,14 +22,22 @@
 
 #include <blpwtk2_contentrendererclientimpl.h>
 #include <blpwtk2_inprocessresourceloaderbridge.h>
+#include <blpwtk2_jswidget.h>
+#include <blpwtk2_rendercompositor.h>
+#include <blpwtk2_rendermessagedelegate.h>
 #include <blpwtk2_renderviewobserverimpl.h>
 #include <blpwtk2_resourceloader.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
 
 #include <base/strings/utf_string_conversions.h>
+#include <components/spellcheck/renderer/spellcheck.h>
+#include <components/spellcheck/renderer/spellcheck_provider.h>
+#include <components/printing/renderer/print_render_frame_helper.h>
 #include <content/child/font_warmup_win.h>
+#include <content/public/renderer/render_frame.h>
 #include <content/public/renderer/render_thread.h>
+#include <content/public/renderer/render_view.h>
 #include <net/base/net_errors.h>
 #include <skia/ext/fontmgr_default_win.h>
 #include <third_party/skia/include/ports/SkFontMgr.h>
@@ -56,6 +64,16 @@ ContentRendererClientImpl::~ContentRendererClientImpl()
 {
 }
 
+void ContentRendererClientImpl::RenderThreadStarted()
+{
+    content::RenderThread* thread = content::RenderThread::Get();
+
+    if (!d_spellcheck) {
+        d_spellcheck.reset(new SpellCheck());
+        thread->AddObserver(d_spellcheck.get());
+    }
+}
+
 void ContentRendererClientImpl::RenderViewCreated(
     content::RenderView* render_view)
 {
@@ -64,6 +82,22 @@ void ContentRendererClientImpl::RenderViewCreated(
     // will call OnDestruct() on all observers, which will delete this
     // instance of RenderViewObserverImpl.
     new RenderViewObserverImpl(render_view);
+}
+
+void ContentRendererClientImpl::RenderFrameCreated(
+    content::RenderFrame *render_frame)
+{
+    // Create an instance of SpellCheckProvider.
+    new SpellCheckProvider(render_frame, d_spellcheck.get());
+
+    // Create an instance of PrintWebViewHelper.  This is an observer that is
+    // registered with the RenderFrame.  The RenderFrameImpl's destructor
+    // will call OnDestruct() on all observers, which will delete this
+    // instance of PrintWebViewHelper.
+    new printing::PrintRenderFrameHelper(
+            render_frame,
+            std::unique_ptr<printing::PrintRenderFrameHelper::Delegate>(
+                printing::PrintRenderFrameHelper::CreateEmptyDelegate()));
 }
 
 void ContentRendererClientImpl::GetNavigationErrorStrings(
@@ -142,10 +176,35 @@ bool ContentRendererClientImpl::OverrideCreatePlugin(
     const blink::WebPluginParams& params,
     blink::WebPlugin** plugin)
 {
+    if (params.mime_type.Ascii() != "application/x-bloomberg-jswidget") {
+        return false;
+    }
+
+    *plugin = new JsWidget(render_frame->GetWebFrame());
+    return true;
+}
+
+bool ContentRendererClientImpl::Dispatch(IPC::Message *msg)
+{
+    if (Statics::rendererUIEnabled &&
+        RenderMessageDelegate::GetInstance()->OnMessageReceived(*msg)) {
+        delete msg;
+        return true;
+    }
+
+    return false;
+}
+
+bool ContentRendererClientImpl::RequestNewLayerTreeFrameSink(
+    bool use_software, int routing_id,
+    const LayerTreeFrameSinkCallback& callback)
+{
+    if (Statics::rendererUIEnabled) {
+        return RenderCompositorContext::GetInstance()->RequestNewLayerTreeFrameSink(
+            use_software, routing_id, callback);
+    }
+
     return false;
 }
 
 }  // close namespace blpwtk2
-
-// vim: ts=4 et
-

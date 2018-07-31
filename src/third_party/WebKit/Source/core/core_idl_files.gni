@@ -282,6 +282,7 @@ core_idl_files =
                     "page/scrolling/ScrollStateCallback.idl",
                     "resize_observer/ResizeObserver.idl",
                     "resize_observer/ResizeObserverEntry.idl",
+                    "page/BBWindowHooks.idl",
                     "streams/UnderlyingSourceBase.idl",
                     "svg/SVGAElement.idl",
                     "svg/SVGAngle.idl",

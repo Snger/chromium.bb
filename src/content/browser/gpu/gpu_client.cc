@@ -90,6 +90,28 @@ void GpuClient::EstablishGpuChannel(
                  callback));
 }
 
+void GpuClient::EstablishPrivilegedGpuChannel(
+    const EstablishGpuChannelCallback& callback) {
+  GpuProcessHost* host = GpuProcessHost::Get();
+  if (!host) {
+    OnEstablishGpuChannel(
+        callback, IPC::ChannelHandle(), gpu::GPUInfo(),
+        GpuProcessHost::EstablishChannelStatus::GPU_ACCESS_DENIED);
+    return;
+  }
+
+  bool preempts = true;
+  bool allow_view_command_buffers = true;
+  bool allow_real_time_streams = true;
+  host->EstablishGpuChannel(
+      render_process_id_,
+      ChildProcessHostImpl::ChildProcessUniqueIdToTracingProcessId(
+          render_process_id_),
+      preempts, allow_view_command_buffers, allow_real_time_streams,
+      base::Bind(&GpuClient::OnEstablishGpuChannel, weak_factory_.GetWeakPtr(),
+                 callback));
+}
+
 void GpuClient::CreateJpegDecodeAccelerator(
     media::mojom::GpuJpegDecodeAcceleratorRequest jda_request) {
   GpuProcessHost* host = GpuProcessHost::Get();

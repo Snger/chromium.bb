@@ -88,6 +88,7 @@
 
 namespace blpwtk2 {
 
+class EmbedderHeapTracer;
 class Profile;
 class String;
 class StringRef;
@@ -123,11 +124,6 @@ class WebViewHostObserver;
 
 class Toolkit {
   public:
-    // TYPES
-    enum class DiagnosticInfoType {
-        DIAGNOSTIC_INFO_GPU
-    };
-
     virtual bool hasDevTools() = 0;
         // Return true if the blpwtk2_devtools pak file was detected and has
         // been loaded.  This method determines whether
@@ -189,6 +185,16 @@ class Toolkit {
     virtual void setTraceThreshold(unsigned int timeoutMS) = 0;
         // If non-zero, defines the time threshold for enabling trace
         // (in milliseconds)
+
+    virtual int addV8HeapTracer(EmbedderHeapTracer *tracer) = 0;
+        // Registers an embedder heap tracer with the multi heap tracer.
+        // Once an embedder heap is registered, it will be notified of all
+        // references during GC.  The embedder is expected to ignore any
+        // reference wrapper with an embedder field that does not match the
+        // return value of this function.
+
+    virtual void removeV8HeapTracer(int embedder_id) = 0;
+        // Unregisters an embedder heap trace from the multi heap tracer.
 
   protected:
     virtual ~Toolkit();

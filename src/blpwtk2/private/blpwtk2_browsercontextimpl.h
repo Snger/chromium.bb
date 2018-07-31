@@ -43,6 +43,7 @@ class PrefService;
 namespace blpwtk2 {
 
 class ResourceContextImpl;
+class SpellCheckConfig;
 class URLRequestContextGetterImpl;
 
                         // ========================
@@ -117,7 +118,21 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     void clearFallbackProxies() override;
     void addBypassRule(const StringRef& rule) override;
     void clearBypassRules() override;
+    void clearWebCache() override;
     void setPacUrl(const StringRef& url) override;
+    void dumpDiagnostics(DiagnosticInfoType type,
+                         const StringRef&   path) override;
+
+    void enableSpellCheck(bool enabled) override;
+
+    void setLanguages(const StringRef *languages,
+                      size_t           numLanguages) override;
+
+    void addCustomWords(const StringRef *words,
+                        size_t           numWords) override;
+    void removeCustomWords(const StringRef *words,
+                           size_t           numWords) override;
+    void setDefaultPrinter(const StringRef& name) override;
 
     // content::BrowserContext overrides
     std::unique_ptr<content::ZoomLevelDelegate> CreateZoomLevelDelegate(
@@ -130,6 +145,7 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     storage::SpecialStoragePolicy *GetSpecialStoragePolicy() override;
     content::PushMessagingService *GetPushMessagingService() override;
     content::SSLHostStateDelegate *GetSSLHostStateDelegate() override;
+    bool AllowDictionaryDownloads() override;
     content::PermissionManager *GetPermissionManager() override;
     content::BackgroundSyncController *GetBackgroundSyncController() override;
     content::BrowsingDataRemoverDelegate* GetBrowsingDataRemoverDelegate()
@@ -146,7 +162,9 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     net::URLRequestContextGetter *CreateMediaRequestContext() override;
     net::URLRequestContextGetter *CreateMediaRequestContextForStoragePartition(
           const base::FilePath& partition_path,
-          bool                  in_memory) override;
+          bool in_memory) override;
+
+	content::FontCollection* GetFontCollection() override;
 };
 
 }  // close namespace blpwtk2

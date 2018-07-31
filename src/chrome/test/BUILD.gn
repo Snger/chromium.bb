@@ -582,6 +582,12 @@ if (!is_android) {
     if (include_js_tests) {
       deps += [ "//chrome/test/data/webui:interactive_ui_tests_js_webui" ]
     }
+    if (enable_extensions) {
+      # TODO(rockot) bug 505926: The chrome_extensions_interactive_uitests target
+      # should be deleted and this line removed. See the
+      # chrome_extensions_interactive_uitests target for more.
+      deps += [ "//extensions:chrome_extensions_interactive_uitests" ]
+    }
 
     # Runtime dependencies
     data_deps += [

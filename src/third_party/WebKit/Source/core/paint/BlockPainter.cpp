@@ -8,6 +8,7 @@
 #include "core/editing/FrameSelection.h"
 #include "core/layout/LayoutFlexibleBox.h"
 #include "core/layout/LayoutInline.h"
+#include "core/layout/LayoutTableCell.h"
 #include "core/layout/api/LineLayoutAPIShim.h"
 #include "core/layout/api/LineLayoutBox.h"
 #include "core/page/Page.h"
@@ -249,7 +250,7 @@ void BlockPainter::PaintObject(const PaintInfo& paint_info,
 
   if (ShouldPaintSelfBlockBackground(paint_phase)) {
     if (layout_block_.Style()->Visibility() == EVisibility::kVisible &&
-        layout_block_.HasBoxDecorationBackground())
+       (layout_block_.HasBoxDecorationBackground() || (layout_block_.IsTableCell() && ToLayoutTableCell(layout_block_).IsFullySelected())))
       layout_block_.PaintBoxDecorationBackground(paint_info, paint_offset);
     // Record the scroll hit test after the background so background squashing
     // is not affected. Hit test order would be equivalent if this were

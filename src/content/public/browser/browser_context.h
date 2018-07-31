@@ -71,6 +71,10 @@ class SiteInstance;
 class StoragePartition;
 class SSLHostStateDelegate;
 
+#if defined(OS_WIN)
+class FontCollection;
+#endif
+
 // A mapping from the scheme name to the protocol handler that services its
 // content.
 using ProtocolHandlerMap =
@@ -236,6 +240,9 @@ class CONTENT_EXPORT BrowserContext : public base::SupportsUserData {
   // return nullptr, implementing the default exception storage strategy.
   virtual SSLHostStateDelegate* GetSSLHostStateDelegate() = 0;
 
+  // Returns true if the spellcheck service should download dictionaries.
+  virtual bool AllowDictionaryDownloads() { return false; }
+
   // Returns the PermissionManager associated with that context if any, nullptr
   // otherwise.
   virtual PermissionManager* GetPermissionManager() = 0;
@@ -272,6 +279,8 @@ class CONTENT_EXPORT BrowserContext : public base::SupportsUserData {
           const base::FilePath& partition_path,
           bool in_memory) = 0;
 
+  virtual FontCollection* GetFontCollection() { return nullptr; }
+  
   using StaticServiceMap =
       std::map<std::string, service_manager::EmbeddedServiceInfo>;
 

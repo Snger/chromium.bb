@@ -79,7 +79,8 @@ class CONTENT_EXPORT RenderWidgetCompositor
       cc::MutatorHost* mutator_host,
       CompositorDependencies* deps,
       float device_scale_factor,
-      const ScreenInfo& screen_info);
+      const ScreenInfo& screen_info,
+      int routing_id);
 
   void Initialize(std::unique_ptr<cc::LayerTreeHost> layer_tree_host,
                   std::unique_ptr<cc::AnimationHost> animation_host);
@@ -121,6 +122,7 @@ class CONTENT_EXPORT RenderWidgetCompositor
   void SetContentSourceId(uint32_t source_id);
   void SetViewportSize(const gfx::Size& device_viewport_size,
                        const viz::LocalSurfaceId& local_surface_id);
+  void ReleaseLayerTreeFrameSink();
 
   // WebLayerTreeView implementation.
   viz::FrameSinkId GetFrameSinkId() override;

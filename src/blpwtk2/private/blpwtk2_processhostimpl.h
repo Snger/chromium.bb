@@ -123,6 +123,7 @@ class ProcessHostImpl final : public mojom::ProcessHost
     void createWebView(
             mojom::WebViewHostRequest     hostRequest,
             mojom::WebViewCreateParamsPtr params,
+            bool                          rendererUI,
             createWebViewCallback  callback) override;
     void registerNativeViewForStreaming(
             unsigned int                                  view,
@@ -131,6 +132,10 @@ class ProcessHostImpl final : public mojom::ProcessHost
     void registerScreenForStreaming(
             unsigned int                              screen,
             registerScreenForStreamingCallback callback) override;
+
+    void dumpDiagnostics(int type, const std::string& path) override;
+
+    void setDefaultPrinter(const std::string& name) override;
 
     void addHttpProxy(mojom::ProxyConfigType type,
                       const std::string&     host,
@@ -150,7 +155,12 @@ class ProcessHostImpl final : public mojom::ProcessHost
     void clearFallbackProxies() override;
     void addBypassRule(const std::string& rule) override;
     void clearBypassRules() override;
+    void clearWebCache() override;
     void setPacUrl(const std::string& url) override;
+    void enableSpellCheck(bool enabled) override;
+    void setLanguages(const std::vector<std::string>& languages) override;
+    void addCustomWords(const std::vector<std::string>& words) override;
+    void removeCustomWords(const std::vector<std::string>& words) override;
 };
 
                         // ===========================

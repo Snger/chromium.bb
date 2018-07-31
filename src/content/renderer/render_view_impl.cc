@@ -1164,6 +1164,8 @@ bool RenderViewImpl::OnMessageReceived(const IPC::Message& message) {
     IPC_MESSAGE_HANDLER(ViewMsg_MediaPlayerActionAt, OnMediaPlayerActionAt)
     IPC_MESSAGE_HANDLER(ViewMsg_PluginActionAt, OnPluginActionAt)
     IPC_MESSAGE_HANDLER(ViewMsg_SetActive, OnSetActive)
+    IPC_MESSAGE_HANDLER(ViewMsg_ShowContextMenu, OnShowContextMenu)
+    IPC_MESSAGE_HANDLER(ViewMsg_EnableAltDragRubberbanding, OnEnableAltDragRubberbanding)
     IPC_MESSAGE_HANDLER(ViewMsg_ReleaseDisambiguationPopupBitmap,
                         OnReleaseDisambiguationPopupBitmap)
     IPC_MESSAGE_HANDLER(ViewMsg_ResolveTapDisambiguation,
@@ -1319,6 +1321,10 @@ void RenderViewImpl::OnForceRedraw(const ui::LatencyInfo& latency_info) {
         base::MakeUnique<AlwaysDrawSwapPromise>(latency_info));
     rwc->SetNeedsForcedRedraw();
   }
+}
+
+void RenderViewImpl::OnEnableAltDragRubberbanding(bool enable) {
+  webview()->EnableAltDragRubberbanding(enable);
 }
 
 // blink::WebViewClient ------------------------------------------------------
@@ -1683,6 +1689,14 @@ int RenderViewImpl::HistoryForwardListCount() {
   return history_list_length_ - HistoryBackListCount() - 1;
 }
 
+void RenderViewImpl::setRubberbandRect(const WebRect& rect) {
+  Send(new ViewHostMsg_SetRubberbandRect(routing_id_, rect));
+}
+
+void RenderViewImpl::hideRubberbandRect() {
+  Send(new ViewHostMsg_HideRubberbandRect(routing_id_));
+}
+
 // blink::WebWidgetClient ----------------------------------------------------
 
 void RenderViewImpl::DidFocus() {
@@ -1878,6 +1892,28 @@ int RenderViewImpl::GetRoutingID() const {
 
 gfx::Size RenderViewImpl::GetSize() const {
   return size();
+}
+
+void RenderViewImpl::SetSize(const gfx::Size& new_size) {
+  if (new_size == size()) {
+    return;
+  }
+  need_update_rect_for_auto_resize_ = true;
+
+  // blpwtk2: Loosely copied from RenderViewImpl::OnDisableAutoResize
+  ResizeParams resize_params = {};
+
+  resize_params.screen_info = screen_info_;
+  resize_params.new_size = new_size;
+  resize_params.physical_backing_size = new_size;
+  resize_params.browser_controls_shrink_blink_size = browser_controls_shrink_blink_size_;
+  resize_params.top_controls_height = top_controls_height_;
+  resize_params.visible_viewport_size = new_size;
+  resize_params.is_fullscreen_granted = is_fullscreen_granted_;
+  resize_params.display_mode = display_mode_;
+  resize_params.needs_resize_ack = false;
+
+  Resize(resize_params);
 }
 
 float RenderViewImpl::GetDeviceScaleFactor() const {

@@ -2417,6 +2417,7 @@ void LocalFrameView::SetBaseBackgroundColor(const Color& background_color) {
     return;
 
   base_background_color_ = background_color;
+  DisableCompositingQueryAsserts disabler;
 
   if (!GetLayoutViewItem().IsNull() &&
       GetLayoutViewItem().Layer()->HasCompositedLayerMapping()) {

@@ -46,6 +46,7 @@ class ApplicationCache;
 class BarProp;
 class CSSRuleList;
 class CSSStyleDeclaration;
+class BBWindowHooks;
 class CustomElementRegistry;
 class Document;
 class DocumentInit;
@@ -132,6 +133,8 @@ class CORE_EXPORT LocalDOMWindow final : public DOMWindow,
   Navigator* navigator() const;
   Navigator* clientInformation() const { return navigator(); }
 
+  BBWindowHooks* bbWindowHooks() const;
+
   bool offscreenBuffering() const;
 
   int outerHeight() const;
@@ -175,7 +178,7 @@ class CORE_EXPORT LocalDOMWindow final : public DOMWindow,
   int orientation() const;
 
   DOMSelection* getSelection();
-
+  
   void blur() override;
   void print(ScriptState*);
   void stop();
@@ -357,6 +360,7 @@ class CORE_EXPORT LocalDOMWindow final : public DOMWindow,
   mutable Member<BarProp> toolbar_;
   mutable Member<Navigator> navigator_;
   mutable Member<StyleMedia> media_;
+  mutable Member<BBWindowHooks> bb_window_hooks_;
   mutable TraceWrapperMember<CustomElementRegistry> custom_elements_;
   // We store reference to Modulator here to have it TraceWrapper-ed.
   // This is wrong, as Modulator is per-context, where as LocalDOMWindow is

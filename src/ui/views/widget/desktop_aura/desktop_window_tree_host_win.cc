@@ -126,12 +126,15 @@ void DesktopWindowTreeHostWin::Init(aura::Window* content_window,
     parent_hwnd = params.parent->GetHost()->GetAcceleratedWidget();
 
   remove_standard_frame_ = params.remove_standard_frame;
+  reroute_mouse_wheel_to_any_related_window_ = params.reroute_mouse_wheel_to_any_related_window;
+
   has_non_client_view_ = Widget::RequiresNonClientView(params.type);
 
   // We don't have an HWND yet, so scale relative to the nearest screen.
   gfx::Rect pixel_bounds =
       display::win::ScreenWin::DIPToScreenRect(nullptr, params.bounds);
   message_handler_->Init(parent_hwnd, pixel_bounds);
+  message_handler_->set_reroute_mouse_wheel_to_any_related_window(params.reroute_mouse_wheel_to_any_related_window);
   CreateCompositor(viz::FrameSinkId(), params.force_software_compositing);
   OnAcceleratedWidgetAvailable();
   InitHost();
@@ -422,6 +425,10 @@ bool DesktopWindowTreeHostWin::ShouldWindowContentsBeTransparent() const {
 
 void DesktopWindowTreeHostWin::FrameTypeChanged() {
   message_handler_->FrameTypeChanged();
+  SetWindowTransparency();
+}
+
+void DesktopWindowTreeHostWin::CompositionChanged() {
   SetWindowTransparency();
 }
 
@@ -821,6 +828,29 @@ void DesktopWindowTreeHostWin::HandleClientSizeChanged(
     OnHostResizedInPixels(new_size);
 }
 
+bool DesktopWindowTreeHostWin::HandleNCHitTest(LRESULT* result, const gfx::Point& point) {
+  int intResult;
+  bool handled = native_widget_delegate_->OnNCHitTest(&intResult, point);
+  *result = intResult;
+  return handled;
+}
+
+bool DesktopWindowTreeHostWin::HandleNCDragBegin(int hit_test_code) {
+  return native_widget_delegate_->OnNCDragBegin(hit_test_code);
+}
+
+void DesktopWindowTreeHostWin::HandleNCDragMove() {
+  return native_widget_delegate_->OnNCDragMove();
+}
+
+void DesktopWindowTreeHostWin::HandleNCDragEnd() {
+  return native_widget_delegate_->OnNCDragEnd();
+}
+
+void DesktopWindowTreeHostWin::HandleNCDoubleClick() {
+  return native_widget_delegate_->OnNCDoubleClick();
+}
+
 void DesktopWindowTreeHostWin::HandleFrameChanged() {
   CheckForMonitorChange();
   SetWindowTransparency();
@@ -830,10 +860,18 @@ void DesktopWindowTreeHostWin::HandleFrameChanged() {
 
 void DesktopWindowTreeHostWin::HandleNativeFocus(HWND last_focused_window) {
   // TODO(beng): inform the native_widget_delegate_.
+
+  // If our HWND has WS_CHILD, treat WM_SETFOCUS like an activation change.
+  if (GetWindowLong(GetHWND(), GWL_STYLE) & WS_CHILD)
+    HandleActivationChanged(true);
 }
 
 void DesktopWindowTreeHostWin::HandleNativeBlur(HWND focused_window) {
   // TODO(beng): inform the native_widget_delegate_.
+
+  // If our HWND has WS_CHILD, treat WM_KILLFOCUS like an activation change.
+  if (GetWindowLong(GetHWND(), GWL_STYLE) & WS_CHILD)
+    HandleActivationChanged(false);
 }
 
 bool DesktopWindowTreeHostWin::HandleMouseEvent(const ui::MouseEvent& event) {

@@ -24,6 +24,37 @@
 
 namespace cc {
 
+Profiler *s_profiler;
+
+class ProfilerScope final {
+    Profiler *profiler_;
+    int routing_id_;
+
+  public:
+    ProfilerScope(Profiler *profiler, int routing_id);
+    ~ProfilerScope();
+};
+
+ProfilerScope::ProfilerScope(Profiler *profiler, int routing_id)
+    : profiler_(profiler)
+    , routing_id_(routing_id)
+{
+  if (profiler_) {
+    profiler_->beginProfile(routing_id_);
+  }
+}
+
+ProfilerScope::~ProfilerScope()
+{
+  if (profiler_) {
+    profiler_->endProfile(routing_id_);
+  }
+}
+
+void ProxyMain::SetProfiler(Profiler *profiler) {
+  s_profiler = profiler;
+}
+
 ProxyMain::ProxyMain(LayerTreeHost* layer_tree_host,
                      TaskRunnerProvider* task_runner_provider)
     : layer_tree_host_(layer_tree_host),
@@ -120,6 +151,9 @@ void ProxyMain::DidCompletePageScaleAnimation() {
 
 void ProxyMain::BeginMainFrame(
     std::unique_ptr<BeginMainFrameAndCommitState> begin_main_frame_state) {
+  
+  ProfilerScope scope(s_profiler, layer_tree_host_->GetRoutingId());
+  
   benchmark_instrumentation::ScopedBeginFrameTask begin_frame_task(
       benchmark_instrumentation::kDoBeginFrame,
       begin_main_frame_state->begin_frame_id);
