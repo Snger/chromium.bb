@@ -633,9 +633,24 @@ void RenderWebView::updateFocus()
         return;
     }
 
-    dispatchToRenderViewImpl(
-        InputMsg_SetFocus(d_renderViewRoutingId,
-            d_focused));
+    if (d_focused) {
+        dispatchToRenderViewImpl(
+            InputMsg_SetFocus(d_renderViewRoutingId,
+                d_focused));
+
+        dispatchToRenderViewImpl(
+            ViewMsg_SetActive(d_renderViewRoutingId,
+                d_focused));
+    }
+    else {
+        dispatchToRenderViewImpl(
+            ViewMsg_SetActive(d_renderViewRoutingId,
+                d_focused));
+
+        dispatchToRenderViewImpl(
+            InputMsg_SetFocus(d_renderViewRoutingId,
+                d_focused));
+    }
 }
 
 void RenderWebView::setPlatformCursor(HCURSOR cursor)
