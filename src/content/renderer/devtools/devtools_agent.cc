@@ -30,6 +30,7 @@
 #include "third_party/WebKit/public/platform/WebString.h"
 #include "third_party/WebKit/public/web/WebDevToolsAgent.h"
 #include "third_party/WebKit/public/web/WebLocalFrame.h"
+#include "v8/include/v8-debug.h"
 
 using blink::WebDevToolsAgent;
 using blink::WebDevToolsAgentClient;
@@ -115,14 +116,16 @@ bool DevToolsAgent::OnMessageReceived(const IPC::Message& message) {
     IPC_MESSAGE_UNHANDLED(handled = false)
   IPC_END_MESSAGE_MAP()
 
-  if (message.type() == FrameMsg_Navigate::ID)
+  if (message.type() == FrameMsg_Navigate::ID &&
+      v8::Debug::ShouldContinueDebuggerOnNavigationEvent())
     ContinueProgram();  // Don't want to swallow the message.
 
   return handled;
 }
 
 void DevToolsAgent::WidgetWillClose() {
-  ContinueProgram();
+  if (v8::Debug::ShouldContinueDebuggerOnWidgetClose())
+    ContinueProgram();
 }
 
 void DevToolsAgent::OnDestruct() {
