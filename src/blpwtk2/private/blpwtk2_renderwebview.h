@@ -41,6 +41,7 @@
 #include <ui/base/ime/input_method_delegate.h>
 #include <ui/base/ime/text_input_client.h>
 #include <ui/gfx/selection_bound.h>
+#include <ui/gfx/geometry/point.h>
 #include <ui/gfx/geometry/size.h>
 #include <ui/views/win/windows_session_change_observer.h>
 
@@ -139,9 +140,13 @@ class RenderWebView final : public WebView
 
     std::unique_ptr<RenderCompositor> d_compositor;
 
+    gfx::Point d_mouse_screen_position,
+               d_unlocked_mouse_screen_position,
+               d_unlocked_mouse_webview_position;
+
     bool d_nc_hit_test_enabled = false;
     int d_nc_hit_test_result = 0;
-    bool d_mouse_entered = false;
+    bool d_mouse_entered = false, d_mouse_locked = false;
 
     // Who knew that cursor-setting would be such a hassle?
     content::WebCursor d_current_cursor;

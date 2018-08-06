@@ -335,6 +335,11 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         case WM_RBUTTONDBLCLK:
         case WM_RBUTTONDOWN:
         case WM_RBUTTONUP: {
+            auto event =
+                ui::MakeWebMouseEvent(
+                    ui::MouseEvent(msg),
+                    base::Bind(&GetScreenLocationFromEvent));
+
             // Mouse enter/leave:
             switch (uMsg) {
             case WM_MOUSEMOVE: {
@@ -348,11 +353,19 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
 
                     if (TrackMouseEvent(&track_mouse_event)) {
                         d_mouse_entered = true;
+
+                        d_mouse_screen_position.SetPoint(
+                            event.PositionInScreen().x,
+                            event.PositionInScreen().y);
                     }
                 }
             } break;
             case WM_MOUSELEAVE: {
                 d_mouse_entered = false;
+
+                d_mouse_screen_position.SetPoint(
+                    event.PositionInScreen().x,
+                    event.PositionInScreen().y);
             } break;
             case WM_LBUTTONDOWN:
             case WM_MBUTTONDOWN:
@@ -375,12 +388,29 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
             } break;
             }
 
-            ui::MouseEvent event(msg);
+            event.movement_x = event.PositionInScreen().x - d_mouse_screen_position.x();
+            event.movement_y = event.PositionInScreen().y - d_mouse_screen_position.y();
 
-            dispatchInputEvent(
-                ui::MakeWebMouseEvent(
-                    event,
-                    base::Bind(&GetScreenLocationFromEvent)));
+            d_mouse_screen_position.SetPoint(
+                event.PositionInScreen().x,
+                event.PositionInScreen().y);
+
+            if (d_mouse_locked) {
+                event.SetPositionInWidget(
+                    d_unlocked_mouse_webview_position.x(),
+                    d_unlocked_mouse_webview_position.y());
+                event.SetPositionInScreen(
+                    d_unlocked_mouse_screen_position.x(),
+                    d_unlocked_mouse_screen_position.y());
+            }
+            else {
+                d_unlocked_mouse_webview_position.SetPoint(
+                    event.PositionInWidget().x, event.PositionInWidget().y);
+                d_unlocked_mouse_screen_position.SetPoint(
+                    event.PositionInScreen().x, event.PositionInScreen().y);
+            }
+
+            dispatchInputEvent(event);
 
             return 0;
         } break;
@@ -1710,6 +1740,7 @@ void RenderWebView::OnLockMouse(
 {
     if (GetCapture() != d_hwnd.get()) {
         SetCapture(d_hwnd.get());
+        d_mouse_locked = true;
     }
 
     dispatchToRenderViewImpl(
@@ -1837,6 +1868,7 @@ void RenderWebView::OnUnlockMouse()
 {
     if (GetCapture() != d_hwnd.get()) {
         ReleaseCapture();
+        d_mouse_locked = false;
     }
 }
 
