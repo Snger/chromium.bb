@@ -33,9 +33,9 @@
 #include <net/base/net_errors.h>
 #include <skia/ext/fontmgr_default_win.h>
 #include <third_party/skia/include/ports/SkFontMgr.h>
-#include <third_party/WebKit/public/platform/WebURLError.h>
-#include <third_party/WebKit/public/platform/WebURLRequest.h>
-#include <third_party/WebKit/public/web/WebPluginParams.h>
+#include <third_party/blink/public/platform/web_url_error.h>
+#include <third_party/blink/public/platform/web_url_request.h>
+#include <third_party/blink/public/web/web_plugin_params.h>
 #include <third_party/skia/include/ports/SkTypeface_win.h>
 #include <ui/gfx/win/direct_write.h>
 

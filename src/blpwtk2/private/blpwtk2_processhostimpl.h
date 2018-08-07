@@ -32,7 +32,7 @@
 #include <base/memory/ref_counted.h>
 #include <ipc/ipc_listener.h>
 #include <mojo/edk/embedder/scoped_platform_handle.h>
-#include <third_party/WebKit/public/platform/InterfaceRegistry.h>
+#include <third_party/blink/public/platform/interface_registry.h>
 #include <services/service_manager/public/cpp/binder_registry.h>
 #include <content/public/browser/render_process_host.h>
 

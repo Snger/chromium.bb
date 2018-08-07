@@ -27,7 +27,7 @@
 
 #include <blpwtk2_webframe.h>
 
-#include <third_party/WebKit/public/platform/WebContentSettingsClient.h>
+#include <third_party/blink/public/platform/web_content_settings_client.h>
 
 namespace blink {
 class WebFrame;

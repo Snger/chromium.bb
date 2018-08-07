@@ -29,8 +29,8 @@
 #include <content/public/renderer/render_thread.h>
 #include <content/renderer/render_process_impl.h>
 #include <content/child/dwrite_font_proxy/dwrite_font_proxy_init_win.h>
-#include <third_party/WebKit/public/platform/WebRuntimeFeatures.h>
-#include <third_party/WebKit/public/web/win/WebFontRendering.h>
+#include <third_party/blink/public/platform/web_runtime_features.h>
+#include <third_party/blink/public/web/win/web_font_rendering.h>
 #include <ui/gfx/win/direct_write.h>
 #include <ui/display/win/dpi.h>
 

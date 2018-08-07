@@ -36,7 +36,7 @@
 #include <content/public/common/context_menu_params.h>
 #include <content/public/common/file_chooser_params.h>
 #include <ui/gfx/native_widget_types.h>
-#include <third_party/WebKit/public/web/WebTextDirection.h>
+#include <third_party/blink/public/web/web_text_direction.h>
 
 namespace content {
 class WebContents;

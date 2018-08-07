@@ -38,7 +38,7 @@
 #include <net/base/net_errors.h>
 #include <net/http/http_request_headers.h>
 #include <net/http/http_response_headers.h>
-#include <third_party/WebKit/public/platform/WebURLRequest.h>
+#include <third_party/blink/public/platform/web_url_request.h>
 #include <url/gurl.h>
 
 namespace blpwtk2 {

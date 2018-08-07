@@ -24,7 +24,7 @@
 
 #include <base/logging.h>  // for DCHECK
 #include <base/strings/utf_string_conversions.h>
-#include <third_party/WebKit/public/platform/WebString.h>
+#include <third_party/blink/public/platform/web_string.h>
 
 namespace blpwtk2 {
 

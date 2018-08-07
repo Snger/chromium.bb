@@ -43,7 +43,7 @@
 #include <net/http/http_network_session.h>
 #include <net/socket/client_socket_pool_manager.h>
 #include <printing/print_settings.h>
-#include <third_party/WebKit/public/web/WebKit.h>
+#include <third_party/blink/public/web/blink.h>
 #include <ui/views/corewm/tooltip_win.h>
 
 namespace blpwtk2 {

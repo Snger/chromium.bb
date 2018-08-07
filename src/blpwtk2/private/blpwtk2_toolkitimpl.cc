@@ -64,11 +64,11 @@
 #include <content/browser/browser_main_loop.h>
 #include <sandbox/win/src/win_utils.h>
 #include <services/service_manager/runner/common/switches.h>
-#include <third_party/WebKit/public/platform/WebSecurityOrigin.h>
-#include <third_party/WebKit/public/web/WebKit.h>
-#include <third_party/WebKit/public/web/WebSecurityPolicy.h>
-#include <third_party/WebKit/public/web/WebScriptController.h>
-#include <third_party/WebKit/public/web/WebScriptBindings.h>
+#include <third_party/blink/public/platform/web_security_origin.h>
+#include <third_party/blink/public/web/blink.h>
+#include <third_party/blink/public/web/web_security_policy.h>
+#include <third_party/blink/public/web/web_script_controller.h>
+#include <third_party/blink/public/web/web_script_bindings.h>
 
 namespace blpwtk2 {
 
@@ -644,12 +644,12 @@ void ToolkitImpl::postHandleMessage(const NativeMsg *msg)
 
 v8::Local<v8::Context> ToolkitImpl::createWebScriptContext()
 {
-    return blink::WebScriptBindings::createWebScriptContext();
+    return blink::WebScriptBindings::CreateWebScriptContext();
 }
 
 void ToolkitImpl::disposeWebScriptContext(v8::Local<v8::Context> context)
 {
-    blink::WebScriptBindings::disposeWebScriptContext(context);
+    blink::WebScriptBindings::DisposeWebScriptContext(context);
 }
 
 void ToolkitImpl::addOriginToTrustworthyList(const StringRef& originString)

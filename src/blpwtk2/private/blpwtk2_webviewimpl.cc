@@ -56,8 +56,8 @@
 #include <content/public/common/web_preferences.h>
 #include <content/public/renderer/render_view.h>
 #include <content/renderer/render_view_impl.h>
-#include <third_party/WebKit/public/web/WebFindOptions.h>
-#include <third_party/WebKit/public/web/WebView.h>
+#include <third_party/blink/public/web/web_find_options.h>
+#include <third_party/blink/public/web/web_view.h>
 #include <ui/base/win/hidden_window.h>
 #include <errno.h>
 

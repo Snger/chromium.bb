@@ -92,13 +92,13 @@ repack("pak") {
   sources = [
     "$root_gen_dir/content/browser/devtools/devtools_resources.pak",
     "$root_gen_dir/blink/public/resources/blink_inspector_resources.pak",
-    "$root_gen_dir/blink/public/resources/blink_resources.pak",    
+    "$root_gen_dir/blink/public/resources/blink_resources.pak",
   ]
 
   deps = [
     "//content/browser/devtools:devtools_resources",
-    "//third_party/WebKit/public:inspector_resources_grit",
-    "//third_party/WebKit/public:resources",    
+    "//third_party/blink/public:inspector_resources_grit",
+    "//third_party/blink/public:resources",
   ]
 }
 
@@ -288,8 +288,8 @@ shared_library("blpwtk2") {
     "//storage/common",
     "//services/service_manager",
     "//services/service_manager/runner/common",
-    "//third_party/WebKit/public:blink",
-    "//third_party/WebKit/public:resources",
+    "//third_party/blink/public:blink",
+    "//third_party/blink/public:resources",
     "//ui/aura",
     "//ui/base",
     "//ui/events",

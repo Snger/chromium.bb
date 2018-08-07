@@ -25,8 +25,8 @@
 #include <blpwtk2_webcontentsettingsdelegate.h>
 
 #include <base/logging.h>  // for CHECK
-#include <third_party/WebKit/public/web/WebFrame.h>
-#include <third_party/WebKit/public/web/WebLocalFrame.h>
+#include <third_party/blink/public/web/web_frame.h>
+#include <third_party/blink/public/web/web_local_frame.h>
 
 namespace blpwtk2 {
 
@@ -54,7 +54,7 @@ v8::Local<v8::Context> WebFrameImpl::mainWorldScriptContext() const
 
 v8::Isolate* WebFrameImpl::scriptIsolate() const
 {
-    return d_impl->scriptIsolate();
+    return d_impl->ScriptIsolate();
 }
 
 void WebFrameImpl::setContentSettingsDelegate(WebContentSettingsDelegate *contentSettingsDelegate)
