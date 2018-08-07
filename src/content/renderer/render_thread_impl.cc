@@ -66,6 +66,7 @@
 #include "content/common/frame_messages.h"
 #include "content/common/frame_owner_properties.h"
 #include "content/common/gpu_stream_constants.h"
+#include "content/common/in_process_child_thread_params.h"
 #include "content/common/view_messages.h"
 #include "content/public/common/content_constants.h"
 #include "content/public/common/content_features.h"
@@ -353,6 +354,8 @@ void CreateFrameFactory(mojom::FrameFactoryRequest request,
                           std::move(request));
 }
 
+std::unique_ptr<RenderProcess> g_render_process;
+
 scoped_refptr<ui::ContextProviderCommandBuffer> CreateOffscreenContext(
     scoped_refptr<gpu::GpuChannelHost> gpu_channel_host,
     gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager,
@@ -563,6 +566,30 @@ void CreateResourceUsageReporter(base::WeakPtr<RenderThread> thread,
 }
 
 }  // namespace
+
+// static
+void RenderThread::InitInProcessRenderer(const InProcessChildThreadParams& params)
+{
+  g_render_process = RenderProcessImpl::Create();
+  RenderThreadImpl::Create(params);
+}
+
+// static
+scoped_refptr<base::SingleThreadTaskRunner> RenderThread::IOTaskRunner()
+{
+  RenderThreadImpl* thread = RenderThreadImpl::current();
+  scoped_refptr<base::SequencedTaskRunner> str = thread->GetIOTaskRunner();
+  // TODO(SHEZ): Make thread->GetIOTaskRunner return SingleThreadTaskRunner to avoid this downcast?
+  return static_cast<base::SingleThreadTaskRunner*>(str.get());
+}
+
+// static
+void RenderThread::CleanUpInProcessRenderer()
+{
+  if (g_render_process) {
+    g_render_process.reset();
+  }
+}
 
 RenderThreadImpl::HistogramCustomizer::HistogramCustomizer() {
   custom_histograms_.insert("V8.MemoryExternalFragmentationTotal");

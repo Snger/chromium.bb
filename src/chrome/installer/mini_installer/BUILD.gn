@@ -207,20 +207,26 @@ template("generate_mini_installer") {
       }
     }
 
+    ver_str = "$bb_version";
+    if (bb_version != "") {
+      ver_str = "$ver_str."
+    }
+    ver_dat = "${ver_str}dat"
     if (icu_use_data_file) {
-      inputs += [ "$root_out_dir/icudtl.dat" ]
+      inputs += [ "$root_out_dir/icudtl.$ver_dat" ]
     } else {
       inputs += [ "$root_out_dir/icudt.dll" ]
     }
 
+    ver_bin = "${ver_str}bin"
     if (v8_use_external_startup_data) {
-      inputs += [ "$root_out_dir/natives_blob.bin" ]
+      inputs += [ "$root_out_dir/natives_blob.$ver_bin" ]
       deps += [ "//v8" ]
       if (use_v8_context_snapshot) {
-        inputs += [ "$root_out_dir/v8_context_snapshot.bin" ]
+        inputs += [ "$root_out_dir/v8_context_snapshot.$ver_bin" ]
         deps += [ "//tools/v8_context_snapshot" ]
       } else {
-        inputs += [ "$root_out_dir/snapshot_blob.bin" ]
+        inputs += [ "$root_out_dir/snapshot_blob.$ver_bin" ]
       }
     }
 

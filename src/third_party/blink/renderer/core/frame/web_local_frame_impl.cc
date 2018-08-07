@@ -894,6 +894,13 @@ v8::Local<v8::Object> WebLocalFrameImpl::GlobalProxy() const {
   return MainWorldScriptContext()->Global();
 }
 
+v8::Isolate* WebLocalFrameImpl::ScriptIsolate() const {
+  if (auto ptr = GetFrame()) {
+    return ToIsolate(ptr);
+  }
+  return nullptr;
+}
+
 bool WebFrame::ScriptCanAccess(WebFrame* target) {
   return BindingSecurity::ShouldAllowAccessToFrame(
       CurrentDOMWindow(V8PerIsolateData::MainThreadIsolate()),

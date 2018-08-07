@@ -391,6 +391,8 @@ class CONTENT_EXPORT RenderWidget
   // the browser even if the composition info is not changed.
   void UpdateCompositionInfo(bool immediate_request);
 
+  void bbHandleInputEvent(const blink::WebInputEvent& event);
+
   // Called when the Widget has changed size as a result of an auto-resize.
   void DidAutoResize(const gfx::Size& new_size);
 
@@ -994,6 +996,8 @@ class CONTENT_EXPORT RenderWidget
   base::Optional<bool> has_touch_handlers_;
 
   base::WeakPtrFactory<RenderWidget> weak_ptr_factory_;
+
+  bool bb_OnHandleInputEvent_no_ack_;
 
   DISALLOW_COPY_AND_ASSIGN(RenderWidget);
 };

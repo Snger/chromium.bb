@@ -89,6 +89,11 @@ ContentRendererClient::OverrideSpeechSynthesizer(
   return nullptr;
 }
 
+ContentRendererClient::OverrideResourceLoaderBridge(
+    const content::ResourceRequest* request) {
+  return NULL;
+}
+
 void ContentRendererClient::PostIOThreadCreated(
     base::SingleThreadTaskRunner* io_thread_task_runner) {}
 

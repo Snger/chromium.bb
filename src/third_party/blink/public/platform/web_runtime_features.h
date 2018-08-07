@@ -65,6 +65,10 @@ class WebRuntimeFeatures {
   BLINK_PLATFORM_EXPORT static void EnableCompositedSelectionUpdate(bool);
   BLINK_PLATFORM_EXPORT static bool IsCompositedSelectionUpdateEnabled();
 
+  BLINK_PLATFORM_EXPORT static void EnableCSS3TextDecorations(bool);
+  BLINK_PLATFORM_EXPORT static void EnableCSS3Text(bool);
+  BLINK_PLATFORM_EXPORT static void EnableCSSGridLayout(bool);
+
   BLINK_PLATFORM_EXPORT static void EnableCompositorTouchAction(bool);
 
   BLINK_PLATFORM_EXPORT static void EnableOriginTrials(bool);

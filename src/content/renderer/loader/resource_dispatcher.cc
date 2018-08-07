@@ -24,8 +24,10 @@
 #include "content/common/inter_process_time_ticks_converter.h"
 #include "content/common/navigation_params.h"
 #include "content/common/throttling_url_loader.h"
+#include "content/public/common/content_client.h"
 #include "content/public/common/resource_load_info.mojom.h"
 #include "content/public/common/resource_type.h"
+#include "content/public/renderer/content_renderer_client.h"
 #include "content/public/renderer/fixed_received_data.h"
 #include "content/public/renderer/request_peer.h"
 #include "content/public/renderer/resource_dispatcher_delegate.h"
@@ -356,6 +358,9 @@ bool ResourceDispatcher::RemovePendingRequest(
   // process.
   it->second->url_loader_client = nullptr;
 
+  if (it->second.get()->bridge)
+    it->second.get()->bridge.reset(nullptr);
+
   // Always delete the pending_request asyncly so that cancelling the request
   // doesn't delete the request context info while its response is still being
   // handled.
@@ -371,6 +376,11 @@ void ResourceDispatcher::Cancel(
   PendingRequestMap::iterator it = pending_requests_.find(request_id);
   if (it == pending_requests_.end()) {
     DLOG(ERROR) << "unknown request";
+    return;
+  }
+
+  if (it->second.get()->bridge) {
+    it->second.get()->bridge->Cancel();
     return;
   }
 
@@ -422,6 +432,7 @@ void ResourceDispatcher::OnTransferSizeUpdated(int request_id,
 
 ResourceDispatcher::PendingRequestInfo::PendingRequestInfo(
     std::unique_ptr<RequestPeer> peer,
+    std::unique_ptr<ResourceLoaderBridge> bridge,
     ResourceType resource_type,
     int render_frame_id,
     const GURL& request_url,
@@ -429,6 +440,7 @@ ResourceDispatcher::PendingRequestInfo::PendingRequestInfo(
     const GURL& referrer,
     bool download_to_file)
     : peer(std::move(peer)),
+      bridge(std::move(bridge)),
       resource_type(resource_type),
       render_frame_id(render_frame_id),
       url(request_url),
@@ -450,6 +462,14 @@ void ResourceDispatcher::StartSync(
     std::vector<std::unique_ptr<URLLoaderThrottle>> throttles,
     double timeout,
     blink::mojom::BlobRegistryPtrInfo download_to_blob_registry) {
+  std::unique_ptr<ResourceLoaderBridge> bridge(
+      GetContentClient()->renderer()->OverrideResourceLoaderBridge(
+          request.get()));
+  if (bridge.get()) {
+    bridge->SyncLoad(response);
+    return;
+  }
+
   CheckSchemeForReferrerPolicy(*request);
 
   std::unique_ptr<network::SharedURLLoaderFactoryInfo> factory_info =
@@ -496,8 +516,24 @@ int ResourceDispatcher::StartAsync(
 
   // Compute a unique request_id for this renderer process.
   int request_id = MakeRequestID();
+
+  std::unique_ptr<ResourceLoaderBridge> bridge(
+      GetContentClient()->renderer()->OverrideResourceLoaderBridge(
+          request.get()));
+
+  if (bridge) {
+    bridge->Start(peer.get());
+    pending_requests_[request_id] = base::WrapUnique(new PendingRequestInfo(
+        std::move(peer), std::move(bridge), request->resource_type,
+        request->origin_pid, frame_origin, request->url,
+        request->download_to_file));
+    return request_id;
+  }
+
+  CheckSchemeForReferrerPolicy(*request);
+
   pending_requests_[request_id] = std::make_unique<PendingRequestInfo>(
-      std::move(peer), static_cast<ResourceType>(request->resource_type),
+      std::move(peer), std::move(bridge), static_cast<ResourceType>(request->resource_type),
       request->render_frame_id, request->url, request->method,
       request->referrer, request->download_to_file);
 

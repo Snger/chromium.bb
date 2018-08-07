@@ -406,6 +406,7 @@ RenderWidget::RenderWidget(
       resizing_mode_selector_(new ResizingModeSelector()),
       has_host_context_menu_location_(false),
       has_added_input_handler_(false),
+      bb_OnHandleInputEvent_no_ack_(false),
       has_focus_(false),
       for_oopif_(false),
 #if defined(OS_MACOSX)
@@ -1039,6 +1040,13 @@ void RenderWidget::DidReceiveCompositorFrameAck() {
 
 bool RenderWidget::IsClosing() const {
   return host_closing_;
+}
+
+void RenderWidget::bbHandleInputEvent(const blink::WebInputEvent& event) {
+  ui::LatencyInfo latency_info;
+  bb_OnHandleInputEvent_no_ack_ = true;
+  OnHandleInputEvent(&event, {}, latency_info, InputEventDispatchType::DISPATCH_TYPE_BLOCKING);
+  bb_OnHandleInputEvent_no_ack_ = false;
 }
 
 void RenderWidget::RequestScheduleAnimation() {

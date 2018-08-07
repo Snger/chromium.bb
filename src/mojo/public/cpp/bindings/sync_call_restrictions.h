@@ -40,6 +40,9 @@ class ClipboardMus;
 namespace viz {
 class HostFrameSinkManager;
 }
+namespace blpwtk2 {
+class ToolkitImpl;
+}
 
 namespace mojo {
 class ScopedAllowSyncCallForTesting;
@@ -85,6 +88,8 @@ class MOJO_CPP_BINDINGS_EXPORT SyncCallRestrictions {
   // the platform window is destroyed.
   friend class viz::HostFrameSinkManager;
   // END ALLOWED USAGE.
+
+  friend class blpwtk2::ToolkitImpl;  // single-process support
 
   // BEGIN USAGE THAT NEEDS TO BE FIXED.
   // In the non-mus case, we called blocking OS functions in the ui::Clipboard

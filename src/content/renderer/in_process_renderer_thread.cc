@@ -5,9 +5,8 @@
 #include "content/renderer/in_process_renderer_thread.h"
 
 #include "build/build_config.h"
-#include "content/renderer/render_process.h"
-#include "content/renderer/render_process_impl.h"
-#include "content/renderer/render_thread_impl.h"
+
+#include "content/public/renderer/render_thread.h"
 
 #if defined(OS_ANDROID)
 #include "base/android/jni_android.h"
@@ -46,8 +45,7 @@ void InProcessRendererThread::Init() {
   // Android. Temporary CHECK() to debug http://crbug.com/514141
   CHECK(!render_process_);
 #endif
-  render_process_ = RenderProcessImpl::Create();
-  RenderThreadImpl::Create(params_, message_loop());
+  RenderThread::InitInProcessRenderer(params_);
 }
 
 void InProcessRendererThread::CleanUp() {
@@ -58,7 +56,7 @@ void InProcessRendererThread::CleanUp() {
   CHECK(g_browser_main_loop_shutting_down);
 #endif
 
-  render_process_.reset();
+  RenderThread::CleanUpInProcessRenderer();
 
   // It's a little lame to manually set this flag.  But the single process
   // RendererThread will receive the WM_QUIT.  We don't need to assert on

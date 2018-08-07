@@ -29,6 +29,7 @@
 class GURL;
 
 namespace base {
+class CommandLine;
 class SharedPersistentMemoryAllocator;
 class TimeDelta;
 }
@@ -135,6 +136,7 @@ class CONTENT_EXPORT RenderProcessHost : public IPC::Sender,
   // listeners own it any more, it will delete itself.
   virtual void AddRoute(int32_t routing_id, IPC::Listener* listener) = 0;
   virtual void RemoveRoute(int32_t routing_id) = 0;
+  virtual size_t NumListeners() { return 0; }
 
   // Add and remove observers for lifecycle events. The order in which
   // notifications are sent to observers is undefined. Observers must be sure to
@@ -241,6 +243,8 @@ class CONTENT_EXPORT RenderProcessHost : public IPC::Sender,
   // Returns the renderer channel.
   virtual IPC::ChannelProxy* GetChannel() = 0;
 
+  virtual std::string GetChildToken() const { return std::string(); }
+
   // Adds a message filter to the IPC channel.
   virtual void AddFilter(BrowserMessageFilter* filter) = 0;
 
@@ -336,6 +340,9 @@ class CONTENT_EXPORT RenderProcessHost : public IPC::Sender,
   // for management.
   virtual std::unique_ptr<base::SharedPersistentMemoryAllocator>
   TakeMetricsAllocator() = 0;
+
+  // Return true if this is a host for an externally managed process.
+  virtual bool IsProcessManagedExternally() const { return false; }
 
   // PlzNavigate
   // Returns the time the first call to Init completed successfully (after a new
@@ -433,6 +440,10 @@ class CONTENT_EXPORT RenderProcessHost : public IPC::Sender,
   // crbug.com/738634.
   virtual bool HostHasNotBeenUsed() = 0;
 
+  // Adjust the specified command line for in-process renderers in blpwtk2
+  // client processes.
+  virtual void AdjustCommandLineForRenderer(base::CommandLine* command_line) {}
+
   // Returns the current number of active views in this process.  Excludes
   // any RenderViewHosts that are swapped out.
   size_t GetActiveViewCount();
@@ -483,6 +494,10 @@ class CONTENT_EXPORT RenderProcessHost : public IPC::Sender,
   // modifies the current process' command line.
   static void SetRunRendererInProcess(bool value);
 
+  // Adjust the specified command line for in-process renderers.  This is used
+  // to adjust the command-line for *this* process.
+  static void AdjustCommandLineForInProcessRenderer(base::CommandLine* command_line);
+
   // Allows iteration over all the RenderProcessHosts in the browser. Note
   // that each host may not be active, and therefore may have nullptr channels.
   static iterator AllHostsIterator();
@@ -514,6 +529,11 @@ class CONTENT_EXPORT RenderProcessHost : public IPC::Sender,
   // renderer processes and should only be called once during startup.
   // A value of zero means to use the default heuristic.
   static void SetMaxRendererProcessCount(size_t count);
+
+  // Create a new RenderProcessHost using the specified 'processHandle' and the
+  // specified 'browserContext'.
+  static RenderProcessHost* CreateProcessHost(base::ProcessHandle processHandle,
+                                              content::BrowserContext* browserContext);
 
   // Returns the current maximum number of renderer process hosts kept by the
   // content module.

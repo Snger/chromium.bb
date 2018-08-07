@@ -21,7 +21,7 @@
 #include "src/d8.h"
 #include "src/ostreams.h"
 
-#include "include/libplatform/libplatform.h"
+#include "include/v8-default-platform.h"
 #include "include/libplatform/v8-tracing.h"
 #include "include/v8-inspector.h"
 #include "src/api.h"
@@ -545,7 +545,7 @@ ScriptCompiler::CachedData* Shell::LookupCodeCache(Isolate* isolate,
     int length = entry->second->length;
     uint8_t* cache = new uint8_t[length];
     memcpy(cache, entry->second->data, length);
-    ScriptCompiler::CachedData* cached_data = new ScriptCompiler::CachedData(
+    ScriptCompiler::CachedData* cached_data = ScriptCompiler::CachedData::create(
         cache, length, ScriptCompiler::CachedData::BufferOwned);
     return cached_data;
   }
@@ -563,7 +563,7 @@ void Shell::StoreInCodeCache(Isolate* isolate, Local<Value> source,
   uint8_t* cache = new uint8_t[length];
   memcpy(cache, cache_data->data, length);
   cached_code_map_[*key] = std::unique_ptr<ScriptCompiler::CachedData>(
-      new ScriptCompiler::CachedData(cache, length,
+      ScriptCompiler::CachedData::create(cache, length,
                                      ScriptCompiler::CachedData::BufferOwned));
 }
 
