@@ -27,6 +27,7 @@
 #include <base/message_loop/message_loop.h>
 #include <base/win/wrapped_window_proc.h>
 #include <base/time/time.h>
+#include <v8.h>
 
 namespace blpwtk2 {
 namespace {
@@ -283,6 +284,14 @@ void MainMessagePump::doWork()
     }
 
     --d_nestLevel;
+
+    v8::Isolate *isolate = v8::Isolate::GetCurrent();
+
+    if (d_isInsideModalLoop && isolate) {
+        int microtasksScopeDepth = v8::MicrotasksScope::GetCurrentDepth(isolate);
+        if (microtasksScopeDepth)
+            isolate->RunMicrotasks();
+    }
 }
 
 void MainMessagePump::modalLoop(bool enabled)
