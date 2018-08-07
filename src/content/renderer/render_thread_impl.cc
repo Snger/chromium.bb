@@ -778,6 +778,7 @@ RenderThreadImpl::RenderThreadImpl(
       renderer_binding_(this),
       client_id_(1),
       compositing_mode_watcher_binding_(this),
+      exit_process_gracefully_(params.exit_process_gracefully()),
       weak_factory_(this) {
   Init(resource_task_queue);
 }
@@ -800,6 +801,7 @@ RenderThreadImpl::RenderThreadImpl(
       is_scroll_animator_enabled_(false),
       renderer_binding_(this),
       compositing_mode_watcher_binding_(this),
+      exit_process_gracefully_(false),
       weak_factory_(this) {
   scoped_refptr<base::SingleThreadTaskRunner> test_task_counter;
   DCHECK(base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -1180,13 +1182,14 @@ void RenderThreadImpl::Shutdown() {
   // In a single-process mode, we cannot call _exit(0) in Shutdown() because
   // it will exit the process before the browser side is ready to exit.
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kSingleProcess))
+          switches::kSingleProcess) &&
+      !exit_process_gracefully_)
     base::Process::TerminateCurrentProcessImmediately(0);
 }
 
 bool RenderThreadImpl::ShouldBeDestroyed() {
   DCHECK(base::CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kSingleProcess));
+      switches::kSingleProcess) || exit_process_gracefully_);
   // In a single-process mode, it is unsafe to destruct this renderer thread
   // because we haven't run the shutdown sequence. Hence we leak the render
   // thread.

@@ -155,7 +155,8 @@ void InProcessRenderer::init(
             content::InProcessChildThreadParams(browserIOTaskRunner,
                                                 broker_client_invitation,
                                                 serviceToken,
-                                                mojoHandle),
+                                                mojoHandle,
+                                                true),
                                                 Statics::rendererMessageLoop);
 
         DCHECK(Statics::rendererMessageLoop);

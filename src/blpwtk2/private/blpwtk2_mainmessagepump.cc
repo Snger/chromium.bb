@@ -28,6 +28,7 @@
 #include <base/threading/thread_local.h>
 #include <base/win/wrapped_window_proc.h>
 #include <base/time/time.h>
+#include <v8.h>
 
 namespace blpwtk2 {
 namespace {
@@ -290,6 +291,22 @@ void MainMessagePump::doWork()
     }
 
     --d_nestLevel;
+
+    if (d_isInsideModalLoop && Statics::isRendererMainThreadMode()) {
+        v8::Isolate *isolate = v8::Isolate::GetCurrent();
+
+        if (isolate) {
+            int microtasksScopeDepth =
+                v8::MicrotasksScope::GetCurrentDepth(isolate);
+
+            if (microtasksScopeDepth) {
+                auto policy = isolate->GetMicrotasksPolicy();
+                isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kExplicit);
+                isolate->RunMicrotasks();
+                isolate->SetMicrotasksPolicy(policy);
+            }
+        }
+    }
 }
 
 void MainMessagePump::modalLoop(bool enabled)

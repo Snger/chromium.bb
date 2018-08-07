@@ -81,6 +81,9 @@ void RendererUtil::handleInputEvents(content::RenderWidget *rw, const WebView::I
         case WM_IME_CHAR:
         case WM_SYSCHAR:
         case WM_CHAR: {
+          ui::KeyEvent uiKeyboardEvent(msg);
+          content::NativeWebKeyboardEvent blinkKeyboardEvent(&uiKeyboardEvent);
+
           constexpr int masktOutModifiers =
               ~(blink::WebInputEvent::kShiftKey |
                 blink::WebInputEvent::kControlKey |
@@ -92,8 +95,8 @@ void RendererUtil::handleInputEvents(content::RenderWidget *rw, const WebView::I
                 blink::WebInputEvent::kIsRight |
                 blink::WebInputEvent::kNumLockOn |
                 blink::WebInputEvent::kCapsLockOn);
-          ui::KeyEvent uiKeyboardEvent(msg);
-          int modifiers = uiKeyboardEvent.flags() & masktOutModifiers;
+
+          int modifiers = blinkKeyboardEvent.GetModifiers() & masktOutModifiers;
 
           if (event->shiftKey)
             modifiers |= blink::WebInputEvent::kShiftKey;
@@ -125,8 +128,7 @@ void RendererUtil::handleInputEvents(content::RenderWidget *rw, const WebView::I
           if (event->capsLockOn)
             modifiers |= blink::WebInputEvent::kCapsLockOn;
 
-          uiKeyboardEvent.set_flags(modifiers);
-          content::NativeWebKeyboardEvent blinkKeyboardEvent(uiKeyboardEvent);
+          blinkKeyboardEvent.SetModifiers(modifiers);
           rw->bbHandleInputEvent(blinkKeyboardEvent);
         } break;
 

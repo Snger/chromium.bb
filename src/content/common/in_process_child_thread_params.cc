@@ -10,11 +10,13 @@ InProcessChildThreadParams::InProcessChildThreadParams(
     scoped_refptr<base::SingleThreadTaskRunner> io_runner,
     mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation,
     const std::string& service_request_token,
-    int mojo_controller_handle)
+    int mojo_controller_handle,
+    bool exit_process_gracefully)
     : io_runner_(std::move(io_runner)),
       broker_client_invitation_(broker_client_invitation),
       service_request_token_(service_request_token),
-      mojo_controller_handle_(mojo_controller_handle) {}
+      mojo_controller_handle_(mojo_controller_handle),
+      exit_process_gracefully_(exit_process_gracefully) {}
 
 InProcessChildThreadParams::InProcessChildThreadParams(
     const InProcessChildThreadParams& other) = default;
