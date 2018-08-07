@@ -736,7 +736,7 @@ int main(int argc, wchar_t* argv[])
     std::string hostChannel;
     std::string fileMapping;
     bool isProcessHost = false;
-    blpwtk2::ThreadMode host;
+    blpwtk2::ThreadMode host = blpwtk2::ThreadMode::ORIGINAL;
     int proxyPort = -1;
 
     {
