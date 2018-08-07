@@ -41,6 +41,7 @@ class Extension;
 
 namespace content {
 
+class InProcessChildThreadParams;
 class RenderThreadObserver;
 class ResourceDispatcherDelegate;
 
@@ -49,6 +50,14 @@ class CONTENT_EXPORT RenderThread : virtual public ChildThread {
   // Returns the one render thread for this process.  Note that this can only
   // be accessed when running on the render thread itself.
   static RenderThread* Get();
+
+  // Initialize and cleanup the in-process renderer so that embedders can
+  // implement --single-process functionality.
+  static void InitInProcessRenderer(
+		  const InProcessChildThreadParams& params,
+          std::unique_ptr<blink::scheduler::WebThreadScheduler> main_thread_scheduler);
+  static scoped_refptr<base::SingleThreadTaskRunner> IOTaskRunner();
+  static void CleanUpInProcessRenderer();
 
   RenderThread();
   ~RenderThread() override;

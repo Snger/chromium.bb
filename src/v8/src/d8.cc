@@ -21,7 +21,7 @@
 #include "src/d8.h"
 #include "src/ostreams.h"
 
-#include "include/libplatform/libplatform.h"
+#include "include/v8-default-platform.h"
 #include "include/libplatform/v8-tracing.h"
 #include "include/v8-inspector.h"
 #include "src/api-inl.h"
@@ -433,7 +433,7 @@ class DummySourceStream : public v8::ScriptCompiler::ExternalSourceStream {
                       source_length_);
   }
 
-  virtual size_t GetMoreData(const uint8_t** src) {
+  size_t GetMoreData(const uint8_t** src) override {
     if (done_) {
       return 0;
     }
@@ -458,7 +458,6 @@ class BackgroundCompileThread : public base::Thread {
                          v8::ScriptCompiler::StreamedSource::UTF8),
         task_(v8::ScriptCompiler::StartStreamingScript(isolate,
                                                        &streamed_source_)) {}
-
   void Run() override { task_->Run(); }
 
   v8::ScriptCompiler::StreamedSource* streamed_source() {
@@ -575,7 +574,7 @@ bool Shell::ExecuteString(Isolate* isolate, Local<String> source,
       ScriptCompiler::CachedData* cached_data =
           ScriptCompiler::CreateCodeCache(script->GetUnboundScript());
       StoreInCodeCache(isolate, source, cached_data);
-      delete cached_data;
+      ScriptCompiler::CachedData::dispose(cached_data);
     }
     maybe_result = script->Run(realm);
     if (options.code_cache_options ==
@@ -584,7 +583,7 @@ bool Shell::ExecuteString(Isolate* isolate, Local<String> source,
       ScriptCompiler::CachedData* cached_data =
           ScriptCompiler::CreateCodeCache(script->GetUnboundScript());
       StoreInCodeCache(isolate, source, cached_data);
-      delete cached_data;
+      ScriptCompiler::CachedData::dispose(cached_data);
     }
     if (process_message_queue && !EmptyMessageQueues(isolate)) success = false;
     data->realm_current_ = data->realm_switch_;
@@ -3315,7 +3314,9 @@ void Shell::CleanupWorkers() {
 
 int Shell::Main(int argc, char* argv[]) {
   std::ofstream trace_file;
+#if defined(USING_V8_BASE_SHARED)
   v8::base::EnsureConsoleOutput();
+#endif
   if (!SetOptions(argc, argv)) return 1;
   v8::V8::InitializeICUDefaultLocation(argv[0], options.icu_data_file);
 

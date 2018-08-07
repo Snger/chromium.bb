@@ -67,7 +67,11 @@ int main(int argc, char** argv) {
     error_code = 1;
   }
 
-  delete[] blob.data;
+  if (blob.array_deallocator) {
+	  blob.array_deallocator(blob.data);
+  } else {
+	  delete[] blob.data;
+  }
 
   // v8::SnapshotCreator used in WebV8ContextSnapshot makes it complex how to
   // manage lifetime of v8::Isolate, gin::IsolateHolder, and

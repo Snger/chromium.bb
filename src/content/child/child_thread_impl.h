@@ -29,6 +29,7 @@
 #include "ipc/ipc_buildflags.h"  // For BUILDFLAG(IPC_MESSAGE_LOG_ENABLED).
 #include "ipc/ipc_platform_file.h"
 #include "ipc/message_router.h"
+#include "mojo/edk/embedder/scoped_platform_handle.h"
 #include "mojo/public/cpp/bindings/associated_binding.h"
 #include "mojo/public/cpp/bindings/associated_binding_set.h"
 #include "services/tracing/public/cpp/trace_event_agent.h"
@@ -176,6 +177,7 @@ class CONTENT_EXPORT ChildThreadImpl
   void OnChannelError() override;
   bool on_channel_error_called() const { return on_channel_error_called_; }
 
+ public:  // SHEZ: Lets us access the IOTaskRunner from blpwtk2
   bool IsInBrowserProcess() const;
 
 #if defined(OS_MACOSX)
@@ -252,6 +254,10 @@ class CONTENT_EXPORT ChildThreadImpl
   // attempt to communicate.
   bool on_channel_error_called_;
 
+  bool use_mojo_channel_;
+
+  std::string in_process_ipc_token_;
+
   // TaskRunner to post tasks to the main thread.
   scoped_refptr<base::SingleThreadTaskRunner> main_thread_runner_;
 
@@ -288,6 +294,7 @@ struct ChildThreadImpl::Options {
   mojo::OutgoingInvitation* mojo_invitation;
   std::string in_process_service_request_token;
   scoped_refptr<base::SingleThreadTaskRunner> ipc_task_runner;
+  int mojo_controller_handle;
 
  private:
   Options();
