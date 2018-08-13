@@ -1222,12 +1222,8 @@ v8::Local<v8::Value> Context::SlowGetEmbedderData(int index) {
   return Utils::ToLocal(result);
 }
 
-static bool debuggerConnected;
-void Debug::DebuggerConnected(bool connected) {
-  debuggerConnected = connected;
-}
-bool Debug::HasDebuggerConnected() {
-  return debuggerConnected;
+void Debug::SetContextId(Local<Context> context, int id) {
+  debug::SetContextId(context, id);
 }
 
 static bool continueDebuggerOnNavigationEvent = true;

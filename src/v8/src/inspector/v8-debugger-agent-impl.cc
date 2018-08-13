@@ -870,15 +870,11 @@ Response V8DebuggerAgentImpl::pause() {
   if (m_breakReason.empty()) {
     m_debugger->setPauseOnNextStatement(true, m_session->contextGroupId());
   }
-  m_debugger->setConnected();
   pushBreakDetails(protocol::Debugger::Paused::ReasonEnum::Other, nullptr);
   return Response::OK();
 }
 
 Response V8DebuggerAgentImpl::resume() {
-  if (m_debugger)
-    m_debugger->setConnected();
-
   if (!isPaused()) return Response::Error(kDebuggerNotPaused);
   m_session->releaseObjectGroup(kBacktraceObjectGroup);
   m_debugger->continueProgram(m_session->contextGroupId());

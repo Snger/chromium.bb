@@ -299,6 +299,24 @@ void WebViewClientImpl::findReply(int  reqId,
     }
 }
 
+void WebViewClientImpl::devToolsAgentHostAttached()
+{
+    DCHECK(d_delegate);
+
+    if (d_delegate) {
+        d_delegate->devToolsAgentHostAttached();
+    }
+}
+
+void WebViewClientImpl::devToolsAgentHostDetached()
+{
+    DCHECK(d_delegate);
+
+    if (d_delegate) {
+        d_delegate->devToolsAgentHostDetached();
+    }
+}
+
 // Mojo callbacks
 void WebViewClientImpl::loadStatus(int status)
 {

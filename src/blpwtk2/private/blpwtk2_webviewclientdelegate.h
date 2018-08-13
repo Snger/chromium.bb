@@ -107,6 +107,16 @@ class WebViewClientDelegate
         // This method is called when the client receives the status from the
         // host for a load operation of an URL resource.  The status number
         // maps to the error codes in errno.
+
+    virtual void devToolsAgentHostAttached() = 0;
+        // This method is called when the client receives a notification from
+        // the host that a DevTools frontend successfully connected to the
+        // DevTools agent associated with this webview.
+
+    virtual void devToolsAgentHostDetached() = 0;
+        // This method is called when the client receives a notification from
+        // the host that a DevTools frontend is disconnected from the
+        // DevTools agent associated with this webview.
 };
 
 }  // close namespace blpwtk2
