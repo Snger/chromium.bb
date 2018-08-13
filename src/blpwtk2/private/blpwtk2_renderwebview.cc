@@ -1936,6 +1936,22 @@ void RenderWebView::onLoadStatus(int status)
     }
 }
 
+#if defined(BLPWTK2_FEATURE_DEVTOOLSINTEGRATION)
+void RenderWebView::devToolsAgentHostAttached()
+{
+    if (d_delegate) {
+        d_delegate->devToolsAgentHostAttached(this);
+    }
+}
+
+void RenderWebView::devToolsAgentHostDetached()
+{
+    if (d_delegate) {
+        d_delegate->devToolsAgentHostDetached(this);
+    }
+}
+#endif
+
 // IPC::Listener overrides
 bool RenderWebView::OnMessageReceived(const IPC::Message& message)
 {
