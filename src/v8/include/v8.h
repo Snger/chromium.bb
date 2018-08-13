@@ -165,7 +165,6 @@ class GlobalHandles;
 
 namespace debug {
 class ConsoleCallArguments;
-V8_EXPORT void SetContextId(Local<Context> context, int id);
 }  // namespace debug
 
 // --- Handles ---

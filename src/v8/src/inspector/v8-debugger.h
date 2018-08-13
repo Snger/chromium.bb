@@ -39,7 +39,6 @@ class V8Debugger : public v8::debug::DebugDelegate {
 
   bool enabled() const;
   v8::Isolate* isolate() const { return m_isolate; }
-  void setConnected();
 
   void setBreakpointsActive(bool);
 

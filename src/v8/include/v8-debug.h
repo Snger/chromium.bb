@@ -245,16 +245,9 @@ class V8_EXPORT Debug {
                                                           bool enabled));
 
   /**
-   * Get/Set an internal flag that indicates whether the debugger is
-   * connected to the DevToolsAgent.  The embedder should only call
-   * HasDebuggerConnected() to check the connection state; the
-   * DebuggerConnected() function is for internal use only.
-   *
-   * This can be useful for an embedder that wants to wait for the debugger
-   * to be connected before executing scripts.
+   * Associate an id with a v8::Context
    */
-  static void DebuggerConnected(bool connected);
-  static bool HasDebuggerConnected();
+  static void SetContextId(Local<Context> context, int id);
 
   /**
    * By default, DevToolsAgent tells the debugger to continue when a

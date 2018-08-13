@@ -113,6 +113,14 @@ class BLPWTK2_EXPORT WebViewDelegate {
                            bool     finalUpdate) {}
         // Invoked response to a WebView::find method call to report
         // find-on-page status update.
+
+    virtual void devToolsAgentHostAttached(WebView *source) {}
+        // Notify the embedder that a devtools frontend is connected to this
+        // webview's devtools agent.
+
+    virtual void devToolsAgentHostDetached(WebView *source) {}
+        // Notify the embedder that a devtools frontend is disconnected from
+        // this webview's devtools agent.
 };
 
 }  // close namespace blpwtk2
