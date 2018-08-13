@@ -169,8 +169,14 @@ void DevToolsManagerDelegateImpl::StopHttpHandler()
 }
 
 // CREATORS
+DevToolsManagerDelegateImpl::DevToolsManagerDelegateImpl()
+{
+    content::DevToolsAgentHost::AddObserver(this);
+}
+
 DevToolsManagerDelegateImpl::~DevToolsManagerDelegateImpl()
 {
+    content::DevToolsAgentHost::RemoveObserver(this);
 }
 
 // DevToolsManagerDelegate overrides
@@ -178,6 +184,20 @@ std::string DevToolsManagerDelegateImpl::GetFrontendResource(
     const std::string& path)
 {
     return content::DevToolsFrontendHost::GetFrontendResource(path).as_string();
+}
+
+void DevToolsManagerDelegateImpl::DevToolsAgentHostAttached(content::DevToolsAgentHost* agent_host)
+{
+    content::WebContents* web_contents = agent_host->GetWebContents();
+    DCHECK(web_contents);
+    web_contents->DevToolsAgentHostAttached();
+}
+
+void DevToolsManagerDelegateImpl::DevToolsAgentHostDetached(content::DevToolsAgentHost* agent_host)
+{
+    content::WebContents* web_contents = agent_host->GetWebContents();
+    DCHECK(web_contents);
+    web_contents->DevToolsAgentHostDetached();
 }
 
 }  // close namespace blpwtk2

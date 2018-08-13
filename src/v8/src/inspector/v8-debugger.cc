@@ -192,10 +192,6 @@ void V8Debugger::disable() {
   m_isolate->RestoreOriginalHeapLimit();
 }
 
-void V8Debugger::setConnected() {
-  v8::Debug::DebuggerConnected(true);
-}
-
 bool V8Debugger::isPausedInContextGroup(int contextGroupId) const {
   return isPaused() && m_pausedContextGroupId == contextGroupId;
 }
