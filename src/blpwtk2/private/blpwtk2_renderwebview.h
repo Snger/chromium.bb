@@ -396,6 +396,10 @@ class RenderWebView final : public WebView
     void preResize(const gfx::Size& size) override;
     void notifyRoutingId(int id) override;
     void onLoadStatus(int status) override;
+#if defined(BLPWTK2_FEATURE_DEVTOOLSINTEGRATION)
+    void devToolsAgentHostAttached() override;
+    void devToolsAgentHostDetached() override;
+#endif
 };
 
 }  // close namespace blpwtk2
