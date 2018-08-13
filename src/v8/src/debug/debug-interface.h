@@ -24,7 +24,7 @@ class Script;
 
 namespace debug {
 
-void SetContextId(Local<Context> context, int id);
+V8_EXPORT void SetContextId(Local<Context> context, int id);
 int GetContextId(Local<Context> context);
 
 /**
