@@ -48,6 +48,8 @@
 #include <third_party/WebKit/public/web/WebView.h>
 #include <ui/base/cursor/cursor_loader.h>
 #include <ui/base/win/lock_state.h>
+#include <ui/display/display.h>
+#include <ui/display/screen.h>
 #include <ui/events/blink/web_input_event.h>
 #include "ui/events/blink/web_input_event_traits.h"
 #include <ui/base/ime/input_method.h>
@@ -75,6 +77,65 @@ namespace {
 gfx::Point GetScreenLocationFromEvent(const ui::LocatedEvent& event)
 {
     return event.root_location();
+}
+
+content::ScreenOrientationValues GetOrientationTypeForDesktop(
+    const display::Display& display) {
+    static int primary_landscape_angle = -1;
+    static int primary_portrait_angle = -1;
+
+    int angle = display.RotationAsDegree();
+    const gfx::Rect& bounds = display.bounds();
+    bool is_portrait = bounds.height() >= bounds.width();
+
+    if (is_portrait && primary_portrait_angle == -1)
+        primary_portrait_angle = angle;
+
+    if (!is_portrait && primary_landscape_angle == -1)
+        primary_landscape_angle = angle;
+
+    if (is_portrait) {
+        return primary_portrait_angle == angle
+            ? content::SCREEN_ORIENTATION_VALUES_PORTRAIT_PRIMARY
+            : content::SCREEN_ORIENTATION_VALUES_PORTRAIT_SECONDARY;
+    }
+
+    return primary_landscape_angle == angle
+        ? content::SCREEN_ORIENTATION_VALUES_LANDSCAPE_PRIMARY
+        : content::SCREEN_ORIENTATION_VALUES_LANDSCAPE_SECONDARY;
+}
+
+void GetScreenInfoForWindow(content::ScreenInfo* results,
+                            HWND hwnd) {
+    auto monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+
+    MONITORINFO monitor_info = { sizeof(MONITORINFO) };
+    GetMonitorInfo(monitor, &monitor_info);
+
+    display::Screen* screen = display::Screen::GetScreen();
+    const display::Display display = screen->GetDisplayMatching(
+        gfx::Rect(monitor_info.rcMonitor));
+    results->rect = display.bounds();
+    results->available_rect = display.work_area();
+    results->depth = display.color_depth();
+    results->depth_per_component = display.depth_per_component();
+    results->is_monochrome = display.is_monochrome();
+    results->device_scale_factor = display.device_scale_factor();
+    results->color_space = display.color_space();
+    results->color_space.GetICCProfile(&results->icc_profile);
+
+    // The Display rotation and the ScreenInfo orientation are not the same
+    // angle. The former is the physical display rotation while the later is the
+    // rotation required by the content to be shown properly on the screen, in
+    // other words, relative to the physical display.
+    results->orientation_angle = display.RotationAsDegree();
+    if (results->orientation_angle == 90)
+        results->orientation_angle = 270;
+    else if (results->orientation_angle == 270)
+        results->orientation_angle = 90;
+
+    results->orientation_type =
+        GetOrientationTypeForDesktop(display);
 }
 
 }
@@ -683,6 +744,7 @@ void RenderWebView::updateSize()
     resize_params.physical_backing_size = d_size;
     resize_params.visible_viewport_size = d_size;
     resize_params.display_mode = blink::kWebDisplayModeBrowser;
+    GetScreenInfoForWindow(&resize_params.screen_info, d_hwnd.get());
 
     dispatchToRenderViewImpl(
         ViewMsg_Resize(d_renderViewRoutingId,
