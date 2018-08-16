@@ -113,8 +113,7 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
                              const WebViewProperties&  properties)
     : d_client(nullptr)
     , d_delegate(delegate)
-#if defined(BLPWTK2_FEATURE_FOCUS) ||
-    defined(BLPWTK2_FEATURE_REROUTEMOUSEWHEEL)
+#if defined(BLPWTK2_FEATURE_FOCUS) || defined(BLPWTK2_FEATURE_REROUTEMOUSEWHEEL)
     , d_properties(properties)
 #endif
     , d_profile(profile)
@@ -135,6 +134,64 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
 {
     d_profile->incrementWebViewCount();
 
+    Init(NULL, gfx::Rect(0, 0, 1, 1));
+}
+
+// Only used when RenderWebView is created for a popup window created by the
+// renderer:
+RenderWebView::RenderWebView(HWND parent_hwnd, int routing_id, const gfx::Rect& initial_rect)
+    : d_client(nullptr)
+    , d_delegate(nullptr)
+#if defined(BLPWTK2_FEATURE_FOCUS) || defined(BLPWTK2_FEATURE_REROUTEMOUSEWHEEL)
+    , d_properties({ false, false, false, false, false, false })
+#endif
+    , d_profile(nullptr)
+    , d_renderViewRoutingId(0)
+    , d_mainFrameRoutingId(0)
+    , d_gotRenderViewInfo(false)
+    , d_pendingLoadStatus(false)
+    , d_isMainFrameAccessible(false)
+    , d_pendingDestroy(false)
+    , d_cursor_loader(ui::CursorLoader::Create())
+    , d_current_platform_cursor(LoadCursor(NULL, IDC_ARROW))
+    , d_wheel_scroll_latching_enabled(
+          base::FeatureList::IsEnabled(
+              features::kTouchpadAndWheelScrollLatching))
+    , d_mouseWheelEventQueue(
+    new content::MouseWheelEventQueue(
+        this, false))
+{
+    Init(parent_hwnd, gfx::Rect(0, 0, 1, 1));
+
+    SetWindowLong(
+        d_hwnd.get(), GWL_STYLE,
+        GetWindowLong(d_hwnd.get(), GWL_STYLE) | WS_POPUP);
+
+    d_gotRenderViewInfo = true;
+
+    d_renderViewRoutingId = routing_id;
+    LOG(INFO) << "routingId=" << routing_id;
+
+    RenderMessageDelegate::GetInstance()->AddRoute(
+        d_renderViewRoutingId, this);
+
+    d_compositor->Correlate(d_renderViewRoutingId);
+
+    d_shown = true;
+
+    SetWindowPos(
+        d_hwnd.get(),
+        0,
+        initial_rect.x(),     initial_rect.y(),
+        initial_rect.width(), initial_rect.height(),
+        SWP_SHOWWINDOW | SWP_FRAMECHANGED |
+        SWP_NOACTIVATE | SWP_NOOWNERZORDER);
+}
+
+void
+RenderWebView::Init(
+    HWND parent_hwnd, const gfx::Rect& initial_rect)
+{
     d_hwnd.reset(CreateWindowEx(
 #if defined(BLPWTK2_FEATURE_FOCUS)
         d_properties.activateWindowOnMouseDown?
@@ -598,7 +655,9 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
 RenderWebView::~RenderWebView()
 {
     LOG(INFO) << "Destroying RenderWebView, routingId=" << d_renderViewRoutingId;
-    d_profile->decrementWebViewCount();
+    if (d_profile) {
+        d_profile->decrementWebViewCount();
+    }
 
     if (d_client) {
         WebViewClient *client = d_client;
@@ -1809,6 +1868,24 @@ void RenderWebView::OnMouseWheelEventAck(
 }
 
 // Message handlers
+
+// Only called when RenderWebView is a popup window created by the renderer:
+void RenderWebView::OnClose()
+{
+    this->destroy();
+
+    d_mainFrame.release();
+    d_isMainFrameAccessible = false;
+
+    RenderMessageDelegate::GetInstance()->RemoveRoute(
+        d_renderViewRoutingId);
+
+    d_mainFrameRoutingId = 0;
+    d_renderViewRoutingId = 0;
+
+    d_gotRenderViewInfo = false;
+}
+
 void RenderWebView::OnHasTouchEventHandlers(bool has_handlers)
 {
 }
@@ -1924,6 +2001,15 @@ void RenderWebView::OnSetCursor(const content::WebCursor& cursor)
             setPlatformCursor(d_current_cursor.GetPlatformCursor());
         }
     }
+}
+
+void RenderWebView::OnShowWidget(int routing_id, gfx::Rect initial_rect)
+{
+    // Will receive 'OnClose()' to destroy:
+    new RenderWebView(
+        GetAncestor(d_hwnd.get(), GA_ROOT),
+        routing_id,
+        initial_rect);
 }
 
 void RenderWebView::OnStartDragging(
@@ -2060,6 +2146,8 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
             OnImeCancelComposition)
         IPC_MESSAGE_HANDLER(InputHostMsg_ImeCompositionRangeChanged,
             OnImeCompositionRangeChanged)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_Close,
+            OnClose)
         IPC_MESSAGE_HANDLER(ViewHostMsg_HasTouchEventHandlers,
             OnHasTouchEventHandlers)
         IPC_MESSAGE_HANDLER(ViewHostMsg_LockMouse,
@@ -2068,6 +2156,8 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
             OnSetCursor)
         IPC_MESSAGE_HANDLER(ViewHostMsg_SelectionBoundsChanged,
             OnSelectionBoundsChanged)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_ShowWidget,
+            OnShowWidget)
         IPC_MESSAGE_HANDLER(ViewHostMsg_UnlockMouse,
             OnUnlockMouse)
         IPC_MESSAGE_HANDLER_GENERIC(ViewHostMsg_ResizeOrRepaint_ACK,

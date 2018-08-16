@@ -116,8 +116,7 @@ class RenderWebView final : public WebView
     // DATA
     WebViewClient *d_client;
     WebViewDelegate *d_delegate;
-#if defined(BLPWTK2_FEATURE_FOCUS) ||
-    defined(BLPWTK2_FEATURE_REROUTEMOUSEWHEEL)
+#if defined(BLPWTK2_FEATURE_FOCUS) || defined(BLPWTK2_FEATURE_REROUTEMOUSEWHEEL)
     WebViewProperties d_properties;
 #endif
 
@@ -188,6 +187,7 @@ class RenderWebView final : public WebView
                             WPARAM wParam,
                             LPARAM lParam);
 
+    void Init(HWND parent_hwnd, const gfx::Rect& initial_rect);
     // Attempts to force the window to be redrawn, ensuring that it gets
     // onscreen.
     void ForceRedrawWindow(int attempts);
@@ -340,6 +340,7 @@ class RenderWebView final : public WebView
         content::InputEventAckState ack_result) override;
 
     // Message handlers
+    void OnClose();
     void OnDetach();
     void OnHasTouchEventHandlers(bool has_handlers);
     void OnImeCompositionRangeChanged(
@@ -356,6 +357,7 @@ class RenderWebView final : public WebView
         uint32_t offset,
         const gfx::Range& range);
     void OnSetCursor(const content::WebCursor& cursor);
+    void OnShowWidget(int routing_id, gfx::Rect initial_rect);
     void OnStartDragging(
         const content::DropData& drop_data,
         blink::WebDragOperationsMask operations_allowed,
@@ -378,6 +380,9 @@ class RenderWebView final : public WebView
     explicit RenderWebView(WebViewDelegate          *delegate,
                            ProfileImpl              *profile,
                            const WebViewProperties&  properties);
+    explicit RenderWebView(HWND                      parent_hwnd,
+                           int                       routing_id,
+                           const gfx::Rect&          initial_rect);
     ~RenderWebView() final;
 
     // blpwtk2::WebViewClientDelegate overrides
