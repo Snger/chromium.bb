@@ -231,7 +231,7 @@ bool ClipboardUtil::GetPlainText(IDataObject* data_object,
     {
       // Unicode text
       base::win::ScopedHGlobal<wchar_t*> data(store.hGlobal);
-      plain_text->assign(data.get());
+      plain_text->assign(data.get(), data.Size() / sizeof(wchar_t));
     }
     ReleaseStgMedium(&store);
     return true;
@@ -241,7 +241,7 @@ bool ClipboardUtil::GetPlainText(IDataObject* data_object,
     {
       // ascii text
       base::win::ScopedHGlobal<char*> data(store.hGlobal);
-      plain_text->assign(base::UTF8ToWide(data.get()));
+      base::UTF8ToWide(data.get(), data.Size(), plain_text);
     }
     ReleaseStgMedium(&store);
     return true;
