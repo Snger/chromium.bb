@@ -45,6 +45,8 @@ ChannelInfo::ChannelInfo()
 {
 }
 
+ChannelInfo::~ChannelInfo() = default;
+
 // MANIPULATORS
 void ChannelInfo::loadSwitchesFromCommandLine(const base::CommandLine& commandLine)
 {
@@ -54,8 +56,8 @@ void ChannelInfo::loadSwitchesFromCommandLine(const base::CommandLine& commandLi
     for (SwitchIterator it = switches.begin(); it != switches.end(); ++it) {
         d_switches.push_back(
             std::make_pair<std::string, std::string>(
-                std::move(std::string(it->first)),
-                std::move(base::WideToUTF8(it->second))));
+                std::string(it->first),
+                base::WideToUTF8(it->second)));
     }
 }
 

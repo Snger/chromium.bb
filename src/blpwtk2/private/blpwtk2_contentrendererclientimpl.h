@@ -42,12 +42,12 @@ class ContentRendererClientImpl : public content::ContentRendererClient
 
   public:
     ContentRendererClientImpl();
-    virtual ~ContentRendererClientImpl();
+    ~ContentRendererClientImpl() final;
 
     void RenderViewCreated(content::RenderView *render_view) override;
         // Notifies that a new RenderView has been created.
 
-    void GetNavigationErrorStrings(
+    void PrepareErrorPage(
         content::RenderFrame        *render_frame,
         const blink::WebURLRequest&  failed_request,
         const blink::WebURLError&    error,
@@ -64,7 +64,7 @@ class ContentRendererClientImpl : public content::ContentRendererClient
         // call.
 
     content::ResourceLoaderBridge* OverrideResourceLoaderBridge(
-        const content::ResourceRequest *request) override;
+        const network::ResourceRequest *request) override;
         // Allows the embedder to override the ResourceLoaderBridge used.
         // If it returns NULL, the content layer will provide a bridge.
 

@@ -160,7 +160,7 @@ class WebViewHostImpl final : private WebViewImplClient
             BrowserContextImpl                          *browserContext,
             unsigned int                                 hostAffinity,
             const scoped_refptr<ProcessHostImpl::Impl>&  processHost);
-    ~WebViewHostImpl();
+    ~WebViewHostImpl() final;
 };
 
 }  // close namespace blpwtk2

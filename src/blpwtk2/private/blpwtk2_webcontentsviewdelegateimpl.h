@@ -57,10 +57,7 @@ class WebContentsViewDelegateImpl : public content::WebContentsViewDelegate
     // implementation of these WebContentsView methods. See the WebContentsView
     // interface documentation for more information about these methods.
     void StoreFocus() override;
-    void RestoreFocus() override;
     bool Focus() override;
-    void TakeFocus(bool reverse) override;
-    void SizeChanged(const gfx::Size& size) override;
 
   private:
     content::WebContents* d_webContents;

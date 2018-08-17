@@ -43,7 +43,6 @@ class PrefStore : public PersistentPrefStore {
 
   public:
     PrefStore();
-    virtual ~PrefStore();
 
     // PrefStore
     void AddObserver(PrefStore::Observer* observer) override;
@@ -73,6 +72,9 @@ class PrefStore : public PersistentPrefStore {
     void ClearMutableValues() override;
     void ReportValueChanged(const std::string& key, uint32_t flags) override;
     void OnStoreDeletionFromDisk() override;
+
+private:
+    ~PrefStore() final;
 };
 
 }  // close namespace blpwtk2

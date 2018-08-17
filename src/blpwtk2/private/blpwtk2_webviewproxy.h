@@ -103,7 +103,7 @@ class WebViewProxy final : public WebView
 
   public:
     explicit WebViewProxy(WebViewDelegate *delegate, ProfileImpl *profile);
-    ~WebViewProxy();
+    ~WebViewProxy() final;
 
     // blpwtk2::WebViewClientDelegate overrides
     void setClient(WebViewClient *client) override;

@@ -39,7 +39,7 @@ namespace blpwtk2 {
 class ResourceContextImpl : public content::ResourceContext {
   public:
     explicit ResourceContextImpl(net::URLRequestContextGetter* getter);
-    virtual ~ResourceContextImpl();
+    ~ResourceContextImpl() final;
 
     // ======== content::ResourceContext implementation =============
 

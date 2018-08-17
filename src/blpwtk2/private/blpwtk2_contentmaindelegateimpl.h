@@ -55,7 +55,7 @@ class ContentMainDelegateImpl : public content::ContentMainDelegate {
   public:
     // CREATORS
     explicit ContentMainDelegateImpl(bool isSubProcess);
-    virtual ~ContentMainDelegateImpl();
+    ~ContentMainDelegateImpl() final;
 
     // MANIPULATORS
     void appendCommandLineSwitch(const char *switchString);

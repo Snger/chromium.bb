@@ -152,7 +152,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   void RemoveRoute(int32_t routing_id) override;
   void AddObserver(RenderProcessHostObserver* observer) override;
   void RemoveObserver(RenderProcessHostObserver* observer) override;
-  size_t NumListeners() override;
+  size_t NumListeners() const override;
   void ShutdownForBadMessage(CrashReportMode crash_report_mode) override;
   void UpdateClientPriority(PriorityClient* client) override;
   int VisibleClientCount() const override;

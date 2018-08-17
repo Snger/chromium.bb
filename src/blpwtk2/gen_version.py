@@ -122,7 +122,7 @@ def writeVersionFiles(fH, fCC, contentShellVersion, version):
   fH.write('\n')
   fH.write('// Force linker to pull in this component\'s object file.\n')
   fH.write('namespace {\n')
-  fH.write('    extern const char* (*blpwtk2_version_assertion)() = \n')
+  fH.write('    const char* (*blpwtk2_version_assertion)() = \n')
   fH.write('        &Version::{};\n'.format(exportedSymbol))
   fH.write('}\n')
   fH.write('\n')

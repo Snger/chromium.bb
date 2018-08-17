@@ -54,7 +54,7 @@ class WebFrameImpl : public WebFrame,
 
   public:
     WebFrameImpl(blink::WebFrame *impl);
-    ~WebFrameImpl();
+    ~WebFrameImpl() final;
 
     v8::Local<v8::Context> mainWorldScriptContext() const override;
     v8::Isolate* scriptIsolate() const override;

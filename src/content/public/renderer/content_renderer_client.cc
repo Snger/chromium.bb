@@ -89,8 +89,9 @@ ContentRendererClient::OverrideSpeechSynthesizer(
   return nullptr;
 }
 
+content::ResourceLoaderBridge*
 ContentRendererClient::OverrideResourceLoaderBridge(
-    const content::ResourceRequest* request) {
+    const network::ResourceRequest* request) {
   return NULL;
 }
 

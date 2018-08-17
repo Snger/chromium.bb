@@ -39,12 +39,14 @@ bool PdfUtil::RenderPDFPageToDC(const void* pdf_buffer,
                                 bool stretch_to_bounds,
                                 bool keep_aspect_ratio,
                                 bool center_in_bounds,
-                                bool autorotate)
+                                bool autorotate,
+                                bool use_color)
 {
     return chrome_pdf::RenderPDFPageToDC(pdf_buffer,
                                          buffer_size,
                                          page_number,
                                          dc,
+                                         dpi,
                                          dpi,
                                          bounds_origin_x,
                                          bounds_origin_y,
@@ -54,7 +56,8 @@ bool PdfUtil::RenderPDFPageToDC(const void* pdf_buffer,
                                          stretch_to_bounds,
                                          keep_aspect_ratio,
                                          center_in_bounds,
-                                         autorotate);
+                                         autorotate,
+                                         use_color);
 }
 
 }  // close namespace blpwtk2

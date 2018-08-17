@@ -238,10 +238,10 @@ std::unique_ptr<MessageLoop> MessageLoop::CreateUnbound(
 
 MessageLoop::MessageLoop(Type type, MessagePumpFactoryCallback pump_factory)
     : type_(type),
-      pump_factory_(std::move(pump_factory)),
 #if defined(OS_WIN)
       ipc_sync_messages_should_peek_(false),
 #endif  // OS_WIN
+      pump_factory_(std::move(pump_factory)),
       incoming_task_queue_(new internal::IncomingTaskQueue(this)),
       unbound_task_runner_(
           new internal::MessageLoopTaskRunner(incoming_task_queue_)),

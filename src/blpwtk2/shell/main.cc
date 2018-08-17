@@ -137,10 +137,10 @@ void testV8AppendElement(blpwtk2::WebView* webView)
 
     v8::Context::Scope contextScope(ctxt);
     v8::ScriptCompiler::Source compilerSource(v8::String::NewFromUtf8(isolate, SCRIPT));
-    v8::Local<v8::Script> script = v8::ScriptCompiler::Compile(isolate, &compilerSource);
+    v8::Local<v8::Script> script = v8::ScriptCompiler::Compile(ctxt, &compilerSource).ToLocalChecked();
     assert(!script.IsEmpty());  // this should never fail to compile
 
-    v8::TryCatch tryCatch;
+    v8::TryCatch tryCatch(isolate);
     v8::Handle<v8::Value> result = script->Run();
     if (result.IsEmpty()) {
         v8::String::Utf8Value msg(tryCatch.Exception());
@@ -254,7 +254,7 @@ public:
         }
     }
 
-    ~Shell()
+    ~Shell() final
     {
         SetWindowLongPtr(d_mainWnd, GWLP_USERDATA, NULL);
         SetWindowLongPtr(d_urlEntryWnd, GWLP_USERDATA, NULL);
@@ -570,7 +570,7 @@ struct HostWatcherThreadData {
     int d_mainThreadId;
 };
 
-DWORD hostWatcherThreadFunc(LPVOID lParam)
+DWORD __stdcall hostWatcherThreadFunc(LPVOID lParam)
 {
     HostWatcherThreadData* data = (HostWatcherThreadData*)lParam;
     ::WaitForMultipleObjects(data->d_processHandles.size(),
@@ -686,7 +686,7 @@ void runHost()
 {
     g_hJob = ::CreateJobObject(NULL, NULL);
     {
-        JOBOBJECT_EXTENDED_LIMIT_INFORMATION info = { 0 };
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION info{};
         info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
         if (!::SetInformationJobObject(g_hJob,
                                        JobObjectExtendedLimitInformation,
@@ -725,7 +725,7 @@ void runHost()
     ::CloseHandle(g_hJob);
 }
 
-int main(int argc, wchar_t* argv[])
+int main(int, const char**)
 {
     g_instance = GetModuleHandle(NULL);
 
@@ -1276,7 +1276,7 @@ public:
 
     bool canHandleURL(const blpwtk2::StringRef& url) override
     {
-        if (url.length() <= (int)strlen(PREFIX))
+        if (url.length() <= strlen(PREFIX))
             return false;
         blpwtk2::StringRef prefix(url.data(), strlen(PREFIX));
         if (!prefix.equals(PREFIX))

@@ -74,7 +74,7 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     bool d_isOffTheRecord;
 
     friend class base::RefCounted<BrowserContextImpl>;
-    ~BrowserContextImpl();
+    ~BrowserContextImpl() final;
 
     DISALLOW_COPY_AND_ASSIGN(BrowserContextImpl);
 
@@ -131,6 +131,7 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     content::PushMessagingService *GetPushMessagingService() override;
     content::SSLHostStateDelegate *GetSSLHostStateDelegate() override;
     content::PermissionManager *GetPermissionManager() override;
+    content::BackgroundFetchDelegate* GetBackgroundFetchDelegate() override;
     content::BackgroundSyncController *GetBackgroundSyncController() override;
     content::BrowsingDataRemoverDelegate* GetBrowsingDataRemoverDelegate()
         override;

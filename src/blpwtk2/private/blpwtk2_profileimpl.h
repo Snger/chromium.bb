@@ -67,7 +67,7 @@ class ProfileImpl : public Profile {
     unsigned int d_processId;
     MainMessagePump *d_pump;
 
-    ~ProfileImpl();
+    ~ProfileImpl() final;
 
     DISALLOW_COPY_AND_ASSIGN(ProfileImpl);
 

@@ -56,7 +56,8 @@ class CONTENT_EXPORT RenderThread : virtual public ChildThread {
 
   // Initialize and cleanup the in-process renderer so that embedders can
   // implement --single-process functionality.
-  static void InitInProcessRenderer(const InProcessChildThreadParams& params);
+  static void InitInProcessRenderer(const InProcessChildThreadParams& params,
+                                    base::MessageLoop* message_loop);
   static scoped_refptr<base::SingleThreadTaskRunner> IOTaskRunner();
   static void CleanUpInProcessRenderer();
 

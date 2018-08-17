@@ -66,7 +66,7 @@ void ContentRendererClientImpl::RenderViewCreated(
     new RenderViewObserverImpl(render_view);
 }
 
-void ContentRendererClientImpl::GetNavigationErrorStrings(
+void ContentRendererClientImpl::PrepareErrorPage(
     content::RenderFrame* render_frame,
     const blink::WebURLRequest& failed_request,
     const blink::WebURLError& error,
@@ -76,30 +76,22 @@ void ContentRendererClientImpl::GetNavigationErrorStrings(
     GURL gurl = failed_request.Url();
 
     std::string description;
-    if (error.domain == blink::WebURLError::Domain::kNet) {
-        description = net::ErrorToString(error.reason);
-    }
-    std::ostringstream ostr;
-    ostr << error.domain;
-    std::string domainStr = ostr.str();
+    description = net::ErrorToString(error.reason());
 
     std::string errorCode;
     {
         char tmp[128];
-        sprintf_s(tmp, sizeof(tmp), "%d", error.reason);
+        sprintf_s(tmp, sizeof(tmp), "%d", error.reason());
         errorCode = tmp;
     }
 
-    std::string localdesc = error.localized_description.Utf8();
+    std::string localdesc{};
 
     if (error_html) {
         *error_html = "<h2>Navigation Error</h2>";
         *error_html += "<p>Failed to load '<b>" + gurl.spec() + "</b>'</p>";
         if (description.length()) {
             *error_html += "<p>" + description + "</p>";
-        }
-        if (domainStr.length()) {
-            *error_html += "<p>Error Domain: " + domainStr + "</p>";
         }
         *error_html += "<p>Error Reason: " + errorCode + "</p>";
         if (localdesc.length()) {
@@ -112,9 +104,6 @@ void ContentRendererClientImpl::GetNavigationErrorStrings(
         if (description.length()) {
             tmp += " " + description;
         }
-        if (domainStr.length()) {
-            tmp += " -- Error Domain: " + domainStr;
-        }
         tmp += " -- Error Reason: " + errorCode;
         if (localdesc.length()) {
             tmp += " -- " + localdesc;
@@ -125,7 +114,7 @@ void ContentRendererClientImpl::GetNavigationErrorStrings(
 
 content::ResourceLoaderBridge*
 ContentRendererClientImpl::OverrideResourceLoaderBridge(
-    const content::ResourceRequest *request)
+    const network::ResourceRequest *request)
 {
     StringRef url = request->url.spec();
 

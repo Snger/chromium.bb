@@ -557,7 +557,7 @@ void ChromeContentClient::AddContentDecryptionModules(
     }
 #endif  // defined(WIDEVINE_CDM_AVAILABLE_NOT_COMPONENT)
 
-#if BUILDFLAG(ENABLE_LIBRARY_CDMS)
+#if BUILDFLAG(ENABLE_LIBRARY_CDMS) && !defined(BLPWTK2_IMPLEMENTATION)
     // Register Clear Key CDM if specified in command line.
     base::CommandLine* command_line = base::CommandLine::ForCurrentProcess();
     base::FilePath clear_key_cdm_path =

@@ -3076,14 +3076,15 @@ if (!v8_as_shared_library) {
         "//base/allocator",
       ]
 
-    if (v8_use_snapshot) {
-      public_deps += [ ":v8_initializers" ]
+      if (v8_use_snapshot) {
+        public_deps += [ ":v8_initializers" ]
+      }
+      configs = [ ":internal_config" ]
+      if (bb_generate_map_files) {
+        configs += [ "//blpwtk2:blpwtk2_gen_map" ]
+      }
+      public_configs = [ ":external_config" ]
     }
-    configs = [ ":internal_config" ]
-    if (bb_generate_map_files) {
-      configs += [ "//blpwtk2:blpwtk2_gen_map" ]
-    }
-    public_configs = [ ":external_config" ]
   } else {
     group("v8") {
       public_deps = [
@@ -3103,7 +3104,7 @@ if (!v8_as_shared_library) {
       ]
 
       if (v8_use_snapshot) {
-        public_deps += [ ":v8_builtins_generators" ]
+        public_deps += [ ":v8_initializers" ]
       }
 
       public_configs = [ ":external_config" ]
@@ -3120,7 +3121,7 @@ if (!v8_as_shared_library) {
     ]
 
     if (v8_use_snapshot) {
-      public_deps += [ ":v8_builtins_generators" ]
+      public_deps += [ ":v8_initializers" ]
     }
 
     public_configs = [ ":external_config" ]
@@ -3149,7 +3150,7 @@ if (!v8_as_shared_library) {
       "//blpwtk2:blpwtk2_generate_sources",
       "//base:base",
       "//base/allocator",
-      "//base/allocator:features",
+      "//base/allocator:buildflags",
     ]
 
     if (v8_use_snapshot) {

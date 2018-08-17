@@ -83,7 +83,8 @@ ContentBrowserClientImpl::~ContentBrowserClientImpl()
 }
 
 void ContentBrowserClientImpl::RenderProcessWillLaunch(
-    content::RenderProcessHost *host)
+    content::RenderProcessHost *host,
+    service_manager::mojom::ServiceRequest* service_request)
 {
     DCHECK(Statics::isInBrowserMainThread());
 }
@@ -149,7 +150,7 @@ content::DevToolsManagerDelegate *ContentBrowserClientImpl::GetDevToolsManagerDe
 
 void ContentBrowserClientImpl::ExposeInterfacesToRenderer(
         service_manager::BinderRegistry* registry,
-        content::AssociatedInterfaceRegistry* associated_registry,
+        blink::AssociatedInterfaceRegistry* associated_registry,
         content::RenderProcessHost* render_process_host)
 {
     ProcessHostImpl::registerMojoInterfaces(registry);

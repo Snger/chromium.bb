@@ -77,7 +77,7 @@ class WebFrameImpl;
 // about threads.
 class WebViewImpl final : public WebView,
                           private NativeViewWidgetDelegate,
-                          private content::WebContentsDelegate,
+                          public content::WebContentsDelegate,
                           private content::WebContentsObserver,
                           private base::SupportsWeakPtr<WebViewImpl>
 {
@@ -177,7 +177,7 @@ class WebViewImpl final : public WebView,
                 int                       hostAffinity,
                 bool                      initiallyVisible,
                 const WebViewProperties&  properties);
-    ~WebViewImpl();
+    ~WebViewImpl() final;
 
     void setImplClient(WebViewImplClient *client);
     gfx::NativeView getNativeView() const;
@@ -192,7 +192,7 @@ class WebViewImpl final : public WebView,
     v8::MaybeLocal<v8::Value> callFunction(v8::Local<v8::Function>  func,
                                            v8::Local<v8::Value>     recv,
                                            int                      argc,
-                                           v8::Local<v8::Value>    *argv);
+                                           v8::Local<v8::Value>    *argv) override;
 
     // blpwtk2::WebView overrides
     void destroy() override;

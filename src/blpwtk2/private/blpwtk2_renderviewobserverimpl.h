@@ -37,7 +37,7 @@ namespace blpwtk2 {
 class RenderViewObserverImpl : public content::RenderViewObserver {
   public:
     RenderViewObserverImpl(content::RenderView* renderView);
-    virtual ~RenderViewObserverImpl();
+    ~RenderViewObserverImpl() final;
     void OnDestruct() override;
 
   private:

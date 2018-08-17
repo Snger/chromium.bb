@@ -23,7 +23,7 @@
 #ifndef WebScriptBindings_h
 #define WebScriptBindings_h
 
-#include "../platform/WebCommon.h"
+#include "../platform/web_common.h"
 
 namespace v8 {
 class Context;

@@ -763,8 +763,8 @@ class DefaultSubframeProcessHostHolder : public base::SupportsUserData::Data,
 
     // Is this the default storage partition? If it isn't, then just give it its
     // own non-shared process.
+    auto idHandlePair = getHostIdProcessHandleByAffinity(affinity_);
     if (partition != default_partition || is_for_guests_only) {
-      auto idHandlePair = getHostIdProcessHandleByAffinity(affinity_);
       RenderProcessHost* host = RenderProcessHostImpl::CreateRenderProcessHost(
           std::get<0>(idHandlePair), std::get<1>(idHandlePair), browser_context_, partition, site_instance,
           is_for_guests_only);
@@ -778,8 +778,8 @@ class DefaultSubframeProcessHostHolder : public base::SupportsUserData::Data,
       return host_;
 
     host_ = RenderProcessHostImpl::CreateRenderProcessHost(
-        affinity_, browser_context_, partition, site_instance,
-        false /* is for guests only */);
+        std::get<0>(idHandlePair), std::get<1>(idHandlePair), browser_context_, partition, site_instance,
+        is_for_guests_only);
     host_->SetIsNeverSuitableForReuse();
     host_->AddObserver(this);
 
@@ -2475,7 +2475,7 @@ void RenderProcessHostImpl::RemoveObserver(
   observers_.RemoveObserver(observer);
 }
 
-size_t RenderProcessHostImpl::NumListeners() {
+size_t RenderProcessHostImpl::NumListeners() const {
   return listeners_.size();
 }
 
@@ -2844,9 +2844,7 @@ void RenderProcessHostImpl::PropagateBrowserCommandLineToRenderer(
     switches::kDisableWebGLImageChromium,
     switches::kDomAutomationController,
     switches::kEnableAutomation,
-    switches::kEnableCSS3TextDecorations,
     switches::kEnableCSS3Text,
-    switches::kEnableCSSGridLayout,
     switches::kEnableExperimentalWebPlatformFeatures,
     switches::kEnableHeapProfiling,
     switches::kEnableGPUClientLogging,
@@ -3899,7 +3897,9 @@ RenderProcessHost* RenderProcessHostImpl::GetProcessHostForSiteInstance(
     // RenderProcessHostFactory may not instantiate a StoragePartition, and
     // creating one here with GetStoragePartition() can run into cross-thread
     // issues as TestBrowserContext initialization is done on the main thread.
+    auto idHandlePair = getHostIdProcessHandleByAffinity(affinity);
     render_process_host = CreateRenderProcessHost(
+        std::get<0>(idHandlePair), std::get<1>(idHandlePair),
         browser_context, nullptr, site_instance, is_for_guests_only);
   }
 

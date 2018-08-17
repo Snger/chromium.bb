@@ -58,6 +58,7 @@ class ChannelInfo
 
     // CREATORS
     ChannelInfo();
+    ~ChannelInfo();
 
     // MANIPULATORS
     void loadSwitchesFromCommandLine(const base::CommandLine& commandLine);

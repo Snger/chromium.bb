@@ -31,7 +31,7 @@ HINSTANCE GetCurrentResourceDLL() {
 
 void ResourceBundle::AddDLLResources() {
   data_packs_.push_back(
-      base::MakeUnique<ResourceDataDLL>(GetCurrentResourceDLL()));
+      std::make_unique<ResourceDataDLL>(GetCurrentResourceDLL()));
 }
 
 void ResourceBundle::LoadCommonResources() {

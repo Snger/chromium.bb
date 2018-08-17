@@ -28,9 +28,8 @@
 #include <base/command_line.h>
 #include <base/logging.h>  // for DCHECK
 #include <base/strings/string_util.h>
-#include <base/threading/sequenced_worker_pool.h>
-#include <base/threading/worker_pool.h>
 #include <base/memory/ptr_util.h>
+#include <base/task_scheduler/post_task.h>
 #include <content/public/browser/browser_thread.h>
 #include <content/public/common/content_switches.h>
 #include <content/public/common/url_constants.h>
@@ -44,9 +43,9 @@
 #include <net/http/http_network_layer.h>
 #include <net/http/http_network_session.h>
 #include <net/http/http_server_properties_impl.h>
-#include <net/proxy/proxy_service.h>
-#include <net/proxy/proxy_config_service.h>
-#include <net/proxy/proxy_config_service_fixed.h>
+#include <net/proxy_resolution/proxy_config_service.h>
+#include <net/proxy_resolution/proxy_config_service_fixed.h>
+#include <net/proxy_resolution/proxy_resolution_service.h>
 #include <net/ssl/channel_id_service.h>
 #include <net/ssl/default_channel_id_store.h>
 #include <net/ssl/ssl_config_service_defaults.h>
@@ -57,6 +56,8 @@
 #include <net/url_request/url_request_context_storage.h>
 #include <net/url_request/url_request_context_builder.h>
 #include <net/url_request/url_request_job_factory_impl.h>
+#include <services/network/public/cpp/data_element.h>
+#include <services/network/public/cpp/network_switches.h>
 
 namespace blpwtk2 {
 
@@ -69,6 +70,7 @@ URLRequestContextGetterImpl::URLRequestContextGetterImpl(
 , d_diskCacheEnabled(diskCacheEnabled)
 , d_cookiePersistenceEnabled(cookiePersistenceEnabled)
 , d_wasProxyInitialized(false)
+, d_background_task_runner(base::CreateSequencedTaskRunnerWithTraits({base::MayBlock()}))
 {
 }
 
@@ -81,9 +83,13 @@ void URLRequestContextGetterImpl::setProxyConfig(const net::ProxyConfig& config)
     DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
 
     d_wasProxyInitialized = true;
+    auto annotation_tag = net::DefineNetworkTrafficAnnotation(
+        "085C6810_CE54_400B_A7E2_AEB8462A1D71",
+        "Bloomberg network traffic annotation tag");
 
     net::ProxyConfigService* proxyConfigService =
-        new net::ProxyConfigServiceFixed(config);
+        new net::ProxyConfigServiceFixed(
+            net::ProxyConfigWithAnnotation(config, annotation_tag));
 
     GetNetworkTaskRunner()->PostTask(
         FROM_HERE,
@@ -105,7 +111,7 @@ void URLRequestContextGetterImpl::useSystemProxyConfig()
     // because it must synchronously run on the glib message loop.  This
     // will be passed to the ProxyServer on the IO thread.
     net::ProxyConfigService* proxyConfigService =
-        net::ProxyService::CreateSystemProxyConfigService(ioLoop).release();
+        net::ProxyResolutionService::CreateSystemProxyConfigService(ioLoop).release();
 
     GetNetworkTaskRunner()->PostTask(
         FROM_HERE, base::Bind(&URLRequestContextGetterImpl::updateProxyConfig,
@@ -163,8 +169,7 @@ void URLRequestContextGetterImpl::initialize()
             new net::SQLitePersistentCookieStore(
                 d_path.Append(FILE_PATH_LITERAL("Cookies")),
                 GetNetworkTaskRunner(),
-                content::BrowserThread::GetTaskRunnerForThread(
-                    content::BrowserThread::FILE),
+                d_background_task_runner,
                 true,
                 (net::CookieCryptoDelegate*)0);
     }
@@ -173,12 +178,12 @@ void URLRequestContextGetterImpl::initialize()
 
     net::URLRequestContextBuilder builder;
 
-    builder.set_proxy_service(std::move(d_proxyService));
+    builder.set_proxy_resolution_service(std::move(d_proxyService));
     builder.set_network_delegate(std::unique_ptr<NetworkDelegateImpl>(new NetworkDelegateImpl()));
     builder.SetCookieAndChannelIdStores(
         std::unique_ptr<net::CookieMonster>(
             new net::CookieMonster(d_cookieStore.get(), 0)),
-        base::MakeUnique<net::ChannelIDService>(
+        std::make_unique<net::ChannelIDService>(
             new net::DefaultChannelIDStore(nullptr)));
 
     builder.set_accept_language("en-us,en");
@@ -187,11 +192,11 @@ void URLRequestContextGetterImpl::initialize()
     std::unique_ptr<net::HostResolver> hostResolver
         = net::HostResolver::CreateDefaultResolver(0);
 
-    if (cmdline.HasSwitch(switches::kHostResolverRules)) {
+    if (cmdline.HasSwitch(network::switches::kHostResolverRules)) {
         std::unique_ptr<net::MappedHostResolver> mappedHostResolver(
             new net::MappedHostResolver(std::move(hostResolver)));
         mappedHostResolver->SetRulesFromString(
-            cmdline.GetSwitchValueASCII(switches::kHostResolverRules));
+            cmdline.GetSwitchValueASCII(network::switches::kHostResolverRules));
         hostResolver = std::move(mappedHostResolver);
     }
 
@@ -227,14 +232,13 @@ void URLRequestContextGetterImpl::initialize()
         url::kDataScheme,
         std::unique_ptr<net::DataProtocolHandler>(new net::DataProtocolHandler));
 
+    auto task_runner = base::CreateSequencedTaskRunnerWithTraits(
+          {base::MayBlock(), base::TaskShutdownBehavior::SKIP_ON_SHUTDOWN});
     builder.SetProtocolHandler(
         url::kFileScheme,
-        std::unique_ptr<net::FileProtocolHandler>(new net::FileProtocolHandler(
-                            content::BrowserThread::GetBlockingPool()->
-                                GetTaskRunnerWithShutdownBehavior(
-                                    base::SequencedWorkerPool::SKIP_ON_SHUTDOWN))));
+        std::make_unique<net::FileProtocolHandler>(std::move(task_runner)));
 
-    d_urlRequestContext = std::move(builder.Build());
+    d_urlRequestContext = builder.Build();
 }
 
 void URLRequestContextGetterImpl::updateProxyConfig(
@@ -244,14 +248,14 @@ void URLRequestContextGetterImpl::updateProxyConfig(
     std::unique_ptr<net::ProxyConfigService> proxyConfigService_(proxyConfigService);
 
     if (d_urlRequestContext) {
-        net::ProxyService* proxyService = d_urlRequestContext->proxy_service();
+        net::ProxyResolutionService* proxyService = d_urlRequestContext->proxy_resolution_service();
         DCHECK(proxyService);
         proxyService->ResetConfigService(std::move(proxyConfigService_));
         return;
     }
 
     // TODO(jam): use v8 if possible, look at chrome code.
-    d_proxyService = net::ProxyService::CreateUsingSystemProxyResolver(
+    d_proxyService = net::ProxyResolutionService::CreateUsingSystemProxyResolver(
             std::move(proxyConfigService_), 0);
 }
 

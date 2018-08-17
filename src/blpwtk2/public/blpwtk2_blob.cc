@@ -112,7 +112,7 @@ public:
             BI_RGB,
         };
 
-        auto dest_buffer = reinterpret_cast<char*>(dest);
+        char* dest_buffer = reinterpret_cast<char*>(dest);
         size_t offset = 0;
 
         memcpy(dest_buffer, &fileHeader, sizeof(fileHeader));
@@ -122,13 +122,13 @@ public:
         offset += sizeof(bmiHeader);
 
         const void* src_pixels = d_skiaBitmap.getPixels();
-        size_t src_size = d_skiaBitmap.getSize();
+        size_t src_size = d_skiaBitmap.computeByteSize();
         std::memcpy(dest_buffer + offset, src_pixels, src_size);
     }
 
     size_t size() const override
     {
-        return sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + d_skiaBitmap.getSize();
+        return sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + d_skiaBitmap.computeByteSize();
     }
 };
 
@@ -143,10 +143,10 @@ SkBitmap& Blob::makeSkBitmap()
 // StorageDataElementBlob
 
 class StorageDataElementBlob : public Blob::Impl {
-    const storage::DataElement& d_element;
+    const network::DataElement& d_element;
 
 public:
-    StorageDataElementBlob(const storage::DataElement& element)
+    StorageDataElementBlob(const network::DataElement& element)
     : d_element(element) {
     }
 
@@ -161,7 +161,7 @@ public:
     }
 };
 
-void Blob::makeStorageDataElement(const storage::DataElement& element)
+void Blob::makeStorageDataElement(const network::DataElement& element)
 {
     DCHECK(!d_impl);
     StorageDataElementBlob *blob = new StorageDataElementBlob(element);

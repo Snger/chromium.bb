@@ -46,7 +46,7 @@ class DevToolsManagerDelegateImpl final : public content::DevToolsManagerDelegat
   ~DevToolsManagerDelegateImpl() override;
 
   // DevToolsManagerDelegate overrides
-  std::string GetFrontendResource(const std::string& path) override;
+  bool HasBundledFrontendResources() override;
 };
 
 }  // close namespace blpwtk2

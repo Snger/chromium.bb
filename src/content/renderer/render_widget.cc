@@ -406,7 +406,6 @@ RenderWidget::RenderWidget(
       resizing_mode_selector_(new ResizingModeSelector()),
       has_host_context_menu_location_(false),
       has_added_input_handler_(false),
-      bb_OnHandleInputEvent_no_ack_(false),
       has_focus_(false),
       for_oopif_(false),
 #if defined(OS_MACOSX)
@@ -417,6 +416,7 @@ RenderWidget::RenderWidget(
       current_content_source_id_(0),
       widget_binding_(this, std::move(widget_request)),
       task_runner_(task_runner),
+      bb_OnHandleInputEvent_no_ack_(false),
       weak_ptr_factory_(this) {
   DCHECK_NE(routing_id_, MSG_ROUTING_NONE);
   if (!swapped_out)

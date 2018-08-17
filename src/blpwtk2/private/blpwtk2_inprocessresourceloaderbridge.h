@@ -25,11 +25,15 @@
 
 #include <blpwtk2_config.h>
 #include <base/memory/ref_counted.h>
-#include <content/child/resource_dispatcher.h>
+#include <content/renderer/loader/resource_dispatcher.h>
 
 namespace content {
 struct RequestInfo;
 }  // close namespace content
+
+namespace network {
+  struct ResourceRequest;
+}  // network
 
 namespace blpwtk2 {
 
@@ -37,8 +41,8 @@ class InProcessResourceLoaderBridge
     : public content::ResourceLoaderBridge {
   public:
     InProcessResourceLoaderBridge(
-        const content::ResourceRequest *request);
-    virtual ~InProcessResourceLoaderBridge();
+        const network::ResourceRequest *request);
+    ~InProcessResourceLoaderBridge() final;
 
     // content::ResourceLoaderBridge overrides
     bool Start(content::RequestPeer* peer) override;
@@ -48,7 +52,7 @@ class InProcessResourceLoaderBridge
   private:
     class InProcessURLRequest;
     class InProcessResourceContext;
-    scoped_refptr<InProcessResourceContext> d_context;
+    InProcessResourceContext* d_context;
 
     DISALLOW_COPY_AND_ASSIGN(InProcessResourceLoaderBridge);
 };

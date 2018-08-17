@@ -20,8 +20,7 @@ extern bool g_browser_main_loop_shutting_down;
 
 InProcessRendererThread::InProcessRendererThread(
     const InProcessChildThreadParams& params)
-    : Thread("Chrome_InProcRendererThread"), params_(params) {
-}
+    : Thread("Chrome_InProcRendererThread"), params_(params) {}
 
 InProcessRendererThread::~InProcessRendererThread() {
 #if defined(OS_ANDROID)
@@ -45,7 +44,7 @@ void InProcessRendererThread::Init() {
   // Android. Temporary CHECK() to debug http://crbug.com/514141
   CHECK(!render_process_);
 #endif
-  RenderThread::InitInProcessRenderer(params_);
+  RenderThread::InitInProcessRenderer(params_, message_loop());
 }
 
 void InProcessRendererThread::CleanUp() {

@@ -83,10 +83,6 @@ std::unique_ptr<service_manager::Service> CreateTestService() {
   return std::unique_ptr<service_manager::Service>(new TestService);
 }
 
-bool Send(IPC::Message* message) {
-  return content::UtilityThread::Get()->Send(message);
-}
-
 }  // namespace
 
 ShellContentUtilityClient::ShellContentUtilityClient(bool is_browsertest) {

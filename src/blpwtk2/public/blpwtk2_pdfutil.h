@@ -42,7 +42,8 @@ class BLPWTK2_EXPORT PdfUtil {
                                   bool stretch_to_bounds,
                                   bool keep_aspect_ratio,
                                   bool center_in_bounds,
-                                  bool autorotate);
+                                  bool autorotate,
+                                  bool use_color);
 };
 
 }  // close namespace blpwtk2

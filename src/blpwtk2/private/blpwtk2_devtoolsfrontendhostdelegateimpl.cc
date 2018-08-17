@@ -117,8 +117,8 @@ DevToolsFrontendHostDelegateImpl::DevToolsFrontendHostDelegateImpl(
     content::WebContents* inspectedContents)
 : WebContentsObserver(inspectorContents)
 , d_inspectedContents(inspectedContents)
-, d_weakFactory(this)
 , d_inspectElementPointPending(false)
+, d_weakFactory(this)
 {
 }
 
@@ -131,7 +131,7 @@ DevToolsFrontendHostDelegateImpl::~DevToolsFrontendHostDelegateImpl()
 void DevToolsFrontendHostDelegateImpl::inspectElementAt(const POINT& point)
 {
     if (d_agentHost) {
-        d_agentHost->InspectElement(this, point.x, point.y);
+        d_agentHost->InspectElement(d_inspectedContents->GetMainFrame(), point.x, point.y);
         return;
     }
     d_inspectElementPointPending = true;
@@ -156,7 +156,7 @@ void DevToolsFrontendHostDelegateImpl::DocumentAvailableInMainFrame()
     d_agentHost->AttachClient(this);
     if (d_inspectElementPointPending) {
         d_inspectElementPointPending = false;
-        d_agentHost->InspectElement(this, d_inspectElementPoint.x, d_inspectElementPoint.y);
+        d_agentHost->InspectElement(d_inspectedContents->GetMainFrame(), d_inspectElementPoint.x, d_inspectElementPoint.y);
     }
 }
 
@@ -292,8 +292,7 @@ void DevToolsFrontendHostDelegateImpl::DispatchProtocolMessage(
 }
 
 void DevToolsFrontendHostDelegateImpl::AgentHostClosed(
-        content::DevToolsAgentHost* agentHost,
-        bool replacedWithAnotherClient)
+        content::DevToolsAgentHost* agentHost)
 {
     // TODO: notify blpwtk2 clients?
 }

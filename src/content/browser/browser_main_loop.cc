@@ -99,7 +99,7 @@
 #include "content/public/browser/render_process_host.h"
 #include "content/public/browser/site_isolation_policy.h"
 #include "content/public/browser/swap_metrics_driver.h"
-#include "content/public/browser/utility_process_host.h"
+#include "content/browser/utility_process_host.h"
 #include "content/public/common/content_client.h"
 #include "content/public/common/content_features.h"
 #include "content/public/common/content_switches.h"

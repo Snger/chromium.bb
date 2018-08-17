@@ -25,6 +25,7 @@
 
 #include <base/run_loop.h>
 #include <base/message_loop/message_loop.h>
+#include <base/threading/thread_local.h>
 #include <base/win/wrapped_window_proc.h>
 #include <base/time/time.h>
 
@@ -42,6 +43,12 @@ bool isModalCode(int code)
         || 4 == code // Window resize
         || MSGF_MENU == code
         || MSGF_SCROLLBAR == code;
+}
+
+// A lazily created TLS for quick access to a thread's message pump
+base::ThreadLocalPointer<MainMessagePump>* GetTLSMainMessagePump() {
+  static auto* lazy_tls_ptr = new base::ThreadLocalPointer<MainMessagePump>();
+  return lazy_tls_ptr;
 }
 }
 
@@ -323,9 +330,11 @@ void MainMessagePump::resetWorkState()
 // static
 MainMessagePump* MainMessagePump::current()
 {
-    base::MessageLoop* loop = base::MessageLoop::current();
+    [[maybe_unused]] base::MessageLoop* loop = base::MessageLoop::current();
     DCHECK_EQ(base::MessageLoop::TYPE_UI, loop->type());
-    return static_cast<MainMessagePump*>(loop->get_pump());
+    MainMessagePump* pump = GetTLSMainMessagePump()->Get();
+    DCHECK(pump != nullptr);
+    return pump;
 }
 
 // CREATORS
@@ -378,11 +387,15 @@ MainMessagePump::MainMessagePump()
     // of the browser main thread and the program counter is inside an OS modal
     // loop.
     d_maxPumpCountInsideModalLoop = 16;
+
+    DCHECK(!GetTLSMainMessagePump()->Get());
+    GetTLSMainMessagePump()->Set(this);
 }
 
 MainMessagePump::~MainMessagePump()
 {
     ::DestroyWindow(d_window);
+    GetTLSMainMessagePump()->Set(nullptr);
 }
 
 void MainMessagePump::init()

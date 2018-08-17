@@ -148,21 +148,9 @@ void WebContentsViewDelegateImpl::StoreFocus()
 {
 }
 
-void WebContentsViewDelegateImpl::RestoreFocus()
-{
-}
-
 bool WebContentsViewDelegateImpl::Focus()
 {
     return false;
-}
-
-void WebContentsViewDelegateImpl::TakeFocus(bool reverse)
-{
-}
-
-void WebContentsViewDelegateImpl::SizeChanged(const gfx::Size& size)
-{
 }
 
 }  // close namespace blpwtk2

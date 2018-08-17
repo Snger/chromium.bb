@@ -39,7 +39,6 @@
 #include "url/origin.h"
 
 #if defined(OS_WIN)
-#include "content/common/sandbox_win.h"
 #include "sandbox/win/src/sandbox.h"
 #endif
 

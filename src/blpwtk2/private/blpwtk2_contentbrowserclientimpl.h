@@ -56,12 +56,13 @@ class ContentBrowserClientImpl : public content::ContentBrowserClient {
   public:
     // CREATORS
     explicit ContentBrowserClientImpl();
-    virtual ~ContentBrowserClientImpl();
+    ~ContentBrowserClientImpl() final;
 
-    void RenderProcessWillLaunch(content::RenderProcessHost *host) override;
-        // Notifies that a render process will be created. This is called
-        // before the content layer adds its own BrowserMessageFilters, so
-        // that the embedder's IPC filters have priority.
+    void RenderProcessWillLaunch(content::RenderProcessHost* host,
+        service_manager::mojom::ServiceRequest* service_request) override;
+    // Notifies that a render process will be created. This is called
+    // before the content layer adds its own BrowserMessageFilters, so
+    // that the embedder's IPC filters have priority.
 
     void OverrideWebkitPrefs(content::RenderViewHost *render_view_host,
                              content::WebPreferences *prefs) override;
@@ -97,7 +98,7 @@ class ContentBrowserClientImpl : public content::ContentBrowserClient {
 
     void ExposeInterfacesToRenderer(
         service_manager::BinderRegistry* registry,
-        content::AssociatedInterfaceRegistry* associated_registry,
+        blink::AssociatedInterfaceRegistry* associated_registry,
         content::RenderProcessHost* render_process_host) override;
 
     // Start the in-process renderer thread.  This will only ever be called if

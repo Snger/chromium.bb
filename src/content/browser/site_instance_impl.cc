@@ -27,7 +27,7 @@
 #include "net/base/registry_controlled_domains/registry_controlled_domain.h"
 
 namespace content {
-int SiteInstanceImpl::kNoProcessAffinity = RenderProcessHostImpl::kInvalidId;
+int SiteInstance::kNoProcessAffinity = RenderProcessHostImpl::kInvalidId;
 int32_t SiteInstanceImpl::next_site_instance_id_ = 1;
 
 using CheckOriginLockResult =

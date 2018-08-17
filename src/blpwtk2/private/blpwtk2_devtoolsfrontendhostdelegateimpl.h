@@ -47,7 +47,7 @@ class DevToolsFrontendHostDelegateImpl
   public:
     DevToolsFrontendHostDelegateImpl(content::WebContents* inspectorContents,
                                      content::WebContents* inspectedContents);
-    virtual ~DevToolsFrontendHostDelegateImpl();
+    ~DevToolsFrontendHostDelegateImpl() final;
 
     void inspectElementAt(const POINT& point);
 
@@ -72,8 +72,7 @@ class DevToolsFrontendHostDelegateImpl
     // ========= DevToolsAgentHostClient overrides =========
     void DispatchProtocolMessage(content::DevToolsAgentHost* agentHost,
                                  const std::string& message) override;
-    void AgentHostClosed(content::DevToolsAgentHost* agentHost,
-                         bool replacedWithAnotherClient) override;
+    void AgentHostClosed(content::DevToolsAgentHost* agentHost) override;
 
     // ========= net::URLFetcherDelegate overrides =========
     void OnURLFetchComplete(const net::URLFetcher* source) override;
@@ -85,10 +84,10 @@ class DevToolsFrontendHostDelegateImpl
     using PendingRequestsMap = std::map<const net::URLFetcher*, int>;
     PendingRequestsMap d_pendingRequests;
     base::DictionaryValue d_preferences;
-    base::WeakPtrFactory<DevToolsFrontendHostDelegateImpl> d_weakFactory;
 
     POINT d_inspectElementPoint;
     bool d_inspectElementPointPending;
+    base::WeakPtrFactory<DevToolsFrontendHostDelegateImpl> d_weakFactory;
 };
 
 

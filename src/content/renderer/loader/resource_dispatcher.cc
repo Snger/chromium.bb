@@ -523,10 +523,10 @@ int ResourceDispatcher::StartAsync(
 
   if (bridge) {
     bridge->Start(peer.get());
-    pending_requests_[request_id] = base::WrapUnique(new PendingRequestInfo(
-        std::move(peer), std::move(bridge), request->resource_type,
-        request->origin_pid, frame_origin, request->url,
-        request->download_to_file));
+    pending_requests_[request_id] = std::make_unique<PendingRequestInfo>(
+        std::move(peer), std::move(bridge), static_cast<ResourceType>(request->resource_type),
+        request->render_frame_id, request->url, request->method,
+        request->referrer, request->download_to_file);
     return request_id;
   }
 

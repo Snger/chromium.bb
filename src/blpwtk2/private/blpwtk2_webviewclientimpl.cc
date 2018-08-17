@@ -60,7 +60,7 @@ void WebViewClientImpl::releaseHost()
     }
 
     if (d_delegate) {
-        auto delegate = d_delegate;
+        WebViewClientDelegate* delegate = d_delegate;
         d_delegate = nullptr;
 
         delegate->setClient(nullptr);

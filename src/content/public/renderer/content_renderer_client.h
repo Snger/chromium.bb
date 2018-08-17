@@ -62,6 +62,10 @@ namespace media {
 class KeySystemProperties;
 }
 
+namespace network {
+    struct ResourceRequest;
+}
+
 namespace content {
 class BrowserPluginDelegate;
 class MediaStreamRendererFactory;
@@ -70,7 +74,6 @@ class RenderView;
 struct WebPluginInfo;
 struct RequestInfo;
 class ResourceLoaderBridge;
-struct ResourceRequest;
 class ResourceRequestBodyImpl;
 
 // Embedder API for participating in renderer logic.
@@ -197,7 +200,7 @@ class CONTENT_EXPORT ContentRendererClient {
   // Allows the embedder to override the ResourceLoaderBridge used.
   // If it returns NULL, the content layer will provide a bridge.
   virtual content::ResourceLoaderBridge* OverrideResourceLoaderBridge(
-      const content::ResourceRequest* request);
+      const network::ResourceRequest* request);
 
   // Called on the main-thread immediately after the io thread is
   // created.

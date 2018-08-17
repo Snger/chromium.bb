@@ -136,7 +136,7 @@ class BLPV8_BASE_EXPORT OS {
   static FILE* OpenTemporaryFile();
 
   // Log file open mode is platform-dependent due to line ends issues.
-  static constexpr char* const LogFileOpenMode= "wb";
+  static const char* GetLogFileOpenMode() {return  "wb";}
 
   // Print output to console. This is mostly used for debugging output.
   // On platforms that has standard terminal output, the output

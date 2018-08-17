@@ -22,10 +22,10 @@
 
 #include "public/web/web_script_bindings.h"
 
-#include "bindings/DOMWrapperWorld.h"
-#include "bindings/ScriptState.h"
-#include "bindings/V8Binding.h"
-#include "public/platform/WebString.h"
+#include "bindings/dom_wrapper_world.h"
+#include "bindings/script_state.h"
+#include "bindings/v8_binding.h"
+#include "public/platform/web_string.h"
 
 #include <v8.h>
 
@@ -37,7 +37,7 @@ v8::Local<v8::Context> WebScriptBindings::CreateWebScriptContext()
     v8::EscapableHandleScope hs(isolate);
     v8::Local<v8::Context> context = v8::Context::New(isolate);
 
-    PassRefPtr<ScriptState> scriptState = ScriptState::Create(context, &DOMWrapperWorld::MainWorld());
+    auto scriptState = ScriptState::Create(context, &DOMWrapperWorld::MainWorld());
 
     return hs.Escape(context);
 }

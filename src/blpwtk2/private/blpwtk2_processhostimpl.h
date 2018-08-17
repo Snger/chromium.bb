@@ -65,7 +65,7 @@ class ProcessHostImpl final : public mojom::ProcessHost
         // Private constructor.  This object should only be created by
         // createHostChannel() or create().
 
-    ~ProcessHostImpl();
+    ~ProcessHostImpl() final;
         // Private destructor.
 
     int createPipeHandleForChild(base::ProcessId    processId,

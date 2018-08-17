@@ -262,7 +262,7 @@ void WebViewHostImpl::onNCDragAck()
 
     d_dragState.pendingAck = false;
 
-    for (int i=0; i<(sizeof(operations)/sizeof(Operation)); ++i) {
+    for (size_t i=0; i<(sizeof(operations)/sizeof(Operation)); ++i) {
         if (BEGIN == operations[i]) {
             if (d_dragState.startPointSet) {
                 d_dragState.startPointSet = false;

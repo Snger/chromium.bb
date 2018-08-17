@@ -30,14 +30,15 @@
 
 #include <base/bind.h>
 #include <base/message_loop/message_loop.h>
-#include "content/public/common/resource_request.h"
-#include <content/child/sync_load_response.h>
-#include <content/public/child/request_peer.h>
+#include <content/renderer/loader/sync_load_response.h>
+#include <content/public/renderer/request_peer.h>
 #include <net/base/load_flags.h>
 #include <net/base/mime_sniffer.h>
 #include <net/base/net_errors.h>
 #include <net/http/http_request_headers.h>
 #include <net/http/http_response_headers.h>
+#include <services/network/public/cpp/resource_request.h>
+#include <services/network/public/cpp/resource_response_info.h>
 #include <third_party/blink/public/platform/web_url_request.h>
 #include <url/gurl.h>
 
@@ -56,7 +57,7 @@ class InProcessResourceLoaderBridge::InProcessURLRequest
   public:
 
     InProcessURLRequest(
-        const content::ResourceRequest *request)
+        const network::ResourceRequest *request)
     : d_url(request->url)
     , d_firstPartyForCookies(request->site_for_cookies)
     , d_loadFlags(request->load_flags)
@@ -65,16 +66,15 @@ class InProcessResourceLoaderBridge::InProcessURLRequest
     , d_reportRawHeaders(request->report_raw_headers)
     , d_hasUserGesture(request->has_user_gesture)
     , d_routingId(request->render_frame_id)
-    , d_requestorPid(request->origin_pid)
     , d_appCacheHostId(request->appcache_host_id)
     , d_downloadToFile(request->download_to_file)
     , d_priority(request->priority)
     , d_requestBody(request->request_body)
     {
-        d_requestHeaders.AddHeadersFromString(request->headers);
+        d_requestHeaders.MergeFrom(request->headers);
     }
 
-    ~InProcessURLRequest() {}
+    ~InProcessURLRequest() final {}
 
     String url() const override {
         return String(d_url.spec());
@@ -139,17 +139,9 @@ class InProcessResourceLoaderBridge::InProcessURLRequest
             return;
         }
 
-        using ElementVector =
-                          std::vector<content::ResourceRequestBody::Element>;
-        const ElementVector* elements = d_requestBody->elements();
-
-        for (ElementVector::const_iterator
-                it = elements->begin(),
-                it_end = elements->end();
-            it != it_end;
-            ++it) {
+        for (const network::DataElement& elem : *(d_requestBody->elements())) {
             Blob elementBlob;
-            elementBlob.makeStorageDataElement(*it);
+            elementBlob.makeStorageDataElement(elem);
             visitor->visitBodyElement(elementBlob);
         }
     }
@@ -168,10 +160,6 @@ class InProcessResourceLoaderBridge::InProcessURLRequest
 
     int requesterID() const override {
         return d_routingId;
-    }
-
-    int requestorProcessID() const override {
-        return d_requestorPid;
     }
 
     int appCacheHostID() const override {
@@ -209,12 +197,11 @@ class InProcessResourceLoaderBridge::InProcessURLRequest
     bool d_reportRawHeaders;
     bool d_hasUserGesture;
     int d_routingId;
-    int d_requestorPid;
     int d_appCacheHostId;
     bool d_downloadToFile;
     net::RequestPriority d_priority;
 
-    scoped_refptr<content::ResourceRequestBody> d_requestBody;
+    scoped_refptr<network::ResourceRequestBody> d_requestBody;
     net::HttpRequestHeaders d_requestHeaders;
 };
 
@@ -223,7 +210,7 @@ class InProcessResourceLoaderBridge::InProcessResourceContext
     , public ResourceContext {
   public:
     InProcessResourceContext(
-        const content::ResourceRequest *request);
+        const network::ResourceRequest *request);
 
     // accessors
     const GURL& url() const;
@@ -241,7 +228,12 @@ class InProcessResourceLoaderBridge::InProcessResourceContext
     void failed() override;
     void finish() override;
 
+  protected:
+
   private:
+    friend class base::RefCounted<InProcessResourceContext>;
+    ~InProcessResourceContext() final;
+
     void startLoad();
     void cancelLoad();
     void ensureResponseHeadersSent(const char* buffer, int length);
@@ -264,7 +256,7 @@ class InProcessResourceLoaderBridge::InProcessResourceContext
 // InProcessResourceContext
 
 InProcessResourceLoaderBridge::InProcessResourceContext::InProcessResourceContext(
-    const content::ResourceRequest *request)
+    const network::ResourceRequest *request)
 : d_urlRequest(new InProcessURLRequest(request))
 , d_url(request->url)
 , d_peer(0)
@@ -280,6 +272,10 @@ InProcessResourceLoaderBridge::InProcessResourceContext::InProcessResourceContex
     DCHECK(Statics::inProcessResourceLoader);
     DCHECK(Statics::inProcessResourceLoader->canHandleURL(d_url.spec()));
     d_responseHeaders = new net::HttpResponseHeaders("HTTP/1.1 200 OK\0\0");
+}
+
+InProcessResourceLoaderBridge::InProcessResourceContext::~InProcessResourceContext()
+{
 }
 
 // accessors
@@ -421,11 +417,15 @@ void InProcessResourceLoaderBridge::InProcessResourceContext::finish()
         int errorCode = d_failed ? net::ERR_FAILED
                                  : d_canceled ? net::ERR_ABORTED
                                               : net::OK;
-
+        network::URLLoaderCompletionStatus completeStatus;
+        completeStatus.error_code = errorCode;
+        completeStatus.exists_in_cache = false;
+        completeStatus.completion_time = base::TimeTicks::Now();
+        completeStatus.encoded_data_length = d_totalTransferSize;
+        completeStatus.encoded_body_length = d_totalTransferSize;
+        completeStatus.decoded_body_length = d_totalTransferSize;
         // InProcessResourceLoaderBridge will get deleted inside this callback.
-        d_peer->OnCompletedRequest(errorCode, false, base::TimeTicks::Now(),
-                                   d_totalTransferSize, d_totalTransferSize,
-                                   d_totalTransferSize);
+        d_peer->OnCompletedRequest(completeStatus);
     }
 
     // This is to balance the AddRef from startLoad().
@@ -463,14 +463,16 @@ void InProcessResourceLoaderBridge::InProcessResourceContext::cancelLoad()
             // Resource canceled before we could start it on the loader, or the
             // loader finished before we could notify it of cancellation.  We can
             // now safely destroy ourself.
+            network::URLLoaderCompletionStatus completeStatus;
+            completeStatus.error_code = net::ERR_ABORTED;
+            completeStatus.exists_in_cache = false;
+            completeStatus.completion_time = base::TimeTicks::Now();
+            completeStatus.encoded_data_length = d_totalTransferSize;
+            completeStatus.encoded_body_length = d_totalTransferSize;
+            completeStatus.decoded_body_length = d_totalTransferSize;
 
             // InProcessResourceLoaderBridge will get deleted inside this callback.
-            d_peer->OnCompletedRequest(net::ERR_ABORTED,
-                                       false,
-                                       base::TimeTicks::Now(),
-                                       d_totalTransferSize,
-                                       d_totalTransferSize,
-                                       d_totalTransferSize);
+            d_peer->OnCompletedRequest(completeStatus);
         }
         return;
     }
@@ -491,7 +493,7 @@ void InProcessResourceLoaderBridge::InProcessResourceContext::ensureResponseHead
         return;
     }
 
-    content::ResourceResponseInfo responseInfo;
+    network::ResourceResponseInfo responseInfo;
     responseInfo.headers = d_responseHeaders;
     responseInfo.content_length = d_responseHeaders->GetContentLength();
     d_responseHeaders->GetMimeTypeAndCharset(&responseInfo.mime_type,
@@ -503,6 +505,7 @@ void InProcessResourceLoaderBridge::InProcessResourceContext::ensureResponseHead
                            std::min(length, net::kMaxBytesToSniff),
                            d_url,
                            "",
+                           net::ForceSniffFileUrlsForHtml::kDisabled,
                            &responseInfo.mime_type);
     }
 
@@ -513,7 +516,7 @@ void InProcessResourceLoaderBridge::InProcessResourceContext::ensureResponseHead
 // InProcessResourceLoaderBridge
 
 InProcessResourceLoaderBridge::InProcessResourceLoaderBridge(
-    const content::ResourceRequest *request)
+    const network::ResourceRequest *request)
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(Statics::inProcessResourceLoader);
@@ -524,6 +527,7 @@ InProcessResourceLoaderBridge::InProcessResourceLoaderBridge(
 InProcessResourceLoaderBridge::~InProcessResourceLoaderBridge()
 {
     d_context->dispose();
+    d_context->Release();
 }
 
 // content::ResourceLoaderBridge overrides

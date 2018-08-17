@@ -33,10 +33,14 @@
 #include <net/url_request/url_request_context_getter.h>
 #include <net/url_request/url_request_job_factory.h>
 
+namespace base {
+    class SequencedTaskRunner;
+}
+
 namespace net {
     class ProxyConfig;
     class ProxyConfigService;
-    class ProxyService;
+    class ProxyResolutionService;
     class URLRequestContext;
     class URLRequestContextStorage;
 }  // close namespace net
@@ -59,7 +63,6 @@ public:
     URLRequestContextGetterImpl(const base::FilePath& path,
                                 bool diskCacheEnabled,
                                 bool cookiePersistenceEnabled);
-    virtual ~URLRequestContextGetterImpl();
 
     // Called on the UI thread.
     void setProxyConfig(const net::ProxyConfig& config);
@@ -75,12 +78,13 @@ public:
     scoped_refptr<base::SingleThreadTaskRunner> GetNetworkTaskRunner() const override;
 
 private:
+    ~URLRequestContextGetterImpl() final;
     // Called on the IO thread.
     void initialize();
     void updateProxyConfig(
         net::ProxyConfigService* proxyConfigService);
 
-    std::unique_ptr<net::ProxyService> d_proxyService;
+    std::unique_ptr<net::ProxyResolutionService> d_proxyService;
     scoped_refptr<net::CookieMonster::PersistentCookieStore> d_cookieStore;
     std::unique_ptr<net::URLRequestContextStorage> d_storage;
     std::unique_ptr<net::URLRequestContext> d_urlRequestContext;
@@ -95,6 +99,8 @@ private:
     bool d_diskCacheEnabled;
     bool d_cookiePersistenceEnabled;
     bool d_wasProxyInitialized;
+
+    scoped_refptr<base::SequencedTaskRunner> d_background_task_runner;
 
     DISALLOW_COPY_AND_ASSIGN(URLRequestContextGetterImpl);
 };

@@ -6,7 +6,7 @@
 // file.
 #undef USING_V8_SHARED
 #include "include/v8.h"
-#include "base/allocator/features.h"
+#include "base/allocator/buildflags.h"
 #include "build/build_config.h"
 
 #if V8_OS_WIN

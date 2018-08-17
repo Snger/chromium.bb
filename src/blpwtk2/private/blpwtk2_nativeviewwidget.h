@@ -44,7 +44,7 @@ class NativeViewWidget : private views::WidgetDelegateView {
                      blpwtk2::NativeView parent,
                      NativeViewWidgetDelegate* delegate,
                      bool rerouteMouseWheelToAnyRelatedWindow);
-    virtual ~NativeViewWidget();
+    ~NativeViewWidget() final;
 
     void destroy();
     void setDelegate(NativeViewWidgetDelegate* delegate);

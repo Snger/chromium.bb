@@ -46,7 +46,7 @@
 #include <components/keyed_service/content/browser_context_dependency_manager.h>
 #include <components/pref_registry/pref_registry_syncable.h>
 #include <components/user_prefs/user_prefs.h>
-#include <net/proxy/proxy_config.h>
+#include <net/proxy_resolution/proxy_config.h>
 #include <printing/backend/print_backend.h>
 
 namespace blpwtk2 {
@@ -109,7 +109,7 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     }
 
     // Register this context with the dependency manager.
-    auto dependencyManager = BrowserContextDependencyManager::GetInstance();
+    BrowserContextDependencyManager* dependencyManager = BrowserContextDependencyManager::GetInstance();
     dependencyManager->CreateBrowserContextServices(this);
 
     // Register our preference registry to the dependency manager.
@@ -130,7 +130,7 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
 
     d_proxyConfig = std::make_unique<net::ProxyConfig>();
     d_proxyConfig->proxy_rules().type =
-        net::ProxyConfig::ProxyRules::TYPE_PROXY_PER_SCHEME;
+        net::ProxyConfig::ProxyRules::Type::PROXY_LIST_PER_SCHEME;
 }
 
 BrowserContextImpl::~BrowserContextImpl()
@@ -478,6 +478,11 @@ content::SSLHostStateDelegate *BrowserContextImpl::GetSSLHostStateDelegate()
 }
 
 content::PermissionManager *BrowserContextImpl::GetPermissionManager()
+{
+    return nullptr;
+}
+
+content::BackgroundFetchDelegate* BrowserContextImpl::GetBackgroundFetchDelegate()
 {
     return nullptr;
 }

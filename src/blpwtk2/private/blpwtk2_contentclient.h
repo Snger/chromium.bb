@@ -41,7 +41,7 @@ class ContentClient : public ChromeContentClient {
   public:
     static ContentClient *Instance();
     ContentClient();
-    virtual ~ContentClient();
+    ~ContentClient() final;
 
     std::string GetUserAgent() const override;
         // Returns the user agent.

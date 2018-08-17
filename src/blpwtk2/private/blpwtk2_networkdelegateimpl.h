@@ -35,7 +35,7 @@ namespace blpwtk2 {
 class NetworkDelegateImpl : public net::NetworkDelegateImpl {
 public:
     NetworkDelegateImpl();
-    virtual ~NetworkDelegateImpl();
+    ~NetworkDelegateImpl() final;
 
     // net::NetworkDelegateImpl overrides
     bool OnCanAccessFile(const net::URLRequest& request,

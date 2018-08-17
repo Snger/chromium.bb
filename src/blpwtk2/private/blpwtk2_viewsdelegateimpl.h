@@ -36,7 +36,7 @@ namespace blpwtk2 {
 class ViewsDelegateImpl : public views::ViewsDelegate {
 public:
     ViewsDelegateImpl();
-    virtual ~ViewsDelegateImpl();
+    ~ViewsDelegateImpl() final;
 
 private:
     void SaveWindowPlacement(
@@ -51,7 +51,7 @@ private:
         ui::WindowShowState* show_state) const override;
     void NotifyAccessibilityEvent(
         views::View* view,
-        ui::AXEvent event_type) override {}
+        ax::mojom::Event event_type) override {}
     void NotifyMenuItemFocused(
         const base::string16& menu_name,
         const base::string16& menu_item_name,

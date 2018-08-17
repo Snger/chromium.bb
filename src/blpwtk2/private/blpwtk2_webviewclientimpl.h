@@ -173,7 +173,7 @@ class WebViewClientImpl final : public WebViewClient
     WebViewClientImpl(mojom::WebViewHostPtr&&  hostPtr,
                       WebViewClientDelegate   *delegate);
 
-    ~WebViewClientImpl();
+    ~WebViewClientImpl() final;
 };
 
 }  // close namespace blpwtk2

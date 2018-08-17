@@ -207,7 +207,7 @@ template("generate_mini_installer") {
       }
     }
 
-    ver_str = "$bb_version";
+    ver_str = "$bb_version"
     if (bb_version != "") {
       ver_str = "$ver_str."
     }

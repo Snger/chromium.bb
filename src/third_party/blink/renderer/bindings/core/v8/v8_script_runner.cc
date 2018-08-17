@@ -497,7 +497,7 @@ void V8ScriptRunner::ProduceCache(
       TRACE_EVENT_BEGIN1(kTraceEventCategoryGroup, "v8.compile", "fileName",
                          source.Url().GetString().Utf8());
 
-      std::unique_ptr<v8::ScriptCompiler::CachedData> cached_data(
+      std::unique_ptr<v8::ScriptCompiler::CachedData, v8::ScriptCompiler::CachedDataDeleter> cached_data(
           v8::ScriptCompiler::CreateCodeCache(
               script->GetUnboundScript(), V8String(isolate, source.Source())));
       if (cached_data) {
@@ -776,7 +776,7 @@ scoped_refptr<CachedMetadata> V8ScriptRunner::GenerateFullCodeCache(
   v8::Local<v8::String> code(V8String(isolate, script_string));
   v8::ScriptCompiler::Source source(code, origin);
   scoped_refptr<CachedMetadata> cached_metadata;
-  std::unique_ptr<v8::ScriptCompiler::CachedData> cached_data;
+  std::unique_ptr<v8::ScriptCompiler::CachedData, v8::ScriptCompiler::CachedDataDeleter> cached_data;
 
   v8::Local<v8::UnboundScript> unbound_script;
   // When failed to compile the script with syntax error, the exceptions is

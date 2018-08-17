@@ -1,5 +1,6 @@
+
 /*
- * Copyright (C) 2015 Bloomberg Finance L.P.
+ * Copyright (C) 2018 Bloomberg Finance L.P.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -20,39 +21,19 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef INCLUDED_BLPWTK2_CONTENTUTILITYCLIENTIMPL_H
-#define INCLUDED_BLPWTK2_CONTENTUTILITYCLIENTIMPL_H
+#include "content/public/browser/render_process_host.h"
 
-#include <blpwtk2_config.h>
-
-#include <content/public/utility/content_utility_client.h>
-
-namespace printing {
-  class PrintingHandler;
+namespace content {
+size_t RenderProcessHost::NumListeners() const {
+  return 0;
 }
 
-namespace blpwtk2 {
+std::string RenderProcessHost::GetChildToken() const {
+  return std::string();
+}
 
-// TODO: use mojo instead of IPC message for printing
-// This interface allows us to add hooks to the "utility" portion of the
-// content module.  This is created during the startup process.
-class ContentUtilityClientImpl : public content::ContentUtilityClient {
-  public:
-    ContentUtilityClientImpl();
-    ~ContentUtilityClientImpl() final;
+bool RenderProcessHost::IsProcessManagedExternally() const {
+  return false;
+}
 
-    // Allows the embedder to filter messages.
-    bool OnMessageReceived(const IPC::Message& message) override;
-
-  private:
-//    std::unique_ptr<printing::PrintingHandler> d_printing_handler;
-
-    DISALLOW_COPY_AND_ASSIGN(ContentUtilityClientImpl);
-};
-
-}  // close namespace blpwtk2
-
-#endif  // INCLUDED_BLPWTK2_CONTENTUTILITYCLIENTIMPL_H
-
-// vim: ts=4 et
-
+}

@@ -69,7 +69,7 @@ WebViewProxy::~WebViewProxy()
     d_profile->decrementWebViewCount();
 
     if (d_client) {
-        auto client = d_client;
+        WebViewClient* client = d_client;
         d_client = nullptr;
         client->releaseHost();
     }
@@ -358,10 +358,7 @@ v8::MaybeLocal<v8::Value> WebViewProxy::callFunction(
     DCHECK(webFrame->IsWebLocalFrame());
     blink::WebLocalFrame* localWebFrame = webFrame->ToWebLocalFrame();
 
-    v8::Local<v8::Value> result =
-        localWebFrame->CallFunctionEvenIfScriptDisabled(func, recv, argc, argv);
-
-    return v8::MaybeLocal<v8::Value>(result);
+    return localWebFrame->CallFunctionEvenIfScriptDisabled(func, recv, argc, argv);
 }
 
 // blpwtk2::WebViewClientDelegate overrides

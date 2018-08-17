@@ -1325,6 +1325,13 @@ class V8_EXPORT ScriptCompiler {
     CachedData& operator=(const CachedData&) = delete;
   };
 
+  // blpwtk2: CachedData's destructor is made private to prevent the caller from
+  // directly deleting the object.  Instead, it exposes a 'dispose' function
+  // that the caller can invoke to delete the object with respect to v8's heap.
+  struct CachedDataDeleter {
+    void operator()(CachedData* cd) { ScriptCompiler::CachedData::dispose(cd); }
+  };
+
   /**
    * Source code which can be then compiled to a UnboundScript or Script.
    */

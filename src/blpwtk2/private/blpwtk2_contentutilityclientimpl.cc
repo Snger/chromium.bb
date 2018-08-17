@@ -21,21 +21,15 @@
  */
 
 #include <blpwtk2_contentutilityclientimpl.h>
-
-#include <chrome/utility/printing_handler.h>
+// #include <chrome/utility/printing_handler.h>
 #include <content/public/utility/utility_thread.h>
 #include <ipc/ipc_message_macros.h>
 
 namespace blpwtk2 {
 
-static bool Send(IPC::Message* message)
-{
-    return content::UtilityThread::Get()->Send(message);
-}
-
 ContentUtilityClientImpl::ContentUtilityClientImpl()
+    /*: d_printing_handler(std::make_unique<printing::PrintingHandler>())*/
 {
-    d_handlers.push_back(std::make_unique<printing::PrintingHandler>());
 }
 
 ContentUtilityClientImpl::~ContentUtilityClientImpl()
@@ -44,13 +38,9 @@ ContentUtilityClientImpl::~ContentUtilityClientImpl()
 
 bool ContentUtilityClientImpl::OnMessageReceived(const IPC::Message& message)
 {
-    bool handled = false;
-
-    for (auto it = d_handlers.begin(); !handled && it != d_handlers.end(); ++it) {
-        handled = (*it)->OnMessageReceived(message);
-    }
-
-    return handled;
+    DCHECK(false);
+    return false;
+    // return d_printing_handler->OnMessageReceived(message);
 }
 
 }  // close namespace blpwtk2

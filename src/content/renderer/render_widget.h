@@ -995,9 +995,9 @@ class CONTENT_EXPORT RenderWidget
   // must always send the first IPC regardless of value.
   base::Optional<bool> has_touch_handlers_;
 
-  base::WeakPtrFactory<RenderWidget> weak_ptr_factory_;
-
   bool bb_OnHandleInputEvent_no_ack_;
+
+  base::WeakPtrFactory<RenderWidget> weak_ptr_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(RenderWidget);
 };

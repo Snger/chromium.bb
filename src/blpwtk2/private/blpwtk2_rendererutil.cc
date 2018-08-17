@@ -46,17 +46,16 @@ namespace blpwtk2 {
 
 // This function is copied from
 // content/browser/renderer_host/renderer_widget_host_view_event_handler.cc
-gfx::Point GetScreenLocationFromEvent(const ui::LocatedEvent& event)
+gfx::PointF GetScreenLocationFromEvent(const ui::LocatedEvent& event)
 {
     aura::Window* root =
         static_cast<aura::Window*>(event.target())->GetRootWindow();
     aura::client::ScreenPositionClient *spc =
         aura::client::GetScreenPositionClient(root);
+    gfx::PointF screen_location(event.root_location());
     if (!spc) {
-        return event.root_location();
+        return screen_location;
     }
-
-    gfx::Point screen_location(event.root_location());
     spc->ConvertPointToScreen(root, &screen_location);
     return screen_location;
 }

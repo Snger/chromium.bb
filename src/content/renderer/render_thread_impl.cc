@@ -568,10 +568,11 @@ void CreateResourceUsageReporter(base::WeakPtr<RenderThread> thread,
 }  // namespace
 
 // static
-void RenderThread::InitInProcessRenderer(const InProcessChildThreadParams& params)
+void RenderThread::InitInProcessRenderer(const InProcessChildThreadParams& params,
+                                         base::MessageLoop* message_loop)
 {
   g_render_process = RenderProcessImpl::Create();
-  RenderThreadImpl::Create(params);
+  RenderThreadImpl::Create(params, message_loop);
 }
 
 // static

@@ -62,7 +62,7 @@ ProfileImpl::ProfileImpl(MainMessagePump *pump,
     static const std::string SERVICE_NAME("content_browser");
     g_instances.insert(this);
 
-    auto renderThread = content::RenderThread::Get();
+    content::RenderThread* renderThread = content::RenderThread::Get();
 	renderThread->GetConnector()->BindInterface(SERVICE_NAME, &d_hostPtr);
     DCHECK(0 != pid);
     d_hostPtr->bindProcess(pid, launchDevToolsServer);

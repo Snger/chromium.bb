@@ -154,10 +154,8 @@ int DevToolsManagerDelegateImpl::GetHttpHandlerPort()
 void DevToolsManagerDelegateImpl::StartHttpHandler(
     content::BrowserContext *browser_context)
 {
-    std::string frontend_url;
     content::DevToolsAgentHost::StartRemoteDebuggingServer(
             CreateSocketFactory(),
-            frontend_url,
             browser_context->GetPath(),
             base::FilePath());
 }
@@ -174,10 +172,13 @@ DevToolsManagerDelegateImpl::~DevToolsManagerDelegateImpl()
 }
 
 // DevToolsManagerDelegate overrides
-std::string DevToolsManagerDelegateImpl::GetFrontendResource(
-    const std::string& path)
+
+bool DevToolsManagerDelegateImpl::HasBundledFrontendResources()
 {
-    return content::DevToolsFrontendHost::GetFrontendResource(path).as_string();
+#if defined(OS_ANDROID)
+  return false;
+#endif
+  return true;
 }
 
 }  // close namespace blpwtk2

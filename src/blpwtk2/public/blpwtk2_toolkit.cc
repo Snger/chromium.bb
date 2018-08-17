@@ -21,7 +21,7 @@
  */
 
 #include <blpwtk2_toolkit.h>
-#include "base/allocator/features.h"
+#include "base/allocator/buildflags.h"
 #include "build/build_config.h"
 
 // dependencies needed for SubProcessMain()

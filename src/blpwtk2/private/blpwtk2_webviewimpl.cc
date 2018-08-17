@@ -324,7 +324,7 @@ void WebViewImpl::loadInspector(unsigned int pid, int routingId)
     ProcessHostImpl::getHostId(
             &hostId, &context, static_cast<base::ProcessId>(pid));
 
-    for (const auto& webView : g_instances) {
+    for (const WebViewImpl* webView : g_instances) {
         if (webView->d_hostId == hostId &&
             webView->getRoutingId() == routingId) {
 

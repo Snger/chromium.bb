@@ -39,7 +39,7 @@ NativeViewWidget::NativeViewWidget(gfx::NativeView contents,
 , d_nativeViewHost(new views::NativeViewHost())
 , d_impl(new views::Widget())
 {
-    SetLayoutManager(new views::FillLayout());
+    SetLayoutManager<views::FillLayout>(std::make_unique<views::FillLayout>());
     AddChildView(d_nativeViewHost);
 
     views::Widget::InitParams params;

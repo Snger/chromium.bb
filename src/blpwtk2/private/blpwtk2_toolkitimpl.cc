@@ -41,6 +41,7 @@
 #include <blpwtk2_webviewproxy.h>
 #include <blpwtk2_utility.h>
 
+#include "base/base_switches.h"
 #include "base/feature_list.h"
 #include <base/command_line.h>
 #include <base/message_loop/message_loop.h>
@@ -65,7 +66,7 @@
 #include <sandbox/win/src/win_utils.h>
 #include <services/service_manager/runner/common/switches.h>
 #include <third_party/blink/public/platform/web_security_origin.h>
-#include <third_party/blink/public/web/blink.h>
+//#include <third_party/blink/public/web/blink.h>
 #include <third_party/blink/public/web/web_security_policy.h>
 #include <third_party/blink/public/web/web_script_controller.h>
 #include <third_party/blink/public/web/web_script_bindings.h>
@@ -254,7 +255,7 @@ static void appendCommandLine(const std::vector<std::string>& argv)
     const wchar_t kSwitchTerminator[] = FILE_PATH_LITERAL("--");
 
     bool parseSwitches = true;
-    auto commandLine = base::CommandLine::ForCurrentProcess();
+    base::CommandLine* commandLine = base::CommandLine::ForCurrentProcess();
 
     for (const auto& arg_utf8 : argv) {
         // Convert the UTF-8 encoded argument to UTF-16
@@ -409,7 +410,7 @@ ToolkitImpl *ToolkitImpl::instance()
     return g_instance;
 }
 
-static bool const
+static bool
 startsWith(const std::string& hay, const std::string& needle)
 {
     return hay.compare(0, needle.size(), needle) == 0;

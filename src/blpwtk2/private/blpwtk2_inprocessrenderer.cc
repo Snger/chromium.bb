@@ -28,7 +28,7 @@
 #include <content/common/in_process_child_thread_params.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/renderer/render_process_impl.h>
-#include <content/child/dwrite_font_proxy/dwrite_font_proxy_init_win.h>
+#include <content/public/child/dwrite_font_proxy_init_win.h>
 #include <third_party/blink/public/platform/web_runtime_features.h>
 #include <third_party/blink/public/web/win/web_font_rendering.h>
 #include <ui/gfx/win/direct_write.h>
@@ -71,7 +71,7 @@ public:
             mojo::edk::OutgoingBrokerClientInvitation*         broker_client_invitation,
             const std::string&                                 serviceToken,
             int                                                mojoHandle);
-    ~InProcessRendererThread();
+    ~InProcessRendererThread() final;
 };
 
                         // -----------------------------
@@ -86,7 +86,8 @@ void InProcessRendererThread::Init()
         content::InProcessChildThreadParams(d_browserIOTaskRunner,
                                             d_broker_client_invitation,
                                             d_serviceToken,
-                                            d_mojoHandle));
+                                            d_mojoHandle),
+                                            Statics::rendererMessageLoop);
 
     // No longer need to hold on to this reference.
     d_browserIOTaskRunner = nullptr;
@@ -153,7 +154,8 @@ void InProcessRenderer::init(
             content::InProcessChildThreadParams(browserIOTaskRunner,
                                                 broker_client_invitation,
                                                 serviceToken,
-                                                mojoHandle));
+                                                mojoHandle),
+                                                Statics::rendererMessageLoop);
 
         DCHECK(Statics::rendererMessageLoop);
     }

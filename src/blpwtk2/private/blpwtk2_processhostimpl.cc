@@ -256,7 +256,7 @@ int ProcessHostImpl::createPipeHandleForChild(base::ProcessId processId,
     fileDescriptor = channel_pair.PassClientHandle().release().handle;
   }
   d_impl->onRenderLaunched(processHandle,
-                           std::move(channel_pair.PassServerHandle()));
+                           channel_pair.PassServerHandle());
   return HandleToLong(fileDescriptor);
 }
 
@@ -318,7 +318,7 @@ void ProcessHostImpl::getHostId(int* hostId,
   if (processId != 0) {
     // The requester specified the process id. Let's iterate through all
     // instances of ProcessHost and find the one with the same process id.
-    for (const auto& instance : g_instances) {
+    for (const ProcessHostImpl* instance : g_instances) {
       if (instance->d_impl && instance->d_impl->processId() == processId) {
         // found!
         *hostId = instance->d_impl->renderProcessHost().GetID();
@@ -336,7 +336,7 @@ void ProcessHostImpl::getHostId(int* hostId,
 
 // static
 void ProcessHostImpl::releaseAll() {
-  for (auto instance : g_instances) {
+  for (ProcessHostImpl* instance : g_instances) {
     instance->d_impl = nullptr;
   }
 
@@ -376,7 +376,7 @@ void ProcessHostImpl::bindProcess(unsigned int pid, bool launchDevToolsServer) {
 
     LOG(INFO) << "Bound process host for pid: " << pid;
   } else {
-    for (const auto& instance : g_instances) {
+    for (const ProcessHostImpl* instance : g_instances) {
       if (instance && instance->d_impl && instance->d_impl->processId() == static_cast<base::ProcessId>(pid)) {
         // found!
         d_impl = instance->d_impl;

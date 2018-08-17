@@ -472,7 +472,7 @@ std::vector<ExternalizedContents> Shell::externalized_contents_;
 base::LazyMutex Shell::isolate_status_lock_;
 std::map<v8::Isolate*, bool> Shell::isolate_status_;
 base::LazyMutex Shell::cached_code_mutex_;
-std::map<std::string, std::unique_ptr<ScriptCompiler::CachedData>>
+std::map<std::string, std::unique_ptr<ScriptCompiler::CachedData, ScriptCompiler::CachedDataDeleter>>
     Shell::cached_code_map_;
 
 Global<Context> Shell::evaluation_context_;
@@ -496,7 +496,7 @@ class DummySourceStream : public v8::ScriptCompiler::ExternalSourceStream {
                       source_length_);
   }
 
-  virtual size_t GetMoreData(const uint8_t** src) {
+  size_t GetMoreData(const uint8_t** src) override {
     if (done_) {
       return 0;
     }
@@ -504,6 +504,11 @@ class DummySourceStream : public v8::ScriptCompiler::ExternalSourceStream {
     done_ = true;
 
     return source_length_;
+  }
+
+  void ReleaseData(const uint8_t* src) override
+  {
+	  delete[] src;
   }
 
  private:
@@ -520,8 +525,7 @@ class BackgroundCompileThread : public base::Thread {
         streamed_source_(new DummySourceStream(source),
                          v8::ScriptCompiler::StreamedSource::UTF8),
         task_(v8::ScriptCompiler::StartStreamingScript(isolate,
-                                                       &streamed_source_)) {}
-
+                                                       &streamed_source_), task_deleter_) {}
   void Run() override { task_->Run(); }
 
   v8::ScriptCompiler::StreamedSource* streamed_source() {
@@ -531,7 +535,10 @@ class BackgroundCompileThread : public base::Thread {
  private:
   Local<String> source_;
   v8::ScriptCompiler::StreamedSource streamed_source_;
-  std::unique_ptr<v8::ScriptCompiler::ScriptStreamingTask> task_;
+  static constexpr auto task_deleter_{
+      [](v8::ScriptCompiler::ScriptStreamingTask* task) { task->Dispose(); }};
+  std::unique_ptr<v8::ScriptCompiler::ScriptStreamingTask, decltype(task_deleter_)>
+      task_;
 };
 
 ScriptCompiler::CachedData* Shell::LookupCodeCache(Isolate* isolate,
@@ -562,7 +569,7 @@ void Shell::StoreInCodeCache(Isolate* isolate, Local<Value> source,
   int length = cache_data->length;
   uint8_t* cache = new uint8_t[length];
   memcpy(cache, cache_data->data, length);
-  cached_code_map_[*key] = std::unique_ptr<ScriptCompiler::CachedData>(
+  cached_code_map_[*key] = std::unique_ptr<ScriptCompiler::CachedData, ScriptCompiler::CachedDataDeleter>(
       ScriptCompiler::CachedData::create(cache, length,
                                      ScriptCompiler::CachedData::BufferOwned));
 }
@@ -638,7 +645,7 @@ bool Shell::ExecuteString(Isolate* isolate, Local<String> source,
       ScriptCompiler::CachedData* cached_data =
           ScriptCompiler::CreateCodeCache(script->GetUnboundScript(), source);
       StoreInCodeCache(isolate, source, cached_data);
-      delete cached_data;
+      ScriptCompiler::CachedData::dispose(cached_data);
     }
     maybe_result = script->Run(realm);
     if (options.code_cache_options ==
@@ -647,7 +654,7 @@ bool Shell::ExecuteString(Isolate* isolate, Local<String> source,
       ScriptCompiler::CachedData* cached_data =
           ScriptCompiler::CreateCodeCache(script->GetUnboundScript(), source);
       StoreInCodeCache(isolate, source, cached_data);
-      delete cached_data;
+      ScriptCompiler::CachedData::dispose(cached_data);
     }
     if (process_message_queue && !EmptyMessageQueues(isolate)) success = false;
     data->realm_current_ = data->realm_switch_;

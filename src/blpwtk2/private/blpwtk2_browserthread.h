@@ -58,7 +58,7 @@ class BrowserThread : private base::PlatformThread::Delegate
 
   public:
     explicit BrowserThread(const sandbox::SandboxInterfaceInfo& sandboxInfo);
-    ~BrowserThread();
+    ~BrowserThread() final;
 
     void sync();
 

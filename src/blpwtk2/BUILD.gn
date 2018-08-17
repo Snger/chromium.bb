@@ -80,6 +80,11 @@ mojom("interfaces") {
     "private/blpwtk2_process.mojom",
     "private/blpwtk2_webview.mojom",
   ]
+
+  # imports vs deps check is disabled for this target to work around
+  # windows multiple definitions linker error caused by having
+  # both a direct and an indirect dependency on the same target
+  skip_deps_check = true
 }
 
 repack("pak") {
@@ -91,13 +96,13 @@ repack("pak") {
 
   sources = [
     "$root_gen_dir/content/browser/devtools/devtools_resources.pak",
-    "$root_gen_dir/blink/public/resources/blink_inspector_resources.pak",
-    "$root_gen_dir/blink/public/resources/blink_resources.pak",
+    "$root_gen_dir/third_party/blink/public/resources/blink_inspector_resources.pak",
+    "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
   ]
 
   deps = [
     "//content/browser/devtools:devtools_resources",
-    "//third_party/blink/public:inspector_resources_grit",
+    "//third_party/blink/public:inspector_resources",
     "//third_party/blink/public:resources",
   ]
 }
@@ -263,7 +268,7 @@ shared_library("blpwtk2") {
   public_deps = [
     ":blpwtk2_generate_sources",
     "//v8:v8",
-    "//base/allocator:features",
+    "//base/allocator:buildflags",
   ]
 
   deps = [
@@ -279,7 +284,7 @@ shared_library("blpwtk2") {
     "//content:sandbox_helper_win",
     "//content/app/resources",
     "//ipc",
-    "//mojo/edk/system",
+    "//mojo/edk",
     "//net",
     "//net:extras",
     "//pdf",
