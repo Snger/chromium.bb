@@ -1065,7 +1065,7 @@
     },
     {
       name: "UpdateHoverPostLayout",
-      status: "stable",
+      status: "test",
     },
     {
       name: "V8ContextSnapshot",
