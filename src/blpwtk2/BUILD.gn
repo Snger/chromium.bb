@@ -98,12 +98,14 @@ repack("pak") {
     "$root_gen_dir/content/browser/devtools/devtools_resources.pak",
     "$root_gen_dir/third_party/blink/public/resources/blink_inspector_resources.pak",
     "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
+    "$root_gen_dir/third_party/blink/public/resources/blink_scaled_resources_100_percent.pak",
   ]
 
   deps = [
     "//content/browser/devtools:devtools_resources",
     "//third_party/blink/public:inspector_resources",
     "//third_party/blink/public:resources",
+    "//third_party/blink/public:scaled_resources_100_percent",
   ]
 }
 
@@ -278,6 +280,7 @@ shared_library("blpwtk2") {
     "//cc",
     "//chrome/chrome_blpwtk2",
     "//components/keyed_service/content",
+    "//components/printing/service/public/interfaces",
     "//components/user_prefs",
     "//content",
     "//content:resources",

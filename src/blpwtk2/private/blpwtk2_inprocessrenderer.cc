@@ -29,6 +29,7 @@
 #include <content/public/renderer/render_thread.h>
 #include <content/renderer/render_process_impl.h>
 #include <content/public/child/dwrite_font_proxy_init_win.h>
+#include <mojo/public/cpp/bindings/sync_call_restrictions.h>
 #include <third_party/blink/public/platform/web_runtime_features.h>
 #include <third_party/blink/public/web/win/web_font_rendering.h>
 #include <ui/gfx/win/direct_write.h>
@@ -41,7 +42,7 @@ static void InitDirectWrite()
     // This code is adapted from RendererMainPlatformDelegate::PlatformInitialize,
     // which is used for out-of-process renderers, but is not used for in-process
     // renderers.  So, we need to do it here.
-
+    mojo::SyncCallRestrictions::ForceSyncCallAllowed();
     content::InitializeDWriteFontProxy();
     blink::WebFontRendering::SetDeviceScaleFactor(display::win::GetDPIScale());
 }

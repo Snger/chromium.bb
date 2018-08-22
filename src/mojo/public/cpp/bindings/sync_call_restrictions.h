@@ -65,9 +65,13 @@ class MOJO_CPP_BINDINGS_EXPORT SyncCallRestrictions {
   // Checks whether the current sequence is allowed to make sync calls, and
   // causes a DCHECK if not.
   static void AssertSyncCallAllowed();
+
+  // For blpwtk2 in-process sync calls such as those for DWriteFontProxy
+  static void ForceSyncCallAllowed();
 #else
   // Inline the empty definitions of functions so that they can be compiled out.
   static void AssertSyncCallAllowed() {}
+  static void ForceSyncCallAllowed() {}
 #endif
 
  private:
