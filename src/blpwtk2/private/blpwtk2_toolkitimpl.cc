@@ -36,6 +36,7 @@
 #include <blpwtk2_profileimpl.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
+#include <blpwtk2_webscene.h>
 #include <blpwtk2_webviewcreateparams.h>
 #include <blpwtk2_webviewimpl.h>
 #include <blpwtk2_webviewproxy.h>
@@ -181,7 +182,7 @@ static std::unique_ptr<base::MessagePump> messagePumpForUIFactory()
         return std::unique_ptr<base::MessagePump>(new MainMessagePump());
     }
 
-    return std::unique_ptr<base::MessagePump>(new base::MessagePumpForUI()); 
+    return std::unique_ptr<base::MessagePump>(new base::MessagePumpForUI());
 }
 
 static void startRenderer(
@@ -428,7 +429,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
     bool isHost = currentHostChannel.empty();
 
     DCHECK(!g_instance);
-    g_instance = this;    
+    g_instance = this;
     content::InitializeMojo();
     base::CommandLine::Init(0, nullptr);
 
@@ -503,7 +504,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
  	    // base::FieldTrialList::GetInitiallyActiveFieldTrials(...) Line 719
         // from: variations::ChildProcessFieldTrialSyncer::InitFieldTrialObserving(...) Line 34
  	    // from: content::ChildThreadImpl::Init(...) Line 618
-            
+
         // The following code is adapted from InitializeFieldTrialAndFeatureList(..) in content_main_runner.cc
         //
         // Initialize statistical testing infrastructure.  We set the entropy
@@ -524,7 +525,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
                 command_line, switches::kEnableFeatures,
             switches::kDisableFeatures, feature_list.get());
             base::FeatureList::SetInstance(std::move(feature_list));
-        }        
+        }
     }
     // Start pumping the message loop.
     startMessageLoop(sandboxInfo);
@@ -650,6 +651,13 @@ v8::Local<v8::Context> ToolkitImpl::createWebScriptContext()
 void ToolkitImpl::disposeWebScriptContext(v8::Local<v8::Context> context)
 {
     blink::WebScriptBindings::disposeWebScriptContext(context);
+}
+
+WebView *ToolkitImpl::createWebScene(
+    WebViewDelegate *delegate,
+    const StringRef& html)
+{
+    return new WebScene(delegate, html);
 }
 
 void ToolkitImpl::addOriginToTrustworthyList(const StringRef& originString)

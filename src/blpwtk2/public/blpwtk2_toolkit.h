@@ -178,6 +178,16 @@ class Toolkit {
         // Disposes of per-context data for a context created with
         // 'createWebScriptContext()'
 
+    virtual WebView *createWebScene(
+        WebViewDelegate *delegate = 0,
+        const StringRef& html     = blpwtk2::StringRef()) = 0;
+        // Creates an implementation of 'blpwtk2::WebView' that provides a
+        // V8 context with a complete DOM context. This webview does not
+        // create any browser-side resources, and cannot be displayed or
+        // interacted with. The delegate's 'created()' function is called
+        // synchronously. If 'html' is specified, then, it is used to
+        // populate the DOM, which is also done synchronously.
+
     virtual void addOriginToTrustworthyList(const StringRef& originString) = 0;
         // Adds the security origin specified by 'originString' to the list of
         // origins that blink considers 'trustworthy'.
