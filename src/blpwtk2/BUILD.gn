@@ -280,6 +280,7 @@ shared_library("blpwtk2") {
     "//cc",
     "//chrome/chrome_blpwtk2",
     "//components/keyed_service/content",
+    "//components/printing/service",
     "//components/printing/service/public/interfaces",
     "//components/user_prefs",
     "//content",

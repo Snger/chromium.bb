@@ -23,17 +23,13 @@
 #ifndef INCLUDED_BLPWTK2_CONTENTUTILITYCLIENTIMPL_H
 #define INCLUDED_BLPWTK2_CONTENTUTILITYCLIENTIMPL_H
 
-#include <blpwtk2_config.h>
-
 #include <content/public/utility/content_utility_client.h>
+#include <memory>
 
-namespace printing {
-  class PrintingHandler;
-}
+class ChromeContentUtilityClient;
 
 namespace blpwtk2 {
 
-// TODO: use mojo instead of IPC message for printing
 // This interface allows us to add hooks to the "utility" portion of the
 // content module.  This is created during the startup process.
 class ContentUtilityClientImpl : public content::ContentUtilityClient {
@@ -41,11 +37,15 @@ class ContentUtilityClientImpl : public content::ContentUtilityClient {
     ContentUtilityClientImpl();
     ~ContentUtilityClientImpl() final;
 
-    // Allows the embedder to filter messages.
+    // content::ContentUtilityClient:
+    void UtilityThreadStarted() override;
     bool OnMessageReceived(const IPC::Message& message) override;
+    void RegisterServices(StaticServiceMap* services) override;
+    void RegisterNetworkBinders(
+        service_manager::BinderRegistry* registry) override;
 
   private:
-//    std::unique_ptr<printing::PrintingHandler> d_printing_handler;
+    std::unique_ptr<ChromeContentUtilityClient> chrome_utility_client_;
 
     DISALLOW_COPY_AND_ASSIGN(ContentUtilityClientImpl);
 };

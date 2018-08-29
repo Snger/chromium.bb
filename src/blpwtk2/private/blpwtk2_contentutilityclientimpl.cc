@@ -22,25 +22,29 @@
 
 #include <blpwtk2_contentutilityclientimpl.h>
 // #include <chrome/utility/printing_handler.h>
+#include <chrome/utility/chrome_content_utility_client.h>
 #include <content/public/utility/utility_thread.h>
 #include <ipc/ipc_message_macros.h>
 
 namespace blpwtk2 {
 
 ContentUtilityClientImpl::ContentUtilityClientImpl()
-    /*: d_printing_handler(std::make_unique<printing::PrintingHandler>())*/
-{
-}
+    : chrome_utility_client_(std::make_unique<ChromeContentUtilityClient>()) {}
 
-ContentUtilityClientImpl::~ContentUtilityClientImpl()
-{
-}
+ContentUtilityClientImpl::~ContentUtilityClientImpl() {}
 
-bool ContentUtilityClientImpl::OnMessageReceived(const IPC::Message& message)
-{
-    DCHECK(false);
-    return false;
-    // return d_printing_handler->OnMessageReceived(message);
+void ContentUtilityClientImpl::UtilityThreadStarted() {
+  chrome_utility_client_->UtilityThreadStarted();
+}
+bool ContentUtilityClientImpl::OnMessageReceived(const IPC::Message& message) {
+  return chrome_utility_client_->OnMessageReceived(message);
+}
+void ContentUtilityClientImpl::RegisterServices(StaticServiceMap* services) {
+  chrome_utility_client_->RegisterServices(services);
+}
+void ContentUtilityClientImpl::RegisterNetworkBinders(
+    service_manager::BinderRegistry* registry) {
+  chrome_utility_client_->RegisterNetworkBinders(registry);
 }
 
 }  // close namespace blpwtk2

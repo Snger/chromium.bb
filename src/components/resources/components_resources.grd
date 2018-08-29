@@ -11,7 +11,9 @@
 <!--
       <part file="about_ui_resources.grdp" />
       <part file="crash_resources.grdp" />
+!-->
       <part file="dom_distiller_resources.grdp" />
+<!--
       <part file="flags_ui_resources.grdp" />
       <part file="gcm_driver_resources.grdp" />
       <part file="net_log_resources.grdp" />
