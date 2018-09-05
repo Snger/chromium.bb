@@ -285,15 +285,19 @@ void MainMessagePump::doWork()
 
     --d_nestLevel;
 
-    v8::Isolate *isolate = v8::Isolate::GetCurrent();
+    if (d_isInsideModalLoop && Statics::isRendererMainThreadMode()) {
+        v8::Isolate *isolate = v8::Isolate::GetCurrent();
 
-    if (d_isInsideModalLoop && isolate) {
-        int microtasksScopeDepth = v8::MicrotasksScope::GetCurrentDepth(isolate);
-        if (microtasksScopeDepth) {
-            auto policy = isolate->GetMicrotasksPolicy();
-            isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kExplicit);
-            isolate->RunMicrotasks();
-            isolate->SetMicrotasksPolicy(policy);
+        if (isolate) {
+            int microtasksScopeDepth =
+                v8::MicrotasksScope::GetCurrentDepth(isolate);
+
+            if (microtasksScopeDepth) {
+                auto policy = isolate->GetMicrotasksPolicy();
+                isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kExplicit);
+                isolate->RunMicrotasks();
+                isolate->SetMicrotasksPolicy(policy);
+            }
         }
     }
 }
