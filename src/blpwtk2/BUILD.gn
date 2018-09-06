@@ -195,6 +195,8 @@ shared_library("blpwtk2") {
     "private/blpwtk2_webcontentsviewdelegateimpl.h",
     "private/blpwtk2_webframeimpl.cc",
     "private/blpwtk2_webframeimpl.h",
+    "private/blpwtk2_webscene.cc",
+    "private/blpwtk2_webscene.h",
     "private/blpwtk2_webviewproperties.cc",
     "private/blpwtk2_webviewproperties.h",
     "private/blpwtk2_webviewclientdelegate.cc",

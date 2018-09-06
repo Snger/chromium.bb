@@ -26,6 +26,7 @@
 #include <blpwtk2_statics.h>
 
 #include <base/logging.h>  // for DCHECK
+#include <base/optional.h>
 
 #include <content/renderer/render_widget.h>
 #include <content/public/browser/native_web_keyboard_event.h>
@@ -35,6 +36,7 @@
 #include <third_party/WebKit/public/web/WebView.h>
 #include <third_party/WebKit/public/web/WebFrame.h>
 #include <third_party/WebKit/public/web/WebLocalFrame.h>
+#include <third_party/WebKit/public/web/WebWidget.h>
 #include <skia/ext/platform_canvas.h>
 #include <third_party/skia/include/core/SkDocument.h>
 #include <third_party/skia/include/core/SkStream.h>
@@ -65,102 +67,133 @@ gfx::Point GetScreenLocationFromEvent(const ui::LocatedEvent& event)
     return screen_location;
 }
 
+namespace {
+
+base::Optional<blink::WebInputEvent> CreateWebInputEvent(
+    const WebView::InputEvent *event)
+{
+    MSG msg = {
+        event->hwnd,
+        event->message,
+        event->wparam,
+        event->lparam,
+        GetMessageTime()
+    };
+
+    switch (event->message) {
+    case WM_SYSKEYDOWN:
+    case WM_KEYDOWN:
+    case WM_SYSKEYUP:
+    case WM_KEYUP:
+    case WM_IME_CHAR:
+    case WM_SYSCHAR:
+    case WM_CHAR: {
+      constexpr int masktOutModifiers =
+          ~(blink::WebInputEvent::kShiftKey |
+            blink::WebInputEvent::kControlKey |
+            blink::WebInputEvent::kAltKey |
+            blink::WebInputEvent::kMetaKey |
+            blink::WebInputEvent::kIsAutoRepeat |
+            blink::WebInputEvent::kIsKeyPad |
+            blink::WebInputEvent::kIsLeft |
+            blink::WebInputEvent::kIsRight |
+            blink::WebInputEvent::kNumLockOn |
+            blink::WebInputEvent::kCapsLockOn);
+      ui::KeyEvent uiKeyboardEvent(msg);
+      int modifiers = uiKeyboardEvent.flags() & masktOutModifiers;
+
+      if (event->shiftKey)
+        modifiers |= blink::WebInputEvent::kShiftKey;
+
+      if (event->controlKey)
+        modifiers |= blink::WebInputEvent::kControlKey;
+
+      if (event->altKey)
+        modifiers |= blink::WebInputEvent::kAltKey;
+
+      if (event->metaKey)
+        modifiers |= blink::WebInputEvent::kMetaKey;
+
+      if (event->isAutoRepeat)
+        modifiers |= blink::WebInputEvent::kIsAutoRepeat;
+
+      if (event->isKeyPad)
+        modifiers |= blink::WebInputEvent::kIsKeyPad;
+
+      if (event->isLeft)
+        modifiers |= blink::WebInputEvent::kIsLeft;
+
+      if (event->isRight)
+        modifiers |= blink::WebInputEvent::kIsRight;
+
+      if (event->numLockOn)
+        modifiers |= blink::WebInputEvent::kNumLockOn;
+
+      if (event->capsLockOn)
+        modifiers |= blink::WebInputEvent::kCapsLockOn;
+
+      uiKeyboardEvent.set_flags(modifiers);
+      content::NativeWebKeyboardEvent blinkKeyboardEvent(uiKeyboardEvent);
+      return base::Optional<blink::WebInputEvent>(blinkKeyboardEvent);
+    } break;
+
+    case WM_MOUSEMOVE:
+    case WM_MOUSELEAVE:
+    case WM_LBUTTONDOWN:
+    case WM_LBUTTONDBLCLK:
+    case WM_MBUTTONDOWN:
+    case WM_MBUTTONDBLCLK:
+    case WM_RBUTTONDOWN:
+    case WM_RBUTTONDBLCLK:
+    case WM_LBUTTONUP:
+    case WM_MBUTTONUP:
+    case WM_RBUTTONUP: {
+        ui::MouseEvent uiMouseEvent(msg);
+        blink::WebMouseEvent blinkMouseEvent = ui::MakeWebMouseEvent(
+                uiMouseEvent,
+                base::Bind(&GetScreenLocationFromEvent));
+        return base::Optional<blink::WebInputEvent>(blinkMouseEvent);
+    } break;
+
+    case WM_MOUSEWHEEL: {
+        ui::MouseWheelEvent uiMouseWheelEvent(msg);
+        blink::WebMouseWheelEvent blinkMouseWheelEvent =
+            ui::MakeWebMouseWheelEvent(uiMouseWheelEvent,
+                                       base::Bind(&GetScreenLocationFromEvent));
+        return base::Optional<blink::WebInputEvent>(blinkMouseWheelEvent);
+    } break;
+
+    default:
+      return base::Optional<blink::WebInputEvent>();
+    }
+}
+
+}
 
 void RendererUtil::handleInputEvents(content::RenderWidget *rw, const WebView::InputEvent *events, size_t eventsCount)
 {
     for (size_t i=0; i < eventsCount; ++i) {
-        const WebView::InputEvent *event = events + i;
-        MSG msg = {
-            event->hwnd,
-            event->message,
-            event->wparam,
-            event->lparam,
-            GetMessageTime()
-        };
+        auto webInputEvent = CreateWebInputEvent(events + i);
 
-        switch (event->message) {
-        case WM_SYSKEYDOWN:
-        case WM_KEYDOWN:
-        case WM_SYSKEYUP:
-        case WM_KEYUP:
-        case WM_IME_CHAR:
-        case WM_SYSCHAR:
-        case WM_CHAR: {
-          constexpr int masktOutModifiers =
-              ~(blink::WebInputEvent::kShiftKey |
-                blink::WebInputEvent::kControlKey |
-                blink::WebInputEvent::kAltKey |
-                blink::WebInputEvent::kMetaKey |
-                blink::WebInputEvent::kIsAutoRepeat |
-                blink::WebInputEvent::kIsKeyPad |
-                blink::WebInputEvent::kIsLeft |
-                blink::WebInputEvent::kIsRight |
-                blink::WebInputEvent::kNumLockOn |
-                blink::WebInputEvent::kCapsLockOn);
-          ui::KeyEvent uiKeyboardEvent(msg);
-          int modifiers = uiKeyboardEvent.flags() & masktOutModifiers;
-
-          if (event->shiftKey)
-            modifiers |= blink::WebInputEvent::kShiftKey;
-
-          if (event->controlKey)
-            modifiers |= blink::WebInputEvent::kControlKey;
-
-          if (event->altKey)
-            modifiers |= blink::WebInputEvent::kAltKey;
-
-          if (event->metaKey)
-            modifiers |= blink::WebInputEvent::kMetaKey;
-
-          if (event->isAutoRepeat)
-            modifiers |= blink::WebInputEvent::kIsAutoRepeat;
-
-          if (event->isKeyPad)
-            modifiers |= blink::WebInputEvent::kIsKeyPad;
-
-          if (event->isLeft)
-            modifiers |= blink::WebInputEvent::kIsLeft;
-
-          if (event->isRight)
-            modifiers |= blink::WebInputEvent::kIsRight;
-
-          if (event->numLockOn)
-            modifiers |= blink::WebInputEvent::kNumLockOn;
-
-          if (event->capsLockOn)
-            modifiers |= blink::WebInputEvent::kCapsLockOn;
-
-          uiKeyboardEvent.set_flags(modifiers);
-          content::NativeWebKeyboardEvent blinkKeyboardEvent(uiKeyboardEvent);
-          rw->bbHandleInputEvent(blinkKeyboardEvent);
-        } break;
-
-        case WM_MOUSEMOVE:
-        case WM_MOUSELEAVE:
-        case WM_LBUTTONDOWN:
-        case WM_LBUTTONDBLCLK:
-        case WM_MBUTTONDOWN:
-        case WM_MBUTTONDBLCLK:
-        case WM_RBUTTONDOWN:
-        case WM_RBUTTONDBLCLK:
-        case WM_LBUTTONUP:
-        case WM_MBUTTONUP:
-        case WM_RBUTTONUP: {
-            ui::MouseEvent uiMouseEvent(msg);
-            blink::WebMouseEvent blinkMouseEvent = ui::MakeWebMouseEvent(
-                    uiMouseEvent,
-                    base::Bind(&GetScreenLocationFromEvent));
-            rw->bbHandleInputEvent(blinkMouseEvent);
-        } break;
-
-        case WM_MOUSEWHEEL: {
-            ui::MouseWheelEvent uiMouseWheelEvent(msg);
-            blink::WebMouseWheelEvent blinkMouseWheelEvent =
-                ui::MakeWebMouseWheelEvent(uiMouseWheelEvent,
-                                           base::Bind(&GetScreenLocationFromEvent));
-            rw->bbHandleInputEvent(blinkMouseWheelEvent);
-        } break;
+        if (!webInputEvent) {
+          continue;
         }
+
+        rw->bbHandleInputEvent(*webInputEvent);
+    }
+}
+
+void RendererUtil::handleInputEvents(blink::WebWidget *webWidget, const WebView::InputEvent *events, size_t eventsCount)
+{
+    for (size_t i=0; i < eventsCount; ++i) {
+        auto webInputEvent = CreateWebInputEvent(events + i);
+
+        if (!webInputEvent) {
+          continue;
+        }
+
+        webWidget->HandleInputEvent(
+            blink::WebCoalescedInputEvent(*webInputEvent));
     }
 }
 

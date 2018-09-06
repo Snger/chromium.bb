@@ -28,6 +28,12 @@
 #include <blpwtk2_string.h>
 #include <content/public/renderer/render_view.h>
 
+namespace blink {
+
+class WebWidget;
+
+}
+
 namespace content {
 
 class RenderWidget;
@@ -40,6 +46,10 @@ namespace blpwtk2 {
 struct RendererUtil
 {
     static void handleInputEvents(content::RenderWidget     *rw,
+                                  const WebView::InputEvent *events,
+                                  size_t                     eventsCount);
+
+    static void handleInputEvents(blink::WebWidget          *webWidget,
                                   const WebView::InputEvent *events,
                                   size_t                     eventsCount);
 

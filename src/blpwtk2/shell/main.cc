@@ -55,6 +55,7 @@ bool g_renderer_ui = false;
 HANDLE g_hJob;
 MSG g_msg;
 bool g_isInsideEventLoop;
+bool g_webSceneAvailable = false;
 
 #define BUTTON_WIDTH 72
 #define FIND_LABEL_WIDTH (BUTTON_WIDTH*3/4)
@@ -86,6 +87,7 @@ enum {
     IDM_EXIT,
     IDM_TEST,
     IDM_TEST_V8_APPEND_ELEMENT,
+    IDM_TEST_V8_APPEND_ELEMENT_IN_WEBSCENE,
     IDM_TEST_KEYBOARD_FOCUS,
     IDM_TEST_LOGICAL_FOCUS,
     IDM_TEST_LOGICAL_BLUR,
@@ -147,7 +149,8 @@ void testV8AppendElement(blpwtk2::WebView* webView)
     static const char SCRIPT[] =
         "var div = document.createElement('div');\n"
         "div.textContent = 'Hello From Shell Using V8!!!';\n"
-        "document.body.appendChild(div);\n";
+        "document.body.appendChild(div);\n"
+        "document.body.innerHTML";
 
     v8::Context::Scope contextScope(ctxt);
     v8::ScriptCompiler::Source compilerSource(v8::String::NewFromUtf8(isolate, SCRIPT));
@@ -159,6 +162,10 @@ void testV8AppendElement(blpwtk2::WebView* webView)
     if (result.IsEmpty()) {
         v8::String::Utf8Value msg(tryCatch.Exception());
         std::cout << "EXCEPTION: " << *msg << std::endl;
+    }
+    else if (result->IsString()) {
+        v8::String::Utf8Value msg(result);
+        std::cout << "RESULT: " << *msg << std::endl;
     }
 }
 
@@ -388,7 +395,7 @@ public:
     HWND d_urlEntryWnd;
     HWND d_findEntryHwnd;
     HMENU d_spellCheckMenu;
-    blpwtk2::WebView* d_webView;
+    blpwtk2::WebView* d_webView, *d_webScene;
     blpwtk2::Profile* d_profile;
     Shell* d_inspectorShell;
     Shell* d_inspectorFor;
@@ -409,6 +416,7 @@ public:
         , d_findEntryHwnd(findEntryHwnd)
         , d_spellCheckMenu(spellCheckMenu)
         , d_webView(webView)
+        , d_webScene(nullptr)
         , d_profile(profile)
         , d_inspectorShell(0)
         , d_inspectorFor(0)
@@ -433,6 +441,17 @@ public:
 
             SetWindowLongPtr(d_mainWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
             SetWindowLongPtr(d_urlEntryWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
+        }
+
+        if (g_webSceneAvailable) {
+            static const char HTML[] =
+                "<!DOCTYPE html>"
+                "<html>"
+                "<body>"
+                "</body>"
+                "</html>";
+
+            d_webScene = g_toolkit->createWebScene(nullptr, HTML);
         }
 
         // WebView not yet available. Let's run a modal loop here
@@ -518,6 +537,10 @@ public:
     {
         assert(d_webView);
         return d_webView;
+    }
+
+    blpwtk2::WebView *webScene() {
+        return d_webScene;
     }
 
     ///////// WebViewDelegate overrides
@@ -1089,6 +1112,8 @@ int main(int argc, wchar_t* argv[])
         else {
             toolkitParams.setRendererUIEnabled(g_renderer_ui);
         }
+
+        g_webSceneAvailable = true;
     }
     else {
         toolkitParams.setThreadMode(blpwtk2::ThreadMode::ORIGINAL);
@@ -1243,15 +1268,6 @@ LRESULT CALLBACK shellWndProc(HWND hwnd,        // handle to window
             return 0;
         case IDM_TEST_V8_APPEND_ELEMENT:
             testV8AppendElement(shell->webView());
-            return 0;
-        case IDM_TEST_KEYBOARD_FOCUS:
-            shell->d_webView->takeKeyboardFocus();
-            return 0;
-        case IDM_TEST_LOGICAL_FOCUS:
-            shell->d_webView->setLogicalFocus(true);
-            return 0;
-        case IDM_TEST_LOGICAL_BLUR:
-            shell->d_webView->setLogicalFocus(false);
             return 0;
         case IDM_TEST_PLAY_KEYBOARD_EVENTS:
             testPlayKeyboardEvents(shell->d_mainWnd, shell->webView());
@@ -1470,6 +1486,7 @@ Shell* createShell(blpwtk2::Profile* profile, blpwtk2::WebView* webView, bool fo
     AppendMenu(menu, MF_POPUP, (UINT_PTR)fileMenu, L"&File");
     HMENU testMenu = CreateMenu();
     AppendMenu(testMenu, MF_STRING, IDM_TEST_V8_APPEND_ELEMENT, L"Append Element Using &V8");
+    AppendMenu(testMenu, MF_STRING, IDM_TEST_V8_APPEND_ELEMENT_IN_WEBSCENE, L"Append Element Using V8 in WebScene");
     AppendMenu(testMenu, MF_STRING, IDM_TEST_KEYBOARD_FOCUS, L"Test Keyboard Focus");
     AppendMenu(testMenu, MF_STRING, IDM_TEST_LOGICAL_FOCUS, L"Test Logical Focus");
     AppendMenu(testMenu, MF_STRING, IDM_TEST_LOGICAL_BLUR, L"Test Logical Blur");
