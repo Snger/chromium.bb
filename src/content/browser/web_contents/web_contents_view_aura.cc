@@ -91,6 +91,8 @@ WebContentsView* CreateWebContentsView(
 
 namespace {
 
+const static int BBCustomDataFormats[] = {701};
+
 WebContentsViewAura::RenderWidgetHostViewCreateFunction
     g_create_render_widget_host_view = nullptr;
 
@@ -389,6 +391,12 @@ void PrepareDropData(DropData* drop_data, const ui::OSExchangeData& data) {
   std::vector<FORMATETC> custom_data_formats;
   data.provider().EnumerateCustomData(&custom_data_formats);
   for (const auto& format_etc : custom_data_formats) {
+    
+    if (std::find(std::begin(BBCustomDataFormats), 
+        std::end(BBCustomDataFormats), 
+        format_etc.cfFormat) == std::end(BBCustomDataFormats)) {
+        continue;
+    }
     std::wstring key = L"blp_" + std::to_wstring(format_etc.cfFormat);
     base::string16 value;
     data.provider().GetCustomData(format_etc, &value);
