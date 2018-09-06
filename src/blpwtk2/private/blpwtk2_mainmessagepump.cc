@@ -289,8 +289,12 @@ void MainMessagePump::doWork()
 
     if (d_isInsideModalLoop && isolate) {
         int microtasksScopeDepth = v8::MicrotasksScope::GetCurrentDepth(isolate);
-        if (microtasksScopeDepth)
+        if (microtasksScopeDepth) {
+            auto policy = isolate->GetMicrotasksPolicy();
+            isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kExplicit);
             isolate->RunMicrotasks();
+            isolate->SetMicrotasksPolicy(policy);
+        }
     }
 }
 
