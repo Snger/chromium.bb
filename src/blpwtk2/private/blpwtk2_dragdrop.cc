@@ -41,6 +41,8 @@ namespace blpwtk2 {
 
 namespace {
 
+const static int BBCustomDataFormats[] = {701};
+
 int MakeWebInputEventModifiers()
 {
     return
@@ -161,6 +163,13 @@ std::unique_ptr<content::DropData> MakeDropData(const ui::OSExchangeData& data) 
     std::vector<FORMATETC> custom_data_formats;
     data.provider().EnumerateCustomData(&custom_data_formats);
     for (const auto& format_etc : custom_data_formats) {
+
+        if (std::find(std::begin(BBCustomDataFormats), 
+            std::end(BBCustomDataFormats), 
+            format_etc.cfFormat) == std::end(BBCustomDataFormats)) {
+            continue;
+        }
+        
         std::wstring key = L"blp_" + std::to_wstring(format_etc.cfFormat);
         base::string16 value;
         data.provider().GetCustomData(format_etc, &value);
