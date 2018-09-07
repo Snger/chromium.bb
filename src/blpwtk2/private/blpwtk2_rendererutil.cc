@@ -88,6 +88,9 @@ base::Optional<blink::WebInputEvent> CreateWebInputEvent(
     case WM_IME_CHAR:
     case WM_SYSCHAR:
     case WM_CHAR: {
+      ui::KeyEvent uiKeyboardEvent(msg);
+      content::NativeWebKeyboardEvent blinkKeyboardEvent(&uiKeyboardEvent);
+
       constexpr int masktOutModifiers =
           ~(blink::WebInputEvent::kShiftKey |
             blink::WebInputEvent::kControlKey |
@@ -99,8 +102,8 @@ base::Optional<blink::WebInputEvent> CreateWebInputEvent(
             blink::WebInputEvent::kIsRight |
             blink::WebInputEvent::kNumLockOn |
             blink::WebInputEvent::kCapsLockOn);
-      ui::KeyEvent uiKeyboardEvent(msg);
-      int modifiers = uiKeyboardEvent.flags() & masktOutModifiers;
+
+      int modifiers = blinkKeyboardEvent.GetModifiers() & masktOutModifiers;
 
       if (event->shiftKey)
         modifiers |= blink::WebInputEvent::kShiftKey;
@@ -132,8 +135,7 @@ base::Optional<blink::WebInputEvent> CreateWebInputEvent(
       if (event->capsLockOn)
         modifiers |= blink::WebInputEvent::kCapsLockOn;
 
-      uiKeyboardEvent.set_flags(modifiers);
-      content::NativeWebKeyboardEvent blinkKeyboardEvent(uiKeyboardEvent);
+      blinkKeyboardEvent.SetModifiers(modifiers);
       return base::Optional<blink::WebInputEvent>(blinkKeyboardEvent);
     } break;
 
