@@ -69,7 +69,7 @@ gfx::Point GetScreenLocationFromEvent(const ui::LocatedEvent& event)
 
 namespace {
 
-base::Optional<blink::WebInputEvent> CreateWebInputEvent(
+base::Optional<content::NativeWebKeyboardEvent> CreateKeyboardEvent(
     const WebView::InputEvent *event)
 {
     MSG msg = {
@@ -136,9 +136,26 @@ base::Optional<blink::WebInputEvent> CreateWebInputEvent(
         modifiers |= blink::WebInputEvent::kCapsLockOn;
 
       blinkKeyboardEvent.SetModifiers(modifiers);
-      return base::Optional<blink::WebInputEvent>(blinkKeyboardEvent);
+      return base::Optional<content::NativeWebKeyboardEvent>(blinkKeyboardEvent);
     } break;
 
+    default:
+      return base::Optional<content::NativeWebKeyboardEvent>();
+    }
+}
+
+base::Optional<blink::WebMouseEvent> CreateWebMouseEvent(
+    const WebView::InputEvent *event)
+{
+    MSG msg = {
+        event->hwnd,
+        event->message,
+        event->wparam,
+        event->lparam,
+        GetMessageTime()
+    };
+
+    switch (event->message) {
     case WM_MOUSEMOVE:
     case WM_MOUSELEAVE:
     case WM_LBUTTONDOWN:
@@ -154,19 +171,37 @@ base::Optional<blink::WebInputEvent> CreateWebInputEvent(
         blink::WebMouseEvent blinkMouseEvent = ui::MakeWebMouseEvent(
                 uiMouseEvent,
                 base::Bind(&GetScreenLocationFromEvent));
-        return base::Optional<blink::WebInputEvent>(blinkMouseEvent);
+        return base::Optional<blink::WebMouseEvent>(blinkMouseEvent);
     } break;
 
+    default:
+      return base::Optional<blink::WebMouseEvent>();
+    }
+}
+
+
+base::Optional<blink::WebMouseWheelEvent> CreateMouseWheelEvent(
+    const WebView::InputEvent *event)
+{
+    MSG msg = {
+        event->hwnd,
+        event->message,
+        event->wparam,
+        event->lparam,
+        GetMessageTime()
+    };
+
+    switch (event->message) {
     case WM_MOUSEWHEEL: {
         ui::MouseWheelEvent uiMouseWheelEvent(msg);
         blink::WebMouseWheelEvent blinkMouseWheelEvent =
             ui::MakeWebMouseWheelEvent(uiMouseWheelEvent,
                                        base::Bind(&GetScreenLocationFromEvent));
-        return base::Optional<blink::WebInputEvent>(blinkMouseWheelEvent);
+        return base::Optional<blink::WebMouseWheelEvent>(blinkMouseWheelEvent);
     } break;
 
     default:
-      return base::Optional<blink::WebInputEvent>();
+      return base::Optional<blink::WebMouseWheelEvent>();
     }
 }
 
@@ -175,27 +210,49 @@ base::Optional<blink::WebInputEvent> CreateWebInputEvent(
 void RendererUtil::handleInputEvents(content::RenderWidget *rw, const WebView::InputEvent *events, size_t eventsCount)
 {
     for (size_t i=0; i < eventsCount; ++i) {
-        auto webInputEvent = CreateWebInputEvent(events + i);
-
-        if (!webInputEvent) {
-          continue;
+        auto keyboardEvent = CreateKeyboardEvent(events + i);
+        if (keyboardEvent) {
+            rw->bbHandleInputEvent(*keyboardEvent);
+            continue;
         }
 
-        rw->bbHandleInputEvent(*webInputEvent);
+        auto mouseEvent = CreateWebMouseEvent(events + i);
+        if (mouseEvent) {
+            rw->bbHandleInputEvent(*mouseEvent);
+            continue;
+        }
+        
+        auto wheelEvent = CreateMouseWheelEvent(events + i);
+        if (wheelEvent) {
+            rw->bbHandleInputEvent(*wheelEvent);
+            continue;
+        }
     }
 }
 
 void RendererUtil::handleInputEvents(blink::WebWidget *webWidget, const WebView::InputEvent *events, size_t eventsCount)
 {
     for (size_t i=0; i < eventsCount; ++i) {
-        auto webInputEvent = CreateWebInputEvent(events + i);
-
-        if (!webInputEvent) {
-          continue;
+        auto keyboardEvent = CreateKeyboardEvent(events + i);
+        if (keyboardEvent) {
+            webWidget->HandleInputEvent(
+                blink::WebCoalescedInputEvent(*keyboardEvent));
+            continue;
         }
 
-        webWidget->HandleInputEvent(
-            blink::WebCoalescedInputEvent(*webInputEvent));
+        auto mouseEvent = CreateWebMouseEvent(events + i);
+        if (mouseEvent) {
+            webWidget->HandleInputEvent(
+                blink::WebCoalescedInputEvent(*mouseEvent));
+            continue;
+        }
+        
+        auto wheelEvent = CreateMouseWheelEvent(events + i);
+        if (wheelEvent) {
+            webWidget->HandleInputEvent(
+                blink::WebCoalescedInputEvent(*wheelEvent));
+            continue;
+        }
     }
 }
 
