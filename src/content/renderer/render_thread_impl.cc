@@ -644,7 +644,8 @@ RenderThreadImpl::RenderThreadImpl(
       renderer_scheduler_(std::move(scheduler)),
       categorized_worker_pool_(new CategorizedWorkerPool()),
       renderer_binding_(this),
-      client_id_(1) {
+      client_id_(1),
+      exit_process_gracefully_(params.exit_process_gracefully()) {
   Init(resource_task_queue);
 }
 
@@ -661,7 +662,8 @@ RenderThreadImpl::RenderThreadImpl(
       main_message_loop_(std::move(main_message_loop)),
       categorized_worker_pool_(new CategorizedWorkerPool()),
       is_scroll_animator_enabled_(false),
-      renderer_binding_(this) {
+      renderer_binding_(this),
+      exit_process_gracefully_(false) {
   scoped_refptr<base::SingleThreadTaskRunner> test_task_counter;
   DCHECK(base::CommandLine::ForCurrentProcess()->HasSwitch(
       switches::kRendererClientId));
@@ -1002,7 +1004,8 @@ void RenderThreadImpl::Shutdown() {
   // In a single-process mode, we cannot call _exit(0) in Shutdown() because
   // it will exit the process before the browser side is ready to exit.
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kSingleProcess))
+          switches::kSingleProcess) &&
+      !exit_process_gracefully_)
     base::Process::TerminateCurrentProcessImmediately(0);
 }
 

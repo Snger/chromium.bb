@@ -808,6 +808,8 @@ class CONTENT_EXPORT RenderThreadImpl
 
   mojom::FrameSinkProviderPtr frame_sink_provider_;
 
+  bool exit_process_gracefully_;
+
   DISALLOW_COPY_AND_ASSIGN(RenderThreadImpl);
 };
 
