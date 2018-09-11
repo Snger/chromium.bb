@@ -3279,7 +3279,9 @@ void Shell::CleanupWorkers() {
 
 int Shell::Main(int argc, char* argv[]) {
   std::ofstream trace_file;
+#if defined(USING_V8_BASE_SHARED)
   v8::base::EnsureConsoleOutput();
+#endif
   if (!SetOptions(argc, argv)) return 1;
   v8::V8::InitializeICUDefaultLocation(argv[0], options.icu_data_file);
 

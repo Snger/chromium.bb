@@ -314,12 +314,23 @@ shared_library("blpwtk2") {
     "//url",
   ]
 
+  if(!is_component_build) {
+    deps += [
+      "//v8:v8_base",
+      "//v8:v8_maybe_snapshot",
+    ]
+  }
+
   libs = [
     "dwmapi.lib"
   ]
 
   ldflags = [
     "/DELAYLOAD:dwmapi.dll"
+  ]
+  ldflags += [
+    "/ignore:4049",
+    "/ignore:4217",
   ]
 }
 

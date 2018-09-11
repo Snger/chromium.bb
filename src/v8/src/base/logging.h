@@ -17,8 +17,15 @@
 [[noreturn]] PRINTF_FORMAT(3, 4) BLPV8_BASE_EXPORT V8_NOINLINE
     void V8_Fatal(const char* file, int line, const char* format, ...);
 
+#if defined(DEBUG) && defined(USING_V8_SHARED) && !defined(USING_V8_BASE_SHARED) && !defined(BUILDING_V8_BASE_SHARED)
+// For v8 as dll in static build
+namespace {
+  void V8_Dcheck(const char* file, int line, const char* message) {}
+}
+#else
 V8_BASE_EXPORT V8_NOINLINE void V8_Dcheck(const char* file, int line,
                                           const char* message);
+#endif
 
 #ifdef DEBUG
 #define FATAL(...) V8_Fatal(__FILE__, __LINE__, __VA_ARGS__)
