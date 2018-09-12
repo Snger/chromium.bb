@@ -135,6 +135,7 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
 
 BrowserContextImpl::~BrowserContextImpl()
 {
+    NotifyWillBeDestroyed(this);
     DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
     DCHECK(0 == d_numWebViews);
     DCHECK(!d_isDestroyed);
