@@ -171,13 +171,6 @@ class Toolkit {
         // message that the application's message loop processes, even if it
         // doesn't belong to blpwtk2 and also if preHandleMessage returns true.
 
-    virtual v8::Local<v8::Context> createWebScriptContext() = 0;
-        // Creates a V8 context that can access the DOM.
-
-    virtual void disposeWebScriptContext(v8::Local<v8::Context> context) = 0;
-        // Disposes of per-context data for a context created with
-        // 'createWebScriptContext()'
-
     virtual void addOriginToTrustworthyList(const StringRef& originString) = 0;
         // Adds the security origin specified by 'originString' to the list of
         // origins that blink considers 'trustworthy'.
