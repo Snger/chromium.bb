@@ -43,8 +43,8 @@ class EmbedderHeapTracer : public v8::EmbedderHeapTracer {
 
   public:
     // MANIPULATORS
-    virtual void RegisterV8References(void        *(*embedder_fields)[2],
-                                      std::size_t    length) = 0;
+    virtual void RegisterV8ReferencesV(void        *(*embedder_fields)[2],
+                                       std::size_t    length) = 0;
 };
 
 }  // close blpwtk2 namespace

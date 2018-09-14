@@ -71,10 +71,9 @@ V8PerIsolateData::V8PerIsolateData(
       use_counter_disabled_(false),
       is_handling_recursion_level_error_(false),
       is_reporting_exception_(false),
-      runtime_call_stats_(base::DefaultTickClock::GetInstance()),
-      is_reporting_exception_(false),
       script_wrappable_visitor_(
-          WTF::WrapUnique(new ScriptWrappableVisitor(GetIsolate()))) {
+          base::WrapUnique(new ScriptWrappableMarkingVisitor(GetIsolate()))),
+      runtime_call_stats_(base::DefaultTickClock::GetInstance()) {
   // FIXME: Remove once all v8::Isolate::GetCurrent() calls are gone.
   GetIsolate()->Enter();
   GetIsolate()->AddBeforeCallEnteredCallback(&BeforeCallEnteredCallback);
@@ -101,9 +100,9 @@ V8PerIsolateData::V8PerIsolateData()
       use_counter_disabled_(false),
       is_handling_recursion_level_error_(false),
       is_reporting_exception_(false),
-      runtime_call_stats_(base::DefaultTickClock::GetInstance()),
       script_wrappable_visitor_(
-          WTF::WrapUnique(new ScriptWrappableVisitor(GetIsolate()))) {
+          base::WrapUnique(new ScriptWrappableMarkingVisitor(GetIsolate()))),
+      runtime_call_stats_(base::DefaultTickClock::GetInstance()) {
   CHECK(IsMainThread());
 
   // SnapshotCreator enters the isolate, so we don't call Isolate::Enter() here.

@@ -59,7 +59,7 @@ class EmbedderHeapTracerShim : public v8::EmbedderHeapTracer {
     EmbedderHeapTracerShim(EmbedderHeapTracerShim&&)      = delete;
         // Not implemented.
 
-    ~EmbedderHeapTracerShim();
+    ~EmbedderHeapTracerShim() final;
         // Destroy this object.
 
     // MANIPULATORS

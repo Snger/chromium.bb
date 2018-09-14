@@ -58,7 +58,7 @@ class GIN_EXPORT MultiHeapTracer : public v8::EmbedderHeapTracer {
   MultiHeapTracer();
     // Create a new MultiHeapTracer.
 
-  ~MultiHeapTracer();
+  ~MultiHeapTracer() final;
     // Destroy this object.
 
   // MANIPULATORS

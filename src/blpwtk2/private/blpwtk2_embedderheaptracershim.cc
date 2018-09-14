@@ -67,7 +67,7 @@ void EmbedderHeapTracerShim::RegisterV8References(
         fields[index][1] = embedder_fields[index].second;
     }
 
-    d_tracer_p->RegisterV8References(fields, fieldsSize);
+    d_tracer_p->RegisterV8ReferencesV(fields, fieldsSize);
 }
 
 }  // close blpwtk2 namespace
