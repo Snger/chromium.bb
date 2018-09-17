@@ -126,7 +126,6 @@ class RubberbandLayerContext {
     RubberbandLayerContext(const RubberbandLayerContext* parent)
     : m_clipRect(parent->m_clipRect)
     , m_frameScrollOffset(parent->m_frameScrollOffset)
-    , m_layerScrollOffset(parent->m_layerScrollOffset)
     , m_translateX(parent->m_translateX)
     , m_translateY(parent->m_translateY)
     , m_scaleX(parent->m_scaleX)
@@ -134,6 +133,12 @@ class RubberbandLayerContext {
     , m_colBlock(parent->m_colBlock)
     , m_colBlockAbsTopLeft(parent->m_colBlockAbsTopLeft)
     {
+        // m_layerScrollOffset is not inherited from the parent PaintLayer's
+        // rubberband context because the coordinate space of the current
+        // PaintLayer is already with respect to its parent PaintLayer.
+        //
+        // m_layerScrollOffset is only useful for LayoutObjects in the current
+        // PaintLayer to compute their relative position due to scrolling.
     }
 };
 
