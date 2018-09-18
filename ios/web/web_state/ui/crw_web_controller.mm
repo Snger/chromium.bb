@@ -2943,8 +2943,7 @@ registerLoadRequestForURL:(const GURL&)requestURL
       return NO;
     }
     web::NavigationItem* item = self.currentNavItem;
-    const GURL& sourceURL =
-        item ? item->GetOriginalRequestURL() : GURL::EmptyGURL();
+    GURL sourceURL = item ? item->GetOriginalRequestURL() : GURL::EmptyGURL();
 
     // Stop load if navigation is believed to be happening on the main frame.
     if ([self isMainFrameNavigationAction:action])
