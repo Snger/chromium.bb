@@ -59,6 +59,9 @@ namespace blink {
         Range* findPlainText(Range* range, const String& target, long options);
         bool checkSpellingForNode(Node* node);
         DOMRectReadOnly* getAbsoluteCaretRectAtOffset(Node* node, long offset);
+        bool isOverwriteModeEnabled(Document* document);
+        void toggleOverwriteMode(Document* document);
+
 
         DECLARE_VIRTUAL_TRACE();
 
