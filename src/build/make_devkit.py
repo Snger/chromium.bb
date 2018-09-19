@@ -187,7 +187,7 @@ def addGenFiles():
 
 
 def main(args):
-  version = "bb817"   # SET BB VERSION NUMBER HERE
+  version = "bb818"   # SET BB VERSION NUMBER HERE
 
   outDir = None
   doClean = True
