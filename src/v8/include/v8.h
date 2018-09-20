@@ -38,7 +38,7 @@
 // BUILDING_V8_SHARED nor USING_V8_SHARED should be defined.
 #ifdef BUILDING_V8_SHARED
 # define V8_EXPORT __declspec(dllexport)
-#elif USING_V8_SHARED
+#elif defined(USING_V8_SHARED)
 # define V8_EXPORT __declspec(dllimport)
 #else
 # define V8_EXPORT

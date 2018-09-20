@@ -63,7 +63,7 @@ class KeySystemProperties;
 }
 
 namespace network {
-    struct ResourceRequest;
+struct ResourceRequest;
 }
 
 namespace content {

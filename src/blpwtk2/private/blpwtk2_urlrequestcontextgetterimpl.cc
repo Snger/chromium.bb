@@ -83,9 +83,28 @@ void URLRequestContextGetterImpl::setProxyConfig(const net::ProxyConfig& config)
     DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
 
     d_wasProxyInitialized = true;
+    // reference: web_url_loader_impl.cc
     auto annotation_tag = net::DefineNetworkTrafficAnnotation(
-        "085C6810_CE54_400B_A7E2_AEB8462A1D71",
-        "Bloomberg network traffic annotation tag");
+        "085C6810_CE54_400B_A7E2_AEB8462A1D71", R"(
+      semantics {
+        sender: "Resource Loader"
+        description:
+          "initiated request, which includes all resources for "
+          "normal page loads, chrome URLs, and downloads."
+        trigger:
+          "The user navigates to a URL or downloads a file. Also when a "
+          "webpage, ServiceWorker, or chrome:// uses any network communication."
+        data: "Anything the initiator wants to send."
+        destination: OTHER
+      }
+      policy {
+        cookies_allowed: YES
+        cookies_store: "user"
+        setting: "These requests cannot be disabled in settings."
+        policy_exception_justification:
+          "Not implemented. Without these requests, Chrome will be unable "
+          "to load any webpage."
+      })");
 
     net::ProxyConfigService* proxyConfigService =
         new net::ProxyConfigServiceFixed(

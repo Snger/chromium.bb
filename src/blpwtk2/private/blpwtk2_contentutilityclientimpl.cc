@@ -21,7 +21,6 @@
  */
 
 #include <blpwtk2_contentutilityclientimpl.h>
-// #include <chrome/utility/printing_handler.h>
 #include <chrome/utility/chrome_content_utility_client.h>
 #include <content/public/utility/utility_thread.h>
 #include <ipc/ipc_message_macros.h>

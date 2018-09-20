@@ -35,13 +35,6 @@
 
 #include <blpwtk2_version.h>
 
-#if defined(BUILDING_V8_SHARED)
-  #undef BUILDING_V8_SHARED
-#endif
-#if !defined(USING_V8_SHARED)
-  #define USING_V8_SHARED
-#endif
-
 // The following is a list of macro definitions that enable specific features
 // of blpwtk2.  The embedder can use these macros to determine if they can call
 // a certain API.  The purpose behind the "feature #" comments is to help git

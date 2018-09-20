@@ -17,7 +17,6 @@
 #define V8_BASE_EXPORT
 #endif  // BUILDING_V8_BASE_SHARED
 
-#ifdef BLPV8_SHARED
 # ifdef BUILDING_V8_SHARED
 #  define BLPV8_BASE_EXPORT __declspec(dllexport)
 # elif USING_V8_SHARED
@@ -25,9 +24,6 @@
 # else
 #  define BLPV8_BASE_EXPORT
 # endif  // BUILDING_V8_SHARED
-#else    // !BLPV8_SHARED
-# define BLPV8_BASE_EXPORT V8_BASE_EXPORT
-#endif   // BLPV8_SHARED
 
 #else  // !V8_OS_WIN
 

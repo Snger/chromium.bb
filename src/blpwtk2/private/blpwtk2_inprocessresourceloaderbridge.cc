@@ -228,8 +228,6 @@ class InProcessResourceLoaderBridge::InProcessResourceContext
     void failed() override;
     void finish() override;
 
-  protected:
-
   private:
     friend class base::RefCounted<InProcessResourceContext>;
     ~InProcessResourceContext() final;
@@ -516,12 +514,11 @@ void InProcessResourceLoaderBridge::InProcessResourceContext::ensureResponseHead
 // InProcessResourceLoaderBridge
 
 InProcessResourceLoaderBridge::InProcessResourceLoaderBridge(
-    const network::ResourceRequest *request)
+    const network::ResourceRequest *request):
+    d_context(base::MakeRefCounted<InProcessResourceContext>(request))
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(Statics::inProcessResourceLoader);
-
-    d_context = new InProcessResourceContext(request);
 }
 
 InProcessResourceLoaderBridge::~InProcessResourceLoaderBridge()

@@ -24,7 +24,7 @@
 #define INCLUDED_BLPWTK2_INPROCESSRESOURCELOADERBRIDGE_H
 
 #include <blpwtk2_config.h>
-#include <base/memory/ref_counted.h>
+#include <base/memory/scoped_refptr.h>
 #include <content/renderer/loader/resource_dispatcher.h>
 
 namespace content {
@@ -52,7 +52,7 @@ class InProcessResourceLoaderBridge
   private:
     class InProcessURLRequest;
     class InProcessResourceContext;
-    InProcessResourceContext* d_context;
+    scoped_refptr<InProcessResourceContext> d_context;
 
     DISALLOW_COPY_AND_ASSIGN(InProcessResourceLoaderBridge);
 };

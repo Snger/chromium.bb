@@ -34,7 +34,5 @@ declare_args() {
   version_h = "blpwtk2/public/blpwtk2_version.h"
   version_cc = "blpwtk2/public/blpwtk2_version.cc"
 
-  # blpwtk2 V8
-  v8_as_shared_library = true
   v8_toolset_for_d8 = "host"
 }

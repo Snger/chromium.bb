@@ -121,7 +121,7 @@ void UtilityProcessHost::RegisterUtilityMainThreadFactory(
 }
 
 // static
-bool UtilityProcessHost::run_utility_in_process() {
+bool UtilityProcessHost::RunUtilityInProcess() {
   return g_run_utility_in_process_;
 }
 
@@ -213,7 +213,7 @@ bool UtilityProcessHost::StartProcess() {
   process_->SetName(name_);
   process_->GetHost()->CreateChannelMojo();
 
-  if (UtilityProcessHost::run_utility_in_process()) {
+  if (UtilityProcessHost::RunUtilityInProcess()) {
     DCHECK(g_utility_main_thread_factory);
     // See comment in RenderProcessHostImpl::Init() for the background on why we
     // support single process mode this way.

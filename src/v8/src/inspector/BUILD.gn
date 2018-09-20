@@ -80,7 +80,7 @@ action("inspector_injected_script") {
 
 config("inspector_config") {
   visibility = [ ":*" ]  # Only targets in this file can depend on this.
-  if (is_component_build || v8_as_shared_library) {
+  if (is_component_build || is_blpwtk2) {
     defines = [ "BUILDING_V8_SHARED" ]
   }
 }

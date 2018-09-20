@@ -24,6 +24,7 @@
 #include <blpwtk2_statics.h>
 
 #include <base/run_loop.h>
+#include <base/lazy_instance.h>
 #include <base/message_loop/message_loop.h>
 #include <base/threading/thread_local.h>
 #include <base/win/wrapped_window_proc.h>
@@ -46,11 +47,9 @@ bool isModalCode(int code)
         || MSGF_SCROLLBAR == code;
 }
 
-// A lazily created TLS for quick access to a thread's message pump
-base::ThreadLocalPointer<MainMessagePump>* GetTLSMainMessagePump() {
-  static auto* lazy_tls_ptr = new base::ThreadLocalPointer<MainMessagePump>();
-  return lazy_tls_ptr;
-}
+base::LazyInstance<base::ThreadLocalPointer<MainMessagePump>>::DestructorAtExit
+    g_lazy_tls = LAZY_INSTANCE_INITIALIZER;
+
 }
 
                         // ---------------------
@@ -347,9 +346,7 @@ void MainMessagePump::resetWorkState()
 // static
 MainMessagePump* MainMessagePump::current()
 {
-    [[maybe_unused]] base::MessageLoop* loop = base::MessageLoop::current();
-    DCHECK_EQ(base::MessageLoop::TYPE_UI, loop->type());
-    MainMessagePump* pump = GetTLSMainMessagePump()->Get();
+    MainMessagePump* pump = g_lazy_tls.Pointer()->Get();
     DCHECK(pump != nullptr);
     return pump;
 }
@@ -405,14 +402,14 @@ MainMessagePump::MainMessagePump()
     // loop.
     d_maxPumpCountInsideModalLoop = 16;
 
-    DCHECK(!GetTLSMainMessagePump()->Get());
-    GetTLSMainMessagePump()->Set(this);
+    DCHECK(!g_lazy_tls.Pointer()->Get());
+    g_lazy_tls.Pointer()->Set(this);
 }
 
 MainMessagePump::~MainMessagePump()
 {
     ::DestroyWindow(d_window);
-    GetTLSMainMessagePump()->Set(nullptr);
+    g_lazy_tls.Pointer()->Set(nullptr);
 }
 
 void MainMessagePump::init()

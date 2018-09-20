@@ -175,9 +175,6 @@ DevToolsManagerDelegateImpl::~DevToolsManagerDelegateImpl()
 
 bool DevToolsManagerDelegateImpl::HasBundledFrontendResources()
 {
-#if defined(OS_ANDROID)
-  return false;
-#endif
   return true;
 }
 

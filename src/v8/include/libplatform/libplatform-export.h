@@ -15,7 +15,6 @@
 #define V8_PLATFORM_EXPORT
 #endif  // BUILDING_V8_PLATFORM_SHARED
 
-#ifdef BLPV8_SHARED
 # ifdef BUILDING_V8_SHARED
 #  define BLPV8_PLATFORM_EXPORT __declspec(dllexport)
 # elif USING_V8_SHARED
@@ -23,9 +22,6 @@
 # else
 #  define BLPV8_PLATFORM_EXPORT
 # endif  // BUILDING_V8_SHARED
-#else    // !BLPV8_SHARED
-# define BLPV8_PLATFORM_EXPORT V8_PLATFORM_EXPORT
-#endif   // BLPV8_SHARED
 
 #else  // defined(_WIN32)
 
