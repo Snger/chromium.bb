@@ -119,7 +119,9 @@ void WriteFileSystemFilesToPickle(
   }
 }
 
-std::unique_ptr<content::DropData> MakeDropData(const ui::OSExchangeData& data) {
+std::unique_ptr<content::DropData> MakeDropData(const ui::OSExchangeData& data,
+                                                const bool extractData) {
+
     auto drop_data = std::make_unique<content::DropData>();
 
     drop_data->did_originate_from_renderer = data.DidOriginateFromRenderer();
@@ -163,7 +165,9 @@ std::unique_ptr<content::DropData> MakeDropData(const ui::OSExchangeData& data) 
     for (const auto& format_etc : custom_data_formats) {
         std::wstring key = L"blp_" + std::to_wstring(format_etc.cfFormat);
         base::string16 value;
-        data.provider().GetCustomData(format_etc, &value);
+        if (extractData) {
+            data.provider().GetCustomData(format_etc, &value);
+        }
         drop_data->custom_data.insert(std::make_pair(key, value));
     }
 
@@ -385,7 +389,7 @@ DWORD DragDrop::OnDragEnter(
 {
     auto data_provider = std::make_unique<ui::OSExchangeDataProviderWin>(data_object);
     auto data = std::make_unique<ui::OSExchangeData>(std::move(data_provider));
-    auto drag_data = MakeDropData(*data);
+    auto drag_data = MakeDropData(*data, false);
     auto drag_data_metadata = MakeDropDataMetadata(*drag_data);
 
     POINT client_pt = screen_pt;
@@ -430,7 +434,7 @@ DWORD DragDrop::OnDrop(
 {
     auto data_provider = std::make_unique<ui::OSExchangeDataProviderWin>(data_object);
     auto data = std::make_unique<ui::OSExchangeData>(std::move(data_provider));
-    auto drag_data = MakeDropData(*data);
+    auto drag_data = MakeDropData(*data, true);
 
     POINT client_pt = screen_pt;
     ScreenToClient(GetHWND(), &client_pt);
