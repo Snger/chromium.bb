@@ -73,12 +73,22 @@ __declspec(restrict) void* calloc(size_t n, size_t size) {
 HANDLE __acrt_heap = nullptr;
 
 bool __acrt_initialize_heap() {
-  __acrt_heap = ::HeapCreate(0, 0, 0);
+  // For blpwtk2 CR62 only because both statically built blpwtk2.dll and blpv8.dll exist
+  // Don't need to migrate this change if blpv8.dll is not created in static build
+  // Set __acrt_heap to the default process heap to keep blpwtk2 and blpv8 using the same heap
+  // https://en.wikipedia.org/wiki/Microsoft_Visual_C%2B%2B
+  // MSVC++ 14.0  _MSC_VER == 1900 (Visual Studio 2015 version 14.0)
+#if !defined(_MSC_VER) || _MSC_VER > 1900
+  static_assert(false, "It is just a reminder: Don't migrate the change for blpwtk2 Chromium 67 build");
+#endif
+  __acrt_heap = GetProcessHeap();
+  //__acrt_heap = ::HeapCreate(0, 0, 0);
   return true;
 }
 
 bool __acrt_uninitialize_heap() {
-  ::HeapDestroy(__acrt_heap);
+  // Since __acrt_heap is set to the default process heap, we should not detroy it in the dll
+  // ::HeapDestroy(__acrt_heap);
   __acrt_heap = nullptr;
   return true;
 }
