@@ -156,6 +156,9 @@ def parseArgs(argv):
   # Apply the content shell version
   applyVariableToEnvironment('GN_DEFINES', 'content_shell_version', '\\\"' + content_version + '\\\"')
 
+  # disable COM_INIT_CHECK_HOOK_ENABLED in com_init_check_hook.h
+  applyVariableToEnvironment('GN_DEFINES', 'com_init_check_hook_disabled', 'true')
+
   if gn_mode == 'shared':
     applyVariableToEnvironment('GN_DEFINES', 'is_component_build', 'true')
     if not gn_type:
