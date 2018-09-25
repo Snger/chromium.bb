@@ -134,7 +134,7 @@ void BBWindowHooks::addHighlightMarker(Range* range, long foregroundColor, long 
         includeNonSelectableText);
 }
 
-void BBWindowHooks::removeHighlightMarker(Range *range) 
+void BBWindowHooks::removeHighlightMarker(Range *range)
 {
     removeMarker(range, DocumentMarker::kHighlight);
 }
@@ -172,6 +172,17 @@ DOMRectReadOnly* BBWindowHooks::getAbsoluteCaretRectAtOffset(Node* node, long of
     VisiblePosition visiblePos = CreateVisiblePosition(Position(node, offset));
     IntRect rc = AbsoluteCaretBoundsOf(visiblePos);
     return DOMRectReadOnly::FromIntRect(rc);
+}
+
+bool BBWindowHooks::isOverwriteModeEnabled(Document* document)
+{
+    LocalFrame *frame = document->GetFrame();
+    return frame->GetEditor().IsOverwriteModeEnabled();
+}
+
+void BBWindowHooks::toggleOverwriteMode(Document* document)
+{
+    document->GetFrame()->GetEditor().ToggleOverwriteModeEnabled();
 }
 
 DEFINE_TRACE(BBWindowHooks) {
