@@ -34,4 +34,6 @@
     Range findPlainText(Range range, DOMString target, long options);
     boolean checkSpellingForNode(Node node);
     ClientRect getAbsoluteCaretRectAtOffset(Node node, long offset);
+    bool isOverwriteModeEnabled(Document document);
+    void toggleOverwriteMode(Document document);
 };
