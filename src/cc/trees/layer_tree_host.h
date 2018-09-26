@@ -641,7 +641,7 @@ class CC_EXPORT LayerTreeHost : public MutatorHostClient {
   bool has_pushed_local_surface_id_ = false;
   bool defer_commits_ = false;
 
-  SkColor background_color_ = SK_ColorWHITE;
+  SkColor background_color_ = SK_ColorBLACK;
 
   LayerSelection selection_;
 
