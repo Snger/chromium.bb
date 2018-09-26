@@ -14,6 +14,7 @@ import("//services/service_manager/public/service_manifest.gni")
 import("//tools/grit/grit_rule.gni")
 import("//tools/grit/repack.gni")
 import("//tools/v8_context_snapshot/v8_context_snapshot.gni")
+import("//blpwtk2/blpwtk2.gni")
 if (is_android) {
   import("//build/config/android/config.gni")
 } else if (is_mac) {
@@ -25,7 +26,7 @@ if (is_android) {
 
 declare_args() {
   content_shell_product_name = "Content Shell"
-  content_shell_version = "99.77.34.5"
+# blpwtk2: declaration of content_shell_version is moved into blpwtk2.gni
 }
 
 config("content_shell_lib_warnings") {
@@ -256,6 +257,7 @@ static_library("content_shell_lib") {
     "//content/public/common:service_names",
     "//content/shell/test_runner:test_runner",
     "//content/test:content_test_mojo_bindings",
+    "//content:sandbox_helper_win",
     "//content/test:layouttest_support",
     "//content/test:mojo_layouttest_bindings",
     "//content/test:test_support",
@@ -291,6 +293,10 @@ static_library("content_shell_lib") {
     "//ui/base",
     "//ui/base/ime",
     "//ui/display",
+
+    # blpwtk2: Add this dependency for LayerAnimationObserver
+    "//ui/compositor",
+
     "//ui/events:events_base",
     "//ui/gfx",
     "//ui/gfx/geometry",
@@ -577,6 +583,18 @@ if (is_android) {
       "//tools/v8_context_snapshot:v8_context_snapshot",
     ]
 
+    data = []
+    if (bb_version == "") {
+      data += [
+        "$root_out_dir/v8_context_snapshot.bin",
+      ]
+    }
+    else {
+      data += [
+        "$root_out_dir/v8_context_snapshot.$bb_version.bin"
+      ]
+    }
+
     if (is_win) {
       deps += [ "//sandbox" ]
 
@@ -591,7 +609,13 @@ if (is_android) {
         configs -= [ "//build/config/win:console" ]
         configs += [ "//build/config/win:windowed" ]
       }
-
+      if (bb_generate_map_files) {
+        configs += [ "//blpwtk2:blpwtk2_gen_map" ]
+      }
+      if (is_official_build) {
+        configs -= [ "//build/config/compiler:default_optimization" ]
+        configs += [ "//build/config/compiler:optimize_max" ]
+      }
       data_deps +=
           [ "//third_party/crashpad/crashpad/handler:crashpad_handler" ]
     }

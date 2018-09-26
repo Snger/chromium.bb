@@ -328,7 +328,8 @@ v8::StartupData V8ContextSnapshot::SerializeInternalField(
   char* data = new char[size];
   std::memcpy(data, &field_type, size);
 
-  return {data, size};
+  static auto array_deallocator = [](const char* buffer) {delete[] buffer; buffer = nullptr;};
+  return {data, size, array_deallocator};
 }
 
 void V8ContextSnapshot::DeserializeInternalField(v8::Local<v8::Object> object,

@@ -277,7 +277,7 @@ PerfBasicLogger::PerfBasicLogger() : perf_output_handle_(nullptr) {
       base::OS::GetCurrentProcessId());
   CHECK_NE(size, -1);
   perf_output_handle_ =
-      base::OS::FOpen(perf_dump_name.start(), base::OS::LogFileOpenMode);
+      base::OS::FOpen(perf_dump_name.start(), base::OS::GetLogFileOpenMode());
   CHECK_NOT_NULL(perf_output_handle_);
   setvbuf(perf_output_handle_, nullptr, _IOLBF, 0);
 }
@@ -386,7 +386,7 @@ LowLevelLogger::LowLevelLogger(const char* name) : ll_output_handle_(nullptr) {
   MemCopy(ll_name.start(), name, len);
   MemCopy(ll_name.start() + len, kLogExt, sizeof(kLogExt));
   ll_output_handle_ =
-      base::OS::FOpen(ll_name.start(), base::OS::LogFileOpenMode);
+      base::OS::FOpen(ll_name.start(), base::OS::GetLogFileOpenMode());
   setvbuf(ll_output_handle_, nullptr, _IOLBF, 0);
 
   LogCodeInfo();

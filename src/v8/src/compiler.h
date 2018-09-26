@@ -328,7 +328,7 @@ struct ScriptStreamingData {
   // Internal implementation of v8::ScriptCompiler::StreamedSource.
   std::unique_ptr<ScriptCompiler::ExternalSourceStream> source_stream;
   ScriptCompiler::StreamedSource::Encoding encoding;
-  std::unique_ptr<ScriptCompiler::CachedData> cached_data;
+  std::unique_ptr<ScriptCompiler::CachedData, ScriptCompiler::CachedDataDeleter> cached_data;
 
   // Data needed for parsing, and data needed to to be passed between thread
   // between parsing and compilation. These need to be initialized before the

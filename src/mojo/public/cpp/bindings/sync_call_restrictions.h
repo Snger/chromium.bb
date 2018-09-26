@@ -40,6 +40,9 @@ class ClipboardMus;
 namespace viz {
 class HostFrameSinkManager;
 }
+namespace blpwtk2 {
+class ToolkitImpl;
+}
 
 namespace mojo {
 class ScopedAllowSyncCallForTesting;
@@ -62,9 +65,13 @@ class MOJO_CPP_BINDINGS_EXPORT SyncCallRestrictions {
   // Checks whether the current sequence is allowed to make sync calls, and
   // causes a DCHECK if not.
   static void AssertSyncCallAllowed();
+
+  // For blpwtk2 in-process sync calls such as those for DWriteFontProxy
+  static void ForceSyncCallAllowed();
 #else
   // Inline the empty definitions of functions so that they can be compiled out.
   static void AssertSyncCallAllowed() {}
+  static void ForceSyncCallAllowed() {}
 #endif
 
  private:
@@ -85,6 +92,8 @@ class MOJO_CPP_BINDINGS_EXPORT SyncCallRestrictions {
   // the platform window is destroyed.
   friend class viz::HostFrameSinkManager;
   // END ALLOWED USAGE.
+
+  friend class blpwtk2::ToolkitImpl;  // single-process support
 
   // BEGIN USAGE THAT NEEDS TO BE FIXED.
   // In the non-mus case, we called blocking OS functions in the ui::Clipboard

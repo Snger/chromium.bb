@@ -416,6 +416,7 @@ RenderWidget::RenderWidget(
       current_content_source_id_(0),
       widget_binding_(this, std::move(widget_request)),
       task_runner_(task_runner),
+      bb_OnHandleInputEvent_no_ack_(false),
       weak_ptr_factory_(this) {
   DCHECK_NE(routing_id_, MSG_ROUTING_NONE);
   if (!swapped_out)
@@ -1039,6 +1040,13 @@ void RenderWidget::DidReceiveCompositorFrameAck() {
 
 bool RenderWidget::IsClosing() const {
   return host_closing_;
+}
+
+void RenderWidget::bbHandleInputEvent(const blink::WebInputEvent& event) {
+  ui::LatencyInfo latency_info;
+  bb_OnHandleInputEvent_no_ack_ = true;
+  OnHandleInputEvent(&event, {}, latency_info, InputEventDispatchType::DISPATCH_TYPE_BLOCKING);
+  bb_OnHandleInputEvent_no_ack_ = false;
 }
 
 void RenderWidget::RequestScheduleAnimation() {

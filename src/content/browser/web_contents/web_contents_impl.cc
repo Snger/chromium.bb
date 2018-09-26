@@ -271,7 +271,7 @@ WebContents* WebContents::Create(const WebContents::CreateParams& params) {
 WebContents* WebContents::CreateWithSessionStorage(
     const WebContents::CreateParams& params,
     const SessionStorageNamespaceMap& session_storage_namespace_map) {
-  WebContentsImpl* new_contents = new WebContentsImpl(params.browser_context);
+  WebContentsImpl* new_contents = new WebContentsImpl(params.browser_context, params.render_process_affinity);
   RenderFrameHostImpl* opener_rfh = FindOpenerRFH(params);
   FrameTreeNode* opener = nullptr;
   if (opener_rfh)
@@ -469,7 +469,8 @@ WebContentsImpl::WebContentsTreeNode::inner_web_contents() const {
 
 // WebContentsImpl -------------------------------------------------------------
 
-WebContentsImpl::WebContentsImpl(BrowserContext* browser_context)
+WebContentsImpl::WebContentsImpl(BrowserContext* browser_context,
+                                 int render_process_affinity)
     : delegate_(nullptr),
       controller_(this, browser_context),
       render_view_host_delegate_view_(nullptr),
@@ -478,7 +479,8 @@ WebContentsImpl::WebContentsImpl(BrowserContext* browser_context)
                   this,
                   this,
                   this,
-                  this),
+                  this,
+                  render_process_affinity),
       node_(this),
       is_load_to_different_document_(false),
       crashed_status_(base::TERMINATION_STATUS_STILL_RUNNING),
@@ -645,7 +647,7 @@ WebContentsImpl* WebContentsImpl::CreateWithOpener(
   FrameTreeNode* opener = nullptr;
   if (opener_rfh)
     opener = opener_rfh->frame_tree_node();
-  WebContentsImpl* new_contents = new WebContentsImpl(params.browser_context);
+  WebContentsImpl* new_contents = new WebContentsImpl(params.browser_context, params.render_process_affinity);
   new_contents->SetOpenerForNewContents(opener, params.opener_suppressed);
 
   // If the opener is sandboxed, a new popup must inherit the opener's sandbox
@@ -1773,6 +1775,11 @@ void WebContentsImpl::Init(const WebContents::CreateParams& params) {
   if (!site_instance)
     site_instance = SiteInstance::Create(params.browser_context);
 
+  // If we have affinity to a particular render process, then get the process
+  // now, or forever hold your peace.
+  if (params.render_process_affinity != SiteInstance::kNoProcessAffinity)
+    site_instance->GetProcess(params.render_process_affinity);
+
   // A main RenderFrameHost always has a RenderWidgetHost, since it is always a
   // local root by definition.
   // TODO(avi): Once RenderViewHostImpl has-a RenderWidgetHostImpl, it will no
@@ -2400,6 +2407,7 @@ void WebContentsImpl::CreateNewWindow(
   create_params.routing_id = render_view_route_id;
   create_params.main_frame_routing_id = main_frame_route_id;
   create_params.main_frame_widget_routing_id = main_frame_widget_route_id;
+  create_params.render_process_affinity = frame_tree_.RenderProcessAffinity();
   create_params.main_frame_name = params.frame_name;
   create_params.opener_render_process_id = render_process_id;
   create_params.opener_render_frame_id = opener->GetRoutingID();
