@@ -472,6 +472,15 @@ void WebScene::AddInterface(const char* name,
     d_interface_registry.AddInterface(name, factory);
 }
 
+// blink::WebViewClient overrides
+blink::WebLayerTreeView* WebScene::InitializeLayerTreeView()
+{
+    d_webLayerTreeView =
+        std::make_unique<blink::WebLayerTreeView>();
+
+    return d_webLayerTreeView.get();
+}
+
 // blink::WebFrameClient overrides
 void WebScene::DidFailLoad(const blink::WebURLError&, blink::WebHistoryCommitType)
 {
