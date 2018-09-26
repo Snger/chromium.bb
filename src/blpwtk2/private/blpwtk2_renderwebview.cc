@@ -837,29 +837,13 @@ void RenderWebView::sendScreenRects()
         return;
     }
 
-    RECT view_screen_rect, window_screen_rect;
-
+    RECT view_screen_rect;
     GetWindowRect(d_hwnd.get(), &view_screen_rect);
-
-    auto root_hwnd = GetAncestor(d_hwnd.get(), GA_ROOT);
-    GetWindowRect(root_hwnd, &window_screen_rect);
-
-    if (::IsZoomed(root_hwnd)) {
-        auto frame_size_horz = GetSystemMetrics(SM_CXSIZEFRAME),
-             frame_size_vert = GetSystemMetrics(SM_CYSIZEFRAME);
-
-        auto border_padding_horz = GetSystemMetrics(SM_CXPADDEDBORDER),
-             border_padding_vert = GetSystemMetrics(SM_CXPADDEDBORDER);
-
-        window_screen_rect.left   += frame_size_horz + border_padding_horz;
-        window_screen_rect.top    += frame_size_vert + border_padding_vert;
-        window_screen_rect.right  -= frame_size_horz + border_padding_horz;
-        window_screen_rect.bottom -= frame_size_vert + border_padding_vert;
-    }
 
     dispatchToRenderViewImpl(
         ViewMsg_UpdateScreenRects(d_renderViewRoutingId,
-            gfx::Rect(view_screen_rect), gfx::Rect(window_screen_rect)));
+            gfx::Rect(view_screen_rect),
+            gfx::Rect(view_screen_rect)));
 }
 
 void RenderWebView::dispatchInputEvent(const blink::WebInputEvent& event)
