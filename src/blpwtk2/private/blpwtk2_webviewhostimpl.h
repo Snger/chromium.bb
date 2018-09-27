@@ -150,6 +150,7 @@ class WebViewHostImpl final : private WebViewImplClient
                      applyRegionCallback callback) override;
     void clearTooltip() override;
     void setParent(unsigned int window) override;
+    void rootWindowCompositionChanged() override;
 
     DISALLOW_COPY_AND_ASSIGN(WebViewHostImpl);
 
