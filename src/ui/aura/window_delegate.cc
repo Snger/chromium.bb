@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Bloomberg Finance L.P.
+ * Copyright (C) 2018 Bloomberg Finance L.P.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -20,22 +20,12 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef INCLUDED_BLPWTK2_WEBVIEWPROPERTIES_H
-#define INCLUDED_BLPWTK2_WEBVIEWPROPERTIES_H
+#include "ui/aura/window_delegate.h"
 
-#include <blpwtk2_config.h>
+namespace aura {
 
-namespace blpwtk2 {
+bool WindowDelegate::ShouldTryFocusOnMouseDown() const {
+  return true;
+}
 
-struct WebViewProperties {
-    bool takeKeyboardFocusOnMouseDown;
-    bool takeLogicalFocusOnMouseDown;
-    bool activateWindowOnMouseDown;
-    bool domPasteEnabled;
-    bool javascriptCanAccessClipboard;
-    bool rerouteMouseWheelToAnyRelatedWindow;
-};
-
-}  // close namespace blpwtk2
-
-#endif  // INCLUDED_BLPWTK2_WEBVIEWPROPERTIES_H
+}  // namespace aura
