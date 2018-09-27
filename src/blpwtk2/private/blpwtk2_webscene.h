@@ -34,6 +34,7 @@
 
 namespace blink {
 class WebView;
+class WebLayerTreeView;
 class WebLocalFrame;
 class WebFrameWidget;
 class WebURLRequest;
@@ -74,6 +75,7 @@ class WebScene final : public WebView
     std::unique_ptr<
         blink::WebFrameWidget,
         CloseDeleter<blink::WebFrameWidget>> d_webFrameWidget;
+    std::unique_ptr<blink::WebLayerTreeView> d_webLayerTreeView;
 
     std::unique_ptr<blink::WebURLRequest> d_urlRequest;
     std::unique_ptr<WebSceneFrame> d_mainFrame;
@@ -140,6 +142,9 @@ class WebScene final : public WebView
     // blink::InterfaceRegistry overrides:
     void AddInterface(const char* name,
                       const blink::InterfaceFactory& factory) override;
+
+    // blink::WebViewClient overrides:
+    blink::WebLayerTreeView* InitializeLayerTreeView() override;
 
     // blink::WebFrameClient overrides:
     void DidFailLoad(const blink::WebURLError&, blink::WebHistoryCommitType) override;
