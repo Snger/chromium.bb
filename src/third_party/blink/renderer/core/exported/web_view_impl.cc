@@ -1968,6 +1968,11 @@ WebInputEventResult WebViewImpl::HandleInputEvent(
   if (!MainFrameImpl())
     return WebInputEventResult::kNotHandled;
 
+  // blpwtk2: Ignore input events if page is null. This check is copied from
+  // WebViewImpl::ThemeChanged defined above.
+  if (!GetPage())
+    return WebInputEventResult::kNotHandled;
+
   DCHECK(!WebInputEvent::IsTouchEventType(input_event.GetType()));
 
   GetPage()->GetVisualViewport().StartTrackingPinchStats();
