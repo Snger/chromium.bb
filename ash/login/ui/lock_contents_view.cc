@@ -463,14 +463,11 @@ void LockContentsView::OnUsersChanged(
     const std::vector<mojom::LoginUserInfoPtr>& users) {
   // The debug view will potentially call this method many times. Make sure to
   // invalidate any child references.
+  main_view_->RemoveAllChildViews(true /*delete_children*/);
   opt_secondary_big_view_ = nullptr;
   users_list_ = nullptr;
   rotation_actions_.clear();
   users_.clear();
-  // Removing child views can change focus, which may result in LockContentsView
-  // getting focused. Make sure to clear internal references before that happens
-  // so there is not stale-pointer usage. See crbug.com/884402.
-  main_view_->RemoveAllChildViews(true /*delete_children*/);
 
   // If there are no users, show gaia signin if login, otherwise crash.
   if (users.empty()) {
@@ -514,11 +511,6 @@ void LockContentsView::OnUsersChanged(
   // Force layout.
   PreferredSizeChanged();
   Layout();
-
-  // If one of the child views had focus before we deleted them, then this view
-  // will get focused. Move focus back to the primary big view.
-  if (HasFocus())
-    primary_big_view_->RequestFocus();
 }
 
 void LockContentsView::OnPinEnabledForUserChanged(const AccountId& user,
