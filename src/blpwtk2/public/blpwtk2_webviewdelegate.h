@@ -113,6 +113,16 @@ class BLPWTK2_EXPORT WebViewDelegate {
                            bool     finalUpdate) {}
         // Invoked response to a WebView::find method call to report
         // find-on-page status update.
+
+    virtual void startPerformanceTiming() {}
+        // Begin performance timing for a Chromium operation. The behavior is
+        // undefined unless 'stopTiming' is called to end this timed
+        // operation.
+
+    virtual void stopPerformanceTiming() {}
+        // End performance timing for a Chromium operation. The behavior is
+        // undefined unless there was a corresponding 'startTiming' call that
+        // preceded this call.
 };
 
 }  // close namespace blpwtk2

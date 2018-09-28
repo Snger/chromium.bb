@@ -310,7 +310,8 @@ std::unique_ptr<cc::LayerTreeHost> RenderWidgetCompositor::CreateLayerTreeHost(
     cc::LayerTreeHostSingleThreadClient* single_thread_client,
     cc::MutatorHost* mutator_host,
     CompositorDependencies* deps,
-    const ScreenInfo& screen_info) {
+    const ScreenInfo& screen_info,
+    int routing_id) {
   base::CommandLine* cmd = base::CommandLine::ForCurrentProcess();
   const bool is_threaded = !!deps->GetCompositorImplThreadTaskRunner();
   cc::LayerTreeSettings settings = GenerateLayerTreeSettings(
@@ -325,6 +326,7 @@ std::unique_ptr<cc::LayerTreeHost> RenderWidgetCompositor::CreateLayerTreeHost(
   params.main_task_runner = deps->GetCompositorMainThreadTaskRunner();
   params.mutator_host = mutator_host;
   params.ukm_recorder_factory = deps->CreateUkmRecorderFactory();
+  params.routing_id = routing_id;
   if (base::TaskScheduler::GetInstance()) {
     // The image worker thread needs to allow waiting since it makes discardable
     // shared memory allocations which need to make synchronous calls to the
