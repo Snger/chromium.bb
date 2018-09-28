@@ -69,13 +69,13 @@ class WebScene final : public WebView
 
     WebViewDelegate *d_delegate;
 
+    std::unique_ptr<blink::WebLayerTreeView> d_webLayerTreeView;
     std::unique_ptr<
         blink::WebView,
         CloseDeleter<blink::WebView>> d_webView;
     std::unique_ptr<
         blink::WebFrameWidget,
         CloseDeleter<blink::WebFrameWidget>> d_webFrameWidget;
-    std::unique_ptr<blink::WebLayerTreeView> d_webLayerTreeView;
 
     std::unique_ptr<blink::WebURLRequest> d_urlRequest;
     std::unique_ptr<WebSceneFrame> d_mainFrame;
