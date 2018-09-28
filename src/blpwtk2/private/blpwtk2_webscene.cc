@@ -111,6 +111,9 @@ void WebSceneFrame::setContentSettingsDelegate(
 WebScene::WebScene(WebViewDelegate *delegate, const blpwtk2::StringRef& html)
     : d_delegate(delegate)
 {
+    d_webLayerTreeView.reset(
+        new blink::WebLayerTreeView());
+
     d_webView.reset(
         blink::WebView::Create(
             this,
@@ -475,9 +478,6 @@ void WebScene::AddInterface(const char* name,
 // blink::WebViewClient overrides
 blink::WebLayerTreeView* WebScene::InitializeLayerTreeView()
 {
-    d_webLayerTreeView =
-        std::make_unique<blink::WebLayerTreeView>();
-
     return d_webLayerTreeView.get();
 }
 
