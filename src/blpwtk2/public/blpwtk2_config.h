@@ -81,7 +81,7 @@
 // feature 37
 // feature 38
 // feature 39
-
+#define BLPWTK2_FEATURE_EMBEDDER_IPC
 
 namespace blpwtk2 {
 

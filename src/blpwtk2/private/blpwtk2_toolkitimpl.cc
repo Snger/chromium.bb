@@ -669,7 +669,15 @@ void ToolkitImpl::setTraceThreshold(unsigned int timeoutMS)
     d_messagePump->setTraceThreshold(timeoutMS);
 }
 
-}  // close namespace blpwtk2
+void ToolkitImpl::opaqueMessageToRendererAsync(int pid, const StringRef &message)
+{
+    ProcessHostImpl::opaqueMessageToRendererAsync(pid, message);
+}
 
+void ToolkitImpl::setIPCDelegate(ProcessHostDelegate *delegate)
+{
+    ProcessHostImpl::setIPCDelegate(delegate);
+}
+}  // close namespace blpwtk2
 // vim: ts=4 et
 

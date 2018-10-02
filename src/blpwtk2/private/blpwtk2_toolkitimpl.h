@@ -26,6 +26,7 @@
 #include <blpwtk2_config.h>
 
 #include <blpwtk2_contentmaindelegateimpl.h>
+#include <blpwtk2_processhostdelegate.h>
 #include <blpwtk2_toolkit.h>
 
 #include <mojo/public/cpp/bindings/sync_call_restrictions.h>
@@ -137,6 +138,8 @@ class ToolkitImpl : public Toolkit {
     void addOriginToTrustworthyList(const StringRef& originString) override;
     void setWebViewHostObserver(WebViewHostObserver* observer) override;
     void setTraceThreshold(unsigned int timeoutMS) override;
+    void opaqueMessageToRendererAsync(int pid, const StringRef &message) override;
+    void setIPCDelegate(ProcessHostDelegate *delegate) override;
 };
 
 }  // close namespace blpwtk2
