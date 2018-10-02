@@ -300,6 +300,13 @@ void ProfileImpl::setPacUrl(const StringRef& url)
     d_hostPtr->setPacUrl(std::string(url.data(), url.size()));
 }
 
+void ProfileImpl::dumpDiagnostics(DiagnosticInfoType type,
+                                  const StringRef&   path)
+{
+    d_hostPtr->dumpDiagnostics(static_cast<int>(type),
+                               std::string(path.data(), path.size()));
+}
+
 }  // close namespace blpwtk2
 
 // vim: ts=4 et
