@@ -87,6 +87,8 @@ enum {
     IDM_TEST_V8_APPEND_ELEMENT,
     IDM_TEST_PLAY_KEYBOARD_EVENTS,
     IDM_TEST_DUMP_LAYOUT_TREE,
+    IDM_SEND_IPC_ASYNC,
+    IDM_SEND_IPC_SYNC,
     IDM_LANGUAGES,
     IDM_LANGUAGE_DE,
     IDM_LANGUAGE_EN_GB,
@@ -119,6 +121,8 @@ static const char LANGUAGE_PT_PT[] = "pt-PT";
 static const char LANGUAGE_RU[] = "ru-RU";
 
 class Shell;
+class ProcessClientDelegateImpl;
+class ProcessHostDelegateImpl;
 int registerShellWindowClass();
 Shell* createShell(blpwtk2::Profile* profile, blpwtk2::WebView* webView = 0, bool forDevTools = false);
 blpwtk2::ResourceLoader* createInProcessResourceLoader();
@@ -555,6 +559,40 @@ public:
 };
 std::set<Shell*> Shell::s_shells;
 
+class ProcessClientDelegateImpl: public blpwtk2::ProcessClientDelegate {
+public:
+    void onRendererReceivedAsync(const blpwtk2::StringRef& message) override
+    {
+        std::cout << "Renderer received Async message: "
+                  << std::string(message.data(), message.size())
+                  << std::endl;
+    }
+};
+
+class ProcessHostDelegateImpl: public blpwtk2::ProcessHostDelegate {
+public:
+    void onBrowserReceivedAsync(int pid, const blpwtk2::StringRef& message) override
+    {
+        std::cout << "Browser(pid: " << GetCurrentProcessId() << ")" << " received Async message from pid " << pid << ": "
+                  << std::string(message.data(), message.size())
+                  << std::endl;
+
+        std::cout << "Browser async responses with ACK to pid " << pid << std::endl;
+        g_toolkit->opaqueMessageToRendererAsync(pid, "ACK");
+    }
+
+    blpwtk2::String onBrowserReceivedSync(int pid, const blpwtk2::StringRef& message) override
+    {
+        std::cout << "Browser(pid: " << GetCurrentProcessId() << ")" << " received Sync message from pid " << pid << ": "
+                  << std::string(message.data(), message.size())
+                  << std::endl;
+
+        std::cout << "Browser responses with ACK" << std::endl;
+
+        return blpwtk2::String("ACK");
+    }
+};
+
 void runMessageLoop()
 {
     while (GetMessage(&g_msg, NULL, 0, 0) > 0) {
@@ -728,6 +766,25 @@ void runHost()
     ::CloseHandle(g_hJob);
 }
 
+void testBrowserV8() {
+    v8::Isolate *isolate = v8::Isolate::GetCurrent();
+    v8::Isolate::Scope isolate_scope(isolate);
+    v8::HandleScope handle_scope(isolate);
+    v8::Local<v8::Context> context = v8::Context::New(isolate);
+    v8::Context::Scope context_scope(context);
+
+    v8::Local<v8::String> source =
+        v8::String::NewFromUtf8(isolate, "'Hello' + ', World!'",
+                            v8::NewStringType::kNormal).ToLocalChecked();
+
+    v8::Local<v8::Script> script =
+                v8::Script::Compile(context, source).ToLocalChecked();
+    v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
+
+    v8::String::Utf8Value utf8(isolate, result);
+    std::cout << "Browser V8 Hello world test -- " << *utf8 << std::endl;
+}
+
 int main(int, const char**)
 {
     g_instance = GetModuleHandle(NULL);
@@ -834,6 +891,7 @@ int main(int, const char**)
     else {
         toolkitParams.setThreadMode(blpwtk2::ThreadMode::ORIGINAL);
         toolkitParams.disableInProcessRenderer();
+        toolkitParams.setBrowserV8Enabled(true);
     }
 
     toolkitParams.setHeaderFooterHTML(getHeaderFooterHTMLContent());
@@ -841,8 +899,11 @@ int main(int, const char**)
     toolkitParams.setDictionaryPath(g_dictDir);
 
     g_toolkit = blpwtk2::ToolkitFactory::create(toolkitParams);
+    ProcessHostDelegateImpl hostIPCDelegate;
+    g_toolkit->setIPCDelegate(&hostIPCDelegate);
 
     if (isProcessHost && host == blpwtk2::ThreadMode::ORIGINAL) {
+        testBrowserV8();
         runHost();
         g_toolkit->destroy();
         g_toolkit = 0;
@@ -865,6 +926,9 @@ int main(int, const char**)
     }
 
     g_languages.insert(LANGUAGE_EN_US);
+
+    ProcessClientDelegateImpl clientIPCDelegate;
+    g_profile->setIPCDelegate(&clientIPCDelegate);
 
     if (isProcessHost && host == blpwtk2::ThreadMode::RENDERER_MAIN) {
         runHost();
@@ -958,6 +1022,18 @@ LRESULT CALLBACK shellWndProc(HWND hwnd,        // handle to window
         case IDM_TEST_PLAY_KEYBOARD_EVENTS:
             testPlayKeyboardEvents(shell->d_mainWnd, shell->webView());
             return 0;
+        case IDM_SEND_IPC_ASYNC:
+            std::cout << "ASYNC IPC from renderer to browser: 'Hello Browser'" << std::endl;
+            g_profile->opaqueMessageToBrowserAsync("Hello Browser");
+            return 0;
+        case IDM_SEND_IPC_SYNC:
+        {
+            std::cout << "SYNC IPC from renderer to browser: 'Hello Browser'" << std::endl;
+            blpwtk2::String result = g_profile->opaqueMessageToBrowserSync("Hello Browser");
+
+            std::cout << "Renderer received SYNC response: " << std::string(result.data(), result.size()) << std::endl;
+            return 0;
+        }
         case IDM_LANGUAGE_DE:
             toggleLanguage(shell->d_profile, LANGUAGE_DE);
             return 0;
@@ -1144,6 +1220,10 @@ Shell* createShell(blpwtk2::Profile* profile, blpwtk2::WebView* webView, bool fo
     AppendMenu(testMenu, MF_STRING, IDM_TEST_V8_APPEND_ELEMENT, L"Append Element Using &V8");
     AppendMenu(testMenu, MF_STRING, IDM_TEST_PLAY_KEYBOARD_EVENTS, L"Test Play Keyboard Events");
     AppendMenu(testMenu, MF_STRING, IDM_TEST_DUMP_LAYOUT_TREE, L"Dump Layout Tree");
+    HMENU ipcMenu = CreateMenu();
+    AppendMenu(ipcMenu, MF_STRING, IDM_SEND_IPC_SYNC, L"Send IPC sync from renderer to browser");
+    AppendMenu(ipcMenu, MF_STRING, IDM_SEND_IPC_ASYNC, L"Send IPC async from renderer to browser");
+    AppendMenu(testMenu, MF_POPUP, (UINT_PTR)ipcMenu, L"&IPC");
     AppendMenu(menu, MF_POPUP, (UINT_PTR)testMenu, L"&Test");
     HMENU languagesMenu = CreateMenu();
     AppendMenu(languagesMenu, MF_STRING, IDM_LANGUAGE_DE, L"&German");

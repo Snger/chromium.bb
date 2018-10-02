@@ -243,6 +243,10 @@ shared_library("blpwtk2") {
     "public/blpwtk2_webviewdelegate.h",
     "public/blpwtk2_webviewhostobserver.cc",
     "public/blpwtk2_webviewhostobserver.h",
+    "public/blpwtk2_processclientdelegate.h",
+    "public/blpwtk2_processclientdelegate.cc",
+    "public/blpwtk2_processhostdelegate.h",
+    "public/blpwtk2_processhostdelegate.cc",
   ]
 
   defines = [

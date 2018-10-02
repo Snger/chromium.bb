@@ -119,6 +119,9 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     void clearBypassRules() override;
     void setPacUrl(const StringRef& url) override;
 
+    void opaqueMessageToBrowserAsync(const StringRef& msg) override;
+    String opaqueMessageToBrowserSync(const StringRef& msg) override;
+    void setIPCDelegate(ProcessClientDelegate *delegate) override;
     // content::BrowserContext overrides
     std::unique_ptr<content::ZoomLevelDelegate> CreateZoomLevelDelegate(
         const base::FilePath& partition_path) override;

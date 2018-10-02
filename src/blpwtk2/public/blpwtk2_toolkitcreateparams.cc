@@ -62,6 +62,7 @@ struct ToolkitCreateParamsImpl final
     bool d_inProcessResizeOptimizationDisabled;
     std::string d_profileDirectory;
     bool d_isIsolatedProfile;
+    bool d_browserV8Enabled;
 
     ToolkitCreateParamsImpl();
 };
@@ -87,6 +88,7 @@ ToolkitCreateParamsImpl::ToolkitCreateParamsImpl()
     , d_useDefaultPrintSettings(false)
     , d_inProcessResizeOptimizationDisabled(false)
     , d_isIsolatedProfile(true)
+    , d_browserV8Enabled(false)
 {
 }
 
@@ -243,10 +245,15 @@ void ToolkitCreateParams::setProfileDirectory(const StringRef& profileDir)
     d_impl->d_profileDirectory = std::string(profileDir.data(),
                                              profileDir.size());
 }
-    
+
 void ToolkitCreateParams::disableIsolatedProfile()
 {
     d_impl->d_isIsolatedProfile = false;
+}
+
+void ToolkitCreateParams::setBrowserV8Enabled(bool browserV8Enabled)
+{
+    d_impl->d_browserV8Enabled = browserV8Enabled;
 }
 
 ThreadMode ToolkitCreateParams::threadMode() const
@@ -359,6 +366,11 @@ StringRef ToolkitCreateParams::subProcessModule() const
 bool ToolkitCreateParams::isInProcessResizeOptimizationDisabled() const
 {
     return d_impl->d_inProcessResizeOptimizationDisabled;
+}
+
+bool ToolkitCreateParams::browserV8Enabled() const
+{
+    return d_impl->d_browserV8Enabled;
 }
 
 StringRef ToolkitCreateParams::profileDirectory() const

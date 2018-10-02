@@ -421,6 +421,22 @@ void BrowserContextImpl::setPacUrl(const StringRef& url)
     d_requestContextGetter->setProxyConfig(*d_proxyConfig);
 }
 
+void BrowserContextImpl::opaqueMessageToBrowserAsync(const StringRef& msg)
+{
+    NOTREACHED();
+}
+
+String BrowserContextImpl::opaqueMessageToBrowserSync(const StringRef& msg)
+{
+    NOTREACHED();
+    return String();
+}
+
+void BrowserContextImpl::setIPCDelegate(ProcessClientDelegate *delegate)
+{
+    NOTREACHED();
+}
+
 // content::BrowserContext overrides
 std::unique_ptr<content::ZoomLevelDelegate>
 BrowserContextImpl::CreateZoomLevelDelegate(

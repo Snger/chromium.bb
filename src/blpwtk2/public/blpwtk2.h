@@ -39,7 +39,8 @@
 #include <blpwtk2_webframe.h>
 #include <blpwtk2_webview.h>
 #include <blpwtk2_webviewdelegate.h>
-
+#include <blpwtk2_processclientdelegate.h>
+#include <blpwtk2_processhostdelegate.h>
 
 #endif  // INCLUDED_BLPWTK2_H
 

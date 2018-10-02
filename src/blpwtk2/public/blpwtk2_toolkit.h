@@ -94,6 +94,7 @@ class StringRef;
 class WebView;
 class WebViewDelegate;
 class WebViewHostObserver;
+class ProcessHostDelegate;
 
                         // =============
                         // class Toolkit
@@ -183,6 +184,9 @@ class Toolkit {
         // If non-zero, defines the time threshold for enabling trace
         // (in milliseconds)
 
+    virtual void opaqueMessageToRendererAsync(int pid, const StringRef &message) = 0;
+
+    virtual void setIPCDelegate(ProcessHostDelegate *delegate) = 0;
   protected:
     virtual ~Toolkit();
         // Destroy this Toolkit object.  Note that embedders of blpwtk2 should
