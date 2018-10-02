@@ -26,7 +26,7 @@
 #include <string>
 
 namespace blpwtk2 {
-void DumpGpuInfo(std::string path);
+void DumpGpuInfo(const std::string& path);
 }  // close namespace blpwtk2
 
 

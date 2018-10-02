@@ -22,6 +22,7 @@
 
 #include <blpwtk2_utility.h>
 #include <blpwtk2_webviewproxy.h>
+#include "blpwtk2_version.h"
 
 #include <base/command_line.h>
 #include <base/json/json_writer.h>
@@ -30,11 +31,34 @@
 #include <content/browser/gpu/gpu_data_manager_impl.h>
 #include <content/browser/gpu/gpu_internals_ui.h>
 #include <third_party/angle/src/common/version.h>
+
 #include <fstream>
 
 namespace blpwtk2 {
 
-void DumpGpuInfo(std::string path) {
+// https://chromium.googlesource.com/chromium/src/+/96bd9ef90d95efa332485195e03c63477b90bb07%5E%21
+// The manually-updated software_rendering_list and gpu_driver_bug_list versions
+// are replaced them with Chromium git commit hashes.
+// software_rendering_list_url and gpu_driver_bug_list_url are added for
+// convenience
+namespace {
+const std::string g_chromiumGitUrlBase{
+    "https://chromium.googlesource.com/chromium/src/+/"};
+const std::string g_gpuListVersion{CHROMIUM_VERSION};
+const std::string g_softwareRenderingList{
+    "gpu/config/software_rendering_list.json"};
+const std::string g_gpuDriverBugList{
+    "gpu/config/gpu_driver_bug_list.json"};
+
+std::string createSourcePermalink(const std::string& revisionIdentifier,
+                                  const std::string& filepath) {
+  // Example: https://chromium.googlesource.com/chromium/src/+/67.0.3396.127/gpu/config/software_rendering_list.json
+  return g_chromiumGitUrlBase + revisionIdentifier + "/" + filepath;
+}
+
+}  // namespace
+
+void DumpGpuInfo(const std::string& path) {
     base::DictionaryValue gpuInfo;
     gpuInfo.Set("featureStatus", content::GetFeatureStatus());
     gpuInfo.Set("problems", content::GetProblems());
@@ -57,12 +81,14 @@ void DumpGpuInfo(std::string path) {
 
     gpuInfo.SetString("angle_commit_id", ANGLE_COMMIT_HASH);
     gpuInfo.SetString("graphics_backend", "Skia");
-    gpuInfo.SetString("blacklist_version",
-        content::GpuDataManagerImpl::GetInstance()->GetBlacklistVersion());
-
-    gpuInfo.SetString("driver_bug_list_version",
-        content::GpuDataManagerImpl::GetInstance()->GetDriverBugListVersion());
-
+    gpuInfo.SetString("blacklist_version", g_gpuListVersion);
+    gpuInfo.SetString("driver_bug_list_version", g_gpuListVersion);
+    gpuInfo.SetString(
+        "software_rendering_list_url",
+        createSourcePermalink(g_gpuListVersion, g_softwareRenderingList));
+    gpuInfo.SetString(
+        "gpu_driver_bug_list_url",
+        createSourcePermalink(g_gpuListVersion, g_gpuDriverBugList));
     std::string json;
     base::JSONWriter::Write(gpuInfo, &json);
 
