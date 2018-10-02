@@ -170,6 +170,9 @@ class ProfileImpl : public Profile {
         // Requires browser context
 
     void setPacUrl(const StringRef& url) override;
+
+    void dumpDiagnostics(DiagnosticInfoType type,
+                         const StringRef&   path) override;
 };
 
 }  // close namespace blpwtk2
