@@ -146,7 +146,8 @@ class CORE_EXPORT CompositeEditCommand : public EditCommand {
   void MoveRemainingSiblingsToNewParent(Node*,
                                         Node* past_last_node_to_move,
                                         Element* new_parent,
-                                        EditingState*);
+                                        EditingState*,
+                                        Node* prpRefChild = nullptr);
   void UpdatePositionForNodeRemovalPreservingChildren(Position&, Node&);
   void Prune(Node*, EditingState*, Node* exclude_node = nullptr);
   void ReplaceTextInNode(Text*,
@@ -213,6 +214,13 @@ class CORE_EXPORT CompositeEditCommand : public EditCommand {
 
   Position PositionAvoidingSpecialElementBoundary(const Position&,
                                                   EditingState*);
+
+  bool prepareForBlockCommand(VisiblePosition& startOfSelection, VisiblePosition& endOfSelection,
+                              ContainerNode*& startScope, ContainerNode*& endScope,
+                              int& startIndex, int& endIndex,
+                              bool includeEmptyParagraphAtEnd);
+  void finishBlockCommand(ContainerNode* startScope, ContainerNode* endScope,
+                          int startIndex, int endIndex);
 
   Node* SplitTreeToNode(Node*, Node*, bool split_ancestor = false);
 
