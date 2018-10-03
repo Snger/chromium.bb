@@ -29,6 +29,7 @@
 #include "third_party/blink/renderer/core/editing/visible_position.h"
 #include "third_party/blink/renderer/core/editing/visible_units.h"
 #include "third_party/blink/renderer/core/html/forms/text_control_element.h"
+#include "third_party/blink/renderer/core/layout/layout_table_cell.h"
 #include "third_party/blink/renderer/core/layout/layout_text.h"
 #include "third_party/blink/renderer/core/layout/layout_text_fragment.h"
 #include "third_party/blink/renderer/core/layout/layout_view.h"
@@ -300,9 +301,13 @@ static void SetShouldInvalidateSelection(
   // We invalidate each LayoutObject in new SelectionPaintRange which
   // has SelectionState of kStart, kEnd, kStartAndEnd, or kInside
   // and is not in old SelectionPaintRange.
+  // blpwtk2: Include the fully-selected table cells.
   for (LayoutObject* layout_object : new_range.LayoutObjects()) {
-    if (old_selected_objects.Contains(layout_object))
+    if (old_selected_objects.Contains(layout_object) && 
+        !(layout_object->IsTableCell() &&
+          ToLayoutTableCell(layout_object)->IsFullySelected())) {
       continue;
+    }
     const SelectionState new_state = layout_object->GetSelectionState();
     DCHECK_NE(new_state, SelectionState::kContain) << layout_object;
     DCHECK_NE(new_state, SelectionState::kNone) << layout_object;

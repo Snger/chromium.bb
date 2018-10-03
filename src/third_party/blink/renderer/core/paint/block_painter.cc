@@ -10,6 +10,7 @@
 #include "third_party/blink/renderer/core/layout/api/line_layout_box.h"
 #include "third_party/blink/renderer/core/layout/layout_flexible_box.h"
 #include "third_party/blink/renderer/core/layout/layout_inline.h"
+#include "third_party/blink/renderer/core/layout/layout_table_cell.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/paint/adjust_paint_offset_scope.h"
 #include "third_party/blink/renderer/core/paint/block_flow_painter.h"
@@ -234,7 +235,8 @@ void BlockPainter::PaintObject(const PaintInfo& paint_info,
 
   if (ShouldPaintSelfBlockBackground(paint_phase)) {
     if (layout_block_.Style()->Visibility() == EVisibility::kVisible &&
-        layout_block_.HasBoxDecorationBackground())
+        (layout_block_.HasBoxDecorationBackground() ||
+        (layout_block_.IsTableCell() && ToLayoutTableCell(layout_block_).IsFullySelected())))
       layout_block_.PaintBoxDecorationBackground(paint_info, paint_offset);
     // Record the scroll hit test after the background so background squashing
     // is not affected. Hit test order would be equivalent if this were

@@ -27,6 +27,9 @@
 
 #include "third_party/blink/renderer/core/css/css_property_value_set.h"
 #include "third_party/blink/renderer/core/editing/editing_utilities.h"
+#include "third_party/blink/renderer/core/editing/frame_selection.h"
+#include "third_party/blink/renderer/core/editing/visible_position.h"
+#include "third_party/blink/renderer/core/editing/visible_selection.h"
 #include "third_party/blink/renderer/core/html/html_table_cell_element.h"
 #include "third_party/blink/renderer/core/html_names.h"
 #include "third_party/blink/renderer/core/layout/collapsed_border_value.h"
@@ -36,6 +39,7 @@
 #include "third_party/blink/renderer/core/paint/object_paint_invalidator.h"
 #include "third_party/blink/renderer/core/paint/paint_layer.h"
 #include "third_party/blink/renderer/core/paint/table_cell_paint_invalidator.h"
+#include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/paint/table_cell_painter.h"
 #include "third_party/blink/renderer/platform/geometry/float_quad.h"
 #include "third_party/blink/renderer/platform/geometry/transform_state.h"
@@ -61,6 +65,7 @@ LayoutTableCell::LayoutTableCell(Element* element)
       cell_children_need_layout_(false),
       is_spanning_collapsed_row_(false),
       is_spanning_collapsed_column_(false),
+      is_fully_selected_(false),
       collapsed_border_values_valid_(false),
       collapsed_borders_need_paint_invalidation_(false),
       intrinsic_padding_before_(0),
@@ -296,6 +301,43 @@ void LayoutTableCell::SetCellLogicalWidth(int table_layout_logical_width,
 
   SetLogicalWidth(LayoutUnit(table_layout_logical_width));
   SetCellChildrenNeedLayout(true);
+}
+
+void LayoutTableCell::SetSelectionState(SelectionState state)
+{
+    LayoutObject::SetSelectionState(state);
+
+    if (!GetNode() || !GetNode()->GetDocument().GetFrame()) {
+        is_fully_selected_ = false;
+        return;
+    }
+
+    // Let's get back the *actual* selection state.
+    //
+    // NOTE: After calling 'SetSelectionState(state)', the actual
+    //       'selectionState()' might be different from 'state'.
+    //       See the logic in 'LayoutBoxModelObject::SetSelectionState'.
+    state = GetSelectionState();
+
+    if (SelectionState::kStart == state || SelectionState::kStartAndEnd == state) {
+        VisiblePosition selectionStart = 
+          GetNode()->GetDocument().GetFrame()->Selection().ComputeVisibleSelectionInDOMTree().VisibleStart();
+        VisiblePosition firstPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::FirstPositionInNode(*GetNode()), TextAffinity::kDownstream);
+        if (selectionStart.DeepEquivalent() != firstPos.DeepEquivalent()) {
+            is_fully_selected_ = false;
+            return;
+        }
+    }
+    if (SelectionState::kEnd == state || SelectionState::kStartAndEnd == state) {
+        VisiblePosition selectionEnd = GetNode()->GetDocument().GetFrame()->Selection().ComputeVisibleSelectionInDOMTree().VisibleEnd();
+        VisiblePosition lastPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::LastPositionInNode(*GetNode()), TextAffinity::kUpstream);
+        if (selectionEnd.DeepEquivalent() != lastPos.DeepEquivalent()) {
+            is_fully_selected_ = false;
+            return;
+        }
+    }
+
+    is_fully_selected_ = (SelectionState::kNone != state);
 }
 
 void LayoutTableCell::UpdateLayout() {

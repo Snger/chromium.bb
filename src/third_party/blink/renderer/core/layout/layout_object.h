@@ -1509,7 +1509,7 @@ class CORE_EXPORT LayoutObject : public ImageResourceObserver,
   SelectionState GetSelectionState() const {
     return bitfields_.GetSelectionState();
   }
-  void SetSelectionState(SelectionState state) {
+  virtual void SetSelectionState(SelectionState state) {
     bitfields_.SetSelectionState(state);
   }
   bool CanUpdateSelectionOnRootLineBoxes() const;
