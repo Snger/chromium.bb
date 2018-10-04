@@ -30,7 +30,6 @@ import("//mojo/public/tools/bindings/mojom.gni")
 config("blpwtk2_public") {
   include_dirs = [
     "$target_gen_dir/blpwtk2/public",
-    "$target_gen_dir/blpv8/public",
   ]
 }
 
@@ -48,13 +47,11 @@ config("blpwtk2_gen_map") {
 action("blpwtk2_generate_sources") {
   script = "//blpwtk2/gen_version.py"
   _output_blpwtk2_products_h = "$target_gen_dir/$blpwtk2_products_h"
-  _output_blpv8_products_h = "$target_gen_dir/$blpv8_products_h"
   _output_version_h = "$target_gen_dir/$version_h"
   _output_version_cc = "$target_gen_dir/$version_cc"
 
   outputs = [
     _output_blpwtk2_products_h,
-    _output_blpv8_products_h,
     _output_version_h,
     _output_version_cc,
   ]
@@ -64,8 +61,6 @@ action("blpwtk2_generate_sources") {
     content_shell_version,
     "--output-blpwtk2-products",
     rebase_path(_output_blpwtk2_products_h, root_build_dir),
-    "--output-blpv8-products",
-    rebase_path(_output_blpv8_products_h, root_build_dir),
     "--output-version-h",
     rebase_path(_output_version_h, root_build_dir),
     "--output-version-cc",
@@ -168,8 +163,12 @@ shared_library("blpwtk2") {
     "private/blpwtk2_rendererutil.h",
     "private/blpwtk2_renderviewobserverimpl.cc",
     "private/blpwtk2_renderviewobserverimpl.h",
+    "private/blpwtk2_requestinterceptorimpl.cc",
+    "private/blpwtk2_requestinterceptorimpl.h",
     "private/blpwtk2_resourcecontextimpl.cc",
     "private/blpwtk2_resourcecontextimpl.h",
+    "private/blpwtk2_resourcerequestjob.cc",
+    "private/blpwtk2_resourcerequestjob.h",
     "private/blpwtk2_statics.cc",
     "private/blpwtk2_statics.h",
     "private/blpwtk2_toolkitimpl.cc",

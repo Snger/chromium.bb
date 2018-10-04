@@ -30,7 +30,6 @@ declare_args() {
   bb_generate_map_files = false
 
   blpwtk2_products_h = "blpwtk2/public/blpwtk2_products.h"
-  blpv8_products_h = "blpv8/public/blpv8_products.h"
   version_h = "blpwtk2/public/blpwtk2_version.h"
   version_cc = "blpwtk2/public/blpwtk2_version.cc"
 

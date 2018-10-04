@@ -76,29 +76,14 @@ def writeBlpwtk2ProductsFile(f, contentShellVersion, version):
   f.write('#define BLPWTK2_SUBPROCESS_EXE_NAME "blpwtk2_subprocess{}.exe"\n'.format(productAppend))
   f.write('#define BLPWTK2_PAK_NAME "blpwtk2{}.pak"\n'.format(productAppend))
   f.write('#define BLPWTK2_ICUDTL_DAT_NAME "icudtl{}.dat"\n'.format(productAppend))
+  f.write('#define BLPWTK2_NATIVES_BLOB_NAME "natives_blob{}.bin"\n'.format(productAppend))
+  f.write('#define BLPWTK2_SNAPSHOT_BLOB_NAME "snapshot_blob{}.bin"\n'.format(productAppend))
+  f.write('#define BLPWTK2_CONTEXT_SNAPSHOT_NAME "v8_context_snapshot{}.bin"\n'.format(productAppend))
   f.write('#define BLPCR_EGL_DLL_NAME "blpcr_egl{}.dll"\n'.format(productAppend))
   f.write('#define BLPCR_GLESV2_DLL_NAME "blpcr_glesv2{}.dll"\n'.format(productAppend))
   f.write('#define FFMPEGSUMO_DLL_NAME "ffmpegsumo{}.dll"\n'.format(productAppend))
   f.write('\n')
   f.write('#endif  // INCLUDED_GENERATED_BLPWTK2_PRODUCTS\n')
-
-
-def writeBlpv8ProductsFile(f, version):
-  productAppend = ""
-  if version != "":
-    productAppend = "." + version
-
-  f.write('// generated file -- DO NOT EDIT\n')
-  f.write('#ifndef INCLUDED_GENERATED_BLPV8_PRODUCTS\n')
-  f.write('#define INCLUDED_GENERATED_BLPV8_PRODUCTS\n')
-  f.write('\n')
-  f.write('#define BLPV8_DLL_NAME "blpv8{}.dll"\n'.format(productAppend))
-  f.write('#define BLPV8_NATIVES_BLOB_NAME "natives_blob{}.bin"\n'.format(productAppend))
-  f.write('#define BLPV8_SNAPSHOT_BLOB_NAME "snapshot_blob{}.bin"\n'.format(productAppend))
-  f.write('#define BLPV8_CONTEXT_SNAPSHOT_NAME "v8_context_snapshot{}.bin"\n'.format(productAppend))
-  f.write('#define BLPV8_ICUDTL_DAT_NAME "icudtl{}.dat"\n'.format(productAppend))
-  f.write('\n')
-  f.write('#endif  // INCLUDED_GENERATED_BLPV8_PRODUCTS\n')
 
 def writeVersionFiles(fH, fCC, contentShellVersion, version):
   version, chromiumVersion, bbPatch = getVersionParts(contentShellVersion, version)
@@ -145,7 +130,6 @@ def writeVersionFiles(fH, fCC, contentShellVersion, version):
 
 def doMain(args):
   blpwtk2ProductsFile = None
-  blpv8ProductsFile = None
   versionHFile = None
   versionCCFile = None
   version = None
@@ -156,8 +140,6 @@ def doMain(args):
       contentShellVersion = args[i+1]
     elif args[i] == '--output-blpwtk2-products':
       blpwtk2ProductsFile = args[i+1]
-    elif args[i] == '--output-blpv8-products':
-      blpv8ProductsFile = args[i+1]
     elif args[i] == '--output-version-h':
       versionHFile = args[i+1]
     elif args[i] == '--output-version-cc':
@@ -167,7 +149,6 @@ def doMain(args):
         version = args[i+1]
 
   assert(blpwtk2ProductsFile != None)
-  assert(blpv8ProductsFile != None)
   assert(versionHFile != None)
   assert(versionCCFile != None)
   if version == None:
@@ -175,9 +156,6 @@ def doMain(args):
 
   with open(blpwtk2ProductsFile, 'w') as f:
     writeBlpwtk2ProductsFile(f, contentShellVersion, version)
-
-  with open(blpv8ProductsFile, 'w') as f:
-    writeBlpv8ProductsFile(f, version)
 
   with open(versionHFile, 'w') as fH:
     with open(versionCCFile, 'w') as fCC:
