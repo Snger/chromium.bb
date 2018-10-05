@@ -116,7 +116,7 @@ class CORE_EXPORT ChromeClientImpl final : public ChromeClient {
   void MainFrameScrollOffsetChanged() const override;
   void ResizeAfterLayout() const override;
   void LayoutUpdated() const override;
-  void ShowMouseOverURL(const HitTestResult&) override;
+  void ShowMouseOverURL(LocalFrame&, const HitTestResult&) override;
   void SetToolTip(LocalFrame&, const String&, TextDirection) override;
   void DispatchViewportPropertiesDidChange(
       const ViewportDescription&) const override;
@@ -242,6 +242,8 @@ class CORE_EXPORT ChromeClientImpl final : public ChromeClient {
   WebAutofillClient* AutofillClientFromFrame(LocalFrame*);
 
   WebViewImpl* web_view_;  // Weak pointer.
+  UntracedMember<Node> m_lastMouseOverNode; // weak pointer
+  bool m_lastTooltipHadText;
   Vector<PopupOpeningObserver*> popup_opening_observers_;
   Cursor last_set_mouse_cursor_for_testing_;
   bool cursor_overridden_;
