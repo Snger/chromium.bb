@@ -58,71 +58,21 @@ ApplyBlockElementCommand::ApplyBlockElementCommand(
     : CompositeEditCommand(document), tag_name_(tag_name) {}
 
 void ApplyBlockElementCommand::DoApply(EditingState* editing_state) {
-  // ApplyBlockElementCommands are only created directly by editor commands'
-  // execution, which updates layout before entering doApply().
-  DCHECK(!GetDocument().NeedsLayoutTreeUpdate());
+  VisiblePosition startOfSelection;
+  VisiblePosition endOfSelection;
+  ContainerNode* startScope = nullptr;
+  ContainerNode* endScope = nullptr;
+  int startIndex;
+  int endIndex;
 
-  if (!RootEditableElementOf(EndingSelection().Base()))
-    return;
+  if (!prepareForBlockCommand(startOfSelection, endOfSelection, startScope, endScope, startIndex, endIndex, false))
+      return;
 
-  VisiblePosition visible_end = EndingVisibleSelection().VisibleEnd();
-  VisiblePosition visible_start = EndingVisibleSelection().VisibleStart();
-  if (visible_start.IsNull() || visible_start.IsOrphan() ||
-      visible_end.IsNull() || visible_end.IsOrphan())
-    return;
-
-  // When a selection ends at the start of a paragraph, we rarely paint
-  // the selection gap before that paragraph, because there often is no gap.
-  // In a case like this, it's not obvious to the user that the selection
-  // ends "inside" that paragraph, so it would be confusing if Indent/Outdent
-  // operated on that paragraph.
-  // FIXME: We paint the gap before some paragraphs that are indented with left
-  // margin/padding, but not others.  We should make the gap painting more
-  // consistent and then use a left margin/padding rule here.
-  if (visible_end.DeepEquivalent() != visible_start.DeepEquivalent() &&
-      IsStartOfParagraph(visible_end)) {
-    const Position& new_end =
-        PreviousPositionOf(visible_end, kCannotCrossEditingBoundary)
-            .DeepEquivalent();
-    SelectionInDOMTree::Builder builder;
-    builder.Collapse(visible_start.ToPositionWithAffinity());
-    if (new_end.IsNotNull())
-      builder.Extend(new_end);
-    SetEndingSelection(SelectionForUndoStep::From(builder.Build()));
-  }
-
-  VisibleSelection selection =
-      SelectionForParagraphIteration(EndingVisibleSelection());
-  VisiblePosition start_of_selection = selection.VisibleStart();
-  VisiblePosition end_of_selection = selection.VisibleEnd();
-  DCHECK(!start_of_selection.IsNull());
-  DCHECK(!end_of_selection.IsNull());
-  ContainerNode* start_scope = nullptr;
-  int start_index = IndexForVisiblePosition(start_of_selection, start_scope);
-  ContainerNode* end_scope = nullptr;
-  int end_index = IndexForVisiblePosition(end_of_selection, end_scope);
-
-  FormatSelection(start_of_selection, end_of_selection, editing_state);
+  FormatSelection(startOfSelection, endOfSelection, editing_state);  
   if (editing_state->IsAborted())
     return;
 
-  GetDocument().UpdateStyleAndLayoutIgnorePendingStylesheets();
-
-  DCHECK_EQ(start_scope, end_scope);
-  DCHECK_GE(start_index, 0);
-  DCHECK_LE(start_index, end_index);
-  if (start_scope == end_scope && start_index >= 0 &&
-      start_index <= end_index) {
-    VisiblePosition start(VisiblePositionForIndex(start_index, start_scope));
-    VisiblePosition end(VisiblePositionForIndex(end_index, end_scope));
-    if (start.IsNotNull() && end.IsNotNull()) {
-      SetEndingSelection(SelectionForUndoStep::From(
-          SelectionInDOMTree::Builder()
-              .Collapse(start.ToPositionWithAffinity())
-              .Extend(end.DeepEquivalent())
-              .Build()));
-    }
-  }
+  finishBlockCommand(startScope, endScope, startIndex, endIndex);
 }
 
 static bool IsAtUnsplittableElement(const Position& pos) {
