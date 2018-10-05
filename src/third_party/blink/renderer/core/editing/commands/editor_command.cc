@@ -1774,6 +1774,9 @@ static const EditorInternalCommand* InternalCommand(
       {WebEditingCommandType::kAlignCenter, ExecuteJustifyCenter,
        SupportedFromMenuOrKeyBinding, EnabledInRichlyEditableText, StateNone,
        ValueStateOrNull, kNotTextInsertion, CanNotExecuteWhenDisabled},
+      {WebEditingCommandType::kInsertHTMLNested, InsertCommands::ExecuteInsertHTMLNested,
+       Supported, EnabledInEditableText, StateNone, ValueStateOrNull,
+       kNotTextInsertion, CanNotExecuteWhenDisabled },
   };
   // Handles all commands except WebEditingCommandType::Invalid.
   static_assert(
