@@ -64,6 +64,9 @@ bool ResourceRequestJob::GetMimeType(std::string* mime_type) const {
   else if (EndsWith(url, ".svg"))
     mime_type->assign("image/svg+xml");
 
+  else if (EndsWith(url, ".gif"))
+    mime_type->assign("image/gif");
+
   else
     return net::URLRequestJob::GetMimeType(mime_type);
 
