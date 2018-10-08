@@ -32,6 +32,7 @@
 #include <blpwtk2_webviewproperties.h>
 #include <blpwtk2_webviewimpl.h>
 #include <blpwtk2_webviewdelegate.h>
+#include <blpwtk2_requestinterceptorimpl.h>
 
 #include <base/files/file_path.h>
 #include <base/files/file_util.h>
@@ -503,6 +504,7 @@ net::URLRequestContextGetter* BrowserContextImpl::CreateRequestContext(
     content::ProtocolHandlerMap* protocol_handlers,
     content::URLRequestInterceptorScopedVector request_interceptors)
 {
+    request_interceptors.push_back(std::make_unique<RequestInterceptorImpl>());
     requestContextGetter()->setProtocolHandlers(
             protocol_handlers, std::move(request_interceptors));
     return requestContextGetter();
