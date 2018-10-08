@@ -598,6 +598,10 @@ class CONTENT_EXPORT RenderWidgetHostViewBase
 
   bool is_currently_scrolling_viewport_;
 
+  // The default background color, which is also used as the initial
+  // background color during construction
+  static const SkColor default_background_color_{SK_ColorBLACK};
+
  private:
 #if defined(USE_AURA)
   void OnDidScheduleEmbed(int routing_id,

@@ -349,7 +349,7 @@ RenderWidgetHostViewAura::RenderWidgetHostViewAura(
       popup_child_host_view_(nullptr),
       is_loading_(false),
       has_composition_text_(false),
-      background_color_(SK_ColorWHITE),
+      background_color_(default_background_color_),
       needs_begin_frames_(false),
       added_frame_observer_(false),
       cursor_visibility_state_in_renderer_(UNKNOWN),

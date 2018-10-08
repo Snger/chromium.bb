@@ -106,7 +106,7 @@ void RenderWidgetHostViewBase::OnRenderFrameMetadataChanged() {
 void RenderWidgetHostViewBase::OnRenderFrameSubmission() {}
 
 void RenderWidgetHostViewBase::SetBackgroundColorToDefault() {
-  SetBackgroundColor(SK_ColorWHITE);
+  SetBackgroundColor(default_background_color_);
 }
 
 gfx::Size RenderWidgetHostViewBase::GetCompositorViewportPixelSize() const {

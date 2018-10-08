@@ -2429,6 +2429,7 @@ void LocalFrameView::SetBaseBackgroundColor(const Color& background_color) {
     return;
 
   base_background_color_ = background_color;
+  DisableCompositingQueryAsserts disabler;
 
   if (auto* layout_view = GetLayoutView()) {
     if (layout_view->Layer()->HasCompositedLayerMapping()) {
