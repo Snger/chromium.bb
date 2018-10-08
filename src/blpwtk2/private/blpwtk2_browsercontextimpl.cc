@@ -32,6 +32,7 @@
 #include <blpwtk2_webviewproperties.h>
 #include <blpwtk2_webviewimpl.h>
 #include <blpwtk2_webviewdelegate.h>
+#include <blpwtk2_utility.h>
 
 #include <base/files/file_path.h>
 #include <base/files/file_util.h>
@@ -418,6 +419,14 @@ void BrowserContextImpl::setPacUrl(const StringRef& url)
 
     d_proxyConfig->set_pac_url(GURL(std::string(url.data(), url.size())));
     d_requestContextGetter->setProxyConfig(*d_proxyConfig);
+}
+
+void BrowserContextImpl::dumpDiagnostics(DiagnosticInfoType type,
+                                         const StringRef&   path)
+{
+    if (DiagnosticInfoType::GPU == type) {
+        DumpGpuInfo(std::string(path.data(), path.size()));
+    }
 }
 
 // content::BrowserContext overrides
