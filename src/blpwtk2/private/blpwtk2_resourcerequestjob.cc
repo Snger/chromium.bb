@@ -46,6 +46,9 @@ bool ResourceRequestJob::GetMimeType(std::string* mime_type) const {
   std::string url = url_;
   std::transform(url.begin(), url.end(), url.begin(), ::tolower);
 
+  // Mapping from
+  // https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Complete_list_of_MIME_types
+
   if (EndsWith(url, ".html") || EndsWith(url, ".htm"))
     mime_type->assign("text/html");
 
@@ -66,6 +69,12 @@ bool ResourceRequestJob::GetMimeType(std::string* mime_type) const {
 
   else if (EndsWith(url, ".gif"))
     mime_type->assign("image/gif");
+
+  else if (EndsWith(url, ".otf"))
+    mime_type->assign("font/otf");
+
+  else if (EndsWith(url, ".ttf"))
+    mime_type->assign("font/ttf");
 
   else
     return net::URLRequestJob::GetMimeType(mime_type);
