@@ -477,6 +477,9 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   // Whether forwarded WebInputEvents should be dropped.
   bool ShouldDropInputEvents() const;
 
+  bool ShouldSetKeyboardFocusOnMouseDown() const;
+  bool ShouldSetLogicalFocusOnMouseDown() const;
+
   bool has_touch_handler() const { return has_touch_handler_; }
 
   // Set the RenderView background transparency.
