@@ -1467,7 +1467,7 @@ blink::WebLayerTreeView* RenderWidget::InitializeLayerTreeView() {
   compositor_->SetIsForOopif(for_oopif_);
   auto layer_tree_host = RenderWidgetCompositor::CreateLayerTreeHost(
       compositor_.get(), compositor_.get(), animation_host.get(),
-      compositor_deps_, screen_info_);
+      compositor_deps_, screen_info_, routing_id_);
   compositor_->Initialize(std::move(layer_tree_host),
                           std::move(animation_host));
 
