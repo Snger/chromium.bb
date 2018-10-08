@@ -173,7 +173,7 @@ InterstitialPageImpl::InterstitialPageImpl(
           this,
           this,
           this,
-          static_cast<WebContentsImpl*>(web_contents))),
+          static_cast<WebContentsImpl*>(web_contents), SiteInstance::kNoProcessAffinity)),
       original_child_id_(
           web_contents->GetRenderViewHost()->GetProcess()->GetID()),
       original_rvh_id_(web_contents->GetRenderViewHost()->GetRoutingID()),
@@ -601,6 +601,8 @@ RenderViewHostImpl* InterstitialPageImpl::CreateRenderViewHost() {
               browser_context, site_instance.get())->GetDOMStorageContext());
   session_storage_namespace_ =
       SessionStorageNamespaceImpl::Create(dom_storage_context);
+
+  // TODO: should this interstitial page support process affinity?
 
   // Use the RenderViewHost from our FrameTree.
   // TODO(avi): The view routing ID can be restored to MSG_ROUTING_NONE once

@@ -128,6 +128,12 @@ namespace storage {
 class FileSystemBackend;
 }
 
+namespace mojo {
+namespace edk {
+class OutgoingBrokerClientInvitation;
+}
+}
+
 namespace content {
 
 enum class PermissionType;
@@ -665,6 +671,24 @@ class CONTENT_EXPORT ContentBrowserClient {
   // to the embedder to update it if it wants.
   virtual void OverrideWebkitPrefs(RenderViewHost* render_view_host,
                                    WebPreferences* prefs) {}
+
+  // Returns true whether the embedder supports in-process renderers or not.
+  // When running "in process", the browser maintains a RenderProcessHost which
+  // communicates to a RenderProcess which is instantiated in the same process
+  // with the Browser. All IPC between the Browser and the Renderer is the
+  // same, it's just not crossing a process boundary. This returns false by
+  // default. If implementations return true, they must also implement
+  // StartInProcessRendererThread and StopInProcessRendererThread.
+  virtual bool SupportsInProcessRenderer();
+
+  // Start the in-process renderer thread.  This will only ever be called if
+  // SupportsInProcessRenderer() returns true.
+  virtual void StartInProcessRendererThread(
+      mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation,
+      const std::string& service_token) {}
+
+  // Stop the in-process renderer thread.
+  virtual void StopInProcessRendererThread() {}
 
   // Notifies that BrowserURLHandler has been created, so that the embedder can
   // optionally add their own handlers.

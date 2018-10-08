@@ -109,6 +109,7 @@ extern const char kDisable2dCanvasClipAntialiasing[];
 CONTENT_EXPORT extern const char kDumpBlinkRuntimeCallStats[];
 CONTENT_EXPORT extern const char kEnableAggressiveDOMStorageFlushing[];
 CONTENT_EXPORT extern const char kEnableAutomation[];
+CONTENT_EXPORT extern const char kEnableCSS3Text[];
 CONTENT_EXPORT extern const char kEnablePreferCompositingToLCDText[];
 CONTENT_EXPORT extern const char kEnableBlinkFeatures[];
 CONTENT_EXPORT extern const char kEnableBackgroundFetchPersistence[];

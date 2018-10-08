@@ -8,6 +8,7 @@ import("//build/config/linux/pkg_config.gni")
 import("//build/config/ui.gni")
 import("//testing/libfuzzer/fuzzer_test.gni")
 import("gni/angle.gni")
+import("//blpwtk2/blpwtk2.gni")
 
 declare_args() {
   # Use the PCI lib to collect GPU information on Linux.
@@ -589,6 +590,11 @@ config("angle_static") {
 }
 
 shared_library("libGLESv2${angle_libs_suffix}") {
+  if (bb_version != "") {
+    output_name = "blpcr_glesv2.$bb_version"
+  } else {
+    output_name = "blpcr_glesv2"
+  }
   sources = rebase_path(gles_gypi.libglesv2_sources, ".", "src")
 
   if (is_android) {
@@ -614,6 +620,12 @@ shared_library("libGLESv2${angle_libs_suffix}") {
     ":debug_annotations_config",
     ":extra_warnings",
     ":internal_config",
+  ]
+  if (bb_generate_map_files) {
+    configs += [ "//blpwtk2:blpwtk2_gen_map" ]
+  }
+  public_configs = [
+    "//blpwtk2:blpwtk2_public"
   ]
 
   defines = [ "LIBGLESV2_IMPLEMENTATION" ]
@@ -652,6 +664,9 @@ static_library("libGLESv2_static") {
   deps = [
     ":includes",
     ":libANGLE",
+  ]
+  public_deps = [
+    "//blpwtk2:blpwtk2_generate_sources",
   ]
 }
 
@@ -718,6 +733,11 @@ static_library("libGLESv1_CM_static") {
 }
 
 shared_library("libEGL${angle_libs_suffix}") {
+  if (bb_version != "") {
+    output_name = "blpcr_egl.$bb_version"
+  } else {
+    output_name = "blpcr_egl"
+  }
   sources = rebase_path(gles_gypi.libegl_sources, ".", "src")
 
   if (is_android) {
@@ -730,6 +750,10 @@ shared_library("libEGL${angle_libs_suffix}") {
     ":extra_warnings",
     ":internal_config",
   ]
+
+  if (bb_generate_map_files) {
+    configs += [ "//blpwtk2:blpwtk2_gen_map" ]
+  }
 
   defines = [ "LIBEGL_IMPLEMENTATION" ]
   if (is_win) {
@@ -767,6 +791,9 @@ static_library("libEGL_static") {
     ":extra_warnings",
     ":internal_config",
   ]
+  if (bb_generate_map_files) {
+    configs += [ "//blpwtk2:blpwtk2_gen_map" ]
+  }
 
   public_configs = [ ":angle_static" ]
 

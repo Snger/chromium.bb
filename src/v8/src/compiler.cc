@@ -952,7 +952,8 @@ class BackgroundCompileTask : public ScriptCompiler::ScriptStreamingTask {
  public:
   BackgroundCompileTask(ScriptStreamingData* source, Isolate* isolate);
 
-  virtual void Run();
+  void Run() override;
+  void Dispose() override;
 
  private:
   ScriptStreamingData* source_;  // Not owned.
@@ -1029,6 +1030,10 @@ void BackgroundCompileTask::Run() {
 
   source_->info->set_on_background_thread(false);
   source_->info->set_stack_limit(old_stack_limit);
+}
+
+void BackgroundCompileTask::Dispose() {
+  delete this;
 }
 
 }  // namespace

@@ -12,16 +12,20 @@
 #include "base/threading/thread_local.h"
 #include "mojo/public/c/system/core.h"
 
+#include <atomic>
+
 namespace mojo {
 
 namespace {
+
+std::atomic<bool> g_force_sync_call_allowed{false};
 
 class SyncCallSettings {
  public:
   static SyncCallSettings* current();
 
   bool allowed() const {
-    return scoped_allow_count_ > 0 || system_defined_value_;
+    return scoped_allow_count_ > 0 || system_defined_value_ || g_force_sync_call_allowed;
   }
 
   void IncreaseScopedAllowCount() { scoped_allow_count_++; }
@@ -86,6 +90,10 @@ void SyncCallRestrictions::IncreaseScopedAllowCount() {
 // static
 void SyncCallRestrictions::DecreaseScopedAllowCount() {
   SyncCallSettings::current()->DecreaseScopedAllowCount();
+}
+
+void SyncCallRestrictions::ForceSyncCallAllowed() {
+  g_force_sync_call_allowed = true;
 }
 
 }  // namespace mojo
