@@ -1054,11 +1054,8 @@ void InlineTextBoxPainter::PaintStyleableMarkerUnderline(
       inline_text_box_.LogicalHeight() - baseline >= 2)
     line_thickness = 2;
 
-  Color marker_color =
-      marker.UseTextColor()
-          ? inline_text_box_.GetLineLayoutItem().Style()->VisitedDependentColor(
-                GetCSSPropertyWebkitTextFillColor())
-          : marker.UnderlineColor();
+  Color marker_color = inline_text_box_.GetLineLayoutItem().Style()->VisitedDependentColor(
+                           GetCSSPropertyWebkitTextFillColor());
   context.SetStrokeColor(marker_color);
 
   context.SetStrokeThickness(line_thickness);
