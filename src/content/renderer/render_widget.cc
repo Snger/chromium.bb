@@ -1119,6 +1119,16 @@ bool RenderWidget::IsClosing() const {
   return host_closing_ || closing_;
 }
 
+
+void RenderWidget::bbHandleInputEvent(const blink::WebInputEvent& event) {
+  ui::LatencyInfo latency_info;
+  HandledEventCallback callback;
+
+  input_handler_->HandleInputEvent(
+      blink::WebCoalescedInputEvent(event, std::vector<const blink::WebInputEvent*>()),
+      latency_info, std::move(callback));
+}
+
 void RenderWidget::RequestScheduleAnimation() {
   if (owner_delegate_) {
     owner_delegate_->RequestScheduleAnimationForWidget();
