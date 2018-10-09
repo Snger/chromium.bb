@@ -406,6 +406,7 @@ RenderWidget::RenderWidget(
       resizing_mode_selector_(new ResizingModeSelector()),
       has_host_context_menu_location_(false),
       has_added_input_handler_(false),
+      bb_OnHandleInputEvent_no_ack_(false),
       has_focus_(false),
       for_oopif_(false),
 #if defined(OS_MACOSX)
@@ -891,7 +892,7 @@ void RenderWidget::OnHandleInputEvent(
     return;
 
   HandledEventCallback callback;
-  if (dispatch_type == DISPATCH_TYPE_BLOCKING) {
+  if (dispatch_type == DISPATCH_TYPE_BLOCKING && !bb_OnHandleInputEvent_no_ack_) {
     callback = base::Bind(
         &RenderWidget::SendInputEventAck, this, input_event->GetType(),
         ui::WebInputEventTraits::GetUniqueTouchEventId(*input_event));
