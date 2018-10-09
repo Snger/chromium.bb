@@ -12,6 +12,7 @@
 #include "third_party/blink/renderer/core/frame/local_frame.h"
 #include "third_party/blink/renderer/core/layout/api/line_layout_api_shim.h"
 #include "third_party/blink/renderer/core/layout/api/line_layout_box.h"
+#include "third_party/blink/renderer/core/layout/layout_table_cell.h"
 #include "third_party/blink/renderer/core/layout/layout_text_combine.h"
 #include "third_party/blink/renderer/core/layout/layout_theme.h"
 #include "third_party/blink/renderer/core/layout/line/inline_text_box.h"
@@ -900,6 +901,15 @@ void InlineTextBoxPainter::PaintSelection(GraphicsContext& context,
                                           const Font& font,
                                           Color text_color,
                                           LayoutTextCombine* combined_text) {
+  // If any table cell in our container hierarchy is fully selected,
+  // then don't paint the selection highlight.
+  LayoutBlock* cb = inline_text_box_.containingBlock();
+  while (cb) {
+    if (cb->IsTableCell() && ToLayoutTableCell(cb)->IsFullySelected())
+      return;
+    cb = cb->ContainingBlock();
+  }
+
   // See if we have a selection to paint at all.
   int s_pos, e_pos;
   inline_text_box_.SelectionStartEnd(s_pos, e_pos);

@@ -1574,6 +1574,16 @@ bool ShouldSkipRelayoutOnSetText(const LayoutText* lt)
     && lt->FirstTextBox() == lt->LastTextBox();
 }
 
+void LayoutText::SetSelectionState(SelectionState state) {
+  LayoutObject::SetSelectionState(state);
+
+  // The containing block can be null in case of an orphaned tree.
+  LayoutBlock* containing_block = this->ContainingBlock();
+  if (containing_block && !containing_block->IsLayoutView()
+      && containing_block->IsTableCell())
+    containing_block->SetSelectionState(state);
+}
+
 void LayoutText::SetTextWithOffset(scoped_refptr<StringImpl> text,
                                    unsigned offset,
                                    unsigned len,

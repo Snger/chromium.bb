@@ -13,6 +13,7 @@
 #include "third_party/blink/renderer/core/paint/box_painter_base.h"
 #include "third_party/blink/renderer/core/paint/object_painter.h"
 #include "third_party/blink/renderer/core/paint/paint_info.h"
+#include "third_party/blink/renderer/core/paint/selection_painting_utils.h"
 #include "third_party/blink/renderer/platform/graphics/graphics_context_state_saver.h"
 #include "third_party/blink/renderer/platform/graphics/paint/drawing_recorder.h"
 
@@ -51,7 +52,14 @@ void TableCellPainter::PaintBackground(const PaintInfo& paint_info,
   if (layout_table_cell_.BackgroundStolenForBeingBody())
     return;
 
-  Color c = background_object.ResolveColor(GetCSSPropertyBackgroundColor());
+  Color c;
+  if (layout_table_cell_.IsFullySelected()) {
+    c = SelectionPaintingUtils::SelectionBackgroundColor(
+      layout_table_cell_.GetDocument(), layout_table_cell_.StyleRef(), layout_table_cell_.GetNode());
+  } else {
+    c = background_object.ResolveColor(GetCSSPropertyBackgroundColor());
+  }
+
   const FillLayer& bg_layer = background_object.StyleRef().BackgroundLayers();
   if (bg_layer.HasImage() || c.Alpha()) {
     // We have to clip here because the background would paint
