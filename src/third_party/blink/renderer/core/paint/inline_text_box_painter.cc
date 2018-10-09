@@ -10,6 +10,7 @@
 #include "third_party/blink/renderer/core/editing/markers/document_marker_controller.h"
 #include "third_party/blink/renderer/core/editing/markers/text_match_marker.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
+#include "third_party/blink/renderer/core/editing/editing_utilities.h"
 #include "third_party/blink/renderer/core/layout/api/line_layout_api_shim.h"
 #include "third_party/blink/renderer/core/layout/api/line_layout_box.h"
 #include "third_party/blink/renderer/core/layout/layout_text_combine.h"
@@ -665,9 +666,26 @@ void InlineTextBoxPainter::PaintDocumentMarker(GraphicsContext& context,
     start = marker_rect.X() - start_point.X();
     width = LayoutUnit(marker_rect.Width());
   }
-  DocumentMarkerPainter::PaintDocumentMarker(
-      context, box_origin, style, marker.GetType(),
-      LayoutRect(start, LayoutUnit(), width, inline_text_box_.LogicalHeight()));
+
+  bool hide_spelling_marker = false;
+
+  if (inline_text_box_.GetLineLayoutItem().GetNode()) {
+    const Element *element = RootEditableElement(*inline_text_box_.GetLineLayoutItem().GetNode());
+    if (element) {
+      AtomicString colorAttr =
+        element->getAttribute(HTMLNames::bb_hide_spelling_markerAttr);
+
+      if (!colorAttr.IsNull()) {
+        hide_spelling_marker = true;
+      }
+    }
+  }
+
+  if (marker.GetType() != DocumentMarker::kSpelling || !hide_spelling_marker) {
+    DocumentMarkerPainter::PaintDocumentMarker(
+        context, box_origin, style, marker.GetType(),
+        LayoutRect(start, LayoutUnit(), width, inline_text_box_.LogicalHeight()));
+  }
 }
 
 template <InlineTextBoxPainter::PaintOptions options>
