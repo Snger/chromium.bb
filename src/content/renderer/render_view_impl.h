@@ -333,6 +333,7 @@ class CONTENT_EXPORT RenderViewImpl : public RenderWidget,
   RenderFrameImpl* GetMainRenderFrame() override;
   int GetRoutingID() const override;
   gfx::Size GetSize() const override;
+  void SetSize(const gfx::Size& new_size) override;
   float GetDeviceScaleFactor() const override;
   float GetZoomLevel() const override;
   const WebPreferences& GetWebkitPreferences() override;

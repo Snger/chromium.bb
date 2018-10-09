@@ -69,7 +69,6 @@
 //#include <third_party/blink/public/web/blink.h>
 #include <third_party/blink/public/web/web_security_policy.h>
 #include <third_party/blink/public/web/web_script_controller.h>
-#include <third_party/blink/public/web/web_script_bindings.h>
 
 namespace blpwtk2 {
 
@@ -182,7 +181,7 @@ static std::unique_ptr<base::MessagePump> messagePumpForUIFactory()
         return std::unique_ptr<base::MessagePump>(new MainMessagePump());
     }
 
-    return std::unique_ptr<base::MessagePump>(new base::MessagePumpForUI()); 
+    return std::unique_ptr<base::MessagePump>(new base::MessagePumpForUI());
 }
 
 static void startRenderer(
@@ -429,7 +428,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
     bool isHost = currentHostChannel.empty();
 
     DCHECK(!g_instance);
-    g_instance = this;    
+    g_instance = this;
     content::InitializeMojo();
     base::CommandLine::Init(0, nullptr);
     blink::WebScriptController::SetStackCaptureControlledByInspector(false);
@@ -505,7 +504,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
  	    // base::FieldTrialList::GetInitiallyActiveFieldTrials(...) Line 719
         // from: variations::ChildProcessFieldTrialSyncer::InitFieldTrialObserving(...) Line 34
  	    // from: content::ChildThreadImpl::Init(...) Line 618
-            
+
         // The following code is adapted from InitializeFieldTrialAndFeatureList(..) in content_main_runner.cc
         //
         // Initialize statistical testing infrastructure.  We set the entropy
@@ -526,7 +525,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
                 command_line, switches::kEnableFeatures,
             switches::kDisableFeatures, feature_list.get());
             base::FeatureList::SetInstance(std::move(feature_list));
-        }        
+        }
     }
     // Start pumping the message loop.
     startMessageLoop(sandboxInfo);
@@ -644,16 +643,6 @@ void ToolkitImpl::postHandleMessage(const NativeMsg *msg)
 {
     DCHECK(Statics::isInApplicationMainThread());
     return d_messagePump->postHandleMessage(*msg);
-}
-
-v8::Local<v8::Context> ToolkitImpl::createWebScriptContext()
-{
-    return blink::WebScriptBindings::CreateWebScriptContext();
-}
-
-void ToolkitImpl::disposeWebScriptContext(v8::Local<v8::Context> context)
-{
-    blink::WebScriptBindings::DisposeWebScriptContext(context);
 }
 
 void ToolkitImpl::addOriginToTrustworthyList(const StringRef& originString)
