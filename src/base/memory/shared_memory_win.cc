@@ -327,8 +327,8 @@ bool SharedMemory::MapAt(off_t offset, size_t bytes) {
     ReleaseReservation();
   }
   if (!memory_) {
-    PLOG(ERROR) << "Failed executing MapViewOfFile";
-    PLOG(ERROR) << "Error info: offset = " << offset << ", bytes = " << bytes
+    PLOG(ERROR) << "Failed executing MapViewOfFile"
+                << ", Error info: offset = " << offset << ", bytes = " << bytes
                 << ", requested_size_ = " << requested_size_;
     return false;
   }

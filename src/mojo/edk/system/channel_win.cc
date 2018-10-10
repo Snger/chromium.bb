@@ -247,8 +247,6 @@ class ChannelWin : public Channel,
         reject_writes_ = write_error = true;
     }
     if (write_error)
-      // Don't invoke LOG(ERROR) because write may fail iteratively
-      // LOG(ERROR) << "ChannelWin: write error";
       OnWriteError(Error::kDisconnected);
   }
 
