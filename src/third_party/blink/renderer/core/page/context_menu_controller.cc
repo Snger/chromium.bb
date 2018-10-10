@@ -589,7 +589,6 @@ static bool FireBbContextMenuEvent(LocalFrame* frame, const WebContextMenuData& 
   ExposeBool(isolate, detail_obj, "canUndo", data.edit_flags & WebContextMenuData::kCanUndo);
   ExposeBool(isolate, detail_obj, "canRedo", data.edit_flags & WebContextMenuData::kCanRedo);
   ExposeBool(isolate, detail_obj, "canCut", data.edit_flags & WebContextMenuData::kCanCut);
-  ExposeBool(isolate, detail_obj, "canCut", data.edit_flags & WebContextMenuData::kCanCopy);
   ExposeBool(isolate, detail_obj, "canCopy", data.edit_flags & WebContextMenuData::kCanCopy);
   ExposeBool(isolate, detail_obj, "canPaste", data.edit_flags & WebContextMenuData::kCanPaste);
   ExposeBool(isolate, detail_obj, "canDelete", data.edit_flags & WebContextMenuData::kCanDelete);
