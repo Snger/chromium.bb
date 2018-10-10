@@ -102,6 +102,9 @@ class CORE_EXPORT LocalDOMWindow final : public DOMWindow,
   static LocalDOMWindow* Create(LocalFrame& frame) {
     return new LocalDOMWindow(frame);
   }
+  static LocalDOMWindow* Create() {
+    return new LocalDOMWindow();
+  }
 
   static LocalDOMWindow* From(const ScriptState*);
 
@@ -115,6 +118,9 @@ class CORE_EXPORT LocalDOMWindow final : public DOMWindow,
   Document* InstallNewDocument(const String& mime_type,
                                const DocumentInit&,
                                bool force_xhtml);
+  Document* InstallNewUnintializedDocument(const String& mime_type,
+                                           const DocumentInit&,
+                                           bool force_xhtml);
 
   // EventTarget overrides:
   ExecutionContext* GetExecutionContext() const override;
@@ -346,6 +352,7 @@ class CORE_EXPORT LocalDOMWindow final : public DOMWindow,
   void WarnUnusedPreloads(TimerBase*);
 
   explicit LocalDOMWindow(LocalFrame&);
+  explicit LocalDOMWindow();
   void Dispose();
 
   void DispatchLoadEvent();

@@ -88,6 +88,7 @@
 
 namespace blpwtk2 {
 
+class EmbedderHeapTracer;
 class Profile;
 class String;
 class StringRef;
@@ -166,6 +167,17 @@ class Toolkit {
         // message that the application's message loop processes, even if it
         // doesn't belong to blpwtk2 and also if preHandleMessage returns true.
 
+    virtual v8::Local<v8::Context> createWebScriptContext(const StringRef& originString) = 0;
+        // Creates a V8 context that can access the DOM. The security origin
+        // of the new context will be set to the contents of 'originString'.
+        // The global namespace of the resulting context will include an
+        // empty document assigned to 'document' as well as the object
+        // constructurs normally required by the DOM standard.
+
+    virtual void disposeWebScriptContext(v8::Local<v8::Context> context) = 0;
+        // Disposes of per-context data for a context created with
+        // 'createWebScriptContext()'
+
     virtual void addOriginToTrustworthyList(const StringRef& originString) = 0;
         // Adds the security origin specified by 'originString' to the list of
         // origins that blink considers 'trustworthy'.
@@ -177,6 +189,16 @@ class Toolkit {
     virtual void setTraceThreshold(unsigned int timeoutMS) = 0;
         // If non-zero, defines the time threshold for enabling trace
         // (in milliseconds)
+
+    virtual int addV8HeapTracer(EmbedderHeapTracer *tracer) = 0;
+        // Registers an embedder heap tracer with the multi heap tracer.
+        // Once an embedder heap is registered, it will be notified of all
+        // references during GC.  The embedder is expected to ignore any
+        // reference wrapper with an embedder field that does not match the
+        // return value of this function.
+
+    virtual void removeV8HeapTracer(int embedder_id) = 0;
+        // Unregisters an embedder heap trace from the multi heap tracer.
 
   protected:
     virtual ~Toolkit();
