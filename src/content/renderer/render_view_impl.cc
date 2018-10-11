@@ -1792,14 +1792,14 @@ void RenderViewImpl::SetSize(const gfx::Size& new_size) {
   if (new_size == size()) {
     return;
   }
-  need_update_rect_for_auto_resize_ = true;
+  need_resize_ack_for_auto_resize_ = true;
 
   // blpwtk2: Loosely copied from RenderViewImpl::OnDisableAutoResize
   ResizeParams resize_params = {};
 
   resize_params.screen_info = screen_info_;
   resize_params.new_size = new_size;
-  resize_params.physical_backing_size = new_size;
+  resize_params.compositor_viewport_pixel_size = new_size;
   resize_params.browser_controls_shrink_blink_size = browser_controls_shrink_blink_size_;
   resize_params.top_controls_height = top_controls_height_;
   resize_params.visible_viewport_size = new_size;
