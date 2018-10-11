@@ -21,6 +21,7 @@ struct SpellCheckResult;
 namespace blink {
 class WebTextCheckingCompletion;
 struct WebTextCheckingResult;
+class WebLocalFrame;
 }
 
 namespace service_manager {
@@ -58,7 +59,11 @@ class SpellCheckProvider
   // Replace shared spellcheck data.
   void set_spellcheck(SpellCheck* spellcheck) { spellcheck_ = spellcheck; }
 
+  // Makes a document-wide spellcheck request.
+  void RequestSpellcheck();
+
   // content::RenderFrameObserver:
+  void DidFinishLoad() override;
   void FocusedNodeChanged(const blink::WebNode& node) override;
 
  private:
