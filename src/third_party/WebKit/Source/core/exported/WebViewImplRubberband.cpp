@@ -464,7 +464,7 @@ void WebViewImpl::RubberbandWalkLayoutObject(const RubberbandContext& context, L
     }
 }
 
-WTF::String WebViewImpl::GetTextInRubberbandImpl(const WebRect& rcOrig)
+WTF::String WebViewImpl::GetTextInRubberbandImpl(const LayoutRect& rcOrig)
 {
     DCHECK(IsRubberbanding());
 
@@ -707,6 +707,9 @@ bool WebViewImpl::HandleAltDragRubberbandEvent(const WebInputEvent& inputEvent)
 
     if (!IsRubberbanding()) {
         if (inputEvent.GetType() == WebInputEvent::kMouseDown && PreStartRubberbanding()) {
+            // set the rubberbandingForcedOn_ to true not to abort the rubberband
+            // when 'alt' is lifted before the mouse button.
+            rubberbandingForcedOn_ = true;
             StartRubberbanding();
             rubberbandState_->impl_->m_startPoint = IntPoint(positionInWidget.x, positionInWidget.y);
             return true;
@@ -717,12 +720,12 @@ bool WebViewImpl::HandleAltDragRubberbandEvent(const WebInputEvent& inputEvent)
     else if (inputEvent.GetType() == WebInputEvent::kMouseUp) {
         IntPoint start = rubberbandState_->impl_->m_startPoint;
         IntPoint extent = IntPoint(positionInWidget.x, positionInWidget.y);
-        WebRect rc = ExpandRubberbandRect(getRubberbandRect(start, extent));
+        LayoutRect rc = ExpandRubberbandRectImpl(getRubberbandRect(start, extent));
         if (rc.IsEmpty()) {
             AbortRubberbanding();
         }
         else {
-            WebString copied = FinishRubberbanding(rc);
+            WebString copied = FinishRubberbandingImpl(rc);
             Pasteboard::GeneralPasteboard()->WritePlainText(copied, Pasteboard::kCannotSmartReplace);
         }
 
@@ -782,6 +785,12 @@ void WebViewImpl::StartRubberbanding()
 }
 
 WebRect WebViewImpl::ExpandRubberbandRect(const WebRect& rcOrig)
+{
+    LayoutRect rc = ExpandRubberbandRectImpl(rcOrig);
+    return PixelSnappedIntRect(rc);
+}
+
+LayoutRect WebViewImpl::ExpandRubberbandRectImpl(const WebRect& rcOrig)
 {
     DCHECK(IsRubberbanding());
 
@@ -848,10 +857,16 @@ WebRect WebViewImpl::ExpandRubberbandRect(const WebRect& rcOrig)
     rc.ShiftXEdgeTo(minX);
     rc.ShiftMaxXEdgeTo(maxX);
 
-    return PixelSnappedIntRect(rc);
+    return rc;
 }
 
 WebString WebViewImpl::FinishRubberbanding(const WebRect& rc)
+{
+    LayoutRect layoutRc(rc);
+    return FinishRubberbandingImpl(layoutRc);
+}
+
+WebString WebViewImpl::FinishRubberbandingImpl(const LayoutRect& rc)
 {
     DCHECK(IsRubberbanding());
 
@@ -900,7 +915,8 @@ WebString WebViewImpl::GetTextInRubberband(const WebRect& rc)
     context.m_layerContext = &layerContext;
     layerContext.m_clipRect = LayoutRect(rc);
     RubberbandWalkFrame(context, page_->DeprecatedLocalMainFrame(), LayoutPoint());
-    WTF::String result = GetTextInRubberbandImpl(rc);
+    LayoutRect layoutRc(rc);
+    WTF::String result = GetTextInRubberbandImpl(layoutRc);
     rubberbandState_.reset(nullptr);
     return result;
 }
