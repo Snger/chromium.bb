@@ -91,6 +91,7 @@
 #include "third_party/blink/renderer/core/editing/spellcheck/spell_check_requester.h"
 #include "third_party/blink/renderer/core/editing/set_selection_options.h"
 #include "third_party/blink/renderer/core/editing/visible_selection.h"
+#include "third_party/blink/renderer/core/editing/visible_position.h"
 #include "third_party/blink/renderer/core/events/focus_event.h"
 #include "third_party/blink/renderer/core/frame/csp/content_security_policy.h"
 #include "third_party/blink/renderer/core/frame/hosts_using_features.h"
@@ -110,7 +111,7 @@
 #include "third_party/blink/renderer/core/html/custom/custom_element_registry.h"
 #include "third_party/blink/renderer/core/html/custom/v0_custom_element.h"
 #include "third_party/blink/renderer/core/html/custom/v0_custom_element_registration_context.h"
-#include "third_party/blink/renderer/core/html/text_control_element.h"
+#include "third_party/blink/renderer/core/html/forms/text_control_element.h"
 #include "third_party/blink/renderer/core/html/forms/html_form_controls_collection.h"
 #include "third_party/blink/renderer/core/html/forms/html_options_collection.h"
 #include "third_party/blink/renderer/core/html/html_collection.h"
@@ -1256,7 +1257,7 @@ void Element::bbRequestSpellCheck() {
       element = ElementTraversal::NextSkippingChildren(*element, stayWithin);
     }
     else if (element->IsTextControl()) {
-      HTMLElement* innerElement = ToTextControlElement(element)->InnerEditorElement();
+      HTMLElement* innerElement = ToTextControl(element)->InnerEditorElement();
       if (innerElement && HasEditableStyle(*innerElement->ToNode()) && innerElement->IsSpellCheckingEnabled()) {
         VisiblePosition startPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::FirstPositionInNode(*innerElement));
         VisiblePosition endPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::LastPositionInNode(*innerElement));
