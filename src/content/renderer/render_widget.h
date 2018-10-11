@@ -998,9 +998,6 @@ class CONTENT_EXPORT RenderWidget
   base::WeakPtrFactory<RenderWidget> weak_ptr_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(RenderWidget);
-
- private:
-  bool bb_OnHandleInputEvent_no_ack_;
 };
 
 }  // namespace content
