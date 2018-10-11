@@ -246,7 +246,7 @@ void SpellCheckProvider::OnRespondTextCheck(
 void SpellCheckProvider::RequestSpellcheck() {
   WebLocalFrame* frame = render_frame()->GetWebFrame();
   DCHECK(frame);
-  DCHECK(frame->IsSpellCheckingEnabled());
+  DCHECK(IsSpellCheckingEnabled());
   blink::WebDocument document = frame->GetDocument();
   if (document.IsNull())
     return;

@@ -37,6 +37,8 @@
 #include "third_party/blink/public/web/web_text_checking_completion.h"
 #include "third_party/blink/public/web/web_text_checking_result.h"
 #include "third_party/blink/public/web/web_text_decoration_type.h"
+#include "third_party/blink/public/web/web_document.h"
+#include "third_party/blink/public/web/web_element.h"
 
 using blink::WebVector;
 using blink::WebString;
@@ -63,7 +65,7 @@ bool UpdateSpellcheckEnabled::Visit(content::RenderFrame* render_frame) {
       render_frame->GetWebFrame()->RemoveSpellingMarkers();
   }
   else {
-    blink::WebDocument document = render_frame->GetDocument();
+    blink::WebDocument document = render_frame->GetWebFrame()->GetDocument();
     if (!document.IsNull()) {
       blink::WebElement documentElement = document.DocumentElement();
       if (!documentElement.IsNull())

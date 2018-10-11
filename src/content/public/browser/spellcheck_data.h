@@ -60,6 +60,7 @@ class CONTENT_EXPORT SpellcheckData : public base::SupportsUserData::Data {
 
  public:
   SpellcheckData();
+  ~SpellcheckData() override;
 
   void AddObserver(Observer* observer);
   void RemoveObserver(Observer* observer);

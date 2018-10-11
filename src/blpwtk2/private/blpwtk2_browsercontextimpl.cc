@@ -460,7 +460,7 @@ void BrowserContextImpl::enableSpellCheck(bool enabled)
     DCHECK(!d_isDestroyed);
 
     PrefService *prefs = user_prefs::UserPrefs::Get(this);
-    prefs->SetBoolean(spellcheck::prefs::kEnableSpellcheck, enabled);
+    prefs->SetBoolean(spellcheck::prefs::kSpellCheckEnable, enabled);
 }
 
 void BrowserContextImpl::setLanguages(const StringRef *languages,
