@@ -707,6 +707,9 @@ bool WebViewImpl::HandleAltDragRubberbandEvent(const WebInputEvent& inputEvent)
 
     if (!IsRubberbanding()) {
         if (inputEvent.GetType() == WebInputEvent::kMouseDown && PreStartRubberbanding()) {
+            // set the rubberbandingForcedOn_ to true not to abort the rubberband
+            // when 'alt' is lifted before the mouse button.
+            rubberbandingForcedOn_ = true;
             StartRubberbanding();
             rubberbandState_->impl_->m_startPoint = IntPoint(positionInWidget.x, positionInWidget.y);
             return true;
