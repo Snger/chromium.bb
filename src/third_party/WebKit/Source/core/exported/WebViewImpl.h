@@ -599,8 +599,10 @@ class CORE_EXPORT WebViewImpl final
   // Rubberbanding
   void RubberbandWalkFrame(const RubberbandContext&, LocalFrame*, const LayoutPoint&);
   void RubberbandWalkLayoutObject(const RubberbandContext&, LayoutObject*);
-  WTF::String GetTextInRubberbandImpl(const WebRect&);
+  WTF::String GetTextInRubberbandImpl(const LayoutRect&);
   bool HandleAltDragRubberbandEvent(const WebInputEvent&);
+  LayoutRect ExpandRubberbandRectImpl(const WebRect& rcOrig);
+  WebString FinishRubberbandingImpl(const LayoutRect&);
 
   WebViewClient* client_;  // Can be 0 (e.g. unittests, shared workers, etc.)
 
