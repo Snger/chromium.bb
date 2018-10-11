@@ -27,6 +27,9 @@
 #include <components/spellcheck/renderer/spellcheck_provider.h>
 #include <content/public/renderer/content_renderer_client.h>
 #include <content/public/renderer/render_thread_observer.h>
+#include <services/service_manager/public/cpp/binder_registry.h>
+#include <services/service_manager/public/cpp/service.h>
+#include <services/service_manager/public/cpp/local_interface_provider.h>
 
 class SpellCheck;
 
@@ -38,11 +41,11 @@ namespace blpwtk2 {
 
 // This interface allows us to add hooks to the "renderer" portion of the
 // content module.  This is created during the startup process.
-class ContentRendererClientImpl : public content::ContentRendererClient
+class ContentRendererClientImpl : public content::ContentRendererClient,
+                                  public service_manager::Service,
+                                  public service_manager::LocalInterfaceProvider
 {
     std::unique_ptr<SpellCheck> d_spellcheck;
-
-    DISALLOW_COPY_AND_ASSIGN(ContentRendererClientImpl);
 
   public:
     ContentRendererClientImpl();
@@ -83,6 +86,21 @@ class ContentRendererClientImpl : public content::ContentRendererClient
         // true, then |plugin| will contain the created plugin, although it
         // could be NULL. If it returns false, the content layer will create
         // the plugin.
+
+  private:
+    // service_manager::Service:
+    void OnBindInterface(const service_manager::BindSourceInfo& source,
+                         const std::string& interface_name,
+                         mojo::ScopedMessagePipeHandle interface_pipe) override;
+
+    // service_manager::LocalInterfaceProvider:
+    void GetInterface(const std::string& name,
+                      mojo::ScopedMessagePipeHandle request_handle) override;
+
+
+    service_manager::BinderRegistry d_registry;
+
+    DISALLOW_COPY_AND_ASSIGN(ContentRendererClientImpl);
 };
 
 }  // close namespace blpwtk2

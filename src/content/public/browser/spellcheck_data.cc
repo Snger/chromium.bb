@@ -54,6 +54,9 @@ const SpellcheckData* SpellcheckData::FromContext(
 SpellcheckData::SpellcheckData() {
 }
 
+SpellcheckData::~SpellcheckData() {
+}
+
 void SpellcheckData::AddObserver(Observer* observer) {
   observers_.AddObserver(observer);
 }

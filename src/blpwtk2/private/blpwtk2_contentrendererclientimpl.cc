@@ -60,11 +60,8 @@ ContentRendererClientImpl::~ContentRendererClientImpl()
 
 void ContentRendererClientImpl::RenderThreadStarted()
 {
-    content::RenderThread* thread = content::RenderThread::Get();
-
     if (!d_spellcheck) {
-        d_spellcheck.reset(new SpellCheck());
-        thread->AddObserver(d_spellcheck.get());
+        d_spellcheck.reset(new SpellCheck(&d_registry, this));
     }
 }
 
@@ -82,7 +79,7 @@ void ContentRendererClientImpl::RenderFrameCreated(
     content::RenderFrame *render_frame)
 {
     // Create an instance of SpellCheckProvider.
-    new SpellCheckProvider(render_frame, d_spellcheck.get());
+    new SpellCheckProvider(render_frame, d_spellcheck.get(), this);
 }
 
 void ContentRendererClientImpl::PrepareErrorPage(
@@ -151,6 +148,20 @@ bool ContentRendererClientImpl::OverrideCreatePlugin(
     blink::WebPlugin** plugin)
 {
     return false;
+}
+
+void ContentRendererClientImpl::OnBindInterface(
+        const service_manager::BindSourceInfo& source,
+        const std::string& name,
+        mojo::ScopedMessagePipeHandle handle)
+{
+    d_registry.TryBindInterface(name, &handle);
+}
+
+void ContentRendererClientImpl::GetInterface(
+        const std::string& name, mojo::ScopedMessagePipeHandle request_handle)
+{
+  // TODO
 }
 
 }  // close namespace blpwtk2
