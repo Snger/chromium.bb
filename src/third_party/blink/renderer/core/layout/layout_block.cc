@@ -578,18 +578,6 @@ static inline bool ChangeInAvailableLogicalHeightAffectsChild(
          !child.Style()->IsHorizontalWritingMode();
 }
 
-LayoutUnit LayoutBlock::additionalMarginStart() const
-{
-    if (IsInline() || !Parent() || Parent()->ChildrenInline() ||!Parent()->GetNode() ||
-        (!Parent()->GetNode()->HasTagName(HTMLNames::ulTag) && 
-         !Parent()->GetNode()->HasTagName(HTMLNames::olTag))) {
-        return LayoutUnit(0);
-    }
-
-    LayoutBox *previousBox = PreviousSiblingBox();
-    return previousBox ? previousBox->additionalMarginStart() : LayoutUnit(40);
-}
-
 void LayoutBlock::UpdateBlockChildDirtyBitsBeforeLayout(bool relayout_children,
                                                         LayoutBox& child) {
   if (child.IsOutOfFlowPositioned()) {
@@ -1511,10 +1499,6 @@ void LayoutBlock::ComputeBlockPreferredLogicalWidths(
       margin_start += start_margin_length.Value();
     if (end_margin_length.IsFixed())
       margin_end += end_margin_length.Value();
-
-    // SHEZ: additionalMarginStart is treated as fixed margin
-    if (child->IsBox())
-      margin_start += ToLayoutBox(child)->additionalMarginStart();
 
     margin = margin_start + margin_end;
 

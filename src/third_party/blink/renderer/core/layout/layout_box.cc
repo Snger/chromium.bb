@@ -3011,17 +3011,11 @@ void LayoutBox::ComputeMarginsForDirection(MarginDirection flow_direction,
   DCHECK(!IsTableRow());
   DCHECK(!IsTableSection());
   DCHECK(!IsLayoutTableCol());
-
-  LayoutUnit inlineAdditionalMarginStart =
-    flow_direction == kInlineDirection ?
-    additionalMarginStart() :
-    LayoutUnit();
-
   if (flow_direction == kBlockDirection || IsFloating() || IsInline()) {
     // Margins are calculated with respect to the logical width of
     // the containing block (8.3)
     // Inline blocks/tables and floats don't have their margins increased.
-    margin_start = MinimumValueForLength(margin_start_length, container_width) + inlineAdditionalMarginStart;
+    margin_start = MinimumValueForLength(margin_start_length, container_width);
     margin_end = MinimumValueForLength(margin_end_length, container_width);
     return;
   }
@@ -3037,7 +3031,7 @@ void LayoutBox::ComputeMarginsForDirection(MarginDirection flow_direction,
   }
 
   LayoutUnit margin_start_width =
-      MinimumValueForLength(margin_start_length, container_width) + inlineAdditionalMarginStart;
+      MinimumValueForLength(margin_start_length, container_width);
   LayoutUnit margin_end_width =
       MinimumValueForLength(margin_end_length, container_width);
 
@@ -3106,7 +3100,7 @@ void LayoutBox::ComputeMarginsForDirection(MarginDirection flow_direction,
 
     if (margin_start_length.IsAuto()) {
       margin_end = margin_end_width;
-      margin_start = available_width - child_width - margin_end  + inlineAdditionalMarginStart;
+      margin_start = available_width - child_width - margin_end;
       return;
     }
   }
