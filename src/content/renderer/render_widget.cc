@@ -406,7 +406,6 @@ RenderWidget::RenderWidget(
       resizing_mode_selector_(new ResizingModeSelector()),
       has_host_context_menu_location_(false),
       has_added_input_handler_(false),
-      bb_OnHandleInputEvent_no_ack_(false),
       has_focus_(false),
       for_oopif_(false),
 #if defined(OS_MACOSX)
