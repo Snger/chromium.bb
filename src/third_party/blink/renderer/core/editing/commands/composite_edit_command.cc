@@ -446,7 +446,7 @@ void CompositeEditCommand::MoveRemainingSiblingsToNewParent(
     if (refChild)
       InsertNodeBefore(nodes_to_remove[i], refChild, editing_state);
     else
-      AppendNode(nodes_to_remove[i], new_parent, editing_state);
+    AppendNode(nodes_to_remove[i], new_parent, editing_state);
 
     if (editing_state->IsAborted())
       return;
@@ -1902,66 +1902,6 @@ Position CompositeEditCommand::PositionAvoidingSpecialElementBoundary(
     result = original;
 
   return result;
-}
-
-bool CompositeEditCommand::prepareForBlockCommand(VisiblePosition& startOfSelection, VisiblePosition& endOfSelection,
-                                                  ContainerNode*& startScope, ContainerNode*& endScope,
-                                                  int& startIndex, int& endIndex,
-                                                  bool includeEmptyParagraphAtEnd)
-{
-    VisibleSelection ending_selection = CreateVisibleSelection(EndingSelection());
-    VisiblePosition visibleEnd = ending_selection.VisibleEnd();
-    VisiblePosition visibleStart = ending_selection.VisibleStart();
-    if (visibleStart.IsNull() || visibleStart.IsOrphan() || visibleEnd.IsNull() || visibleEnd.IsOrphan())
-        return false;
-
-    // When a selection ends at the start of a paragraph, we rarely paint
-    // the selection gap before that paragraph, because there often is no gap.
-    // In a case like this, it's not obvious to the user that the selection
-    // ends "inside" that paragraph, so it would be confusing if Indent/Outdent
-    // operated on that paragraph.
-    // FIXME: We paint the gap before some paragraphs that are indented with left
-    // margin/padding, but not others.  We should make the gap painting more
-    // consistent and then use a left margin/padding rule here.
-    if (visibleEnd.DeepEquivalent() != visibleStart.DeepEquivalent() &&
-        IsStartOfParagraph(visibleEnd) &&
-	      (!includeEmptyParagraphAtEnd || !IsEndOfParagraph(visibleEnd))) {
-      SelectionInDOMTree::Builder builder;
-      builder.Collapse(visibleStart.DeepEquivalent());
-      builder.Extend(PreviousPositionOf(visibleEnd, kCannotCrossEditingBoundary).DeepEquivalent());
-      SetEndingSelection(SelectionForUndoStep::From(builder.Build()));
-    }
-
-    VisibleSelection selection = SelectionForParagraphIteration(ending_selection);
-    startOfSelection = selection.VisibleStart();
-    endOfSelection = selection.VisibleEnd();
-    DCHECK(!startOfSelection.IsNull());
-    DCHECK(!endOfSelection.IsNull());
-    startIndex = IndexForVisiblePosition(startOfSelection, startScope);
-    endIndex = IndexForVisiblePosition(endOfSelection, endScope);
-    return true;
-}
-
-void CompositeEditCommand::finishBlockCommand(ContainerNode* startScope, ContainerNode* endScope,
-                                              int startIndex, int endIndex)
-{
-    GetDocument().UpdateStyleAndLayoutIgnorePendingStylesheets();
-
-    DCHECK(startScope == endScope);
-    DCHECK(startIndex >= 0);
-    DCHECK(startIndex <= endIndex);
-    if (startScope == endScope && startIndex >= 0 && startIndex <= endIndex) {
-
-        VisiblePosition start(VisiblePositionForIndex(startIndex, startScope));
-        VisiblePosition end(VisiblePositionForIndex(endIndex, endScope));
-        
-        if (start.IsNotNull() && end.IsNotNull()){
-          SelectionInDOMTree::Builder builder;
-          builder.Collapse(start.DeepEquivalent());
-          builder.Extend(end.DeepEquivalent());
-          SetEndingSelection(SelectionForUndoStep::From(builder.Build()));
-        }
-    }
 }
 
 // Splits the tree parent by parent until we reach the specified ancestor. We
