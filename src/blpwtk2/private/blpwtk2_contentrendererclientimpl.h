@@ -87,6 +87,12 @@ class ContentRendererClientImpl : public content::ContentRendererClient,
         // could be NULL. If it returns false, the content layer will create
         // the plugin.
 
+    bool Dispatch(IPC::Message *msg) override;
+
+    bool RequestNewLayerTreeFrameSink(
+        bool use_software, int routing_id,
+        const LayerTreeFrameSinkCallback& callback) override;
+
   private:
     // service_manager::Service:
     void OnBindInterface(const service_manager::BindSourceInfo& source,

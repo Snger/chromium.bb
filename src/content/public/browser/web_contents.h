@@ -70,9 +70,11 @@ class BrowserPluginGuestDelegate;
 class InterstitialPage;
 class RenderFrameHost;
 class RenderViewHost;
+class RenderViewHostDelegateView;
 class RenderWidgetHost;
 class RenderWidgetHostView;
 class WebContentsDelegate;
+class WebContentsView;
 struct CustomContextMenuContext;
 struct DropData;
 struct Manifest;
@@ -176,6 +178,11 @@ class WebContents : public PageNavigator,
 
     // Sandboxing flags set on the new WebContents.
     blink::WebSandboxFlags starting_sandbox_flags;
+
+    // Allow the embedder to override the WebContentsView and
+    // RenderViewHostDelegateView used by this WebContents.
+    WebContentsView *host = nullptr;
+    RenderViewHostDelegateView *render_view_host_delegate_view = nullptr;
   };
 
   // Creates a new WebContents.

@@ -100,6 +100,7 @@ class WebViewImpl final : public WebView,
     bool d_ncHitTestPendingAck;
     int d_lastNCHitTestResult;
     int d_hostId;
+    bool d_rendererUI;
 
     void createWidget(blpwtk2::NativeView parent);
 
@@ -194,6 +195,7 @@ class WebViewImpl final : public WebView,
                 BrowserContextImpl       *browserContext,
                 int                       hostAffinity,
                 bool                      initiallyVisible,
+                bool                      rendererUI,
                 const WebViewProperties&  properties);
     ~WebViewImpl() final;
 

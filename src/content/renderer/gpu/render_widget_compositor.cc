@@ -794,6 +794,11 @@ void RenderWidgetCompositor::SetViewportVisibleRect(
   layer_tree_host_->SetViewportVisibleRect(visible_rect);
 }
 
+void RenderWidgetCompositor::ReleaseLayerTreeFrameSink()
+{
+  layer_tree_host_->ReleaseLayerTreeFrameSink();
+}
+
 viz::FrameSinkId RenderWidgetCompositor::GetFrameSinkId() {
   return frame_sink_id_;
 }

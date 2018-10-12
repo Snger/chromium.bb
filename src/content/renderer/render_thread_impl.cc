@@ -1222,7 +1222,9 @@ bool RenderThreadImpl::Send(IPC::Message* msg) {
     WebView::WillEnterModalLoop();
   }
 
-  bool rv = ChildThreadImpl::Send(msg);
+  bool rv =
+    GetContentClient()->renderer()->Dispatch(msg) ||
+    ChildThreadImpl::Send(msg);
 
   if (pumping_events)
     WebView::DidExitModalLoop();
@@ -2095,6 +2097,16 @@ scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishGpuChannelSync() {
   return gpu_channel;
 }
 
+scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishPrivilegedGpuChannelSync() {
+  TRACE_EVENT0("gpu", "RenderThreadImpl::EstablishPrivilegedGpuChannelSync");
+
+  scoped_refptr<gpu::GpuChannelHost> gpu_channel =
+      gpu_->EstablishPrivilegedGpuChannelSync();
+  if (gpu_channel)
+    GetContentClient()->SetGpuInfo(gpu_channel->gpu_info());
+  return gpu_channel;
+}
+
 void RenderThreadImpl::RequestNewLayerTreeFrameSink(
     int routing_id,
     scoped_refptr<FrameSwapMessageQueue> frame_swap_message_queue,
@@ -2107,6 +2119,11 @@ void RenderThreadImpl::RequestNewLayerTreeFrameSink(
   // machine where gpu compositing doesn't work. Don't crash in that case.
   if (layout_test_mode() && is_gpu_compositing_disabled_) {
     LOG(FATAL) << "Layout tests require gpu compositing, but it is disabled.";
+    return;
+  }
+
+  if (GetContentClient()->renderer()->RequestNewLayerTreeFrameSink(
+        is_gpu_compositing_disabled_, routing_id, callback)) {
     return;
   }
 

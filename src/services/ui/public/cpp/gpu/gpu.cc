@@ -48,7 +48,7 @@ class Gpu::GpuPtrIO {
         base::BindOnce(&GpuPtrIO::ConnectionError, base::Unretained(this)));
   }
 
-  void EstablishGpuChannel(scoped_refptr<EstablishRequest> establish_request) {
+  void EstablishGpuChannel(scoped_refptr<EstablishRequest> establish_request, bool privileged) {
     DCHECK_CALLED_ON_VALID_THREAD(thread_checker_);
     DCHECK(!establish_request_);
     establish_request_ = std::move(establish_request);
@@ -56,7 +56,7 @@ class Gpu::GpuPtrIO {
     if (gpu_ptr_.encountered_error()) {
       ConnectionError();
     } else {
-      gpu_ptr_->EstablishGpuChannel(base::BindRepeating(
+      gpu_ptr_->EstablishGpuChannel(privileged, base::BindRepeating(
           &GpuPtrIO::OnEstablishedGpuChannel, base::Unretained(this)));
     }
   }
@@ -95,9 +95,9 @@ class Gpu::GpuPtrIO {
 class Gpu::EstablishRequest
     : public base::RefCountedThreadSafe<Gpu::EstablishRequest> {
  public:
-  EstablishRequest(Gpu* parent,
+  EstablishRequest(Gpu* parent, bool privileged,
                    scoped_refptr<base::SingleThreadTaskRunner> main_task_runner)
-      : parent_(parent), main_task_runner_(main_task_runner) {}
+      : parent_(parent), privileged_(privileged), main_task_runner_(main_task_runner) {}
 
   const scoped_refptr<gpu::GpuChannelHost>& gpu_channel() {
     return gpu_channel_;
@@ -113,7 +113,7 @@ class Gpu::EstablishRequest
         return;
     }
 
-    gpu->EstablishGpuChannel(this);
+    gpu->EstablishGpuChannel(this, privileged_);
   }
 
   // Sets a WaitableEvent so the main thread can block for a synchronous
@@ -194,6 +194,7 @@ class Gpu::EstablishRequest
   virtual ~EstablishRequest() = default;
 
   Gpu* const parent_;
+  bool privileged_ = false;
   scoped_refptr<base::SingleThreadTaskRunner> main_task_runner_;
   base::WaitableEvent* establish_event_ = nullptr;
 
@@ -328,7 +329,7 @@ void Gpu::EstablishGpuChannel(gpu::GpuChannelEstablishedCallback callback) {
   }
 
   establish_callbacks_.push_back(std::move(callback));
-  SendEstablishGpuChannelRequest();
+  SendEstablishGpuChannelRequest(false);
 }
 
 scoped_refptr<gpu::GpuChannelHost> Gpu::EstablishGpuChannelSync() {
@@ -339,7 +340,28 @@ scoped_refptr<gpu::GpuChannelHost> Gpu::EstablishGpuChannelSync() {
   if (channel)
     return channel;
 
-  SendEstablishGpuChannelRequest();
+  SendEstablishGpuChannelRequest(false);
+  base::WaitableEvent event(base::WaitableEvent::ResetPolicy::MANUAL,
+                            base::WaitableEvent::InitialState::SIGNALED);
+  pending_request_->SetWaitableEvent(&event);
+  event.Wait();
+
+  // Running FinishOnMain() will create |gpu_channel_| and run any callbacks
+  // from calls to EstablishGpuChannel() before we return from here.
+  pending_request_->FinishOnMain();
+
+  return gpu_channel_;
+}
+
+scoped_refptr<gpu::GpuChannelHost> Gpu::EstablishPrivilegedGpuChannelSync() {
+  TRACE_EVENT0("mus", "Gpu::EstablishGpuChannelSync");
+  DCHECK(main_task_runner_->BelongsToCurrentThread());
+
+  scoped_refptr<gpu::GpuChannelHost> channel = GetGpuChannel();
+  if (channel)
+    return channel;
+
+  SendEstablishGpuChannelRequest(true);
   base::WaitableEvent event(base::WaitableEvent::ResetPolicy::MANUAL,
                             base::WaitableEvent::InitialState::SIGNALED);
   pending_request_->SetWaitableEvent(&event);
@@ -371,12 +393,15 @@ scoped_refptr<gpu::GpuChannelHost> Gpu::GetGpuChannel() {
   return gpu_channel_;
 }
 
-void Gpu::SendEstablishGpuChannelRequest() {
-  if (pending_request_)
+void Gpu::SendEstablishGpuChannelRequest(bool privileged) {
+  if (pending_request_ && pending_request_privileged_ == privileged)
     return;
+  if (pending_request_ && pending_request_privileged_ != privileged)
+    pending_request_->Cancel();
 
   pending_request_ =
-      base::MakeRefCounted<EstablishRequest>(this, main_task_runner_);
+      base::MakeRefCounted<EstablishRequest>(this, privileged, main_task_runner_);
+  pending_request_privileged_ = privileged;
   io_task_runner_->PostTask(
       FROM_HERE,
       base::BindOnce(&EstablishRequest::SendRequest, pending_request_,

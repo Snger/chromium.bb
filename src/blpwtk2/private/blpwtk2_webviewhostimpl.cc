@@ -38,6 +38,7 @@ namespace blpwtk2 {
 WebViewHostImpl::WebViewHostImpl(
         mojom::WebViewClientPtr&&                    clientPtr,
         const mojom::WebViewCreateParams&            params,
+        bool                                         rendererUI,
         BrowserContextImpl                          *browserContext,
         unsigned int                                 hostAffinity,
         const scoped_refptr<ProcessHostImpl::Impl>&  processHost)
@@ -65,6 +66,7 @@ WebViewHostImpl::WebViewHostImpl(
                              browserContext,    // browser context
                              hostAffinity,      // host affinity
                              false,             // initially visible
+                             rendererUI,        // rendererUI
                              properties);       // properties
 
     d_impl->setImplClient(this);

@@ -49,6 +49,7 @@ class Gpu : public gpu::GpuChannelEstablishFactory {
   void EstablishGpuChannel(
       gpu::GpuChannelEstablishedCallback callback) override;
   scoped_refptr<gpu::GpuChannelHost> EstablishGpuChannelSync() override;
+  scoped_refptr<gpu::GpuChannelHost> EstablishPrivilegedGpuChannelSync() override;
   gpu::GpuMemoryBufferManager* GetGpuMemoryBufferManager() override;
 
   void LoseChannel();
@@ -67,7 +68,7 @@ class Gpu : public gpu::GpuChannelEstablishFactory {
 
   // Sends a request to establish a gpu channel. If a request is currently
   // pending this will do nothing.
-  void SendEstablishGpuChannelRequest();
+  void SendEstablishGpuChannelRequest(bool privileged);
 
   // Handles results of request to establish a gpu channel in
   // |pending_request_|.
@@ -79,6 +80,7 @@ class Gpu : public gpu::GpuChannelEstablishFactory {
 
   std::unique_ptr<GpuPtrIO, base::OnTaskRunnerDeleter> gpu_;
   scoped_refptr<EstablishRequest> pending_request_;
+  bool pending_request_privileged_ = false;
   scoped_refptr<gpu::GpuChannelHost> gpu_channel_;
   std::vector<gpu::GpuChannelEstablishedCallback> establish_callbacks_;
 
