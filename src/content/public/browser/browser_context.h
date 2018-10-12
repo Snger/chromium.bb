@@ -255,7 +255,7 @@ class CONTENT_EXPORT BrowserContext : public base::SupportsUserData {
   virtual SSLHostStateDelegate* GetSSLHostStateDelegate() = 0;
 
   // Returns true if the spellcheck service should download dictionaries.
-  virtual bool AllowDictionaryDownloads() { return false; }
+  virtual bool AllowDictionaryDownloads();
 
   // Returns the PermissionManager associated with that context if any, nullptr
   // otherwise.
