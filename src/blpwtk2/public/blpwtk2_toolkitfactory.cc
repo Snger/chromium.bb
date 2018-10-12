@@ -121,6 +121,8 @@ Toolkit* ToolkitFactory::create(const ToolkitCreateParams& params)
 
     base::win::SetWinProcExceptionFilter(params.winProcExceptionFilter());
 
+    views::corewm::TooltipWin::SetTooltipStyle(params.tooltipFont());
+    
     if (params.isMaxSocketsPerProxySet()) {
         setMaxSocketsPerProxy(params.maxSocketsPerProxy());
     }
