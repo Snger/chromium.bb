@@ -10,6 +10,7 @@
 #include "third_party/blink/renderer/core/editing/markers/document_marker_controller.h"
 #include "third_party/blink/renderer/core/editing/markers/text_match_marker.h"
 #include "third_party/blink/renderer/core/frame/local_frame.h"
+#include "third_party/blink/renderer/core/editing/editing_utilities.h"
 #include "third_party/blink/renderer/core/layout/api/line_layout_api_shim.h"
 #include "third_party/blink/renderer/core/layout/api/line_layout_box.h"
 #include "third_party/blink/renderer/core/layout/layout_table_cell.h"
@@ -888,10 +889,26 @@ void InlineTextBoxPainter::PaintDocumentMarker(GraphicsContext& context,
     // prevent a big gap.
     underline_offset = baseline + 2;
   }
-  DrawDocumentMarker(context,
-                     FloatPoint((box_origin.X() + start).ToFloat(),
-                                (box_origin.Y() + underline_offset).ToFloat()),
-                     width.ToFloat(), marker.GetType(), style.EffectiveZoom());
+  bool hide_spelling_marker = false;
+
+  if (inline_text_box_.GetLineLayoutItem().GetNode()) {
+    const Element *element = RootEditableElement(*inline_text_box_.GetLineLayoutItem().GetNode());
+    if (element) {
+      AtomicString colorAttr =
+        element->getAttribute(HTMLNames::bb_hide_spelling_markerAttr);
+
+      if (!colorAttr.IsNull()) {
+        hide_spelling_marker = true;
+      }
+    }
+  }
+
+  if (marker.GetType() != DocumentMarker::kSpelling || !hide_spelling_marker) {
+    DrawDocumentMarker(context,
+                      FloatPoint((box_origin.X() + start).ToFloat(),
+                                  (box_origin.Y() + underline_offset).ToFloat()),
+                      width.ToFloat(), marker.GetType(), style.EffectiveZoom());
+  }
 }
 
 template <InlineTextBoxPainter::PaintOptions options>
