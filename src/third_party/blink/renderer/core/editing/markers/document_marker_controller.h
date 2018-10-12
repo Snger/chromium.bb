@@ -75,6 +75,11 @@ class CORE_EXPORT DocumentMarkerController final
 
   void MoveMarkers(const Node* src_node, int length, const Node* dst_node);
 
+  void AddHighlightMarker(const EphemeralRange& range,
+                          Color foreground_color,
+                          Color background_color,
+                          bool include_nonselectable_text);
+
   void PrepareForDestruction();
   void RemoveMarkersInRange(const EphemeralRange&, DocumentMarker::MarkerTypes);
   void RemoveMarkersOfTypes(DocumentMarker::MarkerTypes);
