@@ -166,6 +166,14 @@ static LayoutObject* FirstNonMarkerChild(LayoutObject* parent) {
   return result;
 }
 
+static LayoutObject* FirstRenderText(LayoutObject* curr, LayoutObject* stayWithin)
+{
+  while (curr && !curr->IsText()) {
+    curr = curr->NextInPreOrder(stayWithin);
+  }
+  return curr;
+}
+
 // 1. Place marker as a child of <li>. Make sure don't share parent with empty
 // inline elements which don't gernerate inlineBox.
 // 2. Manage the logicalHeight of marker_container(marker's anonymous parent):
@@ -263,9 +271,21 @@ bool LayoutListItem::UpdateMarkerLocation() {
     }
   }
 
-  if (marker_parent != line_box_parent) {
+  bool fontsAreDifferent = false;
+  LayoutObject* firstNonMarker = FirstNonMarkerChild(line_box_parent);
+  LayoutObject* firstText = FirstRenderText(firstNonMarker, line_box_parent);
+  if (firstText && marker_->Style()->GetFontDescription() != firstText->Style()->GetFontDescription()) {
+    fontsAreDifferent = true;
+  }
+
+  if (marker_parent != line_box_parent || fontsAreDifferent) {
     marker_->Remove();
-    line_box_parent->AddChild(marker_, FirstNonMarkerChild(line_box_parent));
+    if (fontsAreDifferent) {
+      marker_->MutableStyle()->SetFontDescription(firstText->Style()->GetFontDescription());
+      marker_->Style()->GetFont().Update(marker_->Style()->GetFont().GetFontSelector());
+    }
+    line_box_parent->AddChild(marker_, firstNonMarker);
+
     // TODO(rhogan): lineBoxParent and markerParent may be deleted by addChild,
     // so they are not safe to reference here.
     // Once we have a safe way of referencing them delete markerParent if it is
@@ -275,6 +295,14 @@ bool LayoutListItem::UpdateMarkerLocation() {
   }
 
   return false;
+}
+
+LayoutUnit LayoutListItem::AdditionalMarginStart() const
+{
+    if (!marker_ || marker_->IsInside())
+        return LayoutUnit();
+
+    return marker_->MinPreferredLogicalWidth();
 }
 
 void LayoutListItem::AddOverflowFromChildren() {
@@ -352,7 +380,7 @@ void LayoutListItem::PositionListMarker() {
     }
 
     bool adjust_overflow = false;
-    LayoutUnit marker_logical_left;
+    LayoutUnit marker_logical_left = marker_old_logical_left;
     InlineBox* marker_inline_box = marker_->InlineBoxWrapper();
     RootInlineBox& root = marker_inline_box->Root();
     bool hit_self_painting_layer = false;

@@ -569,6 +569,18 @@ void LayoutBlock::AddVisualOverflowFromTheme() {
   AddSelfVisualOverflow(LayoutRect(inflated_rect));
 }
 
+LayoutUnit LayoutBlock::AdditionalMarginStart() const
+{
+    if (IsInline() || !Parent() || Parent()->ChildrenInline()
+          || !Parent()->GetNode() || (!Parent()->GetNode()->HasTagName(HTMLNames::ulTag) &&
+        !Parent()->GetNode()->HasTagName(HTMLNames::olTag))) {
+        return LayoutUnit(0);
+    }
+
+    LayoutBox *previousBox = PreviousSiblingBox();
+    return previousBox ? previousBox->AdditionalMarginStart() : LayoutUnit(40);
+}
+
 static inline bool ChangeInAvailableLogicalHeightAffectsChild(
     LayoutBlock* parent,
     LayoutBox& child) {
@@ -1499,6 +1511,10 @@ void LayoutBlock::ComputeBlockPreferredLogicalWidths(
       margin_start += start_margin_length.Value();
     if (end_margin_length.IsFixed())
       margin_end += end_margin_length.Value();
+
+    // SHEZ: additionalMarginStart is treated as fixed margin
+    if (child->IsBox())
+      margin_start += ToLayoutBox(child)->AdditionalMarginStart();
 
     margin = margin_start + margin_end;
 
