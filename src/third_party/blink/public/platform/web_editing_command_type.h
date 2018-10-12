@@ -155,7 +155,9 @@ enum class WebEditingCommandType {
   
   // Bloomberg-specific commands
   kInsertHTMLNested = 140,
-
+  kIndentBlock = 140,
+  kOutdentBlock = 141,
+  
   // Add new commands immediately above this line.
   kNumberOfCommandTypes,
 
