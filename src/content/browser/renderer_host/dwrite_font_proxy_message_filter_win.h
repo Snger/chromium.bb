@@ -38,6 +38,10 @@ class CONTENT_EXPORT DWriteFontProxyImpl : public mojom::DWriteFontProxy {
   static void Create(mojom::DWriteFontProxyRequest request,
                      const service_manager::BindSourceInfo& source_info);
 
+#if defined(OS_WIN)
+  void SetFontCollection(FontCollection* collection);
+#endif
+
   void SetWindowsFontsPathForTesting(base::string16 path);
 
  protected:
@@ -81,6 +85,10 @@ class CONTENT_EXPORT DWriteFontProxyImpl : public mojom::DWriteFontProxy {
 
   // Temp code to help track down crbug.com/561873
   std::vector<uint32_t> last_resort_fonts_;
+
+#if defined(OS_WIN)
+  FontCollection* font_collection_ = nullptr;
+#endif
 
   DISALLOW_COPY_AND_ASSIGN(DWriteFontProxyImpl);
 };
