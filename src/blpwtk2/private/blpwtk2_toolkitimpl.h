@@ -45,6 +45,10 @@ namespace content {
 class ContentMainRunner;
 }  // close namespace content
 
+namespace gin {
+class IsolateHolder;
+}  // close namespace gin
+
 namespace blpwtk2 {
 
 class MainMessagePump;
@@ -87,6 +91,10 @@ class ToolkitImpl : public Toolkit {
         // call" restriction placed by the browser code so the renderer can
         // freely make sync calls.
 
+    std::unique_ptr<gin::IsolateHolder> d_isolateHolder;
+        // Only used for ORIGINAL thread mode and when the toolkit is created with
+        // browserV8Enabled flag
+
     ~ToolkitImpl() override;
         // Shutdown all threads and delete the toolkit.  To ensure the same
         // allocator that was used to create the instance is also used to
@@ -124,6 +132,7 @@ class ToolkitImpl : public Toolkit {
                          const std::string&              hostChannel,
                          const std::vector<std::string>& cmdLineSwitches,
                          bool                            isolated,
+                         bool                            browserV8Enabled,
                          const std::string&              profileDir);
 
     // blpwtk2::Toolkit overrides

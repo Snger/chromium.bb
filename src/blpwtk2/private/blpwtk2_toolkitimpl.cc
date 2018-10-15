@@ -69,6 +69,7 @@
 //#include <third_party/blink/public/web/blink.h>
 #include <third_party/blink/public/web/web_security_policy.h>
 #include <third_party/blink/public/web/web_script_controller.h>
+#include <gin/v8_initializer.h>
 
 namespace blpwtk2 {
 
@@ -419,6 +420,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
                          const std::string&              hostChannel,
                          const std::vector<std::string>& cmdLineSwitches,
                          bool                            isolated,
+                         bool                            browserV8Enabled,
                          const std::string&              profileDir)
     : d_mainDelegate(false)
 {
@@ -535,6 +537,22 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
         ContentBrowserClientImpl* pBrowserClientImpl = d_mainDelegate.GetContentBrowserClientImpl();
         startRenderer(isHost, channelInfo, pBrowserClientImpl ? pBrowserClientImpl->GetClientInvitation() : nullptr);
     }
+
+    else if (isHost && browserV8Enabled && Statics::isOriginalThreadMode()) {
+#ifdef V8_USE_EXTERNAL_STARTUP_DATA
+        gin::V8Initializer::LoadV8Snapshot();
+        gin::V8Initializer::LoadV8Natives();
+#endif
+        gin::IsolateHolder::Initialize(gin::IsolateHolder::kNonStrictMode,
+                                       gin::IsolateHolder::kStableV8Extras,
+                                       gin::ArrayBufferAllocator::SharedInstance());
+
+        auto taskRunner = content::BrowserThread::GetTaskRunnerForThread(
+                                                    content::BrowserThread::UI);
+
+        d_isolateHolder.reset(new gin::IsolateHolder(taskRunner));
+        d_isolateHolder->isolate()->Enter();
+    }
 }
 
 ToolkitImpl::~ToolkitImpl()
@@ -568,6 +586,12 @@ ToolkitImpl::~ToolkitImpl()
     // BrowserThread is destroyed.  This is because the BrowserThread owns the
     // AtExitManager, which is one of the dependencies of ScopedAllowSyncCall
     d_allowSyncCall.reset();
+
+    if (d_isolateHolder) {
+        DCHECK(Statics::isOriginalThreadMode());
+        d_isolateHolder->isolate()->Exit();
+        d_isolateHolder.reset();
+    }
 
     if (Statics::isRendererMainThreadMode()) {
         delete base::MessageLoop::current();

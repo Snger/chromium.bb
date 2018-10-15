@@ -766,6 +766,25 @@ void runHost()
     ::CloseHandle(g_hJob);
 }
 
+void testBrowserV8() {
+    v8::Isolate *isolate = v8::Isolate::GetCurrent();
+    v8::Isolate::Scope isolate_scope(isolate);
+    v8::HandleScope handle_scope(isolate);
+    v8::Local<v8::Context> context = v8::Context::New(isolate);
+    v8::Context::Scope context_scope(context);
+
+    v8::Local<v8::String> source =
+        v8::String::NewFromUtf8(isolate, "'Hello' + ', World!'",
+                            v8::NewStringType::kNormal).ToLocalChecked();
+
+    v8::Local<v8::Script> script =
+                v8::Script::Compile(context, source).ToLocalChecked();
+    v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
+
+    v8::String::Utf8Value utf8(isolate, result);
+    std::cout << "Browser V8 Hello world test -- " << *utf8 << std::endl;
+}
+
 int main(int, const char**)
 {
     g_instance = GetModuleHandle(NULL);
@@ -872,6 +891,7 @@ int main(int, const char**)
     else {
         toolkitParams.setThreadMode(blpwtk2::ThreadMode::ORIGINAL);
         toolkitParams.disableInProcessRenderer();
+        toolkitParams.setBrowserV8Enabled(true);
     }
 
     toolkitParams.setHeaderFooterHTML(getHeaderFooterHTMLContent());
@@ -883,6 +903,7 @@ int main(int, const char**)
     g_toolkit->setIPCDelegate(&hostIPCDelegate);
 
     if (isProcessHost && host == blpwtk2::ThreadMode::ORIGINAL) {
+        testBrowserV8();
         runHost();
         g_toolkit->destroy();
         g_toolkit = 0;
