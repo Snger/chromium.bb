@@ -195,6 +195,14 @@ interface WebViewClient {
     findReply(int32 reqId, int32 numberOfMatches, int32 activeMatchOrdinal, bool finalUpdate);
         // This is the reply message for WebViewHost::find().  The host can
         // send multiple 'findReply' response for a single 'find' request.
+
+    devToolsAgentHostAttached();
+        // Notify the client that the devtools frontend is connected to the
+        // devtools agent associated with this webview.
+
+    devToolsAgentHostDetached();
+        // Notify the client that the devtools frontend is disconnected from
+        // the devtools agent associated with this webview.
 };
 
 // vim: ts=4 et
