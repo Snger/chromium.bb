@@ -44,6 +44,7 @@
 #include <net/socket/client_socket_pool_manager.h>
 #include <printing/print_settings.h>
 #include <ui/views/corewm/tooltip_win.h>
+#include "third_party/blink/renderer/core/layout/layout_theme.h"
 
 namespace blpwtk2 {
 static bool g_created = false;
@@ -120,6 +121,14 @@ Toolkit* ToolkitFactory::create(const ToolkitCreateParams& params)
 	}
 
     base::win::SetWinProcExceptionFilter(params.winProcExceptionFilter());
+
+    NativeColor activeSearchColor = params.activeTextSearchHighlightColor();
+    NativeColor inactiveSearchColor = params.inactiveTextSearchHighlightColor();
+    blink::LayoutTheme::SetTextSearchHighlightColor(GetRValue(activeSearchColor), GetGValue(activeSearchColor), GetBValue(activeSearchColor),
+                                       GetRValue(inactiveSearchColor), GetGValue(inactiveSearchColor), GetBValue(inactiveSearchColor));
+
+    NativeColor activeSearchTextColor = params.activeTextSearchColor();
+    blink::LayoutTheme::SetTextSearchColor(GetRValue(activeSearchTextColor), GetGValue(activeSearchTextColor), GetBValue(activeSearchTextColor));
 
     DCHECK(!Statics::inProcessResourceLoader ||
             Statics::isRendererMainThreadMode());
