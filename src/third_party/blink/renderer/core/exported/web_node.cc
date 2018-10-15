@@ -56,7 +56,7 @@
 
 namespace {
 void DispatchImpl(blink::Node* node_ptr, blink::Event* evt) {
-  blink::EventDispatcher::DispatchScopedEvent(*node_ptr, evt->CreateMediator());
+  blink::EventDispatcher::DispatchScopedEvent(*node_ptr, evt);
 }
 }
 
@@ -88,7 +88,7 @@ void WebNode::Assign(const WebNode& other) {
 void WebNode::DispatchEvent(WebDOMEvent event)
 {
   Event* evt = event;
-  auto taskRunner = TaskRunnerHelper::Get(TaskType::kUserInteraction, private_->GetExecutionContext());
+  auto taskRunner = private_->GetExecutionContext()->GetTaskRunner(TaskType::kUserInteraction);
   taskRunner->PostTask(FROM_HERE, WTF::Bind(&DispatchImpl, WrapWeakPersistent(private_.Get()), base::Unretained(evt)));
 }
 
