@@ -307,7 +307,8 @@ void WebPluginContainerImpl::EnqueueEvent(const WebDOMEvent& event) {
     return;
 
   static_cast<Event*>(event)->SetTarget(element_);
-  element_->GetExecutionContext()->GetEventQueue()->EnqueueEvent(BLINK_FROM_HERE, event);
+  element_->GetExecutionContext()->GetEventQueue()->EnqueueEvent(FROM_HERE,
+                                                                 event);
 }
 
 void WebPluginContainerImpl::SetPlugin(WebPlugin* plugin) {
@@ -1082,7 +1083,7 @@ void WebPluginContainerImpl::ComputeClipRectsForPlugin(
   FloatRect frame_rect_with_transforms =
       box->LocalToAbsoluteQuad(FloatRect(box->ContentBoxRect()),
                                MapCoordinatesMode::kUseTransforms).BoundingBox();
- 
+
   LayoutRect layout_window_rect =
       LayoutRect(element_->GetDocument()
                      .View()
@@ -1101,8 +1102,8 @@ void WebPluginContainerImpl::ComputeClipRectsForPlugin(
   layout_clipped_local_rect.MoveBy(-layout_window_rect.Location());
   unclipped_layout_local_rect.MoveBy(-layout_window_rect.Location());
 
-  clipped_local_rect = IntRect(layout_clipped_local_rect);
-  unclipped_int_local_rect = IntRect(unclipped_layout_local_rect);
+  clipped_local_rect = PixelSnappedIntRect(layout_clipped_local_rect);
+  unclipped_int_local_rect = PixelSnappedIntRect(unclipped_layout_local_rect);
 
   // Finally, adjust for scrolling of the root frame, which the above does not
   // take into account.

@@ -24,11 +24,11 @@
 
 #include <base/bind.h>
 #include <base/message_loop/message_loop.h>
-#include <third_party/WebKit/public/web/WebDocument.h>
-#include <third_party/WebKit/public/web/WebDOMEvent.h>
-#include <third_party/WebKit/public/web/WebLocalFrame.h>
-#include <third_party/WebKit/public/web/WebPluginContainer.h>
-#include <third_party/WebKit/public/web/WebSerializedScriptValue.h>
+#include <third_party/blink/public/web/web_document.h>
+#include <third_party/blink/public/web/web_dom_event.h>
+#include <third_party/blink/public/web/web_local_frame.h>
+#include <third_party/blink/public/web/web_plugin_container.h>
+#include <third_party/blink/public/web/web_serialized_script_value.h>
 #include <v8/include/v8.h>
 
 namespace blpwtk2 {
@@ -69,7 +69,7 @@ bool JsWidget::Initialize(blink::WebPluginContainer* container)
     d_container = container;
     v8::HandleScope handleScope(v8::Isolate::GetCurrent());
     v8::Context::Scope contextScope(d_frame->MainWorldScriptContext());
-    blink::WebDOMEvent event = blink::WebDOMEvent::CreateCustomEvent(d_frame->scriptIsolate(), "bbOnInitialize", false, false, v8::Local<v8::Value>{});
+    blink::WebDOMEvent event = blink::WebDOMEvent::CreateCustomEvent(d_frame->ScriptIsolate(), "bbOnInitialize", false, false, v8::Local<v8::Value>{});
     DispatchEvent(event);
     return true;
 }
@@ -96,11 +96,11 @@ void JsWidget::UpdateGeometry(
         return;
     }
 
-    v8::Isolate* isolate = d_frame->scriptIsolate();
+    v8::Isolate* isolate = d_frame->ScriptIsolate();
     v8::HandleScope handleScope(isolate);
     v8::Handle<v8::Context> context = d_frame->MainWorldScriptContext();
     v8::Context::Scope contextScope(context);
-   
+
     v8::Handle<v8::Object> detailObj = v8::Object::New(isolate);
     detailObj->Set(v8::String::NewFromUtf8(isolate, "windowRect"), ToV8(isolate, windowRect));
 	detailObj->Set(v8::String::NewFromUtf8(isolate, "clipRect"), ToV8(isolate, clipRect));
@@ -121,7 +121,7 @@ void JsWidget::UpdateVisibility(bool isVisible)
         return;
     }
 
-    v8::Isolate* isolate = d_frame->scriptIsolate();
+    v8::Isolate* isolate = d_frame->ScriptIsolate();
 
     v8::HandleScope handleScope(isolate);
 
@@ -134,6 +134,12 @@ void JsWidget::UpdateVisibility(bool isVisible)
     blink::WebDOMEvent event = blink::WebDOMEvent::CreateCustomEvent(isolate, "bbOnUpdateVisibility", false, false,
                                                                      detailObj);
     DispatchEvent(event);
+}
+
+blink::WebInputEventResult JsWidget::HandleInputEvent(
+    const blink::WebCoalescedInputEvent&, blink::WebCursorInfo&)
+{
+    return blink::WebInputEventResult::kNotHandled;
 }
 
 void JsWidget::AttachToLayout()

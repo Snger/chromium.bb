@@ -25,8 +25,8 @@
 
 #include <blpwtk2_config.h>
 
-#include <third_party/WebKit/public/web/WebElement.h>
-#include <third_party/WebKit/public/web/WebPlugin.h>
+#include <third_party/blink/public/web/web_element.h>
+#include <third_party/blink/public/web/web_plugin.h>
 
 namespace blink {
 class WebDOMEvent;
@@ -42,9 +42,9 @@ namespace blpwtk2 {
 class JsWidget : public blink::WebPlugin {
   public:
     explicit JsWidget(blink::WebLocalFrame* frame);
-    virtual ~JsWidget();
+    ~JsWidget() final;
 
-    void DispatchEvent(const blink::WebDOMEvent& event);    
+    void DispatchEvent(const blink::WebDOMEvent& event);
 
     // blink::WebPlugin overrides
     bool Initialize(blink::WebPluginContainer*) override;
@@ -56,7 +56,8 @@ class JsWidget : public blink::WebPlugin {
         const blink::WebRect& unobscuredRect, bool isVisible) override;
     void UpdateFocus(bool, blink::WebFocusType) override {}
     void UpdateVisibility(bool isVisible) override;
-    blink::WebInputEventResult HandleInputEvent(const blink::WebCoalescedInputEvent&, blink::WebCursorInfo&) override { return blink::WebInputEventResult::kNotHandled; }
+    blink::WebInputEventResult HandleInputEvent(
+        const blink::WebCoalescedInputEvent&, blink::WebCursorInfo&) override;
     void DidReceiveResponse(const blink::WebURLResponse&) override {}
     void DidReceiveData(const char* data, int dataLength) override {}
     void DidFinishLoading() override {}
@@ -68,7 +69,7 @@ class JsWidget : public blink::WebPlugin {
   private:
     blink::WebRect LocalToRootFrameRect(const blink::WebRect& localRect) const;
 
-    blink::WebPluginContainer* d_container;    
+    blink::WebPluginContainer* d_container;
     blink::WebLocalFrame* d_frame;
     bool d_hasParent;
     bool d_pendingVisible; // Whether to make visible when added to a parent

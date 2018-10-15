@@ -35,7 +35,7 @@
 #include "third_party/blink/public/platform/web_private_ptr.h"
 #include "third_party/blink/public/platform/web_string.h"
 #include "third_party/blink/public/platform/web_vector.h"
-#include "third_party/blink/public/web_dom_event.h"
+#include "third_party/blink/public/web/web_dom_event.h"
 
 namespace blink {
 
