@@ -427,6 +427,13 @@ v8::Isolate* WebRemoteFrameImpl::ScriptIsolate() const
   return nullptr;
 }
 
+void WebRemoteFrameImpl::DrawInCanvas(
+    const WebRect& rect,
+    const WebString& style_class,
+    SkCanvas& canvas) const {
+  NOTREACHED();
+}
+
 WebRemoteFrameImpl::WebRemoteFrameImpl(WebTreeScopeType scope,
                                        WebRemoteFrameClient* client)
     : WebRemoteFrame(scope),
