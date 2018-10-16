@@ -647,4 +647,8 @@ media::VideoDecodePerfHistory* BrowserContext::GetVideoDecodePerfHistory() {
   return decode_history;
 }
 
+FontCollection* BrowserContext::GetFontCollection() {
+    return nullptr;
+}
+
 }  // namespace content
