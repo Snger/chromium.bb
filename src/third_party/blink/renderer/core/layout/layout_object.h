@@ -452,6 +452,7 @@ class CORE_EXPORT LayoutObject : public ImageResourceObserver,
 #endif
 
   void AddAbsoluteRectForLayer(IntRect& result);
+  void AddAbsoluteRectForLayer(const IntRect& clip, IntRect& result);
   bool RequiresAnonymousTableWrappers(const LayoutObject*) const;
 
  public:
