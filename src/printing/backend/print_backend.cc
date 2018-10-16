@@ -49,9 +49,9 @@ PrinterCapsAndDefaults::~PrinterCapsAndDefaults() = default;
 
 PrintBackend::~PrintBackend() = default;
 
-void PrintBackend::SetUserDefaultPrinterName(const std::string& printerName)
+void PrintBackend::SetUserDefaultPrinterName(std::string printerName)
 {
-    g_defaultPrinterName = printerName;
+    g_defaultPrinterName = std::move(printerName);
 }
 
 const std::string& PrintBackend::GetUserDefaultPrinterName()

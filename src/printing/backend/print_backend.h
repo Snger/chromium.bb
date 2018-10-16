@@ -124,7 +124,7 @@ class PRINTING_EXPORT PrintBackend
   static scoped_refptr<PrintBackend> CreateInstance(
       const base::DictionaryValue* print_backend_settings);
 
-  static void SetUserDefaultPrinterName(const std::string& printerName);
+  static void SetUserDefaultPrinterName(std::string printerName);
 
   const std::string& GetUserDefaultPrinterName();
 

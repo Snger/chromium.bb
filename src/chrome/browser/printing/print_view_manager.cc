@@ -59,6 +59,7 @@ void EnableInternalPDFPluginForContents(int render_process_id,
 
 namespace printing {
 
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
 struct PrintViewManager::FrameDispatchHelper {
   PrintViewManager* manager;
   content::RenderFrameHost* render_frame_host;
@@ -69,6 +70,7 @@ struct PrintViewManager::FrameDispatchHelper {
     manager->OnSetupScriptedPrintPreview(render_frame_host, reply_msg);
   }
 };
+#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
 extern PrintJobManager* g_print_job_manager;
 
@@ -176,8 +178,10 @@ void PrintViewManager::PrintPreviewDone() {
   bool send_message = !is_switching_to_system_dialog_;
 #endif
   if (send_message) {
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
     print_preview_rfh_->Send(new PrintMsg_ClosePrintPreviewDialog(
         print_preview_rfh_->GetRoutingID()));
+#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
   }
   is_switching_to_system_dialog_ = false;
 
@@ -296,7 +300,9 @@ void PrintViewManager::OnScriptedPrintPreviewReply(IPC::Message* reply_msg) {
 bool PrintViewManager::OnMessageReceived(
     const IPC::Message& message,
     content::RenderFrameHost* render_frame_host) {
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
   FrameDispatchHelper helper = {this, render_frame_host};
+#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
   bool handled = true;
   IPC_BEGIN_MESSAGE_MAP_WITH_PARAM(PrintViewManager, message, render_frame_host)
     IPC_MESSAGE_HANDLER(PrintHostMsg_DidShowPrintDialog, OnDidShowPrintDialog)

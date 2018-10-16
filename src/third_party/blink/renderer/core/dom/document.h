@@ -910,8 +910,8 @@ class CORE_EXPORT Document : public ContainerNode,
   // Bloomberg-specific extensions
   String bbHeaderText() const { return bb_header_text_; }
   void setBbHeaderText(const String& value) { bb_header_text_ = value; }
-  String bbFooterText() const { return bb_footer_text; }
-  void setBbFooterText(const String& value) { bb_footer_text = value; }
+  String bbFooterText() const { return bb_footer_text_; }
+  void setBbFooterText(const String& value) { bb_footer_text_ = value; }
   bool bbPrintPageNumbers() const { return bb_print_page_numbers_; }
   void setBbPrintPageNumbers(bool value) { bb_print_page_numbers_ = value; }
 
@@ -1709,7 +1709,7 @@ class CORE_EXPORT Document : public ContainerNode,
   Vector<AnnotatedRegionValue> annotated_regions_;
   bool has_annotated_regions_;
   bool annotated_regions_dirty_;
-  bool bb_print_page_numbers_;
+  bool bb_print_page_numbers_{true};
 
   std::unique_ptr<SelectorQueryCache> selector_query_cache_;
 
