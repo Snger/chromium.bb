@@ -139,6 +139,8 @@ Toolkit* ToolkitFactory::create(const ToolkitCreateParams& params)
     DCHECK(!Statics::inProcessResourceLoader ||
             Statics::isRendererMainThreadMode());
 
+    views::corewm::TooltipWin::SetTooltipStyle(params.tooltipFont());
+
     if (params.isMaxSocketsPerProxySet()) {
         setMaxSocketsPerProxy(params.maxSocketsPerProxy());
     }
