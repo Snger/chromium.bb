@@ -97,6 +97,7 @@ bool g_is_preview_enabled = true;
 bool g_is_preview_enabled = false;
 #endif
 
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
 const char kPageLoadScriptFormat[] =
     "document.open(); document.write(%s); document.close();";
 
@@ -110,6 +111,7 @@ void ExecuteScript(blink::WebLocalFrame* frame,
   std::string script = base::StringPrintf(script_format, json.c_str());
   frame->ExecuteScript(blink::WebString::FromUTF8(script));
 }
+#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
 int GetDPI(const PrintMsg_Print_Params* print_params) {
 #if defined(OS_MACOSX)
@@ -1096,10 +1098,13 @@ std::vector<char> PrintRenderFrameHelper::PrintToPDF(
 
     std::vector<int> printed_pages = GetPrintedPages(params, page_count);
     if (!printed_pages.empty()) {
+      // blpwtk2: This logic is borrowed from the PrintPagesNative function
+      // defined below
       std::vector<gfx::Size> page_size_in_dpi(printed_pages.size());
       std::vector<gfx::Rect> content_area_in_dpi(printed_pages.size());
 
-      PdfMetafileSkia metafile(print_params.printed_doc_type);
+      PdfMetafileSkia metafile(print_params.printed_doc_type,
+                               print_params.document_cookie);
       CHECK(metafile.Init());
 
       PrintMsg_Print_Params page_params;
@@ -1107,7 +1112,7 @@ std::vector<char> PrintRenderFrameHelper::PrintToPDF(
         const int page_number = printed_pages[i];
         PrintPageInternal(page_params, page_number, page_count, frame,
                           &metafile, &page_size_in_dpi[i],
-                          &content_area_in_dpi[i], nullptr);
+                          &content_area_in_dpi[i]);
       }
       FinishFramePrinting();
       metafile.FinishDocument();
