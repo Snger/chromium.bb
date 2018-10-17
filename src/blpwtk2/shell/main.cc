@@ -373,7 +373,8 @@ void testGetPicture(blpwtk2::NativeView hwnd,
                                             false,
                                             false,
                                             false,
-                                            false);
+                                            false,
+                                            true);
     }
     else if (rendererType == blpwtk2::WebView::DrawParams::RendererType::Bitmap) {
         std::vector<char> bmp_data;

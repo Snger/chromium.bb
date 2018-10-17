@@ -179,12 +179,11 @@ void RendererUtil::drawContentsToBlob(content::RenderView        *rv,
     if (params.rendererType == WebView::DrawParams::RendererType::PDF) {
         SkDynamicMemoryWStream& pdf_stream = blob->makeSkStream();
         {
+            SkDocument::PDFMetadata metadata;
+            metadata.fRasterDPI = params.dpi;
+
             sk_sp<SkDocument> document(
-                    SkDocument::MakePDF(&pdf_stream,
-                                        params.dpi,
-                                        SkDocument::PDFMetadata(),
-                                        nullptr,
-                                        false).release());
+                    SkDocument::MakePDF(&pdf_stream, metadata).release());
 
             SkCanvas *canvas = document->beginPage(params.destWidth, params.destHeight);
             DCHECK(canvas);
