@@ -339,6 +339,7 @@ class LineLayoutItem {
 #endif
 
  public:
+// wtk2: inline_box.h needs to call this
   LayoutObject* GetLayoutObject() { return layout_object_; }
   const LayoutObject* GetLayoutObject() const { return layout_object_; }
 
