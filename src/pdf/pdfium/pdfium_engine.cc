@@ -746,13 +746,11 @@ bool InitializeSDK() {
 }
 
 void ShutdownSDK() {
-
-  g_isolate_holder->isolate()->Exit();
-// #if !defined(OS_LINUX)
-//   delete g_font_info;
-// #endif
-  // FPDF_DestroyLibrary();
-  // TearDownV8();
+//  FPDF_DestroyLibrary();
+#if !defined(OS_LINUX)
+  delete g_font_info;
+#endif
+  TearDownV8();
 }
 
 std::unique_ptr<PDFEngine> PDFEngine::Create(PDFEngine::Client* client) {
