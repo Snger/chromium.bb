@@ -20,27 +20,27 @@
  * IN THE SOFTWARE.
  */
 
-#include "core/exported/WebViewImpl.h"
+#include "core/exported/web_view_impl.h"
 
 #include <vector>
 
-#include "core/clipboard/Pasteboard.h"
-#include "core/events/InputEvent.h"
-#include "core/frame/LocalFrame.h"
-#include "core/frame/FrameView.h"
-#include "core/layout/line/InlineTextBox.h"
-#include "core/layout/LayoutBlock.h"
-#include "core/layout/LayoutIFrame.h"
-#include "core/layout/LayoutObject.h"
-#include "core/layout/LayoutText.h"
-#include "core/layout/LayoutView.h"
-#include "core/layout/TextRunConstructor.h"
-#include "core/page/Page.h"
-#include "core/paint/PaintLayer.h"
-#include "core/style/ComputedStyleConstants.h"
-#include "platform/wtf/text/StringBuilder.h"
+#include "core/clipboard/pasteboard.h"
+#include "core/events/input_event.h"
+#include "core/frame/local_frame.h"
+#include "core/frame/frame_view.h"
+#include "core/layout/line/inline_text_box.h"
+#include "core/layout/layout_block.h"
+#include "core/layout/layout_iframe.h"
+#include "core/layout/layout_object.h"
+#include "core/layout/layout_text.h"
+#include "core/layout/layout_view.h"
+#include "core/layout/text_run_constructor.h"
+#include "core/page/page.h"
+#include "core/paint/paint_layer.h"
+#include "core/style/computed_style_constants.h"
+#include "platform/wtf/text/string_builder.h"
 
-#include "public/web/WebViewClient.h"
+#include "public/web/web_view_client.h"
 
 namespace blink {
 
@@ -341,13 +341,13 @@ void WebViewImpl::RubberbandWalkLayoutObject(const RubberbandContext& context, L
                 LayoutPoint minXminY = localContext.calcAbsPoint(LayoutPoint::Zero());
                 if (isClippedX) {
                     LayoutUnit minX = LayoutUnit(minXminY.X());
-                    LayoutUnit maxX = LayoutUnit(minX + (layer->size().Width() * layerContext.m_scaleX));
+                    LayoutUnit maxX = LayoutUnit(minX + (layer->Size().Width() * layerContext.m_scaleX));
                     layerContext.m_clipRect.ShiftXEdgeTo(std::max(minX, layerContext.m_clipRect.X()));
                     layerContext.m_clipRect.ShiftMaxXEdgeTo(std::min(maxX, layerContext.m_clipRect.MaxX()));
                 }
                 if (isClippedY) {
                     LayoutUnit minY = LayoutUnit(minXminY.Y());
-                    LayoutUnit maxY = LayoutUnit(minY + (layer->size().Height() * layerContext.m_scaleY));
+                    LayoutUnit maxY = LayoutUnit(minY + (layer->Size().Height() * layerContext.m_scaleY));
                     layerContext.m_clipRect.ShiftYEdgeTo(std::max(minY, layerContext.m_clipRect.Y()));
                     layerContext.m_clipRect.ShiftMaxYEdgeTo(std::min(maxY, layerContext.m_clipRect.MaxY()));
                 }
@@ -401,7 +401,7 @@ void WebViewImpl::RubberbandWalkLayoutObject(const RubberbandContext& context, L
         if (layoutObject->IsLayoutIFrame() && isVisible) {
             LayoutIFrame* layoutIFrame = ToLayoutIFrame(layoutObject);
             if (layoutIFrame->ChildFrameView()) {
-                LocalFrameView* frameView = layoutIFrame->ChildFrameView();
+                LocalFrameView* frameView = ToLocalFrameView(layoutIFrame->ChildFrameView());
                 LayoutPoint topLeft;
                 if (!layoutObject->HasLayer()) {
                     topLeft.Move((localContext.m_layoutTopLeft.X() + layoutBox->FrameRect().X()) * context.m_layerContext->m_scaleX,
@@ -417,7 +417,7 @@ void WebViewImpl::RubberbandWalkLayoutObject(const RubberbandContext& context, L
         LayoutText* layoutText = ToLayoutText(layoutObject);
 
         WTF::String text(layoutText->GetText());
-        for (InlineTextBox* textBox = layoutText->FirstTextBox(); textBox; textBox = textBox->NextTextBox()) {
+        for (InlineTextBox* textBox = layoutText->FirstTextBox(); textBox; textBox = textBox->NextForSameLayoutObject()) {
             LayoutUnit textBoxTop = textBox->Root().LineTop();
             LayoutUnit textBoxHeight = textBox->Root().LineBottom() - textBoxTop;
             LayoutUnit textBoxLeft = textBox->X();

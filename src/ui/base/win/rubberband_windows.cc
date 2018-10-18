@@ -26,7 +26,7 @@ class RubberbandWindow {
 class RubberbandWindow::Impl : public gfx::WindowImpl {
  public:
   Impl();
-  virtual ~Impl();
+  ~Impl() override;
 
   CR_BEGIN_MSG_MAP_EX(Impl)
     CR_MSG_WM_PAINT(OnPaint)

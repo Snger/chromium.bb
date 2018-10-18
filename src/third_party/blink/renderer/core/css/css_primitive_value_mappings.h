@@ -719,6 +719,8 @@ inline CSSIdentifierValue::CSSIdentifierValue(ERubberbandable e)
         case ERubberbandable::kTextWithLeadingTab:
             value_id_ = CSSValueTextWithLeadingTab;
             break;
+        default:
+            break;
     }
 }
 
@@ -733,6 +735,8 @@ inline ERubberbandable CSSIdentifierValue::ConvertTo() const {
             return ERubberbandable::kText;
         case CSSValueTextWithLeadingTab:
             return ERubberbandable::kTextWithLeadingTab;
+        default:
+            break;
     }
 
     NOTREACHED();
