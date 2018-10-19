@@ -421,6 +421,12 @@ void BrowserContextImpl::setPacUrl(const StringRef& url)
     d_requestContextGetter->setProxyConfig(*d_proxyConfig);
 }
 
+void BrowserContextImpl::clearWebCache()
+{
+    // NOTREACHED
+    DCHECK(false);
+}
+
 // content::BrowserContext overrides
 std::unique_ptr<content::ZoomLevelDelegate>
 BrowserContextImpl::CreateZoomLevelDelegate(
