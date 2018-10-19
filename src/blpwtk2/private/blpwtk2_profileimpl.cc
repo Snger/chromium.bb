@@ -37,6 +37,7 @@
 #include <content/common/service_manager/child_connection.h>
 #include <mojo/public/cpp/bindings/strong_binding.h>
 #include <services/service_manager/public/cpp/connector.h>
+#include <third_party/blink/public/platform/web_cache.h>
 
 namespace blpwtk2 {
 
@@ -298,6 +299,11 @@ void ProfileImpl::clearBypassRules()
 void ProfileImpl::setPacUrl(const StringRef& url)
 {
     d_hostPtr->setPacUrl(std::string(url.data(), url.size()));
+}
+
+void ProfileImpl::clearWebCache()
+{
+    blink::WebCache::Clear();
 }
 
 }  // close namespace blpwtk2
