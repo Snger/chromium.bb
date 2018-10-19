@@ -34,7 +34,7 @@
 namespace blpwtk2 {
 
 static v8::Handle<v8::Object> ToV8(v8::Isolate* isolate, const blink::WebRect& rc)
-    {
+{
     // TODO: make a template for this
     v8::Handle<v8::Object> result = v8::Object::New(isolate);
     result->Set(v8::String::NewFromUtf8(isolate, "x"), v8::Integer::New(isolate, rc.x));
