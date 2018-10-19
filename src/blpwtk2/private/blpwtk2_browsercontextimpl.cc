@@ -504,6 +504,12 @@ void BrowserContextImpl::removeCustomWords(const StringRef *words,
         wordsVector);
 }
 
+void BrowserContextImpl::clearWebCache()
+{
+    // NOTREACHED
+    DCHECK(false);
+}
+
 // content::BrowserContext overrides
 std::unique_ptr<content::ZoomLevelDelegate>
 BrowserContextImpl::CreateZoomLevelDelegate(

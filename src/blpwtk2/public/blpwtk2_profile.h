@@ -162,6 +162,8 @@ class Profile
         // Remove the specified 'words' from the list of custom words used in
         // this profile.
 
+    virtual void clearWebCache() = 0;
+
   protected:
     virtual ~Profile();
         // Destroy this Profile object.  Note that embedders of blpwtk2 should

@@ -183,6 +183,8 @@ class ProfileImpl : public Profile {
 
     void removeCustomWords(const StringRef *words,
                            size_t           numWords) override;
+
+    void clearWebCache() override;
 };
 
 }  // close namespace blpwtk2
