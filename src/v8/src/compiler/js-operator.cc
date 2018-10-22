@@ -598,7 +598,7 @@ CompareOperationHint CompareOperationHintOf(const Operator* op) {
   V(CreateKeyValueArray, Operator::kEliminatable, 2, 1)                \
   V(CreatePromise, Operator::kEliminatable, 0, 1)                      \
   V(CreateTypedArray, Operator::kNoProperties, 5, 1)                   \
-  V(CreateObject, Operator::kNoWrite, 1, 1)                            \
+  V(CreateObject, Operator::kNoProperties, 1, 1)                       \
   V(ObjectIsArray, Operator::kNoProperties, 1, 1)                      \
   V(HasProperty, Operator::kNoProperties, 2, 1)                        \
   V(HasInPrototypeChain, Operator::kNoProperties, 2, 1)                \
@@ -617,7 +617,8 @@ CompareOperationHint CompareOperationHintOf(const Operator* op) {
   V(RejectPromise, Operator::kNoDeopt | Operator::kNoThrow, 3, 1)      \
   V(ResolvePromise, Operator::kNoDeopt | Operator::kNoThrow, 2, 1)     \
   V(GetSuperConstructor, Operator::kNoWrite, 1, 1)                     \
-  V(ParseInt, Operator::kNoProperties, 2, 1)
+  V(ParseInt, Operator::kNoProperties, 2, 1)                           \
+  V(RegExpTest, Operator::kNoProperties, 2, 1)
 
 #define BINARY_OP_LIST(V) V(Add)
 
@@ -794,7 +795,8 @@ const Operator* JSOperatorBuilder::CallForwardVarargs(size_t arity,
       parameters);                                               // parameter
 }
 
-const Operator* JSOperatorBuilder::Call(size_t arity, CallFrequency frequency,
+const Operator* JSOperatorBuilder::Call(size_t arity,
+                                        CallFrequency const& frequency,
                                         VectorSlotPair const& feedback,
                                         ConvertReceiverMode convert_mode,
                                         SpeculationMode speculation_mode) {
@@ -818,8 +820,8 @@ const Operator* JSOperatorBuilder::CallWithArrayLike(CallFrequency frequency) {
 }
 
 const Operator* JSOperatorBuilder::CallWithSpread(
-    uint32_t arity, CallFrequency frequency, VectorSlotPair const& feedback,
-    SpeculationMode speculation_mode) {
+    uint32_t arity, CallFrequency const& frequency,
+    VectorSlotPair const& feedback, SpeculationMode speculation_mode) {
   DCHECK_IMPLIES(speculation_mode == SpeculationMode::kAllowSpeculation,
                  feedback.IsValid());
   CallParameters parameters(arity, frequency, feedback,
@@ -950,7 +952,7 @@ const Operator* JSOperatorBuilder::GeneratorStore(int register_count) {
       register_count);                                  // parameter
 }
 
-int GeneratorStoreRegisterCountOf(const Operator* op) {
+int GeneratorStoreValueCountOf(const Operator* op) {
   DCHECK_EQ(IrOpcode::kJSGeneratorStore, op->opcode());
   return OpParameter<int>(op);
 }
@@ -1141,10 +1143,10 @@ const Operator* JSOperatorBuilder::CreateClosure(
 }
 
 const Operator* JSOperatorBuilder::CreateLiteralArray(
-    Handle<ConstantElementsPair> constant_elements,
+    Handle<ArrayBoilerplateDescription> description,
     VectorSlotPair const& feedback, int literal_flags, int number_of_elements) {
-  CreateLiteralParameters parameters(constant_elements, feedback,
-                                     number_of_elements, literal_flags);
+  CreateLiteralParameters parameters(description, feedback, number_of_elements,
+                                     literal_flags);
   return new (zone()) Operator1<CreateLiteralParameters>(  // --
       IrOpcode::kJSCreateLiteralArray,                     // opcode
       Operator::kNoProperties,                             // properties
@@ -1165,7 +1167,7 @@ const Operator* JSOperatorBuilder::CreateEmptyLiteralArray(
 }
 
 const Operator* JSOperatorBuilder::CreateLiteralObject(
-    Handle<BoilerplateDescription> constant_properties,
+    Handle<ObjectBoilerplateDescription> constant_properties,
     VectorSlotPair const& feedback, int literal_flags,
     int number_of_properties) {
   CreateLiteralParameters parameters(constant_properties, feedback,

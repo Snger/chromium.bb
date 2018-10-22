@@ -215,6 +215,42 @@
       ]
     },
     {
+      'target_name': 'system_api-vm_cicerone-protos-gen',
+      'type': 'none',
+      'variables': {
+        'proto_in_dir': 'dbus/vm_cicerone',
+        'proto_out_dir': 'include/vm_cicerone/proto_bindings',
+      },
+      'sources': [
+        '<(proto_in_dir)/cicerone_service.proto',
+      ],
+      'includes': ['../../platform2/common-mk/protoc.gypi'],
+    },
+    {
+      'target_name': 'system_api-vm_cicerone-goprotos-gen',
+      'type': 'none',
+      'variables': {
+        'gen_go': 1,
+        'proto_in_dir': 'dbus/vm_cicerone',
+        'proto_out_dir': 'go/src/chromiumos/system_api/vm_cicerone_proto',
+      },
+      'sources': [
+        '<(proto_in_dir)/cicerone_service.proto',
+      ],
+      'includes': ['../../platform2/common-mk/protoc.gypi'],
+    },
+    {
+      'target_name': 'system_api-vm_cicerone-protos',
+      'type': 'static_library',
+      'standalone_static_library': 1,
+      'dependencies': [
+        'system_api-vm_cicerone-protos-gen',
+      ],
+      'sources': [
+        '<(SHARED_INTERMEDIATE_DIR)/include/vm_cicerone/proto_bindings/cicerone_service.pb.cc',
+      ]
+    },
+    {
       'target_name': 'system_api-vm_concierge-protos-gen',
       'type': 'none',
       'variables': {
@@ -232,7 +268,7 @@
       'variables': {
         'gen_go': 1,
         'proto_in_dir': 'dbus/vm_concierge',
-        'proto_out_dir': 'go/src/chromiumos/system_api/vm_concierge',
+        'proto_out_dir': 'go/src/chromiumos/system_api/vm_concierge_proto',
       },
       'sources': [
         '<(proto_in_dir)/service.proto',
@@ -274,75 +310,27 @@
       ]
     },
     {
-      'target_name': 'ml_service_mojo_bindings',
-      'type': 'static_library',
+      'target_name': 'system_api-seneschal-protos-gen',
+      'type': 'none',
       'variables': {
-        'deps': [
-          'libchrome-<(libbase_ver)',
-          'libmojo-<(libbase_ver)',
-        ],
-        'mojo_output_dir': '<(SHARED_INTERMEDIATE_DIR)/include',
-        'mojo_binding_generator': '<(sysroot)/usr/src/libmojo-<(libbase_ver)/mojo/mojom_bindings_generator.py',
-        'mojo_template_dir': '<(SHARED_INTERMEDIATE_DIR)/templates',
+        'proto_in_dir': 'dbus/seneschal',
+        'proto_out_dir': 'include/seneschal/proto_bindings',
       },
       'sources': [
-        'mojo/ml_service/interface.mojom',
-        'mojo/ml_service/learning_example.mojom',
-        'mojo/ml_service/model.mojom',
+        '<(proto_in_dir)/service.proto',
       ],
-      'actions': [
-        {
-          'action_name': 'ml_service_mojom_templates_dir',
-          'inputs': [
-          ],
-          'outputs': [
-            '<(mojo_template_dir)',
-          ],
-          'message': 'Creating mojo C++ templates dir <(mojo_template_dir)',
-          'action': [
-            'mkdir', '-p', '<(mojo_template_dir)',
-          ],
-        },
-        {
-          'action_name': 'ml_service_mojom_templates',
-          'inputs': [
-            '<(mojo_binding_generator)',
-            '<(mojo_template_dir)',
-          ],
-          'outputs': [
-            '<(mojo_template_dir)/cpp_templates.zip',
-          ],
-          'message': 'Generating mojo C++ templates in <(mojo_template_dir)',
-          'action': [
-            'python', '<(mojo_binding_generator)', '--use_bundled_pylibs',
-            'precompile', '-o', '<(mojo_template_dir)',
-          ],
-        },
+      'includes': ['../../platform2/common-mk/protoc.gypi'],
+    },
+    {
+      'target_name': 'system_api-seneschal-protos',
+      'type': 'static_library',
+      'standalone_static_library': 1,
+      'dependencies': [
+        'system_api-seneschal-protos-gen',
       ],
-      'rules': [
-        {
-          'rule_name': 'ml_service_mojom_bindings_gen',
-          'extension': 'mojom',
-          'inputs': [
-            '<(mojo_binding_generator)',
-            '<(mojo_template_dir)/cpp_templates.zip',
-          ],
-          'outputs': [
-            '<(mojo_output_dir)/mojo/ml_service/<(RULE_INPUT_NAME)-internal.h',
-            '<(mojo_output_dir)/mojo/ml_service/<(RULE_INPUT_NAME).cc',
-            '<(mojo_output_dir)/mojo/ml_service/<(RULE_INPUT_NAME).h',
-          ],
-          'message': 'Generating mojo C++ bindings for ML Service from <(RULE_INPUT_PATH)',
-          'action': [
-            'python', '<(mojo_binding_generator)', '--use_bundled_pylibs',
-            'generate', '<(RULE_INPUT_PATH)',
-            '-o', '<(mojo_output_dir)',
-            '--bytecode_path', '<(mojo_template_dir)',
-            '-g', 'c++',
-          ],
-          'process_outputs_as_sources': 1,
-        },
-      ],
+      'sources': [
+        '<(SHARED_INTERMEDIATE_DIR)/include/seneschal/proto_bindings/service.pb.cc',
+      ]
     },
   ],
 }

@@ -31,7 +31,7 @@ class BytecodeGraphBuilder {
   BytecodeGraphBuilder(
       Zone* local_zone, Handle<SharedFunctionInfo> shared,
       Handle<FeedbackVector> feedback_vector, BailoutId osr_offset,
-      JSGraph* jsgraph, CallFrequency invocation_frequency,
+      JSGraph* jsgraph, CallFrequency& invocation_frequency,
       SourcePositionTable* source_positions, Handle<Context> native_context,
       int inlining_id = SourcePosition::kNotInlined,
       JSTypeHintLowering::Flags flags = JSTypeHintLowering::kNoFlags,
@@ -302,6 +302,7 @@ class BytecodeGraphBuilder {
   CommonOperatorBuilder* common() const { return jsgraph_->common(); }
   Zone* graph_zone() const { return graph()->zone(); }
   JSGraph* jsgraph() const { return jsgraph_; }
+  Isolate* isolate() const { return jsgraph_->isolate(); }
   JSOperatorBuilder* javascript() const { return jsgraph_->javascript(); }
   SimplifiedOperatorBuilder* simplified() const {
     return jsgraph_->simplified();

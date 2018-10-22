@@ -13,6 +13,7 @@
 #include "../private/SkTLogic.h"
 #include "GrGLTypes.h"
 
+
 extern "C" {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -311,6 +312,8 @@ public:
     }
 
     explicit operator bool() const { return fCall != nullptr; }
+
+    void reset() { fCall = nullptr; }
 
 private:
     using Call = R(const void* buf, Args...);

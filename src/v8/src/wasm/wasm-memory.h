@@ -20,15 +20,19 @@ class Histogram;  // defined in counters.h
 
 namespace wasm {
 
+// The {WasmMemoryTracker} tracks reservations and allocations for wasm memory
+// and wasm code. There is an upper limit on the total reserved memory which is
+// checked by this class. Allocations are stored so we can look them up when an
+// array buffer dies and figure out the reservation and allocation bounds for
+// that buffer.
 class WasmMemoryTracker {
  public:
   WasmMemoryTracker() {}
-  ~WasmMemoryTracker();
+  V8_EXPORT_PRIVATE ~WasmMemoryTracker();
 
   // ReserveAddressSpace attempts to increase the reserved address space counter
-  // to determine whether there is enough headroom to allocate another guarded
-  // Wasm memory. Returns true if successful (meaning it is okay to go ahead and
-  // allocate the buffer), false otherwise.
+  // by {num_bytes}. Returns true if successful (meaning it is okay to go ahead
+  // and reserve {num_bytes} bytes), false otherwise.
   bool ReserveAddressSpace(size_t num_bytes);
 
   void RegisterAllocation(void* allocation_base, size_t allocation_length,
@@ -61,25 +65,21 @@ class WasmMemoryTracker {
     friend WasmMemoryTracker;
   };
 
-  // Decreases the amount of reserved address space
+  // Decreases the amount of reserved address space.
   void ReleaseReservation(size_t num_bytes);
 
-  // Removes an allocation from the tracker
+  // Removes an allocation from the tracker.
   AllocationData ReleaseAllocation(const void* buffer_start);
 
   bool IsWasmMemory(const void* buffer_start);
 
+  // Returns whether the given buffer is a Wasm memory with guard regions large
+  // enough to safely use trap handlers.
+  bool HasFullGuardRegions(const void* buffer_start);
+
   // Returns a pointer to a Wasm buffer's allocation data, or nullptr if the
   // buffer is not tracked.
   const AllocationData* FindAllocationData(const void* buffer_start);
-
-  // Empty WebAssembly memories are all backed by a shared inaccessible
-  // reservation. This method creates this store or returns the existing one if
-  // already created.
-  void* GetEmptyBackingStore(void** allocation_base, size_t* allocation_length,
-                             Heap* heap);
-
-  bool IsEmptyBackingStore(const void* buffer_start) const;
 
   // Checks if a buffer points to a Wasm memory and if so does any necessary
   // work to reclaim the buffer. If this function returns false, the caller must
@@ -120,31 +120,29 @@ class WasmMemoryTracker {
   //
   // We should always have:
   // allocated_address_space_ <= reserved_address_space_ <= kAddressSpaceLimit
-  std::atomic_size_t reserved_address_space_{0};
+  std::atomic<size_t> reserved_address_space_{0};
 
   // Used to protect access to the allocated address space counter and
   // allocation map. This is needed because Wasm memories can be freed on
   // another thread by the ArrayBufferTracker.
   base::Mutex mutex_;
 
-  size_t allocated_address_space_{0};
+  size_t allocated_address_space_ = 0;
 
   // Track Wasm memory allocation information. This is keyed by the start of the
   // buffer, rather than by the start of the allocation.
   std::unordered_map<const void*, AllocationData> allocations_;
 
-  // Empty backing stores still need to be backed by mapped pages when using
-  // trap handlers. Because this could eat up address space quickly, we keep a
-  // shared backing store here.
-  AllocationData empty_backing_store_;
-
   // Keep pointers to
-  Histogram* allocation_result_;
-  Histogram* address_space_usage_mb_;  // in MiB
+  Histogram* allocation_result_ = nullptr;
+  Histogram* address_space_usage_mb_ = nullptr;  // in MiB
 
   DISALLOW_COPY_AND_ASSIGN(WasmMemoryTracker);
 };
 
+// Attempts to allocate an array buffer with guard regions suitable for trap
+// handling. If address space is not available, it will return a buffer with
+// mini-guards that will require bounds checks.
 MaybeHandle<JSArrayBuffer> NewArrayBuffer(
     Isolate*, size_t size, SharedFlag shared = SharedFlag::kNotShared);
 

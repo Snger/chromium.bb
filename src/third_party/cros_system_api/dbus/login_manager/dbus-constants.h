@@ -33,6 +33,8 @@ const char kSessionManagerStoreDeviceLocalAccountPolicy[] =
     "StoreDeviceLocalAccountPolicy";
 const char kSessionManagerRetrieveDeviceLocalAccountPolicy[] =
     "RetrieveDeviceLocalAccountPolicy";
+const char kSessionManagerListStoredComponentPolicies[] =
+    "ListStoredComponentPolicies";
 const char kSessionManagerRetrieveSessionState[] = "RetrieveSessionState";
 const char kSessionManagerRetrieveActiveSessions[] = "RetrieveActiveSessions";
 const char kSessionManagerStartTPMFirmwareUpdate[] = "StartTPMFirmwareUpdate";
@@ -50,7 +52,6 @@ const char kSessionManagerGetServerBackedStateKeys[] =
     "GetServerBackedStateKeys";
 const char kSessionManagerInitMachineInfo[] = "InitMachineInfo";
 const char kSessionManagerCheckArcAvailability[] = "CheckArcAvailability";
-const char kSessionManagerStartArcInstance[] = "StartArcInstance";
 const char kSessionManagerStartArcMiniContainer[] = "StartArcMiniContainer";
 const char kSessionManagerUpgradeArcContainer[] = "UpgradeArcContainer";
 const char kSessionManagerStopArcInstance[] = "StopArcInstance";

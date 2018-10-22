@@ -27,8 +27,6 @@
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate.h"
 #include "chrome/browser/browsing_data/chrome_browsing_data_remover_delegate_factory.h"
 #include "chrome/browser/chrome_notification_types.h"
-#include "chrome/browser/chromeos/arc/arc_service_launcher.h"
-#include "chrome/browser/chromeos/settings/cros_settings.h"
 #include "chrome/browser/content_settings/host_content_settings_map_factory.h"
 #include "chrome/browser/favicon/favicon_service_factory.h"
 #include "chrome/browser/history/chrome_history_client.h"
@@ -46,6 +44,7 @@
 #include "chrome/browser/profiles/storage_partition_descriptor.h"
 #include "chrome/browser/search_engines/template_url_fetcher_factory.h"
 #include "chrome/browser/search_engines/template_url_service_factory.h"
+#include "chrome/browser/sync/bookmark_sync_service_factory.h"
 #include "chrome/browser/sync/glue/sync_start_util.h"
 #include "chrome/browser/web_data_service_factory.h"
 #include "chrome/common/buildflags.h"
@@ -122,6 +121,11 @@
 #include "components/zoom/zoom_event_manager.h"
 #include "content/public/browser/zoom_level_delegate.h"
 #endif  // defined(OS_ANDROID)
+
+#if defined(OS_CHROMEOS)
+#include "chrome/browser/chromeos/arc/arc_service_launcher.h"
+#include "chrome/browser/chromeos/settings/cros_settings.h"
+#endif
 
 #if BUILDFLAG(ENABLE_SUPERVISED_USERS)
 #include "chrome/browser/supervised_user/supervised_user_constants.h"
@@ -207,7 +211,8 @@ std::unique_ptr<KeyedService> BuildBookmarkModel(
   Profile* profile = Profile::FromBrowserContext(context);
   std::unique_ptr<BookmarkModel> bookmark_model(
       new BookmarkModel(std::make_unique<ChromeBookmarkClient>(
-          profile, ManagedBookmarkServiceFactory::GetForProfile(profile))));
+          profile, ManagedBookmarkServiceFactory::GetForProfile(profile),
+          BookmarkSyncServiceFactory::GetForProfile(profile))));
   bookmark_model->Load(profile->GetPrefs(), profile->GetPath(),
                        profile->GetIOTaskRunner(),
                        content::BrowserThread::GetTaskRunnerForThread(
@@ -317,6 +322,7 @@ TestingProfile::TestingProfile(
     std::unique_ptr<sync_preferences::PrefServiceSyncable> prefs,
     TestingProfile* parent,
     bool guest_session,
+    base::Optional<bool> is_new_profile,
     const std::string& supervised_user_id,
     std::unique_ptr<policy::PolicyService> policy_service,
     const TestingFactories& factories,
@@ -327,6 +333,7 @@ TestingProfile::TestingProfile(
       force_incognito_(false),
       original_profile_(parent),
       guest_session_(guest_session),
+      is_new_profile_(std::move(is_new_profile)),
       supervised_user_id_(supervised_user_id),
       last_session_exited_cleanly_(true),
 #if BUILDFLAG(ENABLE_EXTENSIONS)
@@ -631,6 +638,10 @@ void TestingProfile::SetGuestSession(bool guest) {
   guest_session_ = guest;
 }
 
+void TestingProfile::SetIsNewProfile(bool is_new_profile) {
+  is_new_profile_ = is_new_profile;
+}
+
 base::FilePath TestingProfile::GetPath() const {
   return profile_path_;
 }
@@ -843,6 +854,11 @@ net::URLRequestContextGetter* TestingProfile::GetRequestContextForExtensions() {
   return extensions_request_context_.get();
 }
 
+scoped_refptr<network::SharedURLLoaderFactory>
+TestingProfile::GetURLLoaderFactory() {
+  return nullptr;
+}
+
 content::ResourceContext* TestingProfile::GetResourceContext() {
   if (!resource_context_)
     resource_context_ = new content::MockResourceContext();
@@ -912,7 +928,8 @@ content::SSLHostStateDelegate* TestingProfile::GetSSLHostStateDelegate() {
   return NULL;
 }
 
-content::PermissionManager* TestingProfile::GetPermissionManager() {
+content::PermissionControllerDelegate*
+TestingProfile::GetPermissionControllerDelegate() {
   return NULL;
 }
 
@@ -975,6 +992,12 @@ bool TestingProfile::IsGuestSession() const {
   return guest_session_;
 }
 
+bool TestingProfile::IsNewProfile() {
+  if (is_new_profile_.has_value())
+    return is_new_profile_.value();
+  return Profile::IsNewProfile();
+}
+
 Profile::ExitType TestingProfile::GetLastSessionExitType() {
   return last_session_exited_cleanly_ ? EXIT_NORMAL : EXIT_CRASHED;
 }
@@ -1021,6 +1044,10 @@ void TestingProfile::Builder::SetGuestSession() {
   guest_session_ = true;
 }
 
+void TestingProfile::Builder::OverrideIsNewProfile(bool is_new_profile) {
+  is_new_profile_ = is_new_profile;
+}
+
 void TestingProfile::Builder::SetSupervisedUserId(
     const std::string& supervised_user_id) {
   supervised_user_id_ = supervised_user_id;
@@ -1050,7 +1077,8 @@ std::unique_ptr<TestingProfile> TestingProfile::Builder::Build() {
 #if BUILDFLAG(ENABLE_EXTENSIONS)
       extension_policy_,
 #endif
-      std::move(pref_service_), NULL, guest_session_, supervised_user_id_,
+      std::move(pref_service_), NULL, guest_session_,
+      std::move(is_new_profile_), supervised_user_id_,
       std::move(policy_service_), testing_factories_, profile_name_));
 }
 
@@ -1066,7 +1094,7 @@ TestingProfile* TestingProfile::Builder::BuildIncognito(
                             extension_policy_,
 #endif
                             std::move(pref_service_), original_profile,
-                            guest_session_, supervised_user_id_,
-                            std::move(policy_service_), testing_factories_,
-                            profile_name_);
+                            guest_session_, std::move(is_new_profile_),
+                            supervised_user_id_, std::move(policy_service_),
+                            testing_factories_, profile_name_);
 }
