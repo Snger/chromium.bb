@@ -82,6 +82,7 @@
 #include "ui/base/ui_base_switches.h"
 #include "ui/base/ui_base_switches_util.h"
 #include "ui/base/ui_base_types.h"
+#include "ui/base/win/rubberband_windows.h"
 #include "ui/compositor/compositor_vsync_manager.h"
 #include "ui/compositor/dip_util.h"
 #include "ui/display/screen.h"
@@ -1176,6 +1177,20 @@ void RenderWidgetHostViewAura::UnlockKeyboard() {
 
 bool RenderWidgetHostViewAura::IsKeyboardLocked() {
   return event_handler_->IsKeyboardLocked();
+}
+
+void RenderWidgetHostViewAura::SetRubberbandRect(const gfx::Rect& rect) {
+  if (!rubberband_outline_.get())
+    rubberband_outline_.reset(new ui::RubberbandOutline());
+
+  // TODO(SHEZ): Replace this windows-specific code with an Aura view
+  HWND hwnd = window_->GetHost()->GetAcceleratedWidget();
+  RECT wrect = rect.ToRECT();
+  rubberband_outline_->SetRect(hwnd, wrect);
+}
+
+void RenderWidgetHostViewAura::HideRubberbandRect() {
+  rubberband_outline_.reset();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

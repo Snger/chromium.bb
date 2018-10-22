@@ -318,6 +318,8 @@ class CONTENT_EXPORT RenderViewImpl : public RenderWidget,
   void DidAutoResize(const blink::WebSize& newSize) override;
   blink::WebRect RootWindowRect() override;
   void DidFocus(blink::WebLocalFrame* calling_frame) override;
+  void setRubberbandRect(const blink::WebRect&) override;
+  void hideRubberbandRect() override;
 
 #if defined(OS_ANDROID)
   // Only used on Android since all other platforms implement
@@ -530,6 +532,7 @@ class CONTENT_EXPORT RenderViewImpl : public RenderWidget,
   void OnUpdateWebPreferences(const WebPreferences& prefs);
   void OnSetPageScale(float page_scale_factor);
   void OnForceRedraw(const ui::LatencyInfo& latency_info);
+  void OnEnableAltDragRubberbanding(bool enable);
   void OnSelectWordAroundCaret();
   void OnAudioStateChanged(bool is_audio_playing);
   void OnPausePageScheduledTasks(bool paused);
