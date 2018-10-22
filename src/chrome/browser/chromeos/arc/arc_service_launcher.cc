@@ -29,6 +29,7 @@
 #include "chrome/browser/chromeos/arc/notification/arc_boot_error_notification.h"
 #include "chrome/browser/chromeos/arc/notification/arc_provision_notification_service.h"
 #include "chrome/browser/chromeos/arc/oemcrypto/arc_oemcrypto_bridge.h"
+#include "chrome/browser/chromeos/arc/pip/arc_pip_bridge.h"
 #include "chrome/browser/chromeos/arc/policy/arc_policy_bridge.h"
 #include "chrome/browser/chromeos/arc/policy/arc_policy_util.h"
 #include "chrome/browser/chromeos/arc/print/arc_print_service.h"
@@ -60,6 +61,7 @@
 #include "components/arc/net/arc_net_host_impl.h"
 #include "components/arc/obb_mounter/arc_obb_mounter_bridge.h"
 #include "components/arc/power/arc_power_bridge.h"
+#include "components/arc/property/arc_property_bridge.h"
 #include "components/arc/rotation_lock/arc_rotation_lock_bridge.h"
 #include "components/arc/storage_manager/arc_storage_manager.h"
 #include "components/arc/timer/arc_timer_bridge.h"
@@ -171,13 +173,16 @@ void ArcServiceLauncher::OnPrimaryUserProfilePrepared(Profile* profile) {
   ArcLockScreenBridge::GetForBrowserContext(profile);
   ArcMetricsService::GetForBrowserContext(profile);
   ArcMidisBridge::GetForBrowserContext(profile);
-  ArcNetHostImpl::GetForBrowserContext(profile);
+  ArcNetHostImpl::GetForBrowserContext(profile)->SetPrefService(
+      profile->GetPrefs());
   ArcObbMounterBridge::GetForBrowserContext(profile);
   ArcOemCryptoBridge::GetForBrowserContext(profile);
+  ArcPipBridge::GetForBrowserContext(profile);
   ArcPolicyBridge::GetForBrowserContext(profile);
   ArcPowerBridge::GetForBrowserContext(profile);
   ArcPrintService::GetForBrowserContext(profile);
   ArcProcessService::GetForBrowserContext(profile);
+  ArcPropertyBridge::GetForBrowserContext(profile);
   ArcProvisionNotificationService::GetForBrowserContext(profile);
   ArcRotationLockBridge::GetForBrowserContext(profile);
   ArcScreenCaptureBridge::GetForBrowserContext(profile);

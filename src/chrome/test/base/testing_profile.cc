@@ -49,6 +49,7 @@
 #include "chrome/browser/web_data_service_factory.h"
 #include "chrome/common/buildflags.h"
 #include "chrome/common/chrome_constants.h"
+#include "chrome/common/chrome_paths_internal.h"
 #include "chrome/common/chrome_switches.h"
 #include "chrome/common/pref_names.h"
 #include "chrome/common/url_constants.h"
@@ -156,7 +157,8 @@ class TestExtensionURLRequestContext : public net::URLRequestContext {
   TestExtensionURLRequestContext() {
     content::CookieStoreConfig cookie_config;
     cookie_config.cookieable_schemes.push_back(extensions::kExtensionScheme);
-    cookie_store_ = content::CreateCookieStore(cookie_config);
+    cookie_store_ =
+        content::CreateCookieStore(cookie_config, nullptr /* netlog */);
     set_cookie_store(cookie_store_.get());
   }
 
@@ -646,6 +648,12 @@ base::FilePath TestingProfile::GetPath() const {
   return profile_path_;
 }
 
+base::FilePath TestingProfile::GetCachePath() const {
+  base::FilePath cache_path;
+  chrome::GetUserCacheDirectory(profile_path_, &cache_path);
+  return cache_path;
+}
+
 #if !defined(OS_ANDROID)
 std::unique_ptr<content::ZoomLevelDelegate>
 TestingProfile::CreateZoomLevelDelegate(const base::FilePath& partition_path) {
@@ -896,6 +904,13 @@ void TestingProfile::set_last_selected_directory(const base::FilePath& path) {
   last_selected_directory_ = path;
 }
 
+#if defined(OS_CHROMEOS)
+chromeos::ScopedCrosSettingsTestHelper*
+TestingProfile::ScopedCrosSettingsTestHelper() {
+  return scoped_cros_settings_test_helper_.get();
+}
+#endif
+
 void TestingProfile::BlockUntilHistoryProcessesPendingRequests() {
   history::HistoryService* history_service =
       HistoryServiceFactory::GetForProfile(this,
@@ -1002,7 +1017,9 @@ Profile::ExitType TestingProfile::GetLastSessionExitType() {
   return last_session_exited_cleanly_ ? EXIT_NORMAL : EXIT_CRASHED;
 }
 
-network::mojom::NetworkContextPtr TestingProfile::CreateMainNetworkContext() {
+network::mojom::NetworkContextPtr TestingProfile::CreateNetworkContext(
+    bool in_memory,
+    const base::FilePath& relative_partition_path) {
   if (base::FeatureList::IsEnabled(network::features::kNetworkService)) {
     network::mojom::NetworkContextPtr network_context;
     mojo::MakeRequest(&network_context);

@@ -16,6 +16,7 @@
 #include "base/command_line.h"
 #include "base/macros.h"
 #include "base/run_loop.h"
+#include "base/strings/string_number_conversions.h"
 #include "base/test/scoped_task_environment.h"
 #include "base/values.h"
 #include "chromeos/chromeos_switches.h"
@@ -28,6 +29,7 @@
 #include "chromeos/network/device_state.h"
 #include "chromeos/network/network_state.h"
 #include "chromeos/network/network_state_handler_observer.h"
+#include "chromeos/network/network_ui_data.h"
 #include "chromeos/network/tether_constants.h"
 #include "dbus/object_path.h"
 #include "testing/gtest/include/gtest/gtest.h"
@@ -65,6 +67,8 @@ const int kTetherSignalStrength1 = 75;
 const int kTetherSignalStrength2 = 80;
 const bool kTetherHasConnectedToHost1 = true;
 const bool kTetherHasConnectedToHost2 = false;
+
+const char kProfilePath[] = "/network/test";
 
 using chromeos::DeviceState;
 using chromeos::NetworkState;
@@ -1839,6 +1843,156 @@ TEST_F(NetworkStateHandlerTest, EnsureCellularNetwork) {
   ASSERT_EQ(1u, cellular_networks.size());
   EXPECT_FALSE(cellular_networks[0]->IsDefaultCellular());
   EXPECT_EQ("/service/cellular1", cellular_networks[0]->path());
+}
+
+TEST_F(NetworkStateHandlerTest, UpdateCaptivePortalProvider) {
+  constexpr char kProviderId[] = "TestProviderId";
+  constexpr char kProviderName[] = "TestProviderName";
+
+  // Verify initial state.
+  const NetworkState* wifi1 = network_state_handler_->GetNetworkState(
+      kShillManagerClientStubDefaultWifi);
+  ASSERT_TRUE(wifi1);
+  const NetworkState::CaptivePortalProviderInfo* info =
+      wifi1->captive_portal_provider();
+  EXPECT_EQ(nullptr, info);
+
+  // Verify that setting a captive portal provider applies to existing networks.
+  std::string hex_ssid = wifi1->GetHexSsid();
+  ASSERT_FALSE(hex_ssid.empty());
+  network_state_handler_->SetCaptivePortalProviderForHexSsid(
+      hex_ssid, kProviderId, kProviderName);
+  base::RunLoop().RunUntilIdle();
+
+  info = wifi1->captive_portal_provider();
+  ASSERT_NE(nullptr, info);
+  EXPECT_EQ(kProviderId, info->id);
+  EXPECT_EQ(kProviderName, info->name);
+
+  // Verify that adding a new network sets its captive portal provider.
+  constexpr char kNewSsid[] = "new_wifi";
+  std::string new_hex_ssid = base::HexEncode(kNewSsid, strlen(kNewSsid));
+  network_state_handler_->SetCaptivePortalProviderForHexSsid(
+      new_hex_ssid, kProviderId, kProviderName);
+  AddService("/service/new_wifi", "new_wifi_guid", kNewSsid, shill::kTypeWifi,
+             shill::kStateOnline);
+  base::RunLoop().RunUntilIdle();
+
+  const NetworkState* new_wifi =
+      network_state_handler_->GetNetworkState("/service/new_wifi");
+  ASSERT_TRUE(new_wifi);
+  info = new_wifi->captive_portal_provider();
+  ASSERT_NE(nullptr, info);
+  EXPECT_EQ(kProviderId, info->id);
+  EXPECT_EQ(kProviderName, info->name);
+}
+
+TEST_F(NetworkStateHandlerTest, BlockedByPolicyBlacklisted) {
+  NetworkState* wifi1 = network_state_handler_->GetModifiableNetworkState(
+      kShillManagerClientStubDefaultWifi);
+  NetworkState* wifi2 = network_state_handler_->GetModifiableNetworkState(
+      kShillManagerClientStubWifi2);
+
+  EXPECT_FALSE(network_state_handler_->OnlyManagedWifiNetworksAllowed());
+  EXPECT_FALSE(wifi1->IsManagedByPolicy());
+  EXPECT_FALSE(wifi2->IsManagedByPolicy());
+  EXPECT_FALSE(wifi1->blocked_by_policy());
+  EXPECT_FALSE(wifi2->blocked_by_policy());
+
+  std::vector<std::string> blacklist;
+  blacklist.push_back(wifi1->GetHexSsid());
+  network_state_handler_->UpdateBlockedWifiNetworks(false, false, blacklist);
+
+  EXPECT_FALSE(network_state_handler_->OnlyManagedWifiNetworksAllowed());
+  EXPECT_EQ(blacklist, network_state_handler_->blacklisted_hex_ssids_);
+  EXPECT_TRUE(wifi1->blocked_by_policy());
+  EXPECT_FALSE(wifi2->blocked_by_policy());
+
+  // Emulate 'wifi1' being a managed network.
+  std::unique_ptr<NetworkUIData> ui_data =
+      NetworkUIData::CreateFromONC(::onc::ONCSource::ONC_SOURCE_USER_POLICY);
+  base::DictionaryValue properties;
+  properties.SetKey(shill::kProfileProperty, base::Value(kProfilePath));
+  properties.SetKey(shill::kUIDataProperty, base::Value(ui_data->GetAsJson()));
+  network_state_handler_->UpdateNetworkStateProperties(wifi1, properties);
+
+  EXPECT_FALSE(network_state_handler_->OnlyManagedWifiNetworksAllowed());
+  EXPECT_EQ(blacklist, network_state_handler_->blacklisted_hex_ssids_);
+  EXPECT_TRUE(wifi1->IsManagedByPolicy());
+  EXPECT_FALSE(wifi2->IsManagedByPolicy());
+  EXPECT_FALSE(wifi1->blocked_by_policy());
+  EXPECT_FALSE(wifi2->blocked_by_policy());
+}
+
+TEST_F(NetworkStateHandlerTest, BlockedByPolicyOnlyManaged) {
+  NetworkState* wifi1 = network_state_handler_->GetModifiableNetworkState(
+      kShillManagerClientStubDefaultWifi);
+  NetworkState* wifi2 = network_state_handler_->GetModifiableNetworkState(
+      kShillManagerClientStubWifi2);
+
+  EXPECT_FALSE(network_state_handler_->OnlyManagedWifiNetworksAllowed());
+  EXPECT_FALSE(wifi1->IsManagedByPolicy());
+  EXPECT_FALSE(wifi2->IsManagedByPolicy());
+  EXPECT_FALSE(wifi1->blocked_by_policy());
+  EXPECT_FALSE(wifi2->blocked_by_policy());
+
+  network_state_handler_->UpdateBlockedWifiNetworks(true, false,
+                                                    std::vector<std::string>());
+
+  EXPECT_TRUE(network_state_handler_->OnlyManagedWifiNetworksAllowed());
+  EXPECT_TRUE(wifi1->blocked_by_policy());
+  EXPECT_TRUE(wifi2->blocked_by_policy());
+
+  // Emulate 'wifi1' being a managed network.
+  std::unique_ptr<NetworkUIData> ui_data =
+      NetworkUIData::CreateFromONC(::onc::ONCSource::ONC_SOURCE_USER_POLICY);
+  base::DictionaryValue properties;
+  properties.SetKey(shill::kProfileProperty, base::Value(kProfilePath));
+  properties.SetKey(shill::kUIDataProperty, base::Value(ui_data->GetAsJson()));
+  network_state_handler_->UpdateNetworkStateProperties(wifi1, properties);
+
+  EXPECT_TRUE(network_state_handler_->OnlyManagedWifiNetworksAllowed());
+  EXPECT_TRUE(wifi1->IsManagedByPolicy());
+  EXPECT_FALSE(wifi2->IsManagedByPolicy());
+  EXPECT_FALSE(wifi1->blocked_by_policy());
+  EXPECT_TRUE(wifi2->blocked_by_policy());
+}
+
+TEST_F(NetworkStateHandlerTest, BlockedByPolicyOnlyManagedIfAvailable) {
+  NetworkState* wifi1 = network_state_handler_->GetModifiableNetworkState(
+      kShillManagerClientStubDefaultWifi);
+  NetworkState* wifi2 = network_state_handler_->GetModifiableNetworkState(
+      kShillManagerClientStubWifi2);
+
+  EXPECT_FALSE(wifi1->IsManagedByPolicy());
+  EXPECT_FALSE(wifi2->IsManagedByPolicy());
+  EXPECT_FALSE(wifi1->blocked_by_policy());
+  EXPECT_FALSE(wifi2->blocked_by_policy());
+  EXPECT_FALSE(network_state_handler_->OnlyManagedWifiNetworksAllowed());
+
+  network_state_handler_->UpdateBlockedWifiNetworks(false, true,
+                                                    std::vector<std::string>());
+
+  EXPECT_EQ(nullptr, network_state_handler_->GetAvailableManagedWifiNetwork());
+  EXPECT_FALSE(wifi1->blocked_by_policy());
+  EXPECT_FALSE(wifi2->blocked_by_policy());
+  EXPECT_FALSE(network_state_handler_->OnlyManagedWifiNetworksAllowed());
+
+  // Emulate 'wifi1' being a managed network.
+  std::unique_ptr<NetworkUIData> ui_data =
+      NetworkUIData::CreateFromONC(::onc::ONCSource::ONC_SOURCE_USER_POLICY);
+  base::DictionaryValue properties;
+  properties.SetKey(shill::kProfileProperty, base::Value(kProfilePath));
+  properties.SetKey(shill::kUIDataProperty, base::Value(ui_data->GetAsJson()));
+  network_state_handler_->UpdateNetworkStateProperties(wifi1, properties);
+  network_state_handler_->UpdateManagedWifiNetworkAvailable();
+
+  EXPECT_EQ(wifi1, network_state_handler_->GetAvailableManagedWifiNetwork());
+  EXPECT_TRUE(network_state_handler_->OnlyManagedWifiNetworksAllowed());
+  EXPECT_TRUE(wifi1->IsManagedByPolicy());
+  EXPECT_FALSE(wifi2->IsManagedByPolicy());
+  EXPECT_FALSE(wifi1->blocked_by_policy());
+  EXPECT_TRUE(wifi2->blocked_by_policy());
 }
 
 }  // namespace chromeos

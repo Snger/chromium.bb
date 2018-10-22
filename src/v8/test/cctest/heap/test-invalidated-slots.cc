@@ -195,7 +195,7 @@ Handle<FixedArray> AllocateArrayOnEvacuationCandidate(Isolate* isolate,
                                                       int length) {
   Handle<FixedArray> object =
       AllocateArrayOnFreshPage(isolate, old_space, length);
-  heap::ForceEvacuationCandidate(Page::FromAddress(object->address()));
+  heap::ForceEvacuationCandidate(Page::FromHeapObject(*object));
   return object;
 }
 

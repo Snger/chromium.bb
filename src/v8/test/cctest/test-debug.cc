@@ -29,7 +29,7 @@
 
 #include "src/v8.h"
 
-#include "src/api.h"
+#include "src/api-inl.h"
 #include "src/compilation-cache.h"
 #include "src/debug/debug-interface.h"
 #include "src/debug/debug.h"
@@ -191,10 +191,6 @@ class DebugEventCounter : public v8::debug::DebugDelegate {
  public:
   void BreakProgramRequested(v8::Local<v8::Context>,
                              const std::vector<v8::debug::BreakpointId>&) {
-    v8::internal::Debug* debug = CcTest::i_isolate()->debug();
-    // When hitting a debug event listener there must be a break set.
-    CHECK_NE(debug->break_id(), 0);
-
     break_point_hit_count++;
     // Perform a full deoptimization when the specified number of
     // breaks have been hit.
@@ -217,10 +213,6 @@ class DebugEventBreakPointCollectGarbage : public v8::debug::DebugDelegate {
  public:
   void BreakProgramRequested(v8::Local<v8::Context>,
                              const std::vector<v8::debug::BreakpointId>&) {
-    v8::internal::Debug* debug = CcTest::i_isolate()->debug();
-    // When hitting a debug event listener there must be a break set.
-    CHECK_NE(debug->break_id(), 0);
-
     // Perform a garbage collection when break point is hit and continue. Based
     // on the number of break points hit either scavenge or mark compact
     // collector is used.
@@ -241,10 +233,6 @@ class DebugEventBreak : public v8::debug::DebugDelegate {
  public:
   void BreakProgramRequested(v8::Local<v8::Context>,
                              const std::vector<v8::debug::BreakpointId>&) {
-    v8::internal::Debug* debug = CcTest::i_isolate()->debug();
-    // When hitting a debug event listener there must be a break set.
-    CHECK_NE(debug->break_id(), 0);
-
     // Count the number of breaks.
     break_point_hit_count++;
 
@@ -271,9 +259,6 @@ class DebugEventBreakMax : public v8::debug::DebugDelegate {
                              const std::vector<v8::debug::BreakpointId>&) {
     v8::Isolate* v8_isolate = CcTest::isolate();
     v8::internal::Isolate* isolate = CcTest::i_isolate();
-    v8::internal::Debug* debug = isolate->debug();
-    // When hitting a debug event listener there must be a break set.
-    CHECK_NE(debug->break_id(), 0);
     if (break_point_hit_count < max_break_point_hit_count) {
       // Count the number of breaks.
       break_point_hit_count++;
@@ -3715,6 +3700,133 @@ TEST(DebugBreakOffThreadTerminate) {
   env->GetIsolate()->RequestInterrupt(BreakRightNow, nullptr);
   CompileRun("while (true);");
   CHECK(try_catch.HasTerminated());
+}
+
+class ArchiveRestoreThread : public v8::base::Thread,
+                             public v8::debug::DebugDelegate {
+ public:
+  ArchiveRestoreThread(v8::Isolate* isolate, int spawn_count)
+      : Thread(Options("ArchiveRestoreThread")),
+        isolate_(isolate),
+        debug_(reinterpret_cast<i::Isolate*>(isolate_)->debug()),
+        spawn_count_(spawn_count),
+        break_count_(0) {}
+
+  virtual void Run() {
+    v8::Locker locker(isolate_);
+    isolate_->Enter();
+
+    v8::HandleScope scope(isolate_);
+    v8::Local<v8::Context> context = v8::Context::New(isolate_);
+    v8::Context::Scope context_scope(context);
+
+    v8::Local<v8::Function> test = CompileFunction(isolate_,
+                                                   "function test(n) {\n"
+                                                   "  debugger;\n"
+                                                   "  return n + 1;\n"
+                                                   "}\n",
+                                                   "test");
+
+    debug_->SetDebugDelegate(this);
+    v8::internal::DisableBreak enable_break(debug_, false);
+
+    v8::Local<v8::Value> args[1] = {v8::Integer::New(isolate_, spawn_count_)};
+
+    int result = test->Call(context, context->Global(), 1, args)
+                     .ToLocalChecked()
+                     ->Int32Value(context)
+                     .FromJust();
+
+    // Verify that test(spawn_count_) returned spawn_count_ + 1.
+    CHECK_EQ(spawn_count_ + 1, result);
+
+    isolate_->Exit();
+  }
+
+  void BreakProgramRequested(v8::Local<v8::Context> context,
+                             const std::vector<v8::debug::BreakpointId>&) {
+    auto stack_traces = v8::debug::StackTraceIterator::Create(isolate_);
+    if (!stack_traces->Done()) {
+      v8::debug::Location location = stack_traces->GetSourceLocation();
+
+      i::PrintF("ArchiveRestoreThread #%d hit breakpoint at line %d\n",
+                spawn_count_, location.GetLineNumber());
+
+      switch (location.GetLineNumber()) {
+        case 1:  // debugger;
+          CHECK_EQ(break_count_, 0);
+
+          // Attempt to stop on the next line after the first debugger
+          // statement. If debug->{Archive,Restore}Debug() improperly reset
+          // thread-local debug information, the debugger will fail to stop
+          // before the test function returns.
+          debug_->PrepareStep(StepNext);
+
+          // Spawning threads while handling the current breakpoint verifies
+          // that the parent thread correctly archived and restored the
+          // state necessary to stop on the next line. If not, then control
+          // will simply continue past the `return n + 1` statement.
+          MaybeSpawnChildThread();
+
+          break;
+
+        case 2:  // return n + 1;
+          CHECK_EQ(break_count_, 1);
+          break;
+
+        default:
+          CHECK(false);
+      }
+    }
+
+    ++break_count_;
+  }
+
+  void MaybeSpawnChildThread() {
+    if (spawn_count_ > 1) {
+      v8::Unlocker unlocker(isolate_);
+
+      // Spawn a thread that spawns a thread that spawns a thread (and so
+      // on) so that the ThreadManager is forced to archive and restore
+      // the current thread.
+      ArchiveRestoreThread child(isolate_, spawn_count_ - 1);
+      child.Start();
+      child.Join();
+
+      // The child thread sets itself as the debug delegate, so we need to
+      // usurp it after the child finishes, or else future breakpoints
+      // will be delegated to a destroyed ArchiveRestoreThread object.
+      debug_->SetDebugDelegate(this);
+
+      // This is the most important check in this test, since
+      // child.GetBreakCount() will return 1 if the debugger fails to stop
+      // on the `return n + 1` line after the grandchild thread returns.
+      CHECK_EQ(child.GetBreakCount(), 2);
+    }
+  }
+
+  int GetBreakCount() { return break_count_; }
+
+ private:
+  v8::Isolate* isolate_;
+  v8::internal::Debug* debug_;
+  const int spawn_count_;
+  int break_count_;
+};
+
+TEST(DebugArchiveRestore) {
+  v8::Isolate::CreateParams create_params;
+  create_params.array_buffer_allocator = CcTest::array_buffer_allocator();
+  v8::Isolate* isolate = v8::Isolate::New(create_params);
+
+  ArchiveRestoreThread thread(isolate, 5);
+  // Instead of calling thread.Start() and thread.Join() here, we call
+  // thread.Run() directly, to make sure we exercise archive/restore
+  // logic on the *current* thread as well as other threads.
+  thread.Run();
+  CHECK_EQ(thread.GetBreakCount(), 2);
+
+  isolate->Dispose();
 }
 
 class DebugEventExpectNoException : public v8::debug::DebugDelegate {
