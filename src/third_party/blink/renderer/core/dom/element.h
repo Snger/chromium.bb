@@ -279,8 +279,15 @@ class CORE_EXPORT Element : public ContainerNode {
   void scrollTo(double x, double y);
   virtual void scrollTo(const ScrollToOptions&);
 
-#define BB_HAS_ELEMENT_EXTENSIONS
+  #define BB_HAS_ELEMENT_EXTENSIONS
   // Bloomberg-specific extensions
+  virtual int bbScrollLeftNoZoomAdjust() const;
+  virtual int bbScrollTopNoZoomAdjust() const;
+  virtual void setBbScrollLeftNoZoomAdjust(int);
+  virtual void setBbScrollTopNoZoomAdjust(int);
+  virtual int bbScrollWidthNoZoomAdjust() const;
+  virtual int bbScrollHeightNoZoomAdjust() const;
+
   void bbRequestSpellCheck();
 
   IntRect BoundsInViewport() const;
