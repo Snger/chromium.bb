@@ -185,6 +185,8 @@ class ProfileImpl : public Profile {
                            size_t           numWords) override;
 
     void clearWebCache() override;
+
+    void setDefaultPrinter(const StringRef& name) override;
 };
 
 }  // close namespace blpwtk2

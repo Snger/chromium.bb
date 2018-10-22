@@ -41,6 +41,7 @@
 #include <content/public/browser/resource_request_info.h>
 #include <content/public/browser/web_contents.h>
 #include <content/public/common/url_constants.h>
+#include <chrome/browser/printing/printing_message_filter.h>
 
 namespace blpwtk2 {
 namespace {
@@ -94,6 +95,9 @@ void ContentBrowserClientImpl::RenderProcessWillLaunch(
     service_manager::mojom::ServiceRequest* service_request)
 {
     DCHECK(Statics::isInBrowserMainThread());
+
+    int id = host->GetID();
+    host->AddFilter(new printing::PrintingMessageFilter(id));
 }
 
 void ContentBrowserClientImpl::OverrideWebkitPrefs(

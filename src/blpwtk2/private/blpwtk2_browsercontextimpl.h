@@ -132,6 +132,7 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     void removeCustomWords(const StringRef *words,
                            size_t           numWords) override;
     void clearWebCache() override;
+    void setDefaultPrinter(const StringRef& name) override;
 
     // content::BrowserContext overrides
     std::unique_ptr<content::ZoomLevelDelegate> CreateZoomLevelDelegate(

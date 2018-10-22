@@ -42,6 +42,7 @@
 
 #include <base/command_line.h>
 #include <content/public/browser/browser_thread.h>
+#include <printing/backend/print_backend.h>
 
 namespace blpwtk2 {
 
@@ -451,6 +452,11 @@ void ProcessHostImpl::dumpDiagnostics(int type, const std::string& path)
 {
     d_impl->context().dumpDiagnostics(
             static_cast<Profile::DiagnosticInfoType>(type), StringRef(path));
+}
+
+void ProcessHostImpl::setDefaultPrinter(const std::string& name)
+{
+    d_impl->context().setDefaultPrinter(StringRef(name));
 }
 
 void ProcessHostImpl::addHttpProxy(mojom::ProxyConfigType type,

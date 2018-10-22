@@ -37,6 +37,7 @@
 #include <ipc/ipc_sync_channel.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/common/service_manager/child_connection.h>
+#include <components/printing/renderer/print_render_frame_helper.h>
 #include <mojo/public/cpp/bindings/strong_binding.h>
 #include <services/service_manager/public/cpp/connector.h>
 #include <third_party/blink/public/platform/web_cache.h>
@@ -421,6 +422,12 @@ void ProfileImpl::removeCustomWords(const StringRef *words,
 void ProfileImpl::clearWebCache()
 {
     blink::WebCache::Clear();
+}
+
+void ProfileImpl::setDefaultPrinter(const StringRef& name)
+{
+    printing::PrintRenderFrameHelper::UseDefaultPrintSettings();
+    d_hostPtr->setDefaultPrinter(std::string(name.data(), name.size()));
 }
 
 }  // close namespace blpwtk2
