@@ -61,6 +61,7 @@
 #include <ui/gfx/icon_util.h>
 #include <ui/display/display.h>
 #include <ui/display/screen.h>
+#include <v8/include/v8.h>
 
 #if defined(BLPWTK2_FEATURE_RUBBERBAND)
 #include <ui/base/win/rubberband_windows.h>
@@ -668,6 +669,13 @@ RenderWebView::~RenderWebView()
 
 bool RenderWebView::dispatchToRenderViewImpl(const IPC::Message& message)
 {
+    WebFrame *webFrame = mainFrame();
+    v8::Isolate* isolate = webFrame->scriptIsolate();
+
+    v8::Isolate::Scope isolateScope(isolate);
+    v8::HandleScope handleScope(isolate);
+    v8::Context::Scope contextScope(webFrame->mainWorldScriptContext());
+
     return static_cast<IPC::Listener *>(
         content::RenderThreadImpl::current())
             ->OnMessageReceived(message);
