@@ -69,6 +69,7 @@
 #include <third_party/WebKit/public/web/WebSecurityPolicy.h>
 #include <third_party/WebKit/public/web/WebScriptController.h>
 #include <third_party/WebKit/public/web/WebScriptBindings.h>
+#include <gin/v8_initializer.h>
 
 namespace blpwtk2 {
 
@@ -181,7 +182,7 @@ static std::unique_ptr<base::MessagePump> messagePumpForUIFactory()
         return std::unique_ptr<base::MessagePump>(new MainMessagePump());
     }
 
-    return std::unique_ptr<base::MessagePump>(new base::MessagePumpForUI()); 
+    return std::unique_ptr<base::MessagePump>(new base::MessagePumpForUI());
 }
 
 static void startRenderer(
@@ -419,6 +420,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
                          const std::string&              hostChannel,
                          const std::vector<std::string>& cmdLineSwitches,
                          bool                            isolated,
+                         bool                            browserV8Enabled,
                          const std::string&              profileDir)
     : d_mainDelegate(false)
 {
@@ -428,7 +430,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
     bool isHost = currentHostChannel.empty();
 
     DCHECK(!g_instance);
-    g_instance = this;    
+    g_instance = this;
     content::InitializeMojo();
     base::CommandLine::Init(0, nullptr);
 
@@ -503,7 +505,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
  	    // base::FieldTrialList::GetInitiallyActiveFieldTrials(...) Line 719
         // from: variations::ChildProcessFieldTrialSyncer::InitFieldTrialObserving(...) Line 34
  	    // from: content::ChildThreadImpl::Init(...) Line 618
-            
+
         // The following code is adapted from InitializeFieldTrialAndFeatureList(..) in content_main_runner.cc
         //
         // Initialize statistical testing infrastructure.  We set the entropy
@@ -524,7 +526,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
                 command_line, switches::kEnableFeatures,
             switches::kDisableFeatures, feature_list.get());
             base::FeatureList::SetInstance(std::move(feature_list));
-        }        
+        }
     }
     // Start pumping the message loop.
     startMessageLoop(sandboxInfo);
@@ -534,6 +536,22 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
         DCHECK(!currentHostChannel.empty());
         ContentBrowserClientImpl* pBrowserClientImpl = d_mainDelegate.GetContentBrowserClientImpl();
         startRenderer(isHost, channelInfo, pBrowserClientImpl ? pBrowserClientImpl->GetClientInvitation() : nullptr);
+    }
+
+    else if (isHost && browserV8Enabled && Statics::isOriginalThreadMode()) {
+#ifdef V8_USE_EXTERNAL_STARTUP_DATA
+        gin::V8Initializer::LoadV8Snapshot();
+        gin::V8Initializer::LoadV8Natives();
+#endif
+        gin::IsolateHolder::Initialize(gin::IsolateHolder::kNonStrictMode,
+                                       gin::IsolateHolder::kStableV8Extras,
+                                       gin::ArrayBufferAllocator::SharedInstance());
+
+        auto taskRunner = content::BrowserThread::GetTaskRunnerForThread(
+                                                    content::BrowserThread::UI);
+
+        d_isolateHolder.reset(new gin::IsolateHolder(taskRunner));
+        d_isolateHolder->isolate()->Enter();
     }
 }
 
@@ -568,6 +586,12 @@ ToolkitImpl::~ToolkitImpl()
     // BrowserThread is destroyed.  This is because the BrowserThread owns the
     // AtExitManager, which is one of the dependencies of ScopedAllowSyncCall
     d_allowSyncCall.reset();
+
+    if (d_isolateHolder) {
+        DCHECK(Statics::isOriginalThreadMode());
+        d_isolateHolder->isolate()->Exit();
+        d_isolateHolder.reset();
+    }
 
     if (Statics::isRendererMainThreadMode()) {
         delete base::MessageLoop::current();
