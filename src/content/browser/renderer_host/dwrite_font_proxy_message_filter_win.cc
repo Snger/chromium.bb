@@ -69,6 +69,11 @@ enum MessageFilterError {
   MESSAGE_FILTER_ERROR_MAX_VALUE
 };
 
+#if defined(OS_WIN)
+static  FontCollection* font_collection_ = nullptr;
+#endif
+
+
 void LogLoaderType(DirectWriteFontLoaderType loader_type) {
   UMA_HISTOGRAM_ENUMERATION("DirectWrite.Fonts.Proxy.LoaderType", loader_type,
                             FONT_LOADER_TYPE_MAX_VALUE);
