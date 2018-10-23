@@ -216,7 +216,7 @@ class ToolkitCreateParams
         // group shares the same browser context.  The exception to this rule
         // is when 'profileDir' is empty, in which case an incognito browser
         // context is created that is not shared by any other RenderProcess.
-    
+
     BLPWTK2_EXPORT void disableIsolatedProfile();
         // By default, an empty profile directory will cause the browser to
         // create an isolated incognito context.  Calling this function will
@@ -226,6 +226,8 @@ class ToolkitCreateParams
         // directory.
 
     BLPWTK2_EXPORT void setRendererUIEnabled(bool rendererUIEnabled);
+
+    BLPWTK2_EXPORT void setBrowserV8Enabled(bool browserV8Enabled);
 
     // ACCESSORS
     ThreadMode threadMode() const;
@@ -257,6 +259,7 @@ class ToolkitCreateParams
     StringRef profileDirectory() const;
     bool isIsolatedProfile() const;
     bool rendererUIEnabled() const;
+    bool browserV8Enabled() const;
 };
 
 }  // close namespace blpwtk2

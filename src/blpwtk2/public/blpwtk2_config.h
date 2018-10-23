@@ -95,6 +95,7 @@
 #define BLPWTK2_FEATURE_HTMLSCENE
 // feature 31
 // feature 32
+#define BLPWTK2_FEATURE_BROWSER_V8
 // feature 33
 // feature 34
 // feature 35
