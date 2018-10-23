@@ -137,6 +137,7 @@ class ToolkitImpl : public Toolkit {
     void addOriginToTrustworthyList(const StringRef& originString) override;
     void setWebViewHostObserver(WebViewHostObserver* observer) override;
     void setTraceThreshold(unsigned int timeoutMS) override;
+    v8::Platform *getV8Platform() override;
 };
 
 }  // close namespace blpwtk2

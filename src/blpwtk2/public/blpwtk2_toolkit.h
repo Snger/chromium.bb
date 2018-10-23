@@ -84,6 +84,7 @@
 
 #include <blpwtk2_webviewcreateparams.h>
 #include <v8.h>
+#include <v8-platform.h>
 #include <blpwtk2_stringref.h>
 
 namespace blpwtk2 {
@@ -182,6 +183,9 @@ class Toolkit {
     virtual void setTraceThreshold(unsigned int timeoutMS) = 0;
         // If non-zero, defines the time threshold for enabling trace
         // (in milliseconds)
+
+    virtual v8::Platform *getV8Platform() = 0;
+        // Return a pointer to the 'v8::Platform' used for this process.
 
   protected:
     virtual ~Toolkit();
