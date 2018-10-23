@@ -999,6 +999,25 @@ void consoleLogMessageHandler(blpwtk2::ToolkitCreateParams::LogMessageSeverity s
      }
 }
 
+void testBrowserV8() {
+    v8::Isolate *isolate = v8::Isolate::GetCurrent();
+    v8::Isolate::Scope isolate_scope(isolate);
+    v8::HandleScope handle_scope(isolate);
+    v8::Local<v8::Context> context = v8::Context::New(isolate);
+    v8::Context::Scope context_scope(context);
+
+    v8::Local<v8::String> source =
+        v8::String::NewFromUtf8(isolate, "'Hello' + ', World!'",
+                            v8::NewStringType::kNormal).ToLocalChecked();
+
+    v8::Local<v8::Script> script =
+                v8::Script::Compile(context, source).ToLocalChecked();
+    v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
+
+    v8::String::Utf8Value utf8(isolate, result);
+    std::cout << "Browser V8 Hello world test -- " << *utf8 << std::endl;
+}
+
 int main(int argc, wchar_t* argv[])
 {
     g_instance = GetModuleHandle(NULL);
@@ -1118,6 +1137,7 @@ int main(int argc, wchar_t* argv[])
     else {
         toolkitParams.setThreadMode(blpwtk2::ThreadMode::ORIGINAL);
         toolkitParams.disableInProcessRenderer();
+        toolkitParams.setBrowserV8Enabled(true);
     }
 
     for (size_t i = 0; i < g_sideLoadedFonts.size(); ++i) {
@@ -1133,6 +1153,7 @@ int main(int argc, wchar_t* argv[])
     g_toolkit = blpwtk2::ToolkitFactory::create(toolkitParams);
 
     if (isProcessHost && host == blpwtk2::ThreadMode::ORIGINAL) {
+        testBrowserV8();
         runHost();
         g_toolkit->destroy();
         g_toolkit = 0;

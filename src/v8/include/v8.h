@@ -21,7 +21,6 @@
 #include <memory>
 #include <utility>
 #include <vector>
-#include <functional>
 
 #include "v8-version.h"  // NOLINT(build/include)
 #include "v8config.h"    // NOLINT(build/include)
@@ -7814,13 +7813,13 @@ class V8_EXPORT StartupData {
 
   StartupData(const char* dt = nullptr,
               int sz = 0,
-              std::function<void(const char* buffer)> deallocator = nullptr)
-      : data{dt}, raw_size{sz}, array_deallocator{std::move(deallocator)} {};
+              void (*deallocator)(const char*) = nullptr)
+      : data{dt}, raw_size{sz}, array_deallocator{deallocator} {};
 
   // patch for blpwtk2, to deal with different runtime issues in non is_component_build
   // where data is allocated in v8.dll and to be released in the main exec, or vise versa
   // in this case, provide array_deallocator to release the data where it is allocated
-  std::function<void(const char* buffer)> array_deallocator{nullptr};
+  void (*array_deallocator)(const char*) {nullptr};
 };
 
 
