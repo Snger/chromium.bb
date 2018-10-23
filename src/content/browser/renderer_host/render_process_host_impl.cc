@@ -1944,7 +1944,13 @@ void RenderProcessHostImpl::CreateMessageFilters() {
   AddFilter(new BlobDispatcherHost(GetID(), blob_storage_context));
 #if defined(OS_MACOSX)
   AddFilter(new TextInputClientMessageFilter());
+#elif defined(OS_WIN)
+ {
+    DWriteFontProxyImpl::SetFontCollection(browser_context->GetFontCollection());
+  }
 #endif
+
+
 
   scoped_refptr<ServiceWorkerDispatcherHost> service_worker_filter =
       new ServiceWorkerDispatcherHost(GetID(), resource_context);
