@@ -33,11 +33,14 @@
 #include <set>
 #include <vector>
 
-#include <assert.h>
-
 #include <blpwtk2.h>
 
 #include <v8.h>
+
+// assert.h must be included after all chromium related includes.
+// We want to use the assert() from assert.h rather than the one
+// defined in base/logging.h
+#include <assert.h>
 
 HINSTANCE g_instance = 0;
 WNDPROC g_defaultEditWndProc = 0;
