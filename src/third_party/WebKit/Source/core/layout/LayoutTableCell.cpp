@@ -300,40 +300,40 @@ void LayoutTableCell::SetCellLogicalWidth(int table_layout_logical_width,
   SetCellChildrenNeedLayout(true);
 }
 
-void LayoutTableCell::SetSelectionState(SelectionState state)
+void LayoutTableCell::setSelectionState(SelectionState state)
 {
-    LayoutBlockFlow::SetSelectionState(state);
+    LayoutBlockFlow::setSelectionState(state);
 
-    if (!GetNode() || !GetNode()->GetDocument().GetFrame()) {
+    if (!node() || !node()->document().frame()) {
         is_fully_selected_ = false;
         return;
     }
 
     // Let's get back the *actual* selection state.
     //
-    // NOTE: After calling 'SetSelectionState(state)', the actual
+    // NOTE: After calling 'setSelectionState(state)', the actual
     //       'selectionState()' might be different from 'state'.
-    //       See the logic in 'LayoutBoxModelObject::SetSelectionState'.
-    state = GetSelectionState();
+    //       See the logic in 'LayoutBoxModelObject::setSelectionState'.
+    state = getSelectionState();
 
-    if (SelectionState::kStart == state || SelectionState::kStartAndEnd == state) {
-        VisiblePosition selectionStart = GetNode()->GetDocument().GetFrame()->Selection().ComputeVisibleSelectionInDOMTree().VisibleStart();
-        VisiblePosition firstPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::FirstPositionInNode(*GetNode()), TextAffinity::kDownstream);
-        if (selectionStart.DeepEquivalent() != firstPos.DeepEquivalent()) {
+    if (SelectionStart == state || SelectionBoth == state) {
+        VisiblePosition selectionStart = node()->document().frame()->selection().selection().visibleStart();
+        VisiblePosition firstPos = createVisiblePosition(PositionTemplate<EditingStrategy>::firstPositionInNode(node()), TextAffinity::Downstream);
+        if (selectionStart.deepEquivalent() != firstPos.deepEquivalent()) {
             is_fully_selected_ = false;
             return;
         }
     }
-    if (SelectionState::kEnd == state || SelectionState::kStartAndEnd == state) {
-        VisiblePosition selectionEnd = GetNode()->GetDocument().GetFrame()->Selection().ComputeVisibleSelectionInDOMTree().VisibleEnd();
-        VisiblePosition lastPos = CreateVisiblePosition(PositionTemplate<EditingStrategy>::LastPositionInNode(*GetNode()), TextAffinity::kUpstream);
-        if (selectionEnd.DeepEquivalent() != lastPos.DeepEquivalent()) {
+    if (SelectionEnd == state || SelectionBoth == state) {
+        VisiblePosition selectionEnd = node()->document().frame()->selection().selection().visibleEnd();
+        VisiblePosition lastPos = createVisiblePosition(PositionTemplate<EditingStrategy>::lastPositionInNode(node()), TextAffinity::Upstream);
+        if (selectionEnd.deepEquivalent() != lastPos.deepEquivalent()) {
             is_fully_selected_ = false;
             return;
         }
     }
 
-    is_fully_selected_ = (SelectionState::kNone != state);
+    is_fully_selected_ = (SelectionNone != state);
 }
 
 void LayoutTableCell::UpdateLayout() {
