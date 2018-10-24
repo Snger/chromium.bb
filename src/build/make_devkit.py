@@ -190,12 +190,14 @@ def main(args):
   version = "bb1006"   # SET BB VERSION NUMBER HERE
 
   outDir = None
-  doClean = True
+  doClean = False
   doTag = False
   doPushTag = True
   for i in range(len(args)):
     if args[i] == '--outdir':
       outDir = args[i+1]
+    elif args[i] == '--clean':
+      doClean = True
     elif args[i] == '--noclean':
       doClean = False
     elif args[i] == '--maketag':
@@ -203,7 +205,7 @@ def main(args):
     elif args[i] == '--nopushtag':
       doPushTag = False
     elif args[i].startswith('-'):
-      print("Usage: make_devkit.py --outdir <outdir> [--noclean] [--maketag [--nopushtag] ] [--gn]")
+      print("Usage: make_devkit.py --outdir <outdir> [--clean] [--maketag [--nopushtag] ] [--gn]")
       return 1
 
   if not outDir:
