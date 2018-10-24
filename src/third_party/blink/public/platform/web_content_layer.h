@@ -44,6 +44,11 @@ class WebContentLayer {
   // space, e.g. device pixel space.
   virtual void SetTransformedRasterizationAllowed(bool) = 0;
   virtual bool TransformedRasterizationAllowed() const = 0;
+
+
+  // Set the color to blend LCD text with when the layer's background color
+  // would otherwise be transparent.
+  virtual void setDefaultLCDBackgroundColor(WebColor) { }
 };
 
 }  // namespace blink

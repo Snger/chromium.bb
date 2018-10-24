@@ -103,6 +103,9 @@ bool PictureLayer::Update() {
       !contents_opaque() &&
       !picture_layer_inputs_.client->FillsBoundsCompletely());
 
+  recording_source_->SetDefaultLCDBackgroundColor(
+      picture_layer_inputs_.default_lcd_background_color);
+
   TRACE_EVENT1("cc", "PictureLayer::Update", "source_frame_number",
                layer_tree_host()->SourceFrameNumber());
   devtools_instrumentation::ScopedLayerTreeTask update_layer(
@@ -216,6 +219,14 @@ void PictureLayer::SetTransformedRasterizationAllowed(bool allowed) {
 
   picture_layer_inputs_.transformed_rasterization_allowed = allowed;
   SetNeedsCommit();
+}
+
+void PictureLayer::SetDefaultLCDBackgroundColor(SkColor default_lcd_background_color) {
+  if (picture_layer_inputs_.default_lcd_background_color == default_lcd_background_color)
+    return;
+
+  picture_layer_inputs_.default_lcd_background_color = default_lcd_background_color;
+  SetNeedsDisplay();
 }
 
 bool PictureLayer::HasDrawableContent() const {
