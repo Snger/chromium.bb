@@ -1806,6 +1806,11 @@ void RenderViewImpl::SetSize(const gfx::Size& new_size) {
   resize_params.is_fullscreen_granted = is_fullscreen_granted_;
   resize_params.display_mode = display_mode_;
   resize_params.needs_resize_ack = false;
+  resize_params.local_surface_id = local_surface_id_;
+  resize_params.content_source_id = GetContentSourceId();
+  if(!resize_params.local_surface_id->is_valid()) {
+    return;
+  }
 
   Resize(resize_params);
 }
