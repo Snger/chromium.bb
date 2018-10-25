@@ -64,6 +64,7 @@
 #include <content/renderer/render_thread_impl.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/browser/browser_main_loop.h>
+#include <gin/public/v8_platform.h>
 #include <sandbox/win/src/win_utils.h>
 #include <services/service_manager/runner/common/switches.h>
 #include <third_party/blink/public/platform/web_security_origin.h>
@@ -751,6 +752,11 @@ void ToolkitImpl::opaqueMessageToRendererAsync(int pid, const StringRef &message
 void ToolkitImpl::setIPCDelegate(ProcessHostDelegate *delegate)
 {
     ProcessHostImpl::setIPCDelegate(delegate);
+}
+
+v8::Platform *ToolkitImpl::getV8Platform()
+{
+    return gin::V8Platform::Get();
 }
 
 }  // close namespace blpwtk2

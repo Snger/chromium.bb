@@ -160,6 +160,7 @@ class ToolkitImpl : public Toolkit {
     void removeV8HeapTracer(int embedder_id) override;
     void opaqueMessageToRendererAsync(int pid, const StringRef &message) override;
     void setIPCDelegate(ProcessHostDelegate *delegate) override;
+    v8::Platform *getV8Platform() override;
 };
 
 }  // close namespace blpwtk2

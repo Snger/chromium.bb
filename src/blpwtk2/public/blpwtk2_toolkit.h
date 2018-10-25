@@ -84,6 +84,7 @@
 
 #include <blpwtk2_webviewcreateparams.h>
 #include <v8.h>
+#include <v8-platform.h>
 #include <blpwtk2_stringref.h>
 
 namespace blpwtk2 {
@@ -204,6 +205,9 @@ class Toolkit {
     virtual void opaqueMessageToRendererAsync(int pid, const StringRef &message) = 0;
 
     virtual void setIPCDelegate(ProcessHostDelegate *delegate) = 0;
+
+    virtual v8::Platform *getV8Platform() = 0;
+        // Return a pointer to the 'v8::Platform' used for this process.
 
   protected:
     virtual ~Toolkit();
