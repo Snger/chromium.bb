@@ -520,6 +520,22 @@ void BrowserContextImpl::setDefaultPrinter(const StringRef& name)
             std::string(name.data(), name.size()));
 }
 
+void BrowserContextImpl::opaqueMessageToBrowserAsync(const StringRef& msg)
+{
+    NOTREACHED();
+}
+
+String BrowserContextImpl::opaqueMessageToBrowserSync(const StringRef& msg)
+{
+    NOTREACHED();
+    return String();
+}
+
+void BrowserContextImpl::setIPCDelegate(ProcessClientDelegate *delegate)
+{
+    NOTREACHED();
+}
+
 // content::BrowserContext overrides
 std::unique_ptr<content::ZoomLevelDelegate>
 BrowserContextImpl::CreateZoomLevelDelegate(

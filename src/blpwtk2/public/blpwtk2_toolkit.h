@@ -95,6 +95,7 @@ class StringRef;
 class WebView;
 class WebViewDelegate;
 class WebViewHostObserver;
+class ProcessHostDelegate;
 
                         // =============
                         // class Toolkit
@@ -199,6 +200,10 @@ class Toolkit {
 
     virtual void removeV8HeapTracer(int embedder_id) = 0;
         // Unregisters an embedder heap trace from the multi heap tracer.
+
+    virtual void opaqueMessageToRendererAsync(int pid, const StringRef &message) = 0;
+
+    virtual void setIPCDelegate(ProcessHostDelegate *delegate) = 0;
 
   protected:
     virtual ~Toolkit();

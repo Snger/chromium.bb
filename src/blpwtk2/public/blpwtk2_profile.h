@@ -34,6 +34,7 @@ class SpellCheckConfig;
 class StringRef;
 class WebView;
 class WebViewDelegate;
+class ProcessClientDelegate;
 
 // This enum must match ProxyConfigType in blpwtk2_process.mojom
 enum class ProxyType {
@@ -166,6 +167,12 @@ class Profile
 
     virtual void setDefaultPrinter(const StringRef& name) = 0;
         // Sets the printer to use by default
+
+    virtual void opaqueMessageToBrowserAsync(const StringRef& msg) = 0;
+
+    virtual String opaqueMessageToBrowserSync(const StringRef& msg) = 0;
+
+    virtual void setIPCDelegate(ProcessClientDelegate *delegate) = 0;
 
   protected:
     virtual ~Profile();
