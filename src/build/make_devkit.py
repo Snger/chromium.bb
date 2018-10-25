@@ -88,12 +88,11 @@ def copyIncludeFiles(destDir):
   copyIncludeFilesFrom(
       os.path.join(destDir, 'include', 'blpwtk2'),
       [os.path.join(srcDir, 'blpwtk2', 'public'),
-       os.path.join(srcDir, 'out', 'static', 'debug', 'gen', 'blpwtk2', 'blpwtk2', 'public')])
+       os.path.join(srcDir, 'out', 'static_debug', 'gen', 'blpwtk2', 'blpwtk2', 'public')])
 
   copyIncludeFilesFrom(
       os.path.join(destDir, 'include', 'v8'),
-      [os.path.join(srcDir, 'v8', 'include'),
-       os.path.join(srcDir, 'out', 'static', 'debug', 'gen', 'blpwtk2', 'blpv8', 'public')])
+      [os.path.join(srcDir, 'v8', 'include')])
 
 def copyBin(destDir, version):
   productAppend = '.' + version
@@ -103,7 +102,6 @@ def copyBin(destDir, version):
     'blpwtk2_subprocess' + productAppend + '.exe',
     'content_shell.exe',
     'd8.exe',
-    'blpv8' + productAppend + '.dll',
     'natives_blob' + productAppend + '.bin',
     'snapshot_blob' + productAppend + '.bin',
     'v8_context_snapshot' + productAppend + '.bin',
@@ -114,8 +112,6 @@ def copyBin(destDir, version):
     'icudtl' + productAppend + '.dat',
     'blpwtk2' + productAppend + '.pak',
     'content_shell.pak',
-    'blpv8' + productAppend + '.dll.pdb',
-    'blpv8' + productAppend + '.map',
     'blpwtk2' + productAppend + '.dll.pdb',
     'blpwtk2' + productAppend + '.map',
     'blpcr_egl' + productAppend + '.dll.pdb',
@@ -129,8 +125,9 @@ def copyBin(destDir, version):
   configs = ['debug', 'release']
   for config in configs:
     destBinDir = os.path.join(destDir, 'bin', config)
-    srcBinDir = os.path.join(srcDir, 'out', 'static', config)
+    srcBinDir = os.path.join(srcDir, 'out', 'static_' + config)
     for p in products:
+      print("Copying " + p)
       destFile = os.path.join(destBinDir, p)
       srcFile = os.path.join(srcBinDir, p)
       shutil.copy(srcFile, destFile)
@@ -140,14 +137,13 @@ def copyLib(destDir, version):
   productAppend = '.' + version
 
   products = [
-    'blpv8' + productAppend + '.dll.lib',
     'blpwtk2' + productAppend + '.dll.lib',
   ]
 
   configs = ['debug', 'release']
   for config in configs:
     destBinDir = os.path.join(destDir, 'lib', config)
-    srcBinDir = os.path.join(srcDir, 'out', 'static', config)
+    srcBinDir = os.path.join(srcDir, 'out', 'static_' + config)
     for p in products:
       destFile = os.path.join(destBinDir, p)
       srcFile = os.path.join(srcBinDir, p)
@@ -167,7 +163,7 @@ def addGenFiles():
 
   filesToAdd = []
   for config in configs:
-    genDir = os.path.join(srcDir, 'out', 'static', config, 'gen')
+    genDir = os.path.join(srcDir, 'out', 'static_' + config, 'gen')
     for dirpath, dirnames, filenames in os.walk(genDir):
       dirnames[:] = filter(lambda d: d != 'ffmpeg', dirnames)
       filenames = filter(lambda f: wantedFile(f), filenames)
@@ -187,7 +183,7 @@ def addGenFiles():
 
 
 def main(args):
-  version = "bb701"   # SET BB VERSION NUMBER HERE
+  version = "bb1101"   # SET BB VERSION NUMBER HERE
 
   outDir = None
   doClean = False
