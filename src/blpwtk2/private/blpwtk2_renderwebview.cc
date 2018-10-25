@@ -324,9 +324,6 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         d_compositor->SetVisible(false);
         d_compositor.reset();
 
-        dispatchToRenderViewImpl(
-            ViewMsg_WasHidden(d_renderViewRoutingId));
-
         #pragma clang diagnostic push
         #pragma clang diagnostic ignored "-Wunused"
 
