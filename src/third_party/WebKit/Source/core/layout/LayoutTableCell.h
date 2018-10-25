@@ -37,11 +37,9 @@
 
 namespace blink {
 
-// blpwtk2: Originally BITS_OF_ABSOLUTE_COLUMN_INDEX was 25. It is reduced to
-//          24 to accommodate a bit for is_fully_selected_.
-#define BITS_OF_ABSOLUTE_COLUMN_INDEX 24
+#define BITS_OF_ABSOLUTE_COLUMN_INDEX 25
 static const unsigned kUnsetColumnIndex =
-    (1u << BITS_OF_ABSOLUTE_COLUMN_INDEX) - 2;
+    (1u << BITS_OF_ABSOLUTE_COLUMN_INDEX) - 1;
 static const unsigned kMaxColumnIndex = kUnsetColumnIndex - 1;
 
 class SubtreeLayoutScope;
@@ -183,9 +181,6 @@ class CORE_EXPORT LayoutTableCell final : public LayoutBlockFlow {
   // Returns true if a non-column-spanning cell is in a collapsed column, or if
   // a column-spanning cell starts in a collapsed column.
   bool IsFirstColumnCollapsed() const;
-
-  bool isFullySelected() const { return is_fully_selected_; }
-  void setSelectionState(SelectionState) override;
 
   LayoutUnit BorderLeft() const override;
   LayoutUnit BorderRight() const override;
@@ -497,9 +492,6 @@ class CORE_EXPORT LayoutTableCell final : public LayoutBlockFlow {
   unsigned has_row_span_ : 1;
   unsigned is_spanning_collapsed_row_ : 1;
   unsigned is_spanning_collapsed_column_ : 1;
-
-  // blpwtk2: Indicates that the table cell is fully selected.
-  unsigned is_fully_selected_ : 1;
 
   // This is set to false when |collapsed_border_values_| needs update.
   mutable unsigned collapsed_border_values_valid_ : 1;

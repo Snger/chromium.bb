@@ -32,7 +32,6 @@
 #include "core/layout/HitTestResult.h"
 #include "core/layout/LayoutEmbeddedContent.h"
 #include "core/layout/LayoutGeometryMap.h"
-#include "core/layout/LayoutTableCell.h"
 #include "core/layout/ViewFragmentationContext.h"
 #include "core/layout/api/LayoutAPIShim.h"
 #include "core/layout/api/LayoutEmbeddedContentItem.h"
