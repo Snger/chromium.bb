@@ -356,9 +356,6 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         d_compositor->SetVisible(false);
         d_compositor.reset();
 
-        dispatchToRenderViewImpl(
-            ViewMsg_WasHidden(d_renderViewRoutingId));
-
         d_hwnd.release();
     } return 0;
     case WM_WINDOWPOSCHANGING: {
