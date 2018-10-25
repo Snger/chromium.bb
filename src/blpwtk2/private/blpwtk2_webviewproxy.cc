@@ -728,7 +728,7 @@ void WebViewProxy::preResize(const gfx::Size& size)
         // We disable this optimization in XP-style DPI scaling.
         content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
         DCHECK(rv);
-        //rv->SetSize(size);
+        rv->SetSize(size);
     }
 }
 
