@@ -1068,15 +1068,6 @@ void InlineTextBoxPainter::PaintSelection(GraphicsContext& context,
                                           const Font& font,
                                           Color text_color,
                                           LayoutTextCombine* combined_text) {
-  // If any table cell in our container hierarchy is fully selected,
-  // then don't paint the selection highlight.
-  LayoutBlock* cb = inline_text_box_.containingBlock();
-  while (cb) {
-    if (cb->IsTableCell() && ToLayoutTableCell(cb)->IsFullySelected())
-      return;
-    cb = cb->ContainingBlock();
-  }
-
   // See if we have a selection to paint at all.
   int s_pos, e_pos;
   inline_text_box_.SelectionStartEnd(s_pos, e_pos);
