@@ -1569,6 +1569,17 @@
       converter: "ConvertColor",
       keywords: ["currentcolor"],
       typedom_types: ["Keyword"],
+  },
+    {
+      name: "-bb-lcd-background-color",
+      property_methods: ["ParseSingleValue", "CSSValueFromComputedStyleInternal"],
+      inherited: true,
+      field_group: "*",
+      field_template: "external",
+      include_paths: ["platform/graphics/color.h"],
+      default_value: "Color()",
+      type_name: "Color",
+      custom_apply_functions_all: true,
     },
     {
       name: "flood-opacity",

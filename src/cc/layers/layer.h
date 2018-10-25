@@ -176,6 +176,9 @@ class CC_EXPORT Layer : public base::RefCounted<Layer> {
   void SetContentsOpaque(bool opaque);
   bool contents_opaque() const { return inputs_.contents_opaque; }
 
+  virtual void SetContentsOpaqueForLCDText(bool opaque);
+  bool contents_opaque_for_lcd_text() const { return inputs_.contents_opaque_for_lcd_text; }
+
   void SetPosition(const gfx::PointF& position);
   gfx::PointF position() const { return inputs_.position; }
 
@@ -561,6 +564,7 @@ class CC_EXPORT Layer : public base::RefCounted<Layer> {
     bool hit_testable_without_draws_content : 1;
 
     bool contents_opaque : 1;
+    bool contents_opaque_for_lcd_text : 1;
 
     gfx::PointF position;
     gfx::Transform transform;
