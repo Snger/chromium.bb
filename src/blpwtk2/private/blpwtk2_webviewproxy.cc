@@ -119,6 +119,7 @@ int WebViewProxy::loadUrl(const StringRef& url)
     d_pendingLoadStatus = true;
     d_url = std::string(url.data(), url.length());
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", loadUrl=" << d_url;
+    d_mainFrame.reset();
     d_client->loadUrl(d_url);
     return 0;
 }
@@ -147,6 +148,7 @@ int WebViewProxy::goBack()
 
     d_pendingLoadStatus = true;
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", goBack()";
+    d_mainFrame.reset();
     d_client->goBack();
     return 0;
 }
@@ -160,6 +162,7 @@ int WebViewProxy::goForward()
 
     d_pendingLoadStatus = true;
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", goForward()";
+    d_mainFrame.reset();
     d_client->goForward();
     return 0;
 }
@@ -173,6 +176,7 @@ int WebViewProxy::reload()
 
     d_pendingLoadStatus = true;
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", reload()";
+    d_mainFrame.reset();
     d_client->reload();
     return 0;
 }
