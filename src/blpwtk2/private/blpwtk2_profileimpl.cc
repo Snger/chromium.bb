@@ -59,8 +59,8 @@ ProfileImpl::ProfileImpl(MainMessagePump *pump,
     : d_numWebViews(0)
     , d_processId(pid)
     , d_pump(pump)
-    , d_ipcDelegate(nullptr)
     , d_binding(this)
+    , d_ipcDelegate(nullptr)
 {
     static const std::string SERVICE_NAME("content_browser");
     g_instances.insert(this);
