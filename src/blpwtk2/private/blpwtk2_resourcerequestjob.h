@@ -24,6 +24,7 @@
 #define INCLUDED_BLPWTK2_RESOURCEREQUESTJOB_H
 
 #include <net/url_request/url_request_job.h>
+#include <url/gurl.h>
 
 namespace blpwtk2 {
 
@@ -37,7 +38,7 @@ class ResourceRequestJob : public net::URLRequestJob {
   void Start() override;
   bool GetMimeType(std::string* mime_type) const override;
 
-  std::string url_;
+  GURL url_;
 
   DISALLOW_COPY_AND_ASSIGN(ResourceRequestJob);
 };
