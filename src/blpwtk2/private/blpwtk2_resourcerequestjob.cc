@@ -21,6 +21,7 @@
  */
 
 #include <blpwtk2_resourcerequestjob.h>
+#include <url/gurl.h>
 
 namespace blpwtk2 {
 
@@ -28,7 +29,7 @@ ResourceRequestJob::ResourceRequestJob(
     net::URLRequest* request,
     net::NetworkDelegate* network_delegate)
   : net::URLRequestJob(request, network_delegate)
-  , url_(request->url().spec()) {
+  , url_(request->url()) {
 }
 
 void ResourceRequestJob::Start() {
@@ -43,37 +44,37 @@ static bool EndsWith(const std::string& hay, const std::string& needle) {
 }
 
 bool ResourceRequestJob::GetMimeType(std::string* mime_type) const {
-  std::string url = url_;
-  std::transform(url.begin(), url.end(), url.begin(), ::tolower);
+  std::string filename = url_.ExtractFileName();
+  std::transform(filename.begin(), filename.end(), filename.begin(), ::tolower);
 
   // Mapping from
   // https://developer.mozilla.org/en-US/docs/Web/HTTP/Basics_of_HTTP/MIME_types/Complete_list_of_MIME_types
 
-  if (EndsWith(url, ".html") || EndsWith(url, ".htm"))
+  if (EndsWith(filename, ".html") || EndsWith(filename, ".htm"))
     mime_type->assign("text/html");
 
-  else if (EndsWith(url, ".css"))
+  else if (EndsWith(filename, ".css"))
     mime_type->assign("text/css");
 
-  else if (EndsWith(url, ".js"))
+  else if (EndsWith(filename, ".js"))
     mime_type->assign("application/javascript");
 
-  else if (EndsWith(url, ".png"))
+  else if (EndsWith(filename, ".png"))
     mime_type->assign("image/png");
 
-  else if (EndsWith(url, ".jpeg") || EndsWith(url, ".jpg"))
+  else if (EndsWith(filename, ".jpeg") || EndsWith(filename, ".jpg"))
     mime_type->assign("image/jpeg");
 
-  else if (EndsWith(url, ".svg"))
+  else if (EndsWith(filename, ".svg"))
     mime_type->assign("image/svg+xml");
 
-  else if (EndsWith(url, ".gif"))
+  else if (EndsWith(filename, ".gif"))
     mime_type->assign("image/gif");
 
-  else if (EndsWith(url, ".otf"))
+  else if (EndsWith(filename, ".otf"))
     mime_type->assign("font/otf");
 
-  else if (EndsWith(url, ".ttf"))
+  else if (EndsWith(filename, ".ttf"))
     mime_type->assign("font/ttf");
 
   else
