@@ -118,6 +118,7 @@ class PLATFORM_EXPORT ScriptState : public RefCounted<ScriptState> {
 
   static ScriptState* From(v8::Local<v8::Context> context) {
     DCHECK(!context.IsEmpty());
+
     ScriptState* script_state =
         static_cast<ScriptState*>(context->GetAlignedPointerFromEmbedderData(
             kV8ContextPerContextDataIndex));
@@ -127,6 +128,8 @@ class PLATFORM_EXPORT ScriptState : public RefCounted<ScriptState> {
     SECURITY_CHECK(script_state->context_ == context);
     return script_state;
   }
+
+  static bool AccessCheck(v8::Local<v8::Context> context);
 
   v8::Isolate* GetIsolate() const { return isolate_; }
   DOMWrapperWorld& World() const { return *world_; }
