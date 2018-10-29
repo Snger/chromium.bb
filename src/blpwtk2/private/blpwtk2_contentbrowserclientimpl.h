@@ -112,12 +112,15 @@ class ContentBrowserClientImpl : public content::ContentBrowserClient {
         mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation,
         const std::string& service_token) override;
 
+    std::vector<content::ContentBrowserClient::ServiceManifestInfo>
+        GetExtraServiceManifests() override;
+
     mojo::edk::OutgoingBrokerClientInvitation* GetClientInvitation() const;
 
-#if 0
     std::unique_ptr<base::Value> GetServiceManifestOverlay(
-            const std::string& name) override;
-#endif
+            base::StringPiece name) override;
+
+    void RegisterInProcessServices(StaticServiceMap* services) override;
 };
 
 }  // close namespace blpwtk2

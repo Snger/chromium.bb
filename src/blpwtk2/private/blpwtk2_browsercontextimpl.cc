@@ -144,7 +144,7 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     // preference service.  For this reason, it is important to call this
     // after content::BrowserContext::Initialize().
     {
-        //SpellcheckServiceFactory::GetForContext(this);
+        SpellcheckServiceFactory::GetForContext(this);
     }
 
     d_proxyConfig = std::make_unique<net::ProxyConfig>();

@@ -28,6 +28,7 @@
 #include <content/public/renderer/content_renderer_client.h>
 #include <content/public/renderer/render_thread_observer.h>
 #include <services/service_manager/public/cpp/binder_registry.h>
+#include <services/service_manager/public/cpp/connector.h>
 #include <services/service_manager/public/cpp/service.h>
 #include <services/service_manager/public/cpp/local_interface_provider.h>
 
@@ -92,13 +93,22 @@ class ContentRendererClientImpl : public content::ContentRendererClient,
     void OnBindInterface(const service_manager::BindSourceInfo& source,
                          const std::string& interface_name,
                          mojo::ScopedMessagePipeHandle interface_pipe) override;
+    void OnStart() override;
 
     // service_manager::LocalInterfaceProvider:
     void GetInterface(const std::string& name,
                       mojo::ScopedMessagePipeHandle request_handle) override;
 
+    // content::ContentRendererClient:
+    void CreateRendererService(
+        service_manager::mojom::ServiceRequest service_request) override;
+
+    service_manager::Connector* GetConnector();
 
     service_manager::BinderRegistry d_registry;
+    std::unique_ptr<service_manager::Connector> d_connector;
+    service_manager::mojom::ConnectorRequest d_connector_request;
+    std::unique_ptr<service_manager::ServiceContext> d_service_context;
 
     DISALLOW_COPY_AND_ASSIGN(ContentRendererClientImpl);
 };

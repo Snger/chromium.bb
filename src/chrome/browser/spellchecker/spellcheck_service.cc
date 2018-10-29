@@ -113,8 +113,6 @@ SpellcheckService::SpellcheckService(content::BrowserContext* context)
   custom_dictionary_->Load();
 #endif
 
-  OnSpellCheckDictionariesChanged();
-
   content::SpellcheckData* spellcheckData =
       content::SpellcheckData::FromContext(context);
   if (spellcheckData) {
