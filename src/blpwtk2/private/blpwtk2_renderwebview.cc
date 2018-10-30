@@ -666,12 +666,19 @@ RenderWebView::~RenderWebView()
 
 bool RenderWebView::dispatchToRenderViewImpl(const IPC::Message& message)
 {
-    WebFrame *webFrame = mainFrame();
-    v8::Isolate* isolate = webFrame->scriptIsolate();
+    content::RenderView *rv =
+        content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    DCHECK(rv);
 
+    blink::WebFrame *webFrame = rv->GetWebView()->MainFrame();
+
+    v8::Isolate* isolate = webFrame->ScriptIsolate();
     v8::Isolate::Scope isolateScope(isolate);
+
     v8::HandleScope handleScope(isolate);
-    v8::Context::Scope contextScope(webFrame->mainWorldScriptContext());
+
+    v8::Context::Scope contextScope(
+        webFrame->ToWebLocalFrame()->MainWorldScriptContext());
 
     return static_cast<IPC::Listener *>(
         content::RenderThreadImpl::current())
