@@ -126,6 +126,7 @@ def parseArgs(argv):
   gn_mode = None
   gn_type = None
   bb_version = None
+  noclang = False
 
   if argv:
     for i in xrange(0, len(argv)):
@@ -137,7 +138,9 @@ def parseArgs(argv):
       elif arg == '--bb_version':
         with open('../devkit_version.txt', 'r') as f:
           bb_version = f.readline()
-  
+      elif arg == 'noclang':
+        noclang = True
+
   # Generate 32-bit binaries and libraries
   applyVariableToEnvironment('GN_DEFINES', 'target_cpu', '\\\"x86\\\"')
 
@@ -158,6 +161,11 @@ def parseArgs(argv):
 
   # disable COM_INIT_CHECK_HOOK_ENABLED in com_init_check_hook.h
   applyVariableToEnvironment('GN_DEFINES', 'com_init_check_hook_disabled', 'true')
+
+  if noclang:
+    applyVariableToEnvironment('GN_DEFINES', 'is_clang', 'false')
+    applyVariableToEnvironment('GN_DEFINES', 'treat_warnings_as_errors', 'false')
+    applyVariableToEnvironment('GN_DEFINES', 'fatal_linker_warnings', 'false')
 
   if gn_mode == 'shared':
     applyVariableToEnvironment('GN_DEFINES', 'is_component_build', 'true')
