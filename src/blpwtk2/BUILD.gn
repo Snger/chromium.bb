@@ -326,6 +326,7 @@ shared_library("blpwtk2") {
     "//services/service_manager",
     "//services/service_manager/runner/common",
     "//services/ui/public/cpp/gpu",
+    "//services/viz/privileged/interfaces",
     "//services/viz/public/interfaces",
     "//third_party/blink/public:blink",
     "//third_party/blink/public:resources",
