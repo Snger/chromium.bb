@@ -22,6 +22,7 @@
 
 #include <blpwtk2_contentrendererclientimpl.h>
 #include <blpwtk2_inprocessresourceloaderbridge.h>
+#include <blpwtk2_jswidget.h>
 #include <blpwtk2_renderviewobserverimpl.h>
 #include <blpwtk2_resourceloader.h>
 #include <blpwtk2_statics.h>
@@ -30,6 +31,7 @@
 #include <base/strings/utf_string_conversions.h>
 #include <components/printing/renderer/print_render_frame_helper.h>
 #include <content/child/font_warmup_win.h>
+#include <content/public/renderer/render_frame.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/public/renderer/render_view.h>
 #include <net/base/net_errors.h>
@@ -146,7 +148,12 @@ bool ContentRendererClientImpl::OverrideCreatePlugin(
     const blink::WebPluginParams& params,
     blink::WebPlugin** plugin)
 {
-    return false;
+    if (params.mime_type.Ascii() != "application/x-bloomberg-jswidget") {
+        return false;
+    }
+
+    *plugin = new JsWidget(render_frame->GetWebFrame());
+    return true;
 }
 
 }  // close namespace blpwtk2
