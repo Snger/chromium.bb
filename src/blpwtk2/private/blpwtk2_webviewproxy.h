@@ -123,6 +123,8 @@ class WebViewProxy final : public WebView
     void preResize(const gfx::Size& size) override;
     void notifyRoutingId(int id) override;
     void onLoadStatus(int status) override;
+    void devToolsAgentHostAttached() override;
+    void devToolsAgentHostDetached() override;
 };
 
 }  // close namespace blpwtk2

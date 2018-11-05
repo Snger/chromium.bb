@@ -150,6 +150,14 @@ class WebViewImpl final : public WebView,
                    bool                  final_update) override;
         // Information about current find request
 
+    void DevToolsAgentHostAttached(content::WebContents* web_contents) override;
+        // Notify that a frontend is now connected to the devtools agent
+        // associated with this webview.
+
+    void DevToolsAgentHostDetached(content::WebContents* web_contents) override;
+        // Notify that a frontend is now disconnected from the devtools agent
+        // associated with this webview.
+
     // content::WebContentsObserver overrides
     void RenderViewCreated(content::RenderViewHost *render_view_host) override;
         // This is called when a RVH is created for a WebContents, but not if
