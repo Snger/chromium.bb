@@ -1236,7 +1236,6 @@ int UseCounter::MapCSSPropertyIdToCSSSampleIdForHistogram(
       return 0;
   }
 
-  NOTREACHED();
   return 0;
 }
 
