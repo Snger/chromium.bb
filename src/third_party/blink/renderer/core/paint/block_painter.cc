@@ -11,6 +11,7 @@
 #include "third_party/blink/renderer/core/layout/api/line_layout_box.h"
 #include "third_party/blink/renderer/core/layout/layout_flexible_box.h"
 #include "third_party/blink/renderer/core/layout/layout_inline.h"
+#include "third_party/blink/renderer/core/layout/layout_table_cell.h"
 #include "third_party/blink/renderer/core/page/page.h"
 #include "third_party/blink/renderer/core/paint/box_painter.h"
 #include "third_party/blink/renderer/core/paint/line_box_list_painter.h"
@@ -234,7 +235,8 @@ void BlockPainter::PaintObject(const PaintInfo& paint_info,
     // Paint the background if we're visible and this block has a box decoration
     // (background, border, appearance, or box shadow).
     if (layout_block_.StyleRef().Visibility() == EVisibility::kVisible &&
-        layout_block_.HasBoxDecorationBackground()) {
+        (layout_block_.HasBoxDecorationBackground() ||
+        (layout_block_.IsTableCell() && ToLayoutTableCell(layout_block_).IsFullySelected()))) {
       layout_block_.PaintBoxDecorationBackground(paint_info, paint_offset);
     }
     if (RuntimeEnabledFeatures::PaintTouchActionRectsEnabled())

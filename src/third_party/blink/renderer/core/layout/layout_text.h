@@ -203,6 +203,7 @@ class CORE_EXPORT LayoutText : public LayoutObject {
   virtual void SetTextInternal(scoped_refptr<StringImpl>);
 
   virtual void TransformText();
+  void SetSelectionState(SelectionState) final;
 
   LayoutRect LocalSelectionRect() const final;
   LayoutRect LocalCaretRect(
