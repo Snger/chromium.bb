@@ -866,6 +866,8 @@ void RenderWidget::OnSynchronizeVisualProperties(
 
   if (owner_delegate_ && params.scroll_focused_node_into_view)
     owner_delegate_->ScrollFocusedNodeIntoViewForWidget();
+
+  browser_size_ = params.new_size;
 }
 
 void RenderWidget::OnEnableDeviceEmulation(
