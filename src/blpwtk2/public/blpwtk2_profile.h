@@ -33,6 +33,7 @@ class ProxyConfig;
 class StringRef;
 class WebView;
 class WebViewDelegate;
+class ProcessClientDelegate;
 
 // This enum must match ProxyConfigType in blpwtk2_process.mojom
 enum class ProxyType {
@@ -147,6 +148,12 @@ class Profile
                                  const StringRef&   path) = 0;
         // Write diagnostic information of the specified 'type' onto the
         // file 'filepath'
+
+    virtual void opaqueMessageToBrowserAsync(const StringRef& msg) = 0;
+
+    virtual String opaqueMessageToBrowserSync(const StringRef& msg) = 0;
+
+    virtual void setIPCDelegate(ProcessClientDelegate *delegate) = 0;
 
   protected:
     virtual ~Profile();

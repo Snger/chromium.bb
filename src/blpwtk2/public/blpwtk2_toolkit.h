@@ -95,6 +95,7 @@ class StringRef;
 class WebView;
 class WebViewDelegate;
 class WebViewHostObserver;
+class ProcessHostDelegate;
 
                         // =============
                         // class Toolkit
@@ -182,6 +183,9 @@ class Toolkit {
     virtual v8::Platform *getV8Platform() = 0;
         // Return a pointer to the 'v8::Platform' used for this process.
 
+    virtual void opaqueMessageToRendererAsync(int pid, const StringRef &message) = 0;
+
+    virtual void setIPCDelegate(ProcessHostDelegate *delegate) = 0;
   protected:
     virtual ~Toolkit();
         // Destroy this Toolkit object.  Note that embedders of blpwtk2 should
