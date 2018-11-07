@@ -494,12 +494,20 @@ void LayerTreeFrameSink::DidAllocateSharedBitmap(
     mojo::ScopedSharedBufferHandle buffer,
     const viz::SharedBitmapId& id)
 {
+    if (!d_delegate) {
+        return;
+    }
+
     d_delegate->DidAllocateSharedBitmap(std::move(buffer), id);
 }
 
 void LayerTreeFrameSink::DidDeleteSharedBitmap(
     const viz::SharedBitmapId& id)
 {
+    if (!d_delegate) {
+        return;
+    }
+
     d_delegate->DidDeleteSharedBitmap(id);
 }
 
