@@ -58,8 +58,20 @@ struct WebPluginParams;
 struct WebURLError;
 }  // namespace blink
 
+namespace cc {
+class LayerTreeFrameSink;
+}  // namespace cc
+
+namespace IPC {
+class Message;
+}
+
 namespace media {
 class KeySystemProperties;
+}
+
+namespace network {
+struct ResourceRequest;
 }
 
 namespace content {
@@ -68,6 +80,9 @@ class MediaStreamRendererFactory;
 class RenderFrame;
 class RenderView;
 struct WebPluginInfo;
+struct RequestInfo;
+class ResourceLoaderBridge;
+class ResourceRequestBodyImpl;
 
 // Embedder API for participating in renderer logic.
 class CONTENT_EXPORT ContentRendererClient {
@@ -189,6 +204,11 @@ class CONTENT_EXPORT ContentRendererClient {
   // If it returns NULL the content layer will provide an engine.
   virtual std::unique_ptr<blink::WebSpeechSynthesizer>
   OverrideSpeechSynthesizer(blink::WebSpeechSynthesizerClient* client);
+
+  // Allows the embedder to override the ResourceLoaderBridge used.
+  // If it returns NULL, the content layer will provide a bridge.
+  virtual content::ResourceLoaderBridge* OverrideResourceLoaderBridge(
+      const network::ResourceRequest* request);
 
   // Called on the main-thread immediately after the io thread is
   // created.
@@ -421,6 +441,21 @@ class CONTENT_EXPORT ContentRendererClient {
   // from outside of the browsing instance.
   virtual blink::WebFrame* FindFrame(blink::WebLocalFrame* relative_to_frame,
                                      const std::string& name);
+
+  // Allows the embedder to intercept IPC messages before they are sent to
+  // the browser. If the function handles the message, it should delete
+  // 'msg' and return 'true'. If the function does not handle the message,
+  // it should return 'false' without deleting 'msg'.
+  virtual bool Dispatch(IPC::Message* msg);
+
+  // Allows the embedder to override construction of the compositor
+  // frame sink for the 'content::RenderView' identified by 'routing_id'.
+  using LayerTreeFrameSinkCallback =
+      base::Callback<void(std::unique_ptr<cc::LayerTreeFrameSink>)>;
+  virtual bool RequestNewLayerTreeFrameSink(
+      bool use_software,
+      int routing_id,
+      const LayerTreeFrameSinkCallback& callback);
 };
 
 }  // namespace content

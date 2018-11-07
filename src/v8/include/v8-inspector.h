@@ -68,9 +68,9 @@ class V8_EXPORT StringBuffer {
   static std::unique_ptr<StringBuffer> create(const StringView&);
 };
 
-class V8_EXPORT V8ContextInfo {
+class V8ContextInfo {
  public:
-  V8ContextInfo(v8::Local<v8::Context> context, int contextGroupId,
+  V8_EXPORT V8ContextInfo(v8::Local<v8::Context> context, int contextGroupId,
                 const StringView& humanReadableName)
       : context(context),
         contextGroupId(contextGroupId),
@@ -85,7 +85,7 @@ class V8_EXPORT V8ContextInfo {
   StringView auxData;
   bool hasMemoryOnConsole;
 
-  static int executionContextId(v8::Local<v8::Context> context);
+  V8_EXPORT static int executionContextId(v8::Local<v8::Context> context);
 
  private:
   // Disallow copying and allocating this one.
@@ -99,6 +99,11 @@ class V8_EXPORT V8ContextInfo {
 
 class V8_EXPORT V8StackTrace {
  public:
+  // Set this to false if callstack capturing should always happen.  By default, this
+  // is true, which means callstack capturing only happens when the inspector is open
+  // (which is the default upstream behavior).
+  static bool s_stackCaptureControlledByInspector;
+
   virtual bool isEmpty() const = 0;
   virtual StringView topSourceURL() const = 0;
   virtual int topLineNumber() const = 0;

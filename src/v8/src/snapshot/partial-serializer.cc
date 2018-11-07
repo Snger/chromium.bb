@@ -153,7 +153,11 @@ void PartialSerializer::SerializeEmbedderFields() {
       sink_.PutInt(data.raw_size, "embedder fields data size");
       sink_.PutRaw(reinterpret_cast<const byte*>(data.data), data.raw_size,
                    "embedder fields data");
-      delete[] data.data;
+      if(data.array_deallocator) {
+        data.array_deallocator(data.data);
+      } else {
+        delete[] data.data;
+      }
     }
   }
   sink_.Put(kSynchronize, "Finished with embedder fields data");

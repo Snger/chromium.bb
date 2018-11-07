@@ -1351,6 +1351,23 @@ void LayoutObject::AddAbsoluteRectForLayer(IntRect& result) {
     current->AddAbsoluteRectForLayer(result);
 }
 
+void LayoutObject::AddAbsoluteRectForLayer(const IntRect& clip, IntRect& result) {
+  if (HasLayer())
+    result.Unite(AbsoluteBoundingBoxRect());
+    result.Unite(
+      Intersection(
+        clip,
+        AbsoluteBoundingBoxRect()));
+
+  for (LayoutObject* current = SlowFirstChild(); current;
+       current = current->NextSibling())
+    current->AddAbsoluteRectForLayer(
+      HasOverflowClip()?
+        Intersection(clip, EnclosingIntRect(AbsoluteVisualRect())) :
+        clip,
+      result);
+}
+
 IntRect LayoutObject::AbsoluteBoundingBoxRectIncludingDescendants() const {
   IntRect result = AbsoluteBoundingBoxRect();
   for (LayoutObject* current = SlowFirstChild(); current;

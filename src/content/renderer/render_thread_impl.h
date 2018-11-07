@@ -282,6 +282,7 @@ class CONTENT_EXPORT RenderThreadImpl
   // If there is a pending asynchronous request, it will be completed by the
   // time this routine returns.
   scoped_refptr<gpu::GpuChannelHost> EstablishGpuChannelSync();
+  scoped_refptr<gpu::GpuChannelHost> EstablishPrivilegedGpuChannelSync();
 
   gpu::GpuMemoryBufferManager* GetGpuMemoryBufferManager();
 
@@ -832,6 +833,8 @@ class CONTENT_EXPORT RenderThreadImpl
   // this member.
   mojo::Binding<viz::mojom::CompositingModeWatcher>
       compositing_mode_watcher_binding_;
+
+  bool exit_process_gracefully_;
 
   base::WeakPtrFactory<RenderThreadImpl> weak_factory_;
 

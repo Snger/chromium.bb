@@ -79,7 +79,8 @@ class CONTENT_EXPORT RenderWidgetCompositor
       cc::LayerTreeHostSingleThreadClient* single_thread_client,
       cc::MutatorHost* mutator_host,
       CompositorDependencies* deps,
-      const ScreenInfo& screen_info);
+      const ScreenInfo& screen_info,
+      int routing_id);
 
   void Initialize(std::unique_ptr<cc::LayerTreeHost> layer_tree_host,
                   std::unique_ptr<cc::AnimationHost> animation_host);
@@ -126,6 +127,7 @@ class CONTENT_EXPORT RenderWidgetCompositor
                                const viz::LocalSurfaceId& local_surface_id);
   void SetViewportVisibleRect(const gfx::Rect& visible_rect);
   void SetURLForUkm(const GURL& url);
+  void ReleaseLayerTreeFrameSink();
 
   // WebLayerTreeView implementation.
   viz::FrameSinkId GetFrameSinkId() override;

@@ -535,7 +535,7 @@ class Shell : public i::AllStatic {
   static std::map<Isolate*, bool> isolate_status_;
 
   static base::LazyMutex cached_code_mutex_;
-  static std::map<std::string, std::unique_ptr<ScriptCompiler::CachedData>>
+  static std::map<std::string, std::unique_ptr<ScriptCompiler::CachedData, ScriptCompiler::CachedDataDeleter>>
       cached_code_map_;
 };
 

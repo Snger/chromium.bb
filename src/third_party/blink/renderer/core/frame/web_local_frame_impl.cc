@@ -129,6 +129,7 @@
 #include "third_party/blink/public/web/web_serialized_script_value.h"
 #include "third_party/blink/public/web/web_text_direction.h"
 #include "third_party/blink/public/web/web_tree_scope_type.h"
+#include "third_party/skia/include/core/SkCanvas.h"
 #include "third_party/blink/renderer/bindings/core/v8/binding_security.h"
 #include "third_party/blink/renderer/bindings/core/v8/exception_state.h"
 #include "third_party/blink/renderer/bindings/core/v8/script_controller.h"
@@ -245,6 +246,8 @@
 #include "third_party/blink/renderer/platform/weborigin/security_policy.h"
 #include "third_party/blink/renderer/platform/wtf/hash_map.h"
 #include "third_party/blink/renderer/platform/wtf/time.h"
+
+#include <unordered_map>
 
 namespace blink {
 
@@ -504,6 +507,58 @@ class ChromePluginPrintContext final : public ChromePrintContext {
 static WebDocumentLoader* DocumentLoaderForDocLoader(DocumentLoader* loader) {
   return loader ? WebDocumentLoaderImpl::FromDocumentLoader(loader) : nullptr;
 }
+
+static void CollectAllFrames(std::vector<const LocalFrame*>& list,
+                             const LocalFrame* frame) {
+  list.push_back(frame);
+
+  for (auto childFrame = frame->Tree().FirstChild(); childFrame;
+       childFrame = childFrame->Tree().NextSibling()) {
+    if (!childFrame->IsLocalFrame())
+      continue;
+
+    CollectAllFrames(list, ToLocalFrame(childFrame));
+  }
+}
+
+// blpwtk2: This is a simplified implementation of the class
+// ChromePrintContext defined above in this file.
+class CanvasPainterContext : public DisplayItemClient {
+  FloatRect d_visualRect;
+
+  void PaintToGraphicsContext(GraphicsContext& context,
+                              LocalFrameView* view,
+                              const FloatRect& floatRect) {
+    context.Save();
+
+    // Enter a translation transform
+    AffineTransform transform;
+    transform.Translate(-floatRect.X(), -floatRect.Y());
+    context.ConcatCTM(transform);
+
+    // Enter a clipped region
+    context.ClipRect(EnclosedIntRect(floatRect));
+
+    view->UpdateAllLifecyclePhases();
+
+    view->PaintContents(context, kGlobalPaintFlattenCompositingLayers,
+                        EnclosingIntRect(floatRect));
+
+    context.Restore();
+  }
+
+ public:
+  void Paint(SkCanvas& canvas, LocalFrameView* view, const FloatRect& floatRect) {
+    d_visualRect = floatRect;
+    PaintRecordBuilder builder(&canvas.getMetaData());
+    builder.Context().BeginRecording(EnclosingIntRect(floatRect));
+    PaintToGraphicsContext(builder.Context(), view, floatRect);
+    builder.Context().EndRecording()->Playback(&canvas);
+  }
+
+  String DebugName() const override { return "CanvasPainterContext"; }
+  LayoutRect VisualRect() const override { return LayoutRect(d_visualRect); }
+};
 
 // WebFrame -------------------------------------------------------------------
 
@@ -892,6 +947,13 @@ v8::Local<v8::Context> WebLocalFrameImpl::MainWorldScriptContext() const {
 
 v8::Local<v8::Object> WebLocalFrameImpl::GlobalProxy() const {
   return MainWorldScriptContext()->Global();
+}
+
+v8::Isolate* WebLocalFrameImpl::ScriptIsolate() const {
+  if (auto ptr = GetFrame()) {
+    return ToIsolate(ptr);
+  }
+  return nullptr;
 }
 
 bool WebFrame::ScriptCanAccess(WebFrame* target) {
@@ -2551,6 +2613,51 @@ void WebLocalFrameImpl::BindDevToolsAgentRequest(
   if (!dev_tools_agent_)
     dev_tools_agent_ = WebDevToolsAgentImpl::CreateForFrame(this);
   dev_tools_agent_->BindRequest(std::move(request));
+}
+
+void WebLocalFrameImpl::DrawInCanvas(const WebRect& rect,
+                                     const WebString& styleClass,
+                                     SkCanvas& canvas) const {
+  // Set the new "style" attribute if specified
+  static const WTF::String classAttribute("class");
+  // To avoid problems where the same document body is referenced multiple
+  // times in frames, hash map is used to prevent getting & setting the
+  // temporarily updated style attribute.
+  std::unordered_map<HTMLElement*, WTF::String> originalStyleClasses;
+
+  if (!styleClass.IsEmpty()) {
+    std::vector<const LocalFrame*> frames;
+    CollectAllFrames(frames, GetFrame());
+    for (auto localFrame : frames) {
+      auto htmlBody = localFrame->GetDocument()->body();
+
+      // Some documents (ie. SVG documents) do not have body elements
+      if (!htmlBody || originalStyleClasses.count(htmlBody))
+        continue;
+
+      auto webBody = WebElement(htmlBody);
+      if (webBody.HasAttribute(classAttribute)) {
+        WTF::String originalStyleClass = webBody.GetAttribute(classAttribute);
+        WTF::String newClass(originalStyleClass);
+        newClass.append(" ");
+        newClass.append(styleClass);
+        webBody.SetAttribute(classAttribute, WebString(newClass));
+        originalStyleClasses.emplace(htmlBody, std::move(originalStyleClass));
+      } else {
+        originalStyleClasses.emplace(htmlBody, WTF::String());
+        webBody.SetAttribute(classAttribute, styleClass);
+      }
+    }
+  }
+
+  CanvasPainterContext painterContext;
+  painterContext.Paint(canvas, GetFrameView(), FloatRect(rect));
+
+  // Restore the original "style" attribute
+  for (auto& item : originalStyleClasses) {
+    auto webBody = WebElement(item.first);
+    webBody.SetAttribute(classAttribute, item.second);
+  }
 }
 
 }  // namespace blink

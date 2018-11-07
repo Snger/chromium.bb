@@ -91,6 +91,7 @@ class VIEWS_EXPORT NativeWidgetPrivate : public NativeWidget {
   virtual bool ShouldUseNativeFrame() const = 0;
   virtual bool ShouldWindowContentsBeTransparent() const = 0;
   virtual void FrameTypeChanged() = 0;
+  virtual void CompositionChanged() {};
 
   // Returns the Widget associated with this NativeWidget. This function is
   // guaranteed to return non-NULL for the lifetime of the NativeWidget.
@@ -173,6 +174,7 @@ class VIEWS_EXPORT NativeWidgetPrivate : public NativeWidget {
   virtual gfx::Rect GetRestoredBounds() const = 0;
   virtual std::string GetWorkspace() const = 0;
   virtual void SetBounds(const gfx::Rect& bounds) = 0;
+  virtual void SetBoundsNoDPIAdjustment(const gfx::Rect& bounds) {};
   virtual void SetSize(const gfx::Size& size) = 0;
   virtual void StackAbove(gfx::NativeView native_view) = 0;
   virtual void StackAtTop() = 0;

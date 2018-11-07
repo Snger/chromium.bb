@@ -89,6 +89,12 @@ ContentRendererClient::OverrideSpeechSynthesizer(
   return nullptr;
 }
 
+content::ResourceLoaderBridge*
+ContentRendererClient::OverrideResourceLoaderBridge(
+    const network::ResourceRequest* request) {
+  return NULL;
+}
+
 void ContentRendererClient::PostIOThreadCreated(
     base::SingleThreadTaskRunner* io_thread_task_runner) {}
 
@@ -275,6 +281,18 @@ blink::WebFrame* ContentRendererClient::FindFrame(
     blink::WebLocalFrame* relative_to_frame,
     const std::string& name) {
   return nullptr;
+}
+
+bool ContentRendererClient::Dispatch(IPC::Message* msg) {
+  return false;
+}
+
+bool ContentRendererClient::RequestNewLayerTreeFrameSink(
+    bool use_software,
+    int routing_id,
+    const LayerTreeFrameSinkCallback& callback)
+{
+  return false;
 }
 
 }  // namespace content

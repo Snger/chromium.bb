@@ -70,9 +70,11 @@ class BrowserPluginGuestDelegate;
 class InterstitialPage;
 class RenderFrameHost;
 class RenderViewHost;
+class RenderViewHostDelegateView;
 class RenderWidgetHost;
 class RenderWidgetHostView;
 class WebContentsDelegate;
+class WebContentsView;
 struct CustomContextMenuContext;
 struct DropData;
 struct Manifest;
@@ -140,6 +142,7 @@ class WebContents : public PageNavigator,
     int32_t routing_id;
     int32_t main_frame_routing_id;
     int32_t main_frame_widget_routing_id;
+    int32_t render_process_affinity;
 
     // The name of the top-level frame of the new window. It is non-empty
     // when creating a named window (e.g. <a target="foo"> or
@@ -175,6 +178,11 @@ class WebContents : public PageNavigator,
 
     // Sandboxing flags set on the new WebContents.
     blink::WebSandboxFlags starting_sandbox_flags;
+
+    // Allow the embedder to override the WebContentsView and
+    // RenderViewHostDelegateView used by this WebContents.
+    WebContentsView *host = nullptr;
+    RenderViewHostDelegateView *render_view_host_delegate_view = nullptr;
   };
 
   // Creates a new WebContents.
@@ -827,6 +835,14 @@ class WebContents : public PageNavigator,
   // TODO(gyuyoung): https://crbug.com/822564 - Make this feature safer and fix
   // bugs.
   virtual void PausePageScheduledTasks(bool paused) = 0;
+
+  // Tells the WebContents that a frontend is connected to the
+  // devtools agent.
+  virtual void DevToolsAgentHostAttached() {}
+
+  // Tells the WebContents that a frontend disconnected from the
+  // devtools agent.
+  virtual void DevToolsAgentHostDetached() {}
 
 #if defined(OS_ANDROID)
   CONTENT_EXPORT static WebContents* FromJavaWebContents(

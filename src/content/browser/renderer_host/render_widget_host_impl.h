@@ -477,6 +477,9 @@ class CONTENT_EXPORT RenderWidgetHostImpl
   // Whether forwarded WebInputEvents should be dropped.
   bool ShouldDropInputEvents() const;
 
+  bool ShouldSetKeyboardFocusOnMouseDown() const;
+  bool ShouldSetLogicalFocusOnMouseDown() const;
+
   bool has_touch_handler() const { return has_touch_handler_; }
 
   // Set the RenderView background transparency.
@@ -798,6 +801,8 @@ class CONTENT_EXPORT RenderWidgetHostImpl
                                  base::SharedMemoryHandle handle);
   void OnSelectionBoundsChanged(
       const ViewHostMsg_SelectionBounds_Params& params);
+  void OnSetRubberbandRect(const gfx::Rect& rect);
+  void OnHideRubberbandRect();
   void OnSetNeedsBeginFrames(bool needs_begin_frames);
   void OnHittestData(const FrameHostMsg_HittestData_Params& params);
   void OnFocusedNodeTouched(bool editable);

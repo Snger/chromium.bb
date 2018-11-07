@@ -23,7 +23,8 @@ class GpuClient : public ui::mojom::Gpu {
 
  private:
   void OnError();
-  void OnEstablishGpuChannel(mojo::ScopedMessagePipeHandle channel_handle,
+  void OnEstablishGpuChannel(bool privileged,
+                             mojo::ScopedMessagePipeHandle channel_handle,
                              const gpu::GPUInfo& gpu_info,
                              const gpu::GpuFeatureInfo& gpu_feature_info,
                              GpuProcessHost::EstablishChannelStatus status);
@@ -32,7 +33,8 @@ class GpuClient : public ui::mojom::Gpu {
   void ClearCallback();
 
   // ui::mojom::Gpu overrides:
-  void EstablishGpuChannel(EstablishGpuChannelCallback callback) override;
+  void EstablishGpuChannel(bool privileged,
+                           EstablishGpuChannelCallback callback) override;
   void CreateJpegDecodeAccelerator(
       media::mojom::JpegDecodeAcceleratorRequest jda_request) override;
   void CreateVideoEncodeAcceleratorProvider(
@@ -52,6 +54,7 @@ class GpuClient : public ui::mojom::Gpu {
   bool gpu_channel_requested_ = false;
   EstablishGpuChannelCallback callback_;
   mojo::ScopedMessagePipeHandle channel_handle_;
+  bool cached_channel_privileged_ = false;
   gpu::GPUInfo gpu_info_;
   gpu::GpuFeatureInfo gpu_feature_info_;
   base::WeakPtrFactory<GpuClient> weak_factory_;

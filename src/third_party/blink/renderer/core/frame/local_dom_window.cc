@@ -85,6 +85,7 @@
 #include "third_party/blink/renderer/core/layout/layout_view.h"
 #include "third_party/blink/renderer/core/loader/appcache/application_cache.h"
 #include "third_party/blink/renderer/core/loader/document_loader.h"
+#include "third_party/blink/renderer/core/page/bb_window_hooks.h"
 #include "third_party/blink/renderer/core/page/chrome_client.h"
 #include "third_party/blink/renderer/core/page/create_window.h"
 #include "third_party/blink/renderer/core/page/page.h"
@@ -259,6 +260,14 @@ LocalDOMWindow::LocalDOMWindow(LocalFrame& frame)
                              &LocalDOMWindow::WarnUnusedPreloads),
       should_print_when_finished_loading_(false) {}
 
+LocalDOMWindow::LocalDOMWindow()
+    : DOMWindow(),
+      visualViewport_(DOMVisualViewport::Create(this)),
+      unused_preloads_timer_(Platform::Current()->MainThread()->GetTaskRunner(),
+                             this,
+                             &LocalDOMWindow::WarnUnusedPreloads),
+      should_print_when_finished_loading_(false) {}
+
 void LocalDOMWindow::ClearDocument() {
   if (!document_)
     return;
@@ -344,6 +353,20 @@ Document* LocalDOMWindow::InstallNewDocument(const String& mime_type,
 
   if (GetFrame()->IsCrossOriginSubframe())
     document_->RecordDeferredLoadReason(WouldLoadReason::kCreated);
+
+  return document_;
+}
+
+Document* LocalDOMWindow::InstallNewUnintializedDocument(
+  const String& mime_type,
+  const DocumentInit& init,
+  bool force_xhtml) {
+  DCHECK_EQ(init.GetFrame(), GetFrame());
+
+  ClearDocument();
+
+  document_ = CreateDocument(mime_type, init, force_xhtml);
+  event_queue_ = DOMWindowEventQueue::Create(document_.Get());
 
   return document_;
 }
@@ -607,6 +630,17 @@ Navigator* LocalDOMWindow::navigator() const {
   if (!navigator_)
     navigator_ = Navigator::Create(GetFrame());
   return navigator_.Get();
+}
+
+BBWindowHooks* LocalDOMWindow::bbWindowHooks() const
+{
+    if (!IsCurrentlyDisplayedInFrame())
+        return nullptr;
+    if (!bb_window_hooks_)
+        bb_window_hooks_ = BBWindowHooks::Create(GetFrame());
+    if (bb_window_hooks_)
+      return bb_window_hooks_.Get();
+    return nullptr;
 }
 
 void LocalDOMWindow::SchedulePostMessage(
@@ -1660,6 +1694,7 @@ void LocalDOMWindow::Trace(blink::Visitor* visitor) {
   visitor->Trace(post_message_timers_);
   visitor->Trace(visualViewport_);
   visitor->Trace(event_listener_observers_);
+  visitor->Trace(bb_window_hooks_);
   DOMWindow::Trace(visitor);
   Supplementable<LocalDOMWindow>::Trace(visitor);
 }

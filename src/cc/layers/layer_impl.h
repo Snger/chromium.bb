@@ -37,6 +37,7 @@
 #include "cc/trees/target_property.h"
 #include "components/viz/common/quads/shared_quad_state.h"
 #include "third_party/skia/include/core/SkColor.h"
+#include "ui/gfx/geometry/axis_transform2d.h"
 #include "ui/gfx/geometry/point3_f.h"
 #include "ui/gfx/geometry/rect.h"
 #include "ui/gfx/geometry/rect_f.h"
@@ -132,6 +133,12 @@ class CC_EXPORT LayerImpl {
                                      float layer_to_content_scale_x,
                                      float layer_to_content_scale_y,
                                      bool contents_opaque) const;
+
+  void PopulateTransformedSharedQuadState(
+      viz::SharedQuadState* state,
+      const gfx::AxisTransform2d& transform,
+      bool contents_opaque) const;
+
   // WillDraw must be called before AppendQuads. If WillDraw returns false,
   // AppendQuads and DidDraw will not be called. If WillDraw returns true,
   // DidDraw is guaranteed to be called before another WillDraw or before
@@ -193,6 +200,9 @@ class CC_EXPORT LayerImpl {
 
   void SetContentsOpaque(bool opaque);
   bool contents_opaque() const { return contents_opaque_; }
+
+  void SetContentsOpaqueForLCDText(bool opaque);
+  bool contents_opaque_for_lcd_text() const { return contents_opaque_for_lcd_text_; }
 
   float Opacity() const;
 
@@ -419,6 +429,7 @@ class CC_EXPORT LayerImpl {
 
   void UpdatePropertyTreeForAnimationIfNeeded(ElementId element_id);
 
+  std::pair<float, float> GetIdealContentsScaleAndAspectRatio() const;
   float GetIdealContentsScale() const;
 
   void NoteLayerPropertyChanged();
@@ -510,6 +521,7 @@ class CC_EXPORT LayerImpl {
 
   bool masks_to_bounds_ : 1;
   bool contents_opaque_ : 1;
+  bool contents_opaque_for_lcd_text_ : 1;
   bool use_parent_backface_visibility_ : 1;
   bool should_check_backface_visibility_ : 1;
   bool draws_content_ : 1;

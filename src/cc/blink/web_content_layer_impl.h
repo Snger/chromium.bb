@@ -32,6 +32,7 @@ class WebContentLayerImpl : public blink::WebContentLayer,
   blink::WebLayer* Layer() override;
   void SetTransformedRasterizationAllowed(bool) override;
   bool TransformedRasterizationAllowed() const override;
+  void setDefaultLCDBackgroundColor(blink::WebColor default_lcd_background_color) override;
 
  protected:
   // ContentLayerClient implementation.

@@ -51,6 +51,8 @@ class BASE_EXPORT AtExitManager {
   // Disable all registered at-exit callbacks. This is used only in a single-
   // process mode.
   static void DisableAllAtExitManagers();
+  // Return true if an AtExitManager has been initialized.
+  static bool IsInitialized();
 
  protected:
   // This constructor will allow this instance of AtExitManager to be created
@@ -68,12 +70,10 @@ class BASE_EXPORT AtExitManager {
   DISALLOW_COPY_AND_ASSIGN(AtExitManager);
 };
 
-#if defined(UNIT_TEST)
 class ShadowingAtExitManager : public AtExitManager {
  public:
   ShadowingAtExitManager() : AtExitManager(true) {}
 };
-#endif  // defined(UNIT_TEST)
 
 }  // namespace base
 

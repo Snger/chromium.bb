@@ -416,6 +416,7 @@ RenderWidget::RenderWidget(
       current_content_source_id_(0),
       widget_binding_(this, std::move(widget_request)),
       task_runner_(task_runner),
+      bb_OnHandleInputEvent_no_ack_(false),
       weak_ptr_factory_(this) {
   DCHECK_NE(routing_id_, MSG_ROUTING_NONE);
   if (!swapped_out)
@@ -805,6 +806,8 @@ void RenderWidget::OnResize(const ResizeParams& params) {
     for (auto& render_frame : render_frames_)
       render_frame.DidChangeVisibleViewport();
   }
+
+  browser_size_ = params.new_size;
 }
 
 void RenderWidget::OnEnableDeviceEmulation(
@@ -888,7 +891,7 @@ void RenderWidget::OnHandleInputEvent(
     return;
 
   HandledEventCallback callback;
-  if (dispatch_type == DISPATCH_TYPE_BLOCKING) {
+  if (dispatch_type == DISPATCH_TYPE_BLOCKING && !bb_OnHandleInputEvent_no_ack_) {
     callback = base::Bind(
         &RenderWidget::SendInputEventAck, this, input_event->GetType(),
         ui::WebInputEventTraits::GetUniqueTouchEventId(*input_event));
@@ -1039,6 +1042,13 @@ void RenderWidget::DidReceiveCompositorFrameAck() {
 
 bool RenderWidget::IsClosing() const {
   return host_closing_;
+}
+
+void RenderWidget::bbHandleInputEvent(const blink::WebInputEvent& event) {
+  ui::LatencyInfo latency_info;
+  bb_OnHandleInputEvent_no_ack_ = true;
+  OnHandleInputEvent(&event, {}, latency_info, InputEventDispatchType::DISPATCH_TYPE_BLOCKING);
+  bb_OnHandleInputEvent_no_ack_ = false;
 }
 
 void RenderWidget::RequestScheduleAnimation() {
@@ -1459,7 +1469,7 @@ blink::WebLayerTreeView* RenderWidget::InitializeLayerTreeView() {
   compositor_->SetIsForOopif(for_oopif_);
   auto layer_tree_host = RenderWidgetCompositor::CreateLayerTreeHost(
       compositor_.get(), compositor_.get(), animation_host.get(),
-      compositor_deps_, screen_info_);
+      compositor_deps_, screen_info_, routing_id_);
   compositor_->Initialize(std::move(layer_tree_host),
                           std::move(animation_host));
 
@@ -1961,6 +1971,10 @@ void RenderWidget::OnUpdateScreenRects(const gfx::Rect& view_screen_rect,
   } else {
     SetScreenRects(view_screen_rect, window_screen_rect);
   }
+
+  if (GetWebWidget())
+    GetWebWidget()->DidChangeWindowRect();
+
   Send(new ViewHostMsg_UpdateScreenRects_ACK(routing_id()));
 }
 

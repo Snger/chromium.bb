@@ -43,6 +43,7 @@ class CONTENT_EXPORT BrowserGpuChannelHostFactory
   void EstablishGpuChannel(
       gpu::GpuChannelEstablishedCallback callback) override;
   scoped_refptr<gpu::GpuChannelHost> EstablishGpuChannelSync() override;
+  scoped_refptr<gpu::GpuChannelHost> EstablishPrivilegedGpuChannelSync() override;
   gpu::GpuMemoryBufferManager* GetGpuMemoryBufferManager() override;
 
  private:

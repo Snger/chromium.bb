@@ -391,6 +391,8 @@ class CONTENT_EXPORT RenderWidget
   // the browser even if the composition info is not changed.
   void UpdateCompositionInfo(bool immediate_request);
 
+  void bbHandleInputEvent(const blink::WebInputEvent& event);
+
   // Called when the Widget has changed size as a result of an auto-resize.
   void DidAutoResize(const gfx::Size& new_size);
 
@@ -719,6 +721,9 @@ class CONTENT_EXPORT RenderWidget
   // The size of the compositor's surface in pixels.
   gfx::Size compositor_viewport_pixel_size_;
 
+  // The size of the RenderWidget expected by the host.
+  gfx::Size browser_size_;
+
   // The size of the visible viewport in pixels.
   gfx::Size visible_viewport_size_;
 
@@ -992,6 +997,8 @@ class CONTENT_EXPORT RenderWidget
   // Different consumers in the browser process makes different assumptions, so
   // must always send the first IPC regardless of value.
   base::Optional<bool> has_touch_handlers_;
+
+  bool bb_OnHandleInputEvent_no_ack_;
 
   base::WeakPtrFactory<RenderWidget> weak_ptr_factory_;
 

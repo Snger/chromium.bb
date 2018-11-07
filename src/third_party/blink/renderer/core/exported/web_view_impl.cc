@@ -74,6 +74,7 @@
 #include "third_party/blink/renderer/core/dom/layout_tree_builder_traversal.h"
 #include "third_party/blink/renderer/core/dom/text.h"
 #include "third_party/blink/renderer/core/dom/user_gesture_indicator.h"
+#include "third_party/blink/renderer/core/dom/events/custom_event.h"
 #include "third_party/blink/renderer/core/editing/editing_utilities.h"
 #include "third_party/blink/renderer/core/editing/editor.h"
 #include "third_party/blink/renderer/core/editing/ephemeral_range.h"
@@ -347,6 +348,8 @@ WebViewImpl::WebViewImpl(WebViewClient* client,
       suppress_next_keypress_event_(false),
       ime_accept_events_(true),
       dev_tools_emulator_(nullptr),
+      isAltDragRubberbandingEnabled_(false),
+      rubberbandingForcedOn_(false),
       tabs_to_links_(false),
       layer_tree_view_(nullptr),
       root_layer_(nullptr),
@@ -1968,12 +1971,21 @@ WebInputEventResult WebViewImpl::HandleInputEvent(
   if (!MainFrameImpl())
     return WebInputEventResult::kNotHandled;
 
+  // blpwtk2: Ignore input events if page is null. This check is copied from
+  // WebViewImpl::ThemeChanged defined above.
+  if (!GetPage())
+    return WebInputEventResult::kNotHandled;
+
   DCHECK(!WebInputEvent::IsTouchEventType(input_event.GetType()));
 
   GetPage()->GetVisualViewport().StartTrackingPinchStats();
 
   TRACE_EVENT1("input,rail", "WebViewImpl::handleInputEvent", "type",
                WebInputEvent::GetName(input_event.GetType()));
+
+  if ((rubberbandingForcedOn_ || isAltDragRubberbandingEnabled_) &&
+      HandleAltDragRubberbandEvent(input_event))
+    return WebInputEventResult::kHandledSystem;
 
   // If a drag-and-drop operation is in progress, ignore input events except
   // PointerCancel.
@@ -2129,6 +2141,10 @@ void WebViewImpl::SetCursorVisibilityState(bool is_visible) {
 void WebViewImpl::MouseCaptureLost() {
   TRACE_EVENT_ASYNC_END0("input", "capturing mouse", this);
   mouse_capture_node_ = nullptr;
+  if ((rubberbandingForcedOn_ || isAltDragRubberbandingEnabled_) &&
+      IsRubberbanding()) {
+    AbortRubberbanding();
+  }  
 }
 
 void WebViewImpl::SetFocus(bool enable) {
@@ -2265,6 +2281,25 @@ void WebViewImpl::DidAcquirePointerLock() {
 void WebViewImpl::DidNotAcquirePointerLock() {
   if (MainFrameImpl())
     MainFrameImpl()->FrameWidget()->DidNotAcquirePointerLock();
+}
+
+void WebViewImpl::DidChangeWindowRect()
+{
+  if (!MainFrameImpl()
+      || !MainFrameImpl()->GetFrame()
+      || !MainFrameImpl()->GetFrame()->GetDocument()) {
+    return;
+  }
+
+  CustomEventInit eventInit;
+  eventInit.setBubbles(false);
+  eventInit.setCancelable(false);
+
+  CustomEvent* event = CustomEvent::Create(
+      ToScriptStateForMainWorld(MainFrameImpl()->GetFrame()),
+      "bbWindowRectChanged",
+      eventInit);
+  MainFrameImpl()->GetFrame()->DomWindow()->DispatchEvent(event);
 }
 
 void WebViewImpl::DidLosePointerLock() {

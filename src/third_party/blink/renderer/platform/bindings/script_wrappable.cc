@@ -7,6 +7,7 @@
 #include "third_party/blink/renderer/platform/bindings/dom_data_store.h"
 #include "third_party/blink/renderer/platform/bindings/script_wrappable_visitor.h"
 #include "third_party/blink/renderer/platform/bindings/v8_dom_wrapper.h"
+#include "third_party/blink/renderer/platform/bindings/v8_throw_exception.h"
 
 namespace blink {
 
@@ -21,6 +22,14 @@ static_assert(sizeof(ScriptWrappable) <= sizeof(SameSizeAsScriptWrappable),
 v8::Local<v8::Object> ScriptWrappable::Wrap(
     v8::Isolate* isolate,
     v8::Local<v8::Object> creation_context) {
+  if (!ScriptState::AccessCheck(isolate->GetCurrentContext())) {
+      const String& message =
+        "DOM access from invalid context";
+      V8ThrowException::ThrowAccessError(
+        isolate, message);
+      return v8::Local<v8::Object>();
+  }
+
   const WrapperTypeInfo* wrapper_type_info = this->GetWrapperTypeInfo();
 
   DCHECK(!DOMDataStore::ContainsWrapper(this, isolate));

@@ -42,9 +42,11 @@ namespace blink {
   V(HiliteColor)                                  \
   V(IgnoreSpelling)                               \
   V(Indent)                                       \
+  V(IndentBlock)                                  \
   V(InsertBacktab)                                \
   V(InsertHorizontalRule)                         \
   V(InsertHTML)                                   \
+  V(InsertHTMLNested)                             \
   V(InsertImage)                                  \
   V(InsertLineBreak)                              \
   V(InsertNewline)                                \
@@ -112,6 +114,7 @@ namespace blink {
   V(MoveWordRight)                                \
   V(MoveWordRightAndModifySelection)              \
   V(Outdent)                                      \
+  V(OutdentBlock)                                 \
   V(OverWrite)                                    \
   V(Paste)                                        \
   V(PasteAndMatchStyle)                           \

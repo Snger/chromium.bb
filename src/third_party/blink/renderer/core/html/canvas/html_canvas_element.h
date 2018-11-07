@@ -106,6 +106,10 @@ class CORE_EXPORT HTMLCanvasElement final
 
   void SetSize(const IntSize& new_size);
 
+  // Bloomberg-specific extensions
+  void setBbDirectCompositingDisabled(bool value) { m_bbDirectCompositingDisabled = value; }
+  bool bbDirectCompositingDisabled() const { return m_bbDirectCompositingDisabled; }
+
   // Called by Document::getCSSCanvasContext as well as above getContext().
   CanvasRenderingContext* GetCanvasRenderingContext(
       const String&,
@@ -342,6 +346,7 @@ class CORE_EXPORT HTMLCanvasElement final
   bool context_creation_was_blocked_;
 
   bool ignore_reset_;
+  bool m_bbDirectCompositingDisabled;
   FloatRect dirty_rect_;
 
   bool origin_clean_;

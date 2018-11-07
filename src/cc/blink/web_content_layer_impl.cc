@@ -46,7 +46,9 @@ PaintingControlToWeb(
 
 WebContentLayerImpl::WebContentLayerImpl(blink::WebContentLayerClient* client)
     : client_(client) {
-  layer_ = std::make_unique<WebLayerImpl>(PictureLayer::Create(this));
+  auto picture_layer = PictureLayer::Create(this);
+  picture_layer->SetNearestNeighbor(client->NearestNeighbor());
+  layer_ = std::make_unique<WebLayerImpl>(picture_layer);
   layer_->layer()->SetIsDrawable(true);
 }
 
@@ -70,6 +72,10 @@ bool WebContentLayerImpl::TransformedRasterizationAllowed() const {
 
 gfx::Rect WebContentLayerImpl::PaintableRegion() {
   return client_->PaintableRegion();
+}
+
+void WebContentLayerImpl::setDefaultLCDBackgroundColor(blink::WebColor default_lcd_background_color) {
+  static_cast<PictureLayer*>(layer_->layer())->SetDefaultLCDBackgroundColor(default_lcd_background_color);
 }
 
 scoped_refptr<cc::DisplayItemList>

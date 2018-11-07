@@ -636,6 +636,8 @@ bool RenderWidgetHostImpl::OnMessageReceived(const IPC::Message &msg) {
                         OnShowDisambiguationPopup)
     IPC_MESSAGE_HANDLER(ViewHostMsg_SelectionBoundsChanged,
                         OnSelectionBoundsChanged)
+    IPC_MESSAGE_HANDLER(ViewHostMsg_SetRubberbandRect, OnSetRubberbandRect)
+    IPC_MESSAGE_HANDLER(ViewHostMsg_HideRubberbandRect, OnHideRubberbandRect)
     IPC_MESSAGE_HANDLER(InputHostMsg_ImeCompositionRangeChanged,
                         OnImeCompositionRangeChanged)
     IPC_MESSAGE_HANDLER(ViewHostMsg_FocusedNodeTouched, OnFocusedNodeTouched)
@@ -1720,6 +1722,23 @@ void RenderWidgetHostImpl::OnSelectionBoundsChanged(
     view_->SelectionBoundsChanged(params);
 }
 
+void RenderWidgetHostImpl::OnSetRubberbandRect(const gfx::Rect& rect) {
+  view_->SetRubberbandRect(rect);
+}
+
+void RenderWidgetHostImpl::OnHideRubberbandRect() {
+  view_->HideRubberbandRect();
+}
+
+void RenderWidgetHostImpl::OnSetNeedsBeginFrames(bool needs_begin_frames) {
+  if (needs_begin_frames_ == needs_begin_frames)
+    return;
+
+  needs_begin_frames_ = needs_begin_frames;
+  if (view_)
+    view_->SetNeedsBeginFrames(needs_begin_frames);
+}
+
 void RenderWidgetHostImpl::OnFocusedNodeTouched(bool editable) {
   if (delegate_)
     delegate_->FocusedNodeTouched(editable);
@@ -2579,6 +2598,14 @@ void RenderWidgetHostImpl::OnUnexpectedEventAck(UnexpectedEventAckType type) {
 
 bool RenderWidgetHostImpl::ShouldDropInputEvents() const {
   return ignore_input_events_ || process_->IgnoreInputEvents() || !delegate_;
+}
+
+bool RenderWidgetHostImpl::ShouldSetKeyboardFocusOnMouseDown() const {
+  return !delegate_ || delegate_->ShouldSetKeyboardFocusOnMouseDown();
+}
+
+bool RenderWidgetHostImpl::ShouldSetLogicalFocusOnMouseDown() const {
+  return !delegate_ || delegate_->ShouldSetLogicalFocusOnMouseDown();
 }
 
 void RenderWidgetHostImpl::SetBackgroundOpaque(bool opaque) {

@@ -306,6 +306,7 @@ void PaintLayer::UpdateLayerPositionsAfterLayout() {
 
 void PaintLayer::UpdateLayerPositionRecursive(
     UpdateLayerPositionBehavior behavior) {
+  LayoutPoint old_location = location_;
   switch (behavior) {
     case AllLayers:
       UpdateLayerPosition();
@@ -321,6 +322,9 @@ void PaintLayer::UpdateLayerPositionRecursive(
     default:
       NOTREACHED();
   }
+
+  if (location_ != old_location)
+    SetNeedsCompositingInputsUpdate();
 
   for (PaintLayer* child = FirstChild(); child; child = child->NextSibling())
     child->UpdateLayerPositionRecursive(behavior);
@@ -922,6 +926,8 @@ bool PaintLayer::UpdateSize() {
   } else if (LayoutBox* box = GetLayoutBox()) {
     size_ = box->Size();
   }
+  if (old_size != size_)
+    SetNeedsCompositingInputsUpdate();
   return old_size != size_;
 }
 
@@ -3080,7 +3086,18 @@ void PaintLayer::StyleDidChange(StyleDifference diff,
   UpdateFilters(old_style, GetLayoutObject().StyleRef());
   UpdateClipPath(old_style, GetLayoutObject().StyleRef());
 
-  SetNeedsCompositingInputsUpdate();
+  if (diff.CompositingReasonsChanged()) {
+    SetNeedsCompositingInputsUpdate();
+  } else {
+    DisableCompositingQueryAsserts disable;
+
+    if (old_style && GetCompositingState() == kPaintsIntoOwnBacking)
+      SetNeedsCompositingInputsUpdate();
+  }
+
+  if (diff.NeedsLayout())
+    SetNeedsCompositingInputsUpdate();
+
   GetLayoutObject().SetNeedsPaintPropertyUpdate();
 
   if (RuntimeEnabledFeatures::SlimmingPaintV175Enabled() && !NeedsRepaint()) {

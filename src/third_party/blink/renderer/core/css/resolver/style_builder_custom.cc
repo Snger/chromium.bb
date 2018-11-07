@@ -1059,4 +1059,57 @@ void StyleBuilderFunctions::applyValueCSSPropertyWebkitMaskBoxImageSource(
       state.GetStyleImage(CSSPropertyWebkitMaskBoxImageSource, value));
 }
 
+void StyleBuilderFunctions::applyInitialCSSPropertyBbLcdBackgroundColor(
+    StyleResolverState& state) {
+  state.Style()->SetLcdBackgroundColorSource(
+    ComputedStyleInitialValues::InitialLcdBackgroundColorSource());
+  state.Style()->SetBbLcdBackgroundColor(
+    ComputedStyleInitialValues::InitialBbLcdBackgroundColor());
+}
+
+void StyleBuilderFunctions::applyInheritCSSPropertyBbLcdBackgroundColor(
+    StyleResolverState& state) {
+
+  state.Style()->SetLcdBackgroundColorSource(
+    state.ParentStyle()->LcdBackgroundColorSource());
+  state.Style()->SetBbLcdBackgroundColor(
+    state.ParentStyle()->BbLcdBackgroundColor());
+}
+
+void StyleBuilderFunctions::applyValueCSSPropertyBbLcdBackgroundColor(
+    StyleResolverState& state, const CSSValue& value) {
+  if (value.IsIdentifierValue()) {
+      CSSValueID id = ToCSSIdentifierValue(value).GetValueID();
+
+      switch (id) {
+      case CSSValueNone:
+          state.Style()->SetLcdBackgroundColorSource(
+              ELcdBackgroundColorSource::kNone);
+          state.Style()->SetBbLcdBackgroundColor(
+              Color::kTransparent);
+          return;
+      case CSSValueAuto:
+          state.Style()->SetLcdBackgroundColorSource(
+              ELcdBackgroundColorSource::kAuto);
+          state.Style()->SetBbLcdBackgroundColor(
+              Color::kTransparent);
+          return;
+      default:
+          if (StyleColor::IsColorKeyword(id)) {
+              state.Style()->SetLcdBackgroundColorSource(
+                  ELcdBackgroundColorSource::kColor);
+              state.Style()->SetBbLcdBackgroundColor(
+                  StyleBuilderConverter::ConvertColor(state, value));
+          }
+          return;
+      }
+  }
+  else if (value.IsColorValue()) {
+      state.Style()->SetLcdBackgroundColorSource(
+          ELcdBackgroundColorSource::kColor);
+      state.Style()->SetBbLcdBackgroundColor(
+          StyleBuilderConverter::ConvertColor(state, value));
+  }
+}
+
 }  // namespace blink

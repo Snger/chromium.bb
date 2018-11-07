@@ -65,7 +65,8 @@ void RasterBufferProvider::PlaybackToMemory(
 
   // Uses kPremul_SkAlphaType since the result is not known to be opaque.
   SkImageInfo info =
-      SkImageInfo::MakeN32(size.width(), size.height(), kPremul_SkAlphaType);
+      SkImageInfo::MakeN32(size.width(), size.height(), kPremul_SkAlphaType,
+                nullptr, raster_source->DefaultLCDBackgroundColor());
 
   // Use unknown pixel geometry to disable LCD text.
   SkSurfaceProps surface_props(0, kUnknown_SkPixelGeometry);
@@ -78,7 +79,7 @@ void RasterBufferProvider::PlaybackToMemory(
     stride = info.minRowBytes();
   DCHECK_GT(stride, 0u);
 
-  gfx::Size content_size = raster_source->GetContentSize(transform.scale());
+  gfx::Size content_size = gfx::ScaleToCeiledSize(raster_source->GetSize(), transform.scale().width(), transform.scale().height());
 
   switch (format) {
     case viz::RGBA_8888:

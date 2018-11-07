@@ -420,6 +420,19 @@ v8::Local<v8::Object> WebRemoteFrameImpl::GlobalProxy() const {
 WebRect WebRemoteFrameImpl::GetCompositingRect() {
   return GetFrame()->View()->GetCompositingRect();
 }
+ 
+v8::Isolate* WebRemoteFrameImpl::ScriptIsolate() const
+{
+  NOTREACHED();
+  return nullptr;
+}
+
+void WebRemoteFrameImpl::DrawInCanvas(
+    const WebRect& rect,
+    const WebString& style_class,
+    SkCanvas& canvas) const {
+  NOTREACHED();
+}
 
 WebRemoteFrameImpl::WebRemoteFrameImpl(WebTreeScopeType scope,
                                        WebRemoteFrameClient* client)

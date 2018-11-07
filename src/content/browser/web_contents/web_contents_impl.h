@@ -467,6 +467,8 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
   bool IsShowingContextMenu() const override;
   void SetShowingContextMenu(bool showing) override;
   void PausePageScheduledTasks(bool paused) override;
+  void DevToolsAgentHostAttached() override;
+  void DevToolsAgentHostDetached() override;
 
 #if defined(OS_ANDROID)
   base::android::ScopedJavaLocalRef<jobject> GetJavaWebContents() override;
@@ -705,6 +707,8 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
   void HandleKeyboardEvent(const NativeWebKeyboardEvent& event) override;
   bool HandleWheelEvent(const blink::WebMouseWheelEvent& event) override;
   bool PreHandleGestureEvent(const blink::WebGestureEvent& event) override;
+  bool ShouldSetKeyboardFocusOnMouseDown() override;
+  bool ShouldSetLogicalFocusOnMouseDown() override;
   BrowserAccessibilityManager* GetRootBrowserAccessibilityManager() override;
   BrowserAccessibilityManager* GetOrCreateRootBrowserAccessibilityManager()
       override;
@@ -1064,7 +1068,8 @@ class CONTENT_EXPORT WebContentsImpl : public WebContents,
   };
 
   // See WebContents::Create for a description of these parameters.
-  explicit WebContentsImpl(BrowserContext* browser_context);
+  explicit WebContentsImpl(BrowserContext* browser_context,
+                           int render_process_affinity = -1);
 
   // Add and remove observers for page navigation notifications. The order in
   // which notifications are sent to observers is undefined. Clients must be

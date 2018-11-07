@@ -513,12 +513,6 @@ static void HostGetImportMetaProperties(v8::Local<v8::Context> context,
 static void InitializeV8Common(v8::Isolate* isolate) {
   isolate->AddGCPrologueCallback(V8GCController::GcPrologue);
   isolate->AddGCEpilogueCallback(V8GCController::GcEpilogue);
-  std::unique_ptr<ScriptWrappableMarkingVisitor> visitor(
-      new ScriptWrappableMarkingVisitor(isolate));
-  V8PerIsolateData::From(isolate)->SetScriptWrappableMarkingVisitor(
-      std::move(visitor));
-  isolate->SetEmbedderHeapTracer(
-      V8PerIsolateData::From(isolate)->GetScriptWrappableMarkingVisitor());
 
   isolate->SetMicrotasksPolicy(v8::MicrotasksPolicy::kScoped);
 

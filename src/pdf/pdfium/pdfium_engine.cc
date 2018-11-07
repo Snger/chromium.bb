@@ -708,6 +708,11 @@ std::string ConvertViewIntToViewString(unsigned long view_int) {
 }  // namespace
 
 bool InitializeSDK() {
+  if (g_isolate_holder) {
+    g_isolate_holder->isolate()->Enter();
+    return true;
+  }
+
   SetUpV8();
 
   FPDF_LIBRARY_CONFIG config;
@@ -741,7 +746,7 @@ bool InitializeSDK() {
 }
 
 void ShutdownSDK() {
-  FPDF_DestroyLibrary();
+//  FPDF_DestroyLibrary();
 #if !defined(OS_LINUX)
   delete g_font_info;
 #endif

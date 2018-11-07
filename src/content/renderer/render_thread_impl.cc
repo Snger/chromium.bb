@@ -66,6 +66,7 @@
 #include "content/common/frame_messages.h"
 #include "content/common/frame_owner_properties.h"
 #include "content/common/gpu_stream_constants.h"
+#include "content/common/in_process_child_thread_params.h"
 #include "content/common/view_messages.h"
 #include "content/public/common/content_constants.h"
 #include "content/public/common/content_features.h"
@@ -353,6 +354,8 @@ void CreateFrameFactory(mojom::FrameFactoryRequest request,
                           std::move(request));
 }
 
+std::unique_ptr<RenderProcess> g_render_process;
+
 scoped_refptr<ui::ContextProviderCommandBuffer> CreateOffscreenContext(
     scoped_refptr<gpu::GpuChannelHost> gpu_channel_host,
     gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager,
@@ -564,6 +567,31 @@ void CreateResourceUsageReporter(base::WeakPtr<RenderThread> thread,
 
 }  // namespace
 
+// static
+void RenderThread::InitInProcessRenderer(const InProcessChildThreadParams& params,
+                                         base::MessageLoop* message_loop)
+{
+  g_render_process = RenderProcessImpl::Create();
+  RenderThreadImpl::Create(params, message_loop);
+}
+
+// static
+scoped_refptr<base::SingleThreadTaskRunner> RenderThread::IOTaskRunner()
+{
+  RenderThreadImpl* thread = RenderThreadImpl::current();
+  scoped_refptr<base::SequencedTaskRunner> str = thread->GetIOTaskRunner();
+  // TODO(SHEZ): Make thread->GetIOTaskRunner return SingleThreadTaskRunner to avoid this downcast?
+  return static_cast<base::SingleThreadTaskRunner*>(str.get());
+}
+
+// static
+void RenderThread::CleanUpInProcessRenderer()
+{
+  if (g_render_process) {
+    g_render_process.reset();
+  }
+}
+
 RenderThreadImpl::HistogramCustomizer::HistogramCustomizer() {
   custom_histograms_.insert("V8.MemoryExternalFragmentationTotal");
   custom_histograms_.insert("V8.MemoryHeapSampleTotalCommitted");
@@ -750,6 +778,7 @@ RenderThreadImpl::RenderThreadImpl(
       renderer_binding_(this),
       client_id_(1),
       compositing_mode_watcher_binding_(this),
+      exit_process_gracefully_(params.exit_process_gracefully()),
       weak_factory_(this) {
   Init(resource_task_queue);
 }
@@ -772,6 +801,7 @@ RenderThreadImpl::RenderThreadImpl(
       is_scroll_animator_enabled_(false),
       renderer_binding_(this),
       compositing_mode_watcher_binding_(this),
+      exit_process_gracefully_(false),
       weak_factory_(this) {
   scoped_refptr<base::SingleThreadTaskRunner> test_task_counter;
   DCHECK(base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -1152,13 +1182,14 @@ void RenderThreadImpl::Shutdown() {
   // In a single-process mode, we cannot call _exit(0) in Shutdown() because
   // it will exit the process before the browser side is ready to exit.
   if (!base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kSingleProcess))
+          switches::kSingleProcess) &&
+      !exit_process_gracefully_)
     base::Process::TerminateCurrentProcessImmediately(0);
 }
 
 bool RenderThreadImpl::ShouldBeDestroyed() {
   DCHECK(base::CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kSingleProcess));
+      switches::kSingleProcess) || exit_process_gracefully_);
   // In a single-process mode, it is unsafe to destruct this renderer thread
   // because we haven't run the shutdown sequence. Hence we leak the render
   // thread.
@@ -1191,7 +1222,9 @@ bool RenderThreadImpl::Send(IPC::Message* msg) {
     WebView::WillEnterModalLoop();
   }
 
-  bool rv = ChildThreadImpl::Send(msg);
+  bool rv =
+    GetContentClient()->renderer()->Dispatch(msg) ||
+    ChildThreadImpl::Send(msg);
 
   if (pumping_events)
     WebView::DidExitModalLoop();
@@ -1799,8 +1832,9 @@ void RenderThreadImpl::OnChannelError() {
   // So, if we get a channel error, crash the whole process right now to get a
   // more informative stack, since we will otherwise just crash later when we
   // try to restart it.
+  bool exiting = widget_count_ == 0;
   CHECK(!base::CommandLine::ForCurrentProcess()->HasSwitch(
-          switches::kSingleProcess));
+          switches::kSingleProcess) || exiting);
   ChildThreadImpl::OnChannelError();
 }
 
@@ -2063,6 +2097,16 @@ scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishGpuChannelSync() {
   return gpu_channel;
 }
 
+scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishPrivilegedGpuChannelSync() {
+  TRACE_EVENT0("gpu", "RenderThreadImpl::EstablishPrivilegedGpuChannelSync");
+
+  scoped_refptr<gpu::GpuChannelHost> gpu_channel =
+      gpu_->EstablishPrivilegedGpuChannelSync();
+  if (gpu_channel)
+    GetContentClient()->SetGpuInfo(gpu_channel->gpu_info());
+  return gpu_channel;
+}
+
 void RenderThreadImpl::RequestNewLayerTreeFrameSink(
     int routing_id,
     scoped_refptr<FrameSwapMessageQueue> frame_swap_message_queue,
@@ -2075,6 +2119,11 @@ void RenderThreadImpl::RequestNewLayerTreeFrameSink(
   // machine where gpu compositing doesn't work. Don't crash in that case.
   if (layout_test_mode() && is_gpu_compositing_disabled_) {
     LOG(FATAL) << "Layout tests require gpu compositing, but it is disabled.";
+    return;
+  }
+
+  if (GetContentClient()->renderer()->RequestNewLayerTreeFrameSink(
+        is_gpu_compositing_disabled_, routing_id, callback)) {
     return;
   }
 

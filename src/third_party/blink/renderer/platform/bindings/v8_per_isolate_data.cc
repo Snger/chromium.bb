@@ -71,6 +71,8 @@ V8PerIsolateData::V8PerIsolateData(
       use_counter_disabled_(false),
       is_handling_recursion_level_error_(false),
       is_reporting_exception_(false),
+      script_wrappable_visitor_(
+          base::WrapUnique(new ScriptWrappableMarkingVisitor(GetIsolate()))),
       runtime_call_stats_(base::DefaultTickClock::GetInstance()) {
   // FIXME: Remove once all v8::Isolate::GetCurrent() calls are gone.
   GetIsolate()->Enter();
@@ -78,6 +80,9 @@ V8PerIsolateData::V8PerIsolateData(
   GetIsolate()->AddMicrotasksCompletedCallback(&MicrotasksCompletedCallback);
   if (IsMainThread())
     g_main_thread_per_isolate_data = this;
+
+  isolate_holder_.heap_tracer()->AddHeapTracer(script_wrappable_visitor_.get(),
+                                              gin::kEmbedderBlink);
 }
 
 // This constructor is used for creating a V8 context snapshot. It must run on
@@ -95,11 +100,16 @@ V8PerIsolateData::V8PerIsolateData()
       use_counter_disabled_(false),
       is_handling_recursion_level_error_(false),
       is_reporting_exception_(false),
+      script_wrappable_visitor_(
+          base::WrapUnique(new ScriptWrappableMarkingVisitor(GetIsolate()))),
       runtime_call_stats_(base::DefaultTickClock::GetInstance()) {
   CHECK(IsMainThread());
 
   // SnapshotCreator enters the isolate, so we don't call Isolate::Enter() here.
   g_main_thread_per_isolate_data = this;
+
+  isolate_holder_.heap_tracer()->AddHeapTracer(script_wrappable_visitor_.get(),
+                                              gin::kEmbedderBlink);
 }
 
 V8PerIsolateData::~V8PerIsolateData() = default;
@@ -361,9 +371,13 @@ void V8PerIsolateData::TemporaryScriptWrappableVisitorScope::
   if (current)
     ScriptWrappableMarkingVisitor::PerformCleanup(isolate_);
 
-  V8PerIsolateData::From(isolate_)->script_wrappable_visitor_.swap(
-      saved_visitor_);
-  isolate_->SetEmbedderHeapTracer(CurrentVisitor());
+  auto* data = V8PerIsolateData::From(isolate_);
+
+  data->script_wrappable_visitor_.swap(saved_visitor_);
+
+  data->isolate_holder_.heap_tracer()->RemoveHeapTracer(gin::kEmbedderBlink);
+  data->isolate_holder_.heap_tracer()->AddHeapTracer(CurrentVisitor(),
+                                                    gin::kEmbedderBlink);
 }
 
 }  // namespace blink

@@ -45,10 +45,12 @@ void GpuClient::PreEstablishGpuChannel() {
   BrowserThread::PostTask(
       BrowserThread::IO, FROM_HERE,
       base::BindOnce(&GpuClient::EstablishGpuChannel, base::Unretained(this),
+                     true,
                      EstablishGpuChannelCallback()));
 }
 
 void GpuClient::OnEstablishGpuChannel(
+    bool privileged,
     mojo::ScopedMessagePipeHandle channel_handle,
     const gpu::GPUInfo& gpu_info,
     const gpu::GpuFeatureInfo& gpu_feature_info,
@@ -61,7 +63,7 @@ void GpuClient::OnEstablishGpuChannel(
 
   if (status == GpuProcessHost::EstablishChannelStatus::GPU_HOST_INVALID) {
     // GPU process may have crashed or been killed. Try again.
-    EstablishGpuChannel(std::move(callback));
+    EstablishGpuChannel(privileged, std::move(callback));
     return;
   }
   if (callback) {
@@ -74,6 +76,7 @@ void GpuClient::OnEstablishGpuChannel(
     // This is the case we pre-establish a channel before a request arrives.
     // Cache the channel for a future request.
     channel_handle_ = std::move(channel_handle);
+    cached_channel_privileged_ = privileged;
     gpu_info_ = gpu_info;
     gpu_feature_info_ = gpu_feature_info;
   }
@@ -94,11 +97,12 @@ void GpuClient::ClearCallback() {
   DCHECK(!callback_);
 }
 
-void GpuClient::EstablishGpuChannel(EstablishGpuChannelCallback callback) {
+void GpuClient::EstablishGpuChannel(bool privileged,
+                                    EstablishGpuChannelCallback callback) {
   DCHECK_CURRENTLY_ON(BrowserThread::IO);
   // At most one channel should be requested. So clear previous request first.
   ClearCallback();
-  if (channel_handle_.is_valid()) {
+  if (channel_handle_.is_valid() && cached_channel_privileged_ == privileged) {
     // If a channel has been pre-established and cached,
     //   1) if callback is valid, return it right away.
     //   2) if callback is empty, it's PreEstablishGpyChannel() being called
@@ -123,16 +127,17 @@ void GpuClient::EstablishGpuChannel(EstablishGpuChannelCallback callback) {
   if (gpu_channel_requested_)
     return;
   gpu_channel_requested_ = true;
-  bool preempts = false;
-  bool allow_view_command_buffers = false;
-  bool allow_real_time_streams = false;
+  bool preempts = privileged;
+  bool allow_view_command_buffers = privileged;
+  bool allow_real_time_streams = privileged;
   host->EstablishGpuChannel(
       render_process_id_,
       ChildProcessHostImpl::ChildProcessUniqueIdToTracingProcessId(
           render_process_id_),
       preempts, allow_view_command_buffers, allow_real_time_streams,
       base::Bind(&GpuClient::OnEstablishGpuChannel,
-                 weak_factory_.GetWeakPtr()));
+                 weak_factory_.GetWeakPtr(),
+                 privileged));
 }
 
 void GpuClient::CreateJpegDecodeAccelerator(

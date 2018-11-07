@@ -245,7 +245,7 @@ class WebViewGuest : public guest_view::GuestView<WebViewGuest> {
                           int opener_render_frame_id,
                           const std::string& frame_name,
                           const GURL& target_url,
-                          content::WebContents* new_contents) final;
+                          content::WebContents* new_contents);
   void EnterFullscreenModeForTab(content::WebContents* web_contents,
                                  const GURL& origin) final;
   void ExitFullscreenModeForTab(content::WebContents* web_contents) final;

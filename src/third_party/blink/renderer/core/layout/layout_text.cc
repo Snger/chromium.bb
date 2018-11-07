@@ -1609,7 +1609,16 @@ void LayoutText::SetFirstTextBoxLogicalLeft(float text_width) const {
   }
 
   FirstTextBox()->SetLogicalLeft(offset_left);
- }
+}
+
+extern bool g_bbNoRelayoutOnSetCharacterData;
+
+bool ShouldSkipRelayoutOnSetText(const LayoutText* lt)
+{
+  return g_bbNoRelayoutOnSetCharacterData
+    && lt->FirstTextBox()
+    && lt->FirstTextBox() == lt->LastTextBox();
+}
 
 void LayoutText::SetTextWithOffset(scoped_refptr<StringImpl> text,
                                    unsigned offset,
@@ -1617,6 +1626,13 @@ void LayoutText::SetTextWithOffset(scoped_refptr<StringImpl> text,
                                    bool force) {
   if (!force && Equal(text_.Impl(), text.get()))
     return;
+  
+  if (ShouldSkipRelayoutOnSetText(this)) {
+    FirstTextBox()->SetStartAndLen(0, text->length());
+    lines_dirty_ = false;
+    SetText(std::move(text), force);
+    return;
+  }
 
   if (CanOptimizeSetText() &&
       // Check that we are replacing the whole text.
@@ -1850,13 +1866,16 @@ void LayoutText::SetText(scoped_refptr<StringImpl> text,
   // To avoid that, we call setNeedsLayoutAndPrefWidthsRecalc() only if this
   // LayoutText has parent.
   if (Parent()) {
-    if (avoid_layout_and_only_paint) {
+    if (ShouldSkipRelayoutOnSetText(this)) {
+      SetShouldDoFullPaintInvalidation();
+    } else if (avoid_layout_and_only_paint) {
       SetShouldDoFullPaintInvalidation();
     } else {
       SetNeedsLayoutAndPrefWidthsRecalcAndFullPaintInvalidation(
           LayoutInvalidationReason::kTextChanged);
     }
   }
+
   known_to_have_no_overflow_and_no_fallback_fonts_ = false;
 
   if (AXObjectCache* cache = GetDocument().ExistingAXObjectCache())

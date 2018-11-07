@@ -69,6 +69,7 @@
 #include <cstring>
 
 #include "base/trace_event/trace_event_etw_export_win.h"
+#include "base/win/process_startup_helper.h"
 #include "sandbox/win/src/sandbox_types.h"
 #include "ui/display/win/dpi.h"
 #elif defined(OS_MACOSX)
@@ -451,6 +452,14 @@ base::LazyInstance<ContentUtilityClient>::DestructorAtExit
     g_empty_content_utility_client = LAZY_INSTANCE_INITIALIZER;
 #endif  // !CHROME_MULTIPLE_DLL_BROWSER
 
+// static
+void ContentMainRunner::SetCRTErrorHandlerFunctions(_invalid_parameter_handler ivph, _purecall_handler pch) {
+  if (ivph)
+    base::win::SetInvalidParamHandler(ivph);
+  if (pch)
+    base::win::SetPurecallHandler(pch);
+}
+
 class ContentClientInitializer {
  public:
   static void Set(const std::string& process_type,
@@ -477,7 +486,8 @@ class ContentClientInitializer {
     }
 
     if (process_type == switches::kRendererProcess ||
-        cmd->HasSwitch(switches::kSingleProcess)) {
+               (content_client->browser_ &&
+                   content_client->browser_->SupportsInProcessRenderer())) {
       if (delegate)
         content_client->renderer_ = delegate->CreateContentRendererClient();
       if (!content_client->renderer_)
@@ -574,8 +584,6 @@ static void RegisterMainThreadFactories() {
 #if !defined(CHROME_MULTIPLE_DLL_BROWSER) && !defined(CHROME_MULTIPLE_DLL_CHILD)
   UtilityProcessHost::RegisterUtilityMainThreadFactory(
       CreateInProcessUtilityThread);
-  RenderProcessHostImpl::RegisterRendererMainThreadFactory(
-      CreateInProcessRendererThread);
   content::RegisterGpuMainThreadFactory(CreateInProcessGpuThread);
 #else
   base::CommandLine& command_line = *base::CommandLine::ForCurrentProcess();
@@ -611,8 +619,6 @@ int RunNamedProcessTypeMain(
     { switches::kGpuProcess,         GpuMain },
 #endif  // !CHROME_MULTIPLE_DLL_BROWSER
   };
-
-  RegisterMainThreadFactories();
 
   for (size_t i = 0; i < arraysize(kMainFunctions); ++i) {
     if (process_type == kMainFunctions[i].name) {
@@ -750,6 +756,8 @@ class ContentMainRunnerImpl : public ContentMainRunner {
       SetContentClient(&empty_content_client_);
     ContentClientInitializer::Set(process_type, delegate_);
 
+    RegisterMainThreadFactories();    
+
 #if !defined(OS_ANDROID)
     // Enable startup tracing asap to avoid early TRACE_EVENT calls being
     // ignored. For Android, startup tracing is enabled in an even earlier place
@@ -830,7 +838,12 @@ class ContentMainRunnerImpl : public ContentMainRunner {
         return TerminateForFatalInitializationError();
     }
 #else
-    if (!base::i18n::InitializeICU())
+    const void* icu_data;
+    bool status = base::i18n::InitializeICU(&icu_data);
+#if !defined(COMPONENT_BUILD) && defined(USING_V8_SHARED)
+    status &= v8::V8::InitializeICUWithData(icu_data);
+#endif
+    if (!status)
       return TerminateForFatalInitializationError();
 #endif  // OS_ANDROID && (ICU_UTIL_DATA_IMPL == ICU_UTIL_DATA_FILE)
 
