@@ -572,18 +572,6 @@ void LayoutBlock::AddVisualOverflowFromTheme() {
   AddSelfVisualOverflow(LayoutRect(inflated_rect));
 }
 
-LayoutUnit LayoutBlock::AdditionalMarginStart() const
-{
-    if (IsInline() || !Parent() || Parent()->ChildrenInline()
-          || !Parent()->GetNode() || (!Parent()->GetNode()->HasTagName(HTMLNames::ulTag) &&
-        !Parent()->GetNode()->HasTagName(HTMLNames::olTag))) {
-        return LayoutUnit(0);
-    }
-
-    LayoutBox *previousBox = PreviousSiblingBox();
-    return previousBox ? previousBox->AdditionalMarginStart() : LayoutUnit(40);
-}
-
 static inline bool ChangeInAvailableLogicalHeightAffectsChild(
     LayoutBlock* parent,
     LayoutBox& child) {

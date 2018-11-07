@@ -309,12 +309,21 @@ bool LayoutListItem::UpdateMarkerLocation() {
   return false;
 }
 
-LayoutUnit LayoutListItem::AdditionalMarginStart() const
-{
-    if (!marker_ || marker_->IsInside())
-        return LayoutUnit();
-
-    return marker_->MinPreferredLogicalWidth();
+LayoutUnit LayoutListItem::AdditionalMarginStart() const {
+  if (!marker_ || marker_->IsInside() || !Parent() || !Parent()->GetNode() ||
+      (!Parent()->GetNode()->HasTagName(HTMLNames::ulTag) &&
+       !Parent()->GetNode()->HasTagName(HTMLNames::olTag)))
+    return LayoutUnit{};
+  // blpwtk2: left aligned to the marker of the first list item
+  const LayoutObject* first_sibling = Parent()->SlowFirstChild();
+  DCHECK(first_sibling);
+  const LayoutListItem* first_item = ToLayoutListItem(first_sibling);
+  if (!first_item || !first_item->marker_ || first_item->marker_->IsInside()) {
+    return LayoutUnit{};
+  }
+  const LayoutUnit first_item_marker_width =
+      first_item->marker_->MinPreferredLogicalWidth();
+  return marker_->MinPreferredLogicalWidth() - first_item_marker_width;
 }
 
 void LayoutListItem::AddOverflowFromChildren() {
