@@ -22,7 +22,7 @@ static_assert(sizeof(ScriptWrappable) <= sizeof(SameSizeAsScriptWrappable),
 v8::Local<v8::Object> ScriptWrappable::Wrap(
     v8::Isolate* isolate,
     v8::Local<v8::Object> creation_context) {
-  if (!ScriptState::AccessCheck(isolate->GetCurrentContext())) {
+  if (!ScriptState::AccessCheck(creation_context->CreationContext())) {
       const String& message =
         "DOM access from invalid context";
       V8ThrowException::ThrowAccessError(
