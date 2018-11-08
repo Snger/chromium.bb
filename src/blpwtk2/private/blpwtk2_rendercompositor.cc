@@ -443,23 +443,24 @@ LayerTreeFrameSink::~LayerTreeFrameSink()
 
 bool LayerTreeFrameSink::BindToClient(cc::LayerTreeFrameSinkClient* client)
 {
+    if (!d_delegate) {
+        return false;
+    }
+
     if (!cc::LayerTreeFrameSink::BindToClient(client)) {
         return false;
     }
 
-    if (d_delegate) {
-        return d_delegate->BindToClient(client);
-    }
-
-    return true;
+    return d_delegate->BindToClient(client);
 }
 
 void LayerTreeFrameSink::DetachFromClient()
 {
-    if (d_delegate) {
-        d_delegate->DetachFromClient();
+    if (!d_delegate) {
+        return;
     }
 
+    d_delegate->DetachFromClient();
     cc::LayerTreeFrameSink::DetachFromClient();
 }
 
