@@ -31,6 +31,7 @@
 #include <blpwtk2_stringref.h>
 
 #include <base/strings/utf_string_conversions.h>
+#include <chrome/common/constants.mojom.h>
 #include <components/spellcheck/renderer/spellcheck.h>
 #include <components/spellcheck/renderer/spellcheck_provider.h>
 #include <components/printing/renderer/print_render_frame_helper.h>
@@ -39,6 +40,7 @@
 #include <content/public/renderer/render_thread.h>
 #include <content/public/renderer/render_view.h>
 #include <net/base/net_errors.h>
+#include <services/service_manager/public/cpp/service_context.h>
 #include <skia/ext/fontmgr_default_win.h>
 #include <third_party/skia/include/ports/SkFontMgr.h>
 #include <third_party/blink/public/platform/web_url_error.h>
@@ -178,10 +180,31 @@ void ContentRendererClientImpl::OnBindInterface(
     d_registry.TryBindInterface(name, &handle);
 }
 
-void ContentRendererClientImpl::GetInterface(
-        const std::string& name, mojo::ScopedMessagePipeHandle request_handle)
+void ContentRendererClientImpl::OnStart()
 {
-  // TODO
+}
+
+void ContentRendererClientImpl::GetInterface(
+        const std::string& interface_name, mojo::ScopedMessagePipeHandle interface_pipe)
+{
+    GetConnector()->BindInterface(service_manager::Identity(chrome::mojom::kServiceName),
+    interface_name, std::move(interface_pipe));
+}
+
+void ContentRendererClientImpl::CreateRendererService(
+    service_manager::mojom::ServiceRequest service_request)
+{
+    d_service_context = std::make_unique<service_manager::ServiceContext>(
+        std::make_unique<service_manager::ForwardingService>(this),
+        std::move(service_request));
+}
+
+service_manager::Connector* ContentRendererClientImpl::GetConnector()
+{
+    if (!d_connector) {
+        d_connector = service_manager::Connector::Create(&d_connector_request);
+    }
+    return d_connector.get();
 }
 
 bool ContentRendererClientImpl::Dispatch(IPC::Message *msg)
