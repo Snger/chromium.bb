@@ -1652,6 +1652,7 @@ void LayoutText::SetTextWithOffset(scoped_refptr<StringImpl> text,
     if (text_width <= ContainingBlock()->ContentLogicalWidth()) {
       FirstTextBox()->ManuallySetStartLenAndLogicalWidth(
           offset, text->length(), LayoutUnit(text_width));
+      SetFirstTextBoxLogicalLeft(text_width);
       SetText(std::move(text), force, true);
       lines_dirty_ = false;
       return;
