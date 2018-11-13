@@ -109,13 +109,15 @@ void releaseBrowserContext(scoped_refptr<BrowserContextImpl>&& context) {
 // class ProcessHostImpl::Impl
 // ---------------------------
 
-ProcessHostImpl::Impl::Impl(bool isolated, const std::string& profileDir)
+ProcessHostImpl::Impl::Impl(base::ProcessHandle processHandle,
+                            bool isolated,
+                            const std::string& profileDir)
     : d_processId(0),
       d_context(getBrowserContext(isolated, profileDir)),
       d_renderProcessHost(content::RenderProcessHost::CreateProcessHost(
-          base::GetCurrentProcessHandle(),
+          processHandle,
           d_context.get())),
-      d_processHandle(0) {
+      d_processHandle(processHandle) {
   // Initialize the RenderProcessHost.  This will register all the Mojo
   // services provided by RenderProcessHost and will call back to the
   // ChromeContentClient to register external services.  In this case,
@@ -228,14 +230,13 @@ int ProcessHostImpl::createPipeHandleForChild(base::ProcessId processId,
   base::ProcessHandle processHandle;
 
   DCHECK(!d_impl);
-  d_impl = new Impl(isolated, profileDir);
 
   // Create a pipe for Mojo
   mojo::edk::PlatformChannelPair channel_pair;
   HANDLE fileDescriptor;
 
   if (processId != base::GetCurrentProcId()) {
-    processHandle = OpenProcess(PROCESS_DUP_HANDLE, FALSE, processId);
+    processHandle = OpenProcess(PROCESS_DUP_HANDLE | PROCESS_QUERY_INFORMATION, FALSE, processId);
 
     // Duplicate the "client" side of the pipe on the child process'
     // descriptor table
@@ -247,12 +248,13 @@ int ProcessHostImpl::createPipeHandleForChild(base::ProcessId processId,
 
     // Let the ProcessHostImpl::Impl hold the process handle so it can
     // close it upon object destruction.
-    d_impl->processHandle() = processHandle;
+    d_impl = new Impl(processHandle, isolated, profileDir);
 
     d_impl->onRenderLaunched(processHandle,
                            channel_pair.PassServerHandle());
   } else {
     processHandle = base::GetCurrentProcessHandle();
+    d_impl = new Impl(processHandle, isolated, profileDir);
     fileDescriptor = channel_pair.PassClientHandle().release().handle;
   }
   return HandleToLong(fileDescriptor);
