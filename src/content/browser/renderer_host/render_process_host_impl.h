@@ -338,7 +338,6 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // - process creation when an existing process couldn't be found: see
   //   CreateRenderProcessHost.
   static RenderProcessHost* GetProcessHostForSiteInstance(
-      int affinity,
       SiteInstanceImpl* site_instance);
 
   // Should be called when |browser_context| is used in a navigation.
@@ -593,7 +592,6 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   // Returns the default subframe RenderProcessHost to use for |site_instance|.
   static RenderProcessHost* GetDefaultSubframeProcessHost(
-      int affinity,
       BrowserContext* browser_context,
       SiteInstanceImpl* site_instance,
       bool is_for_guests_only);

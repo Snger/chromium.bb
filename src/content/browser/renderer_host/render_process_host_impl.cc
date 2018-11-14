@@ -335,20 +335,6 @@ void GetContexts(
       GetRequestContext(request_context, media_request_context, resource_type);
 }
 
-std::pair<int, base::ProcessHandle> getHostIdProcessHandleByAffinity(
-    int affinity) {
-  int host_id = (affinity != SiteInstance::kNoProcessAffinity)
-                    ? affinity
-                    : RenderProcessHostImpl::GenerateUniqueId();
-  DCHECK(!RenderProcessHost::FromID(host_id));
-  bool is_in_process = base::CommandLine::ForCurrentProcess()->HasSwitch(
-      switches::kSingleProcess);
-  base::ProcessHandle processHandle = is_in_process
-                                          ? base::GetCurrentProcessHandle()
-                                          : base::Process::Open(affinity).Handle();
-  return std::make_pair(host_id, processHandle);
-}
-
 // Creates a file used for handing over to the renderer.
 IPC::PlatformFileForTransit CreateFileForProcess(base::FilePath file_path) {
   base::File dump_file(file_path,
@@ -591,10 +577,8 @@ class SpareRenderProcessHostManager : public RenderProcessHostObserver {
             RenderProcessHostImpl::GetMaxRendererProcessCount())
       return;
 
-    auto idHandlePair =
-        getHostIdProcessHandleByAffinity(SiteInstance::kNoProcessAffinity);
     spare_render_process_host_ = RenderProcessHostImpl::CreateRenderProcessHost(
-        std::get<0>(idHandlePair), std::get<1>(idHandlePair),
+        ChildProcessHostImpl::GenerateChildProcessUniqueId(), base::kNullProcessHandle,
         browser_context, nullptr /* storage_partition_impl */,
         nullptr /* site_instance */, false /* is_for_guests_only */);
     spare_render_process_host_->AddObserver(this);
@@ -749,8 +733,8 @@ const void* const kDefaultSubframeProcessHostHolderKey =
 class DefaultSubframeProcessHostHolder : public base::SupportsUserData::Data,
                                          public RenderProcessHostObserver {
  public:
-  explicit DefaultSubframeProcessHostHolder(int affinity, BrowserContext* browser_context)
-      : affinity_(affinity), browser_context_(browser_context) {}
+  explicit DefaultSubframeProcessHostHolder(BrowserContext* browser_context)
+      : browser_context_(browser_context) {}
   ~DefaultSubframeProcessHostHolder() override {}
 
   // Gets the correct render process to use for this SiteInstance.
@@ -764,10 +748,13 @@ class DefaultSubframeProcessHostHolder : public base::SupportsUserData::Data,
 
     // Is this the default storage partition? If it isn't, then just give it its
     // own non-shared process.
-    auto idHandlePair = getHostIdProcessHandleByAffinity(affinity_);
     if (partition != default_partition || is_for_guests_only) {
       RenderProcessHost* host = RenderProcessHostImpl::CreateRenderProcessHost(
-          std::get<0>(idHandlePair), std::get<1>(idHandlePair), browser_context_, partition, site_instance,
+          ChildProcessHostImpl::GenerateChildProcessUniqueId(),
+          base::kNullProcessHandle,
+          browser_context_,
+          partition,
+          site_instance,
           is_for_guests_only);
       host->SetIsNeverSuitableForReuse();
       return host;
@@ -779,7 +766,9 @@ class DefaultSubframeProcessHostHolder : public base::SupportsUserData::Data,
       return host_;
 
     host_ = RenderProcessHostImpl::CreateRenderProcessHost(
-        std::get<0>(idHandlePair), std::get<1>(idHandlePair), browser_context_, partition, site_instance,
+        ChildProcessHostImpl::GenerateChildProcessUniqueId(),
+        base::kNullProcessHandle,
+        browser_context_, partition, site_instance,
         is_for_guests_only);
     host_->SetIsNeverSuitableForReuse();
     host_->AddObserver(this);
@@ -795,7 +784,6 @@ class DefaultSubframeProcessHostHolder : public base::SupportsUserData::Data,
   }
 
  private:
-  int affinity_;
   BrowserContext* browser_context_;
 
   // The default subframe render process used for the default storage partition
@@ -4029,7 +4017,6 @@ void RenderProcessHostImpl::RegisterSoleProcessHostForSite(
 
 // static
 RenderProcessHost* RenderProcessHostImpl::GetProcessHostForSiteInstance(
-    int affinity,
     SiteInstanceImpl* site_instance) {
   const GURL site_url = site_instance->GetSiteURL();
   SiteInstanceImpl::ProcessReusePolicy process_reuse_policy =
@@ -4050,7 +4037,7 @@ RenderProcessHost* RenderProcessHostImpl::GetProcessHostForSiteInstance(
       DCHECK(SiteIsolationPolicy::IsTopDocumentIsolationEnabled());
       DCHECK(!site_instance->is_for_service_worker());
       render_process_host = GetDefaultSubframeProcessHost(
-          affinity, browser_context, site_instance, is_for_guests_only);
+          browser_context, site_instance, is_for_guests_only);
       break;
     case SiteInstanceImpl::ProcessReusePolicy::REUSE_PENDING_OR_COMMITTED_SITE:
       render_process_host =
@@ -4115,9 +4102,8 @@ RenderProcessHost* RenderProcessHostImpl::GetProcessHostForSiteInstance(
     // RenderProcessHostFactory may not instantiate a StoragePartition, and
     // creating one here with GetStoragePartition() can run into cross-thread
     // issues as TestBrowserContext initialization is done on the main thread.
-    auto idHandlePair = getHostIdProcessHandleByAffinity(affinity);
     render_process_host = CreateRenderProcessHost(
-        std::get<0>(idHandlePair), std::get<1>(idHandlePair),
+        ChildProcessHostImpl::GenerateChildProcessUniqueId(), base::kNullProcessHandle,
         browser_context, nullptr, site_instance, is_for_guests_only);
   }
 
@@ -4593,7 +4579,6 @@ mojo::edk::OutgoingBrokerClientInvitation* RenderProcessHostImpl::GetOutgoingInv
 
 // static
 RenderProcessHost* RenderProcessHostImpl::GetDefaultSubframeProcessHost(
-    int affinity,
     BrowserContext* browser_context,
     SiteInstanceImpl* site_instance,
     bool is_for_guests_only) {
@@ -4601,7 +4586,7 @@ RenderProcessHost* RenderProcessHostImpl::GetDefaultSubframeProcessHost(
       static_cast<DefaultSubframeProcessHostHolder*>(
           browser_context->GetUserData(&kDefaultSubframeProcessHostHolderKey));
   if (!holder) {
-    holder = new DefaultSubframeProcessHostHolder(affinity,browser_context);
+    holder = new DefaultSubframeProcessHostHolder(browser_context);
     browser_context->SetUserData(kDefaultSubframeProcessHostHolderKey,
                                  base::WrapUnique(holder));
   }
