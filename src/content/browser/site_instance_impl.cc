@@ -108,6 +108,7 @@ bool SiteInstanceImpl::HasProcess() const {
 }
 
 RenderProcessHost* SiteInstanceImpl::GetProcess(int affinity) {
+  // blpwtk2: Lookup the RenderProessHost based on the host id (aka. affinity)
   if (!process_) {
     BrowserContext* browser_context = browsing_instance_->browser_context();
 
@@ -142,7 +143,7 @@ RenderProcessHost* SiteInstanceImpl::GetProcess(int affinity) {
     }
 
     process_ = RenderProcessHostImpl::GetProcessHostForSiteInstance(
-        affinity, browser_context, this);
+        browser_context, this);
 
     CHECK(process_);
     process_->AddObserver(this);
