@@ -159,7 +159,6 @@ std::unique_ptr<content::DropData> MakeDropData(const ui::OSExchangeData& data) 
             pickle.data(), pickle.size(), &drop_data->custom_data);
 
     // Only if custom drag-and-drop topics is available in blpwtk2:
-#if 0
     std::vector<FORMATETC> custom_data_formats;
     data.provider().EnumerateCustomData(&custom_data_formats);
     for (const auto& format_etc : custom_data_formats) {
@@ -168,7 +167,6 @@ std::unique_ptr<content::DropData> MakeDropData(const ui::OSExchangeData& data) 
         data.provider().GetCustomData(format_etc, &value);
         drop_data->custom_data.insert(std::make_pair(key, value));
     }
-#endif
 
     return drop_data;
 }
@@ -270,9 +268,8 @@ std::unique_ptr<ui::OSExchangeData> MakeOSExchangeData(const content::DropData& 
     }
 
     // Only if custom drag-and-drop topics is available in blpwtk2:
-#if 0
     if (!drop_data.custom_data.empty()) {
-        std::map<base::string16, base::string16> custom_data;
+        std::unordered_map<base::string16, base::string16> custom_data;
 
         for (auto it = drop_data.custom_data.begin();
              it != drop_data.custom_data.end(); ++it) {
@@ -307,7 +304,6 @@ std::unique_ptr<ui::OSExchangeData> MakeOSExchangeData(const content::DropData& 
             ui::Clipboard::GetWebCustomDataFormatType(),
             pickle);
     }
-#endif
 
     return std::make_unique<ui::OSExchangeData>(std::move(provider));
 }
