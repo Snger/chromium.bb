@@ -110,6 +110,7 @@ class DragDrop : public ui::DropTargetWin
 
   private:
 
+    HWND d_hwnd;
     DragDropDelegate *d_delegate;
 
     blink::WebDragOperationsMask d_current_drag_operation = blink::kWebDragOperationNone;

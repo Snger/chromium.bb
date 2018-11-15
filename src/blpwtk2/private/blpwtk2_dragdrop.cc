@@ -320,6 +320,7 @@ DragDropDelegate::~DragDropDelegate()
 
 DragDrop::DragDrop(HWND hwnd, DragDropDelegate *delegate)
 : ui::DropTargetWin()
+, d_hwnd(hwnd)
 , d_delegate(delegate)
 {
     Init(hwnd);
@@ -367,7 +368,7 @@ void DragDrop::StartDragging(
     GetCursorPos(&screen_pt);
 
     POINT client_pt = screen_pt;
-    ScreenToClient(GetHWND(), &client_pt);
+    ScreenToClient(d_hwnd, &client_pt);
 
     d_delegate->DragSourceEnded(
         gfx::PointF(gfx::Point(client_pt)), gfx::PointF(gfx::Point(screen_pt)),
@@ -396,7 +397,7 @@ DWORD DragDrop::OnDragEnter(
     auto drag_data_metadata = MakeDropDataMetadata(*drag_data);
 
     POINT client_pt = screen_pt;
-    ScreenToClient(GetHWND(), &client_pt);
+    ScreenToClient(d_hwnd, &client_pt);
 
     d_delegate->DragTargetEnter(
         drag_data_metadata,
@@ -414,7 +415,7 @@ DWORD DragDrop::OnDragOver(
     DWORD effect)
 {
     POINT client_pt = screen_pt;
-    ScreenToClient(GetHWND(), &client_pt);
+    ScreenToClient(d_hwnd, &client_pt);
 
     d_delegate->DragTargetOver(
         gfx::PointF(gfx::Point(client_pt)), gfx::PointF(gfx::Point(screen_pt)),
@@ -440,7 +441,7 @@ DWORD DragDrop::OnDrop(
     auto drag_data = MakeDropData(*data, true);
 
     POINT client_pt = screen_pt;
-    ScreenToClient(GetHWND(), &client_pt);
+    ScreenToClient(d_hwnd, &client_pt);
 
     d_delegate->DragTargetDrop(
         *drag_data,
