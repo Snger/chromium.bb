@@ -792,7 +792,9 @@ void ContainerNode::RemoveChildren(SubtreeModificationAction action) {
     TreeOrderedMap::RemoveScope tree_remove_scope;
     {
       EventDispatchForbiddenScope assert_no_event_dispatch;
-      ScriptForbiddenScope forbid_script;
+
+      // blpwtk2: We need to run script for plugins
+      //ScriptForbiddenScope forbid_script;
 
       while (Node* child = first_child_) {
         RemoveBetween(nullptr, child->nextSibling(), *child);
