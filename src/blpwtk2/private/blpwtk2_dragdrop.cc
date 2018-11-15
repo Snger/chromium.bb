@@ -119,7 +119,9 @@ void WriteFileSystemFilesToPickle(
   }
 }
 
-std::unique_ptr<content::DropData> MakeDropData(const ui::OSExchangeData& data) {
+std::unique_ptr<content::DropData> MakeDropData(const ui::OSExchangeData& data,
+                                                const bool extractData) {
+
     auto drop_data = std::make_unique<content::DropData>();
 
     drop_data->did_originate_from_renderer = data.DidOriginateFromRenderer();
@@ -159,16 +161,16 @@ std::unique_ptr<content::DropData> MakeDropData(const ui::OSExchangeData& data) 
             pickle.data(), pickle.size(), &drop_data->custom_data);
 
     // Only if custom drag-and-drop topics is available in blpwtk2:
-#if 0
     std::vector<FORMATETC> custom_data_formats;
     data.provider().EnumerateCustomData(&custom_data_formats);
     for (const auto& format_etc : custom_data_formats) {
         std::wstring key = L"blp_" + std::to_wstring(format_etc.cfFormat);
         base::string16 value;
-        data.provider().GetCustomData(format_etc, &value);
+        if (extractData) {
+            data.provider().GetCustomData(format_etc, &value);
+        }
         drop_data->custom_data.insert(std::make_pair(key, value));
     }
-#endif
 
     return drop_data;
 }
@@ -270,9 +272,8 @@ std::unique_ptr<ui::OSExchangeData> MakeOSExchangeData(const content::DropData& 
     }
 
     // Only if custom drag-and-drop topics is available in blpwtk2:
-#if 0
     if (!drop_data.custom_data.empty()) {
-        std::map<base::string16, base::string16> custom_data;
+        std::unordered_map<base::string16, base::string16> custom_data;
 
         for (auto it = drop_data.custom_data.begin();
              it != drop_data.custom_data.end(); ++it) {
@@ -307,7 +308,6 @@ std::unique_ptr<ui::OSExchangeData> MakeOSExchangeData(const content::DropData& 
             ui::Clipboard::GetWebCustomDataFormatType(),
             pickle);
     }
-#endif
 
     return std::make_unique<ui::OSExchangeData>(std::move(provider));
 }
@@ -320,6 +320,7 @@ DragDropDelegate::~DragDropDelegate()
 
 DragDrop::DragDrop(HWND hwnd, DragDropDelegate *delegate)
 : ui::DropTargetWin()
+, d_hwnd(hwnd)
 , d_delegate(delegate)
 {
     Init(hwnd);
@@ -367,7 +368,7 @@ void DragDrop::StartDragging(
     GetCursorPos(&screen_pt);
 
     POINT client_pt = screen_pt;
-    ScreenToClient(GetHWND(), &client_pt);
+    ScreenToClient(d_hwnd, &client_pt);
 
     d_delegate->DragSourceEnded(
         gfx::PointF(gfx::Point(client_pt)), gfx::PointF(gfx::Point(screen_pt)),
@@ -392,11 +393,11 @@ DWORD DragDrop::OnDragEnter(
 {
     auto data_provider = std::make_unique<ui::OSExchangeDataProviderWin>(data_object);
     auto data = std::make_unique<ui::OSExchangeData>(std::move(data_provider));
-    auto drag_data = MakeDropData(*data);
+    auto drag_data = MakeDropData(*data, false);
     auto drag_data_metadata = MakeDropDataMetadata(*drag_data);
 
     POINT client_pt = screen_pt;
-    ScreenToClient(GetHWND(), &client_pt);
+    ScreenToClient(d_hwnd, &client_pt);
 
     d_delegate->DragTargetEnter(
         drag_data_metadata,
@@ -414,7 +415,7 @@ DWORD DragDrop::OnDragOver(
     DWORD effect)
 {
     POINT client_pt = screen_pt;
-    ScreenToClient(GetHWND(), &client_pt);
+    ScreenToClient(d_hwnd, &client_pt);
 
     d_delegate->DragTargetOver(
         gfx::PointF(gfx::Point(client_pt)), gfx::PointF(gfx::Point(screen_pt)),
@@ -437,10 +438,10 @@ DWORD DragDrop::OnDrop(
 {
     auto data_provider = std::make_unique<ui::OSExchangeDataProviderWin>(data_object);
     auto data = std::make_unique<ui::OSExchangeData>(std::move(data_provider));
-    auto drag_data = MakeDropData(*data);
+    auto drag_data = MakeDropData(*data, true);
 
     POINT client_pt = screen_pt;
-    ScreenToClient(GetHWND(), &client_pt);
+    ScreenToClient(d_hwnd, &client_pt);
 
     d_delegate->DragTargetDrop(
         *drag_data,
