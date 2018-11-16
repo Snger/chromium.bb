@@ -55,13 +55,4 @@ void ScriptState::DisposePerContextData() {
   per_context_data_ = nullptr;
 }
 
-bool ScriptState::AccessCheck(v8::Local<v8::Context> context)
-{
-    if (context->GetNumberOfEmbedderDataFields() < kV8ContextPerContextDataIndex) {
-        return false;
-    }
-
-    return true;
-}
-
 }  // namespace blink
