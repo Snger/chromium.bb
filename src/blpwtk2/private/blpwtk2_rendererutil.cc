@@ -27,6 +27,7 @@
 
 #include <base/logging.h>  // for DCHECK
 
+#include <cc/paint/skia_paint_canvas.h>
 #include <content/renderer/render_widget.h>
 #include <content/public/browser/native_web_keyboard_event.h>
 #include <ui/events/event.h>
@@ -177,6 +178,8 @@ void RendererUtil::drawContentsToBlob(content::RenderView        *rv,
     int srcHeight = params.srcRegion.bottom - params.srcRegion.top;
 
     if (params.rendererType == WebView::DrawParams::RendererType::PDF) {
+        // FIXME: Fix support for generating PDF blobs
+#if 0
         SkDynamicMemoryWStream& pdf_stream = blob->makeSkStream();
         {
             SkDocument::PDFMetadata metadata;
@@ -195,17 +198,18 @@ void RendererUtil::drawContentsToBlob(content::RenderView        *rv,
             canvas->flush();
             document->endPage();
         }
+#endif
     }
     else if (params.rendererType == WebView::DrawParams::RendererType::Bitmap) {
         SkBitmap& bitmap = blob->makeSkBitmap();        
         bitmap.allocN32Pixels(params.destWidth + 0.5, params.destHeight + 0.5);
 
-        SkCanvas canvas(bitmap);
+        cc::SkiaPaintCanvas canvas(bitmap);
         canvas.scale(params.destWidth / srcWidth, params.destHeight / srcHeight);
 
         webFrame->DrawInCanvas(blink::WebRect(params.srcRegion.left, params.srcRegion.top, srcWidth, srcHeight),
                                blink::WebString::FromUTF8(params.styleClass.data(), params.styleClass.length()),
-                               canvas);
+                               &canvas);
 
         canvas.flush();
     }
