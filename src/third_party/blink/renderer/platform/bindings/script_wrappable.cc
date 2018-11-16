@@ -25,7 +25,11 @@ v8::Local<v8::Object> ScriptWrappable::Wrap(
     v8::Local<v8::Object> creation_context) {
   const WrapperTypeInfo* wrapper_type_info = this->GetWrapperTypeInfo();
 
-  if (!WrapperCreationSecurityCheck::VerifyContextAccess(
+  if (// This throws if the current context does not have a 'ScriptState'
+      // associated with it:
+      !ScriptState::AccessCheck(isolate->GetCurrentContext()) ||
+      // This basically fulfills the TODO in 'V8DOMWrapper::CreateWrapper()'
+      !WrapperCreationSecurityCheck::VerifyContextAccess(
                      creation_context->CreationContext(), wrapper_type_info)) {
       const String& message =
         "DOM access from invalid context";

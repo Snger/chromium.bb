@@ -129,7 +129,16 @@ class PLATFORM_EXPORT ScriptState : public RefCounted<ScriptState> {
     return script_state;
   }
 
-  static bool AccessCheck(v8::Local<v8::Context> context);
+  // This function returns 'true' if 'context' has a 'ScriptState' associated
+  // with it, false otherwise:
+  static bool AccessCheck(v8::Local<v8::Context> context) {
+    if (context->GetNumberOfEmbedderDataFields() <
+        kV8ContextPerContextDataIndex) {
+        return false;
+    }
+
+    return true;
+  }
 
   v8::Isolate* GetIsolate() const { return isolate_; }
   DOMWrapperWorld& World() const { return *world_; }
