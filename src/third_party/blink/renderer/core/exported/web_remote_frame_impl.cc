@@ -430,7 +430,7 @@ v8::Isolate* WebRemoteFrameImpl::ScriptIsolate() const
 void WebRemoteFrameImpl::DrawInCanvas(
     const WebRect& rect,
     const WebString& style_class,
-    SkCanvas& canvas) const {
+    cc::PaintCanvas* canvas) {
   NOTREACHED();
 }
 

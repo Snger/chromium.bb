@@ -196,7 +196,7 @@ class BLINK_EXPORT WebFrame {
   // specified canvas
   virtual void DrawInCanvas(const WebRect&,
                             const WebString&,
-                            SkCanvas&) const = 0;
+                            cc::PaintCanvas*) = 0;
 
   // Returns the frame inside a given frame or iframe element. Returns 0 if
   // the given node is not a frame, iframe or if the frame is empty.

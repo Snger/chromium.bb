@@ -521,44 +521,6 @@ static void CollectAllFrames(std::vector<const LocalFrame*>& list,
   }
 }
 
-// blpwtk2: This is a simplified implementation of the class
-// ChromePrintContext defined above in this file.
-class CanvasPainterContext : public DisplayItemClient {
-  FloatRect d_visualRect;
-
-  void PaintToGraphicsContext(GraphicsContext& context,
-                              LocalFrameView* view,
-                              const FloatRect& floatRect) {
-    context.Save();
-
-    // Enter a translation transform
-    AffineTransform transform;
-    transform.Translate(-floatRect.X(), -floatRect.Y());
-    context.ConcatCTM(transform);
-
-    // Enter a clipped region
-    context.ClipRect(EnclosedIntRect(floatRect));
-
-    view->UpdateAllLifecyclePhases();
-
-    view->PaintContents(context, kGlobalPaintFlattenCompositingLayers,
-                        EnclosingIntRect(floatRect));
-
-    context.Restore();
-  }
-
- public:
-  void Paint(SkCanvas& canvas, LocalFrameView* view, const FloatRect& floatRect) {
-    d_visualRect = floatRect;
-    PaintRecordBuilder builder(&canvas.getMetaData());
-    builder.Context().BeginRecording(EnclosingIntRect(floatRect));
-    PaintToGraphicsContext(builder.Context(), view, floatRect);
-    builder.Context().EndRecording()->Playback(&canvas);
-  }
-
-  String DebugName() const override { return "CanvasPainterContext"; }
-  LayoutRect VisualRect() const override { return LayoutRect(d_visualRect); }
-};
 
 // WebFrame -------------------------------------------------------------------
 
@@ -2617,7 +2579,7 @@ void WebLocalFrameImpl::BindDevToolsAgentRequest(
 
 void WebLocalFrameImpl::DrawInCanvas(const WebRect& rect,
                                      const WebString& styleClass,
-                                     SkCanvas& canvas) const {
+                                     cc::PaintCanvas* canvas) {
   // Set the new "style" attribute if specified
   static const WTF::String classAttribute("class");
   // To avoid problems where the same document body is referenced multiple
@@ -2650,8 +2612,16 @@ void WebLocalFrameImpl::DrawInCanvas(const WebRect& rect,
     }
   }
 
-  CanvasPainterContext painterContext;
-  painterContext.Paint(canvas, GetFrameView(), FloatRect(rect));
+  WebPrintParams print_params(WebSize{ rect.width, rect.height }, false);
+  print_params.print_content_area = rect;
+  print_params.printable_area = rect;
+
+  int page_count = PrintBegin(print_params, blink::WebNode());
+  DCHECK(1 == page_count);
+  if (1 == page_count) {
+    PrintPage(0, canvas);
+  }
+  PrintEnd();
 
   // Restore the original "style" attribute
   for (auto& item : originalStyleClasses) {
