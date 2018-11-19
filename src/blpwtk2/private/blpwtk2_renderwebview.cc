@@ -324,6 +324,14 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         d_compositor->SetVisible(false);
         d_compositor.reset();
 
+        if (d_gotRenderViewInfo) {
+            content::RenderWidget *rw =
+                content::RenderViewImpl::FromRoutingID(d_renderViewRoutingId);
+            DCHECK(rw);
+
+            rw->compositor()->ReleaseLayerTreeFrameSink();
+        }
+
         #pragma clang diagnostic push
         #pragma clang diagnostic ignored "-Wunused"
 
@@ -883,13 +891,13 @@ void RenderWebView::destroy()
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(!d_pendingDestroy);
 
-    if (d_hwnd.is_valid()) {
-        d_hwnd.reset();
-    }
-
     if (d_gotRenderViewInfo) {
         dispatchToRenderViewImpl(
             ViewMsg_Close(d_renderViewRoutingId));
+    }
+
+    if (d_hwnd.is_valid()) {
+        d_hwnd.reset();
     }
 
     // Schedule a deletion of this RenderWebView.  The reason we don't delete
