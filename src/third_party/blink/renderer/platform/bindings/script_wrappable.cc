@@ -28,9 +28,12 @@ v8::Local<v8::Object> ScriptWrappable::Wrap(
   if (// This throws if the current context does not have a 'ScriptState'
       // associated with it:
       !ScriptState::AccessCheck(isolate->GetCurrentContext()) ||
-      // This basically fulfills the TODO in 'V8DOMWrapper::CreateWrapper()'
-      !WrapperCreationSecurityCheck::VerifyContextAccess(
-                     creation_context->CreationContext(), wrapper_type_info)) {
+       // If the current context is the same as the creation context, assume
+       // it's valid, otherwise call out to verify:
+      (isolate->GetCurrentContext() != creation_context->CreationContext() &&
+       // This basically fulfills the TODO in 'V8DOMWrapper::CreateWrapper()'
+       !WrapperCreationSecurityCheck::VerifyContextAccess(
+                    creation_context->CreationContext(), wrapper_type_info))) {
       const String& message =
         "DOM access from invalid context";
       V8ThrowException::ThrowAccessError(
