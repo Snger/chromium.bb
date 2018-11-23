@@ -951,6 +951,7 @@ void RenderCompositor::Details::RequestNewLayerTreeFrameSinkImpl(
         if (context_provider->BindToCurrentThread()
                 != gpu::ContextResult::kSuccess) {
             context_provider = nullptr;
+            worker_context_provider = nullptr;
         }
     }
 
