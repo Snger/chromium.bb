@@ -88,7 +88,11 @@ void InitializeExternalStartupData(const char* directory_path) {
 #ifdef V8_USE_EXTERNAL_STARTUP_DATA
   char* natives;
   char* snapshot;
+#if defined(__clang__)
   [[maybe_unused]] const char* snapshot_name = "snapshot_blob.bin";
+#else
+  const char* snapshot_name = "snapshot_blob.bin";
+#endif
 #ifdef V8_MULTI_SNAPSHOTS
   if (!FLAG_untrusted_code_mitigations) {
     snapshot_name = "snapshot_blob_trusted.bin";
