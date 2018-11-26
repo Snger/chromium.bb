@@ -905,6 +905,7 @@ void RenderWebView::destroy()
     // that is already scheduled and the callback requires the existence of
     // the WebView.
     d_pendingDestroy = true;
+    d_delegate = nullptr;
     base::MessageLoop::current()->task_runner()->DeleteSoon(FROM_HERE, this);
 }
 
