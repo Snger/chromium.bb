@@ -121,9 +121,6 @@ Toolkit* ToolkitFactory::create(const ToolkitCreateParams& params)
 
     base::win::SetWinProcExceptionFilter(params.winProcExceptionFilter());
 
-    DCHECK(!Statics::inProcessResourceLoader ||
-            Statics::isRendererMainThreadMode());
-
     if (params.isMaxSocketsPerProxySet()) {
         setMaxSocketsPerProxy(params.maxSocketsPerProxy());
     }
