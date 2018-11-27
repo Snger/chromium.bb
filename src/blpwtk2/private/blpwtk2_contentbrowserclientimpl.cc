@@ -33,8 +33,10 @@
 
 #include <base/json/json_reader.h>
 #include <base/message_loop/message_loop.h>
+#include <base/strings/utf_string_conversions.h>
 #include <base/threading/thread.h>
 #include <base/threading/platform_thread.h>
+#include <chrome/services/printing/public/mojom/constants.mojom.h>
 #include <content/public/browser/browser_main_parts.h>
 #include <content/public/browser/render_view_host.h>
 #include <content/public/browser/render_process_host.h>
@@ -237,6 +239,12 @@ void ContentBrowserClientImpl::RegisterInProcessServices(StaticServiceMap* servi
     service_manager::EmbeddedServiceInfo info;
     info.factory = ChromeService::GetInstance()->CreateChromeServiceFactory();
     services->insert(std::make_pair(chrome::mojom::kServiceName, info));
+}
+
+void ContentBrowserClientImpl::RegisterOutOfProcessServices(OutOfProcessServiceMap* services)
+{
+    (*services)[printing::mojom::kChromePrintingServiceName] =
+        base::ASCIIToUTF16("Printing Service");
 }
 
 }  // close namespace blpwtk2

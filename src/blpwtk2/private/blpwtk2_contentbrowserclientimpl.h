@@ -121,6 +121,7 @@ class ContentBrowserClientImpl : public content::ContentBrowserClient {
             base::StringPiece name) override;
 
     void RegisterInProcessServices(StaticServiceMap* services) override;
+    void RegisterOutOfProcessServices(OutOfProcessServiceMap* services) override;
 };
 
 }  // close namespace blpwtk2
