@@ -746,7 +746,7 @@ bool InitializeSDK() {
 }
 
 void ShutdownSDK() {
-//  FPDF_DestroyLibrary();
+  FPDF_DestroyLibrary();
 #if !defined(OS_LINUX)
   delete g_font_info;
 #endif
