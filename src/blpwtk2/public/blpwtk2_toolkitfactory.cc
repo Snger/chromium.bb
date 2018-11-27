@@ -188,9 +188,6 @@ Toolkit* ToolkitFactory::create(const ToolkitCreateParams& params)
     NativeColor activeSearchTextColor = params.activeTextSearchColor();
     blink::LayoutTheme::SetTextSearchColor(GetRValue(activeSearchTextColor), GetGValue(activeSearchTextColor), GetBValue(activeSearchTextColor));
 
-    DCHECK(!Statics::inProcessResourceLoader ||
-            Statics::isRendererMainThreadMode());
-
     views::corewm::TooltipWin::SetTooltipStyle(params.tooltipFont());
 
     if (params.isMaxSocketsPerProxySet()) {
