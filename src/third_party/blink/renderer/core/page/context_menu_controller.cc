@@ -564,7 +564,7 @@ static bool FireBbContextMenuEvent(const HitTestResult& hitTestResult, const Web
                          true,
                          true,
                          ScriptValue(script_state, detail_obj));
-  hitTestResult.InnerNode()->DispatchEvent(event);
+  hitTestResult.InnerNodeOrImageMapImage()->DispatchEvent(event);
   return event->defaultPrevented();
 }
 
