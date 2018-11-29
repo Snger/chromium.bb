@@ -1259,6 +1259,8 @@ class CORE_EXPORT PaintLayer : public DisplayItemClient {
   // ancestor.
   unsigned is_under_svg_hidden_container_ : 1;
 
+  unsigned suppress_needs_compositing_inputs_update_ : 1;
+
   LayoutBoxModelObject& layout_object_;
 
   PaintLayer* parent_;

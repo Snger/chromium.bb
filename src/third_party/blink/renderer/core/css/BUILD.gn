@@ -437,6 +437,7 @@ blink_core_sources("css") {
     "properties/longhands/box_sizing_custom.cc",
     "properties/longhands/break_after_custom.cc",
     "properties/longhands/bb_lcd_background_color_custom.cc",
+    "properties/longhands/bb_suppress_needs_compositing_input_update_custom.cc",
     "properties/longhands/break_before_custom.cc",
     "properties/longhands/break_inside_custom.cc",
     "properties/longhands/buffered_rendering_custom.cc",
