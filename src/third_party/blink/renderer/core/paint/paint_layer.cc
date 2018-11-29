@@ -162,6 +162,7 @@ PaintLayer::PaintLayer(LayoutBoxModelObject& layout_object)
       self_painting_status_changed_(false),
       filter_on_effect_node_dirty_(false),
       is_under_svg_hidden_container_(false),
+      suppress_needs_compositing_inputs_update_(false),
       layout_object_(layout_object),
       parent_(nullptr),
       previous_(nullptr),
@@ -1092,6 +1093,10 @@ PaintLayer* PaintLayer::EnclosingLayerForPaintInvalidation() const {
 }
 
 void PaintLayer::SetNeedsCompositingInputsUpdate() {
+  if (suppress_needs_compositing_inputs_update_) {
+    return;
+  }
+
   SetNeedsCompositingInputsUpdateInternal();
 
   // TODO(chrishtr): These are a bit of a heavy hammer, because not all
@@ -3079,6 +3084,9 @@ void PaintLayer::StyleDidChange(StyleDifference diff,
   UpdateTransform(old_style, GetLayoutObject().StyleRef());
   UpdateFilters(old_style, GetLayoutObject().StyleRef());
   UpdateClipPath(old_style, GetLayoutObject().StyleRef());
+
+  suppress_needs_compositing_inputs_update_ =
+    GetLayoutObject().StyleRef().BBSuppressNeedsCompositingInputUpdate();
 
   SetNeedsCompositingInputsUpdate();
   GetLayoutObject().SetNeedsPaintPropertyUpdate();
