@@ -967,7 +967,7 @@ void PrepareFrameAndViewForPrint::FinishPrinting() {
 }
 
 bool PrintRenderFrameHelper::Delegate::IsScriptedPrintEnabled() {
-  return !g_use_default_print_settings_;
+  return true;
 }
 
 PrintRenderFrameHelper::PrintRenderFrameHelper(
@@ -1631,6 +1631,7 @@ void PrintRenderFrameHelper::Print(blink::WebLocalFrame* frame,
   }
 
   // Ask the browser to show UI to retrieve the final print settings.
+  if (!g_use_default_print_settings_)
   {
     // PrintHostMsg_ScriptedPrint in GetPrintSettingsFromUser() will reset
     // |print_scaling_option|, so save the value here and restore it afterwards.
