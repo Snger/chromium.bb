@@ -126,9 +126,6 @@ Toolkit* ToolkitFactory::create(const ToolkitCreateParams& params)
         params.invalidParameterHandler(),
         params.purecallHandler());
 
-    DCHECK(!Statics::inProcessResourceLoader ||
-            Statics::isRendererMainThreadMode());
-
     if (params.isMaxSocketsPerProxySet()) {
         setMaxSocketsPerProxy(params.maxSocketsPerProxy());
     }

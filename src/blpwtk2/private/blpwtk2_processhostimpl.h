@@ -192,7 +192,9 @@ class ProcessHostImpl::Impl final : public base::RefCounted<Impl>
 
   public:
     // CREATORS
-    Impl(bool isolated, const std::string& profileDir);
+    Impl(base::ProcessHandle processHandle,
+         bool isolated,
+         const std::string& profileDir);
         // Initialize the ProcessHost (the real implementation).
         // 'profileDir' is a path to the directory that will be used by the
         // browser context to store profile data.
