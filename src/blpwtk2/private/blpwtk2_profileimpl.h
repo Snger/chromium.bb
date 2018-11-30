@@ -187,6 +187,8 @@ class ProfileImpl : public Profile, public mojom::ProcessClient {
     void opaqueMessageToRendererAsync(const std::string& msg) override;
 
     void setIPCDelegate(ProcessClientDelegate *delegate) override;
+
+    void clearWebCache() override;
 };
 
 }  // close namespace blpwtk2

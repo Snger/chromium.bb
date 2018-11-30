@@ -463,6 +463,12 @@ void BrowserContextImpl::setIPCDelegate(ProcessClientDelegate *delegate)
     NOTREACHED();
 }
 
+void BrowserContextImpl::clearWebCache()
+{
+    // NOTREACHED
+    DCHECK(false);
+}
+
 // content::BrowserContext overrides
 std::unique_ptr<content::ZoomLevelDelegate>
 BrowserContextImpl::CreateZoomLevelDelegate(

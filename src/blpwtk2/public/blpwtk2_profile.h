@@ -155,6 +155,8 @@ class Profile
 
     virtual void setIPCDelegate(ProcessClientDelegate *delegate) = 0;
 
+    virtual void clearWebCache() = 0;
+
   protected:
     virtual ~Profile();
         // Destroy this Profile object.  Note that embedders of blpwtk2 should

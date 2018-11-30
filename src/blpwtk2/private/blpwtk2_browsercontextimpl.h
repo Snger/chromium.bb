@@ -121,6 +121,7 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     void setDefaultPrinter(const StringRef& name) override;
     void dumpDiagnostics(DiagnosticInfoType type,
                          const StringRef&   path) override;
+    void clearWebCache() override;
 
     void opaqueMessageToBrowserAsync(const StringRef& msg) override;
     String opaqueMessageToBrowserSync(const StringRef& msg) override;
