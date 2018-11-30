@@ -1140,7 +1140,8 @@ int UseCounter::MapCSSPropertyIdToCSSSampleIdForHistogram(
       return 593;
     case CSSPropertyBbLcdBackgroundColor:
       return 594;
-
+    case CSSPropertyBbSuppressNeedsCompositingInputUpdate:
+      return 595;
     // 1. Add new features above this line (don't change the assigned numbers of
     // the existing items).
     // 2. Update kMaximumCSSSampleId (defined in
