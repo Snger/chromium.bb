@@ -110,6 +110,14 @@ interface ProcessHost {
         // Clear the proxy blacklist.
 
     setPacUrl(string url);
+
+    enableSpellCheck(bool enabled);
+
+    setLanguages(array<string> languages);
+
+    addCustomWords(array<string> words);
+
+    removeCustomWords(array<string> words);
 };
 
 // vim: ts=4 et

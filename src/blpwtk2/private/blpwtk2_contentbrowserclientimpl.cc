@@ -29,7 +29,9 @@
 #include <blpwtk2_devtoolsmanagerdelegateimpl.h>
 #include <blpwtk2_webviewimpl.h>
 #include <blpwtk2_processhostimpl.h>
+#include <blpwtk2_browsermainparts.h>
 
+#include <base/json/json_reader.h>
 #include <base/message_loop/message_loop.h>
 #include <base/threading/thread.h>
 #include <base/threading/platform_thread.h>
@@ -40,7 +42,13 @@
 #include <content/public/browser/resource_dispatcher_host_delegate.h>
 #include <content/public/browser/resource_request_info.h>
 #include <content/public/browser/web_contents.h>
+#include <content/public/common/service_names.mojom.h>
 #include <content/public/common/url_constants.h>
+#include <chrome/browser/chrome_service.h>
+#include <chrome/common/constants.mojom.h>
+#include <chrome/grit/browser_resources.h>
+#include <services/service_manager/public/cpp/connector.h>
+#include <ui/base/resource/resource_bundle.h>
 
 namespace blpwtk2 {
 namespace {
@@ -86,7 +94,10 @@ ContentBrowserClientImpl::~ContentBrowserClientImpl()
 content::BrowserMainParts* ContentBrowserClientImpl::CreateBrowserMainParts(
     const content::MainFunctionParams& parameters)
 {
-    return new content::BrowserMainParts{};
+    BrowserMainParts *main_parts = new BrowserMainParts;
+    main_parts->AddParts(ChromeService::GetInstance()->CreateExtraParts());
+
+    return main_parts;
 }
 
 void ContentBrowserClientImpl::RenderProcessWillLaunch(
@@ -94,6 +105,18 @@ void ContentBrowserClientImpl::RenderProcessWillLaunch(
     service_manager::mojom::ServiceRequest* service_request)
 {
     DCHECK(Statics::isInBrowserMainThread());
+
+    // Start a new instance of chrome_renderer service for the "to be"
+    // launched renderer process
+    service_manager::mojom::ServicePtr service;
+    *service_request = mojo::MakeRequest(&service);
+    service_manager::mojom::PIDReceiverPtr pid_receiver;
+    service_manager::Identity renderer_identity = host->GetChildIdentity();
+    ChromeService::GetInstance()->connector()->StartService(
+        service_manager::Identity(chrome::mojom::kRendererServiceName,
+                                  renderer_identity.user_id(),
+                                  renderer_identity.instance()),
+        std::move(service), mojo::MakeRequest(&pid_receiver));
 }
 
 void ContentBrowserClientImpl::OverrideWebkitPrefs(
@@ -175,13 +198,42 @@ mojo::edk::OutgoingBrokerClientInvitation* ContentBrowserClientImpl::GetClientIn
     return d_broker_client_invitation.load();
 }
 
-#if 0
-std::unique_ptr<base::Value>
-ContentBrowserClientImpl::GetServiceManifestOverlay(const std::string& name)
+std::vector<content::ContentBrowserClient::ServiceManifestInfo>
+ContentBrowserClientImpl::GetExtraServiceManifests()
 {
-
+    return std::vector<content::ContentBrowserClient::ServiceManifestInfo>({
+      {chrome::mojom::kRendererServiceName, IDR_CHROME_RENDERER_SERVICE_MANIFEST},
+    });
 }
-#endif
+
+std::unique_ptr<base::Value>
+ContentBrowserClientImpl::GetServiceManifestOverlay(base::StringPiece name)
+{
+    ui::ResourceBundle& rb = ui::ResourceBundle::GetSharedInstance();
+    int id = -1;
+
+    if (name == content::mojom::kBrowserServiceName)
+        id = IDR_CHROME_CONTENT_BROWSER_MANIFEST_OVERLAY;
+    else if (name == content::mojom::kPackagedServicesServiceName)
+        id = IDR_CHROME_CONTENT_PACKAGED_SERVICES_MANIFEST_OVERLAY;
+    else if (name == content::mojom::kRendererServiceName)
+        id = IDR_CHROME_CONTENT_RENDERER_MANIFEST_OVERLAY;
+    else if (name == content::mojom::kUtilityServiceName)
+        id = IDR_CHROME_CONTENT_UTILITY_MANIFEST_OVERLAY;
+    if (id == -1)
+        return nullptr;
+
+    base::StringPiece manifest_contents =
+        rb.GetRawDataResourceForScale(id, ui::ScaleFactor::SCALE_FACTOR_NONE);
+    return base::JSONReader::Read(manifest_contents);
+}
+
+void ContentBrowserClientImpl::RegisterInProcessServices(StaticServiceMap* services)
+{
+    service_manager::EmbeddedServiceInfo info;
+    info.factory = ChromeService::GetInstance()->CreateChromeServiceFactory();
+    services->insert(std::make_pair(chrome::mojom::kServiceName, info));
+}
 
 }  // close namespace blpwtk2
 
