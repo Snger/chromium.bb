@@ -365,6 +365,12 @@ v8::MaybeLocal<v8::Value> WebViewProxy::callFunction(
     return localWebFrame->CallFunctionEvenIfScriptDisabled(func, recv, argc, argv);
 }
 
+String WebViewProxy::printToPDF(const StringRef& propertyName)
+{
+    content::RenderView *rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    return RendererUtil::printToPDF(rv, propertyName.toStdString());
+}
+
 // blpwtk2::WebViewClientDelegate overrides
 void WebViewProxy::setClient(WebViewClient *client)
 {
