@@ -118,6 +118,8 @@ class ContentBrowserClientImpl : public content::ContentBrowserClient {
     std::unique_ptr<base::Value> GetServiceManifestOverlay(
             const std::string& name) override;
 #endif
+
+    void RegisterOutOfProcessServices(OutOfProcessServiceMap* services) override;
 };
 
 }  // close namespace blpwtk2
