@@ -172,7 +172,7 @@ static int ComputeEditFlags(Document& selected_document, Editor& editor) {
 }
 
 // Forward declare this, it is implemented at the end of this file.
-static bool FireBbContextMenuEvent(LocalFrame* frame, const WebContextMenuData& data);
+static bool FireBbContextMenuEvent(const HitTestResult& hitTestResult, const WebContextMenuData& data);
 
 bool ContextMenuController::ShouldShowContextMenuFromTouch(
     const WebContextMenuData& data) {
@@ -490,7 +490,7 @@ bool ContextMenuController::ShowContextMenu(LocalFrame* frame,
   if (!selected_web_frame || !selected_web_frame->Client())
     return false;
 
-  if (!FireBbContextMenuEvent(selected_frame, data)) {
+  if (!FireBbContextMenuEvent(r, data)) {
     selected_web_frame->Client()->ShowContextMenu(data);
   }
   return true;
@@ -521,8 +521,10 @@ static void ExposeStringVector(v8::Isolate* isolate, const v8::Handle<v8::Object
   obj->Set(v8::String::NewFromUtf8(isolate, name), array);
 }
 
-static bool FireBbContextMenuEvent(LocalFrame* frame, const WebContextMenuData& data)
+static bool FireBbContextMenuEvent(const HitTestResult& hitTestResult, const WebContextMenuData& data)
 {
+  LocalFrame* frame = hitTestResult.InnerNodeFrame();
+
   v8::Isolate* isolate = v8::Isolate::GetCurrent();
   v8::HandleScope handle_scope(isolate);
   v8::Handle<v8::Context> context = ToV8Context(frame, DOMWrapperWorld::MainWorld());
@@ -562,8 +564,7 @@ static bool FireBbContextMenuEvent(LocalFrame* frame, const WebContextMenuData& 
                          true,
                          true,
                          ScriptValue(script_state, detail_obj));
-  WebLocalFrameImpl* web_frame = WebLocalFrameImpl::FromFrame(frame);
-  web_frame->ContextMenuNode().Unwrap<Node>()->DispatchEvent(event);
+  hitTestResult.InnerNodeOrImageMapImage()->DispatchEvent(event);
   return event->defaultPrevented();
 }
 
