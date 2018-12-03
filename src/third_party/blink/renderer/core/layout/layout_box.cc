@@ -2805,7 +2805,7 @@ LayoutUnit LayoutBox::FillAvailableMeasure(LayoutUnit available_logical_width,
                           : available_logical_width;
   margin_start = MinimumValueForLength(StyleRef().MarginStart(),
                                        available_size_for_resolving_margin) +
-                                       AdditionalMarginStart();
+                 AdditionalMarginStart();
   margin_end = MinimumValueForLength(StyleRef().MarginEnd(),
                                      available_size_for_resolving_margin);
   LayoutUnit available = available_logical_width - margin_start - margin_end;

@@ -168,6 +168,14 @@ LayoutObject* FirstNonMarkerChild(LayoutObject* parent) {
   return result;
 }
 
+static LayoutObject* FirstRenderText(LayoutObject* curr, LayoutObject* stayWithin)
+{
+  while (curr && !curr->IsText()) {
+    curr = curr->NextInPreOrder(stayWithin);
+  }
+  return curr;
+}
+
 void ForceLogicalHeight(LayoutObject& layout_object, const Length& height) {
   DCHECK(layout_object.IsAnonymous());
   if (layout_object.StyleRef().LogicalHeight() == height)
@@ -177,14 +185,6 @@ void ForceLogicalHeight(LayoutObject& layout_object, const Length& height) {
       ComputedStyle::Clone(layout_object.StyleRef());
   new_style->SetLogicalHeight(height);
   layout_object.SetStyleInternal(std::move(new_style));
-}
-
-LayoutObject* FirstRenderText(LayoutObject* curr, LayoutObject* stayWithin)
-{
-  while (curr && !curr->IsText()) {
-    curr = curr->NextInPreOrder(stayWithin);
-  }
-  return curr;
 }
 
 }  // namespace
