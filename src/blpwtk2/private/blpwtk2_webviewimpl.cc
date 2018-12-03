@@ -258,6 +258,11 @@ int WebViewImpl::loadUrl(const StringRef& url)
     return 0;
 }
 
+void WebViewImpl::drawContentsToBlob(Blob *blob, const DrawParams& params)
+{
+    NOTREACHED() << "drawContentsToBlob() not supported in WebViewImpl";
+}
+
 String WebViewImpl::printToPDF(const StringRef& propertyName)
 {
     NOTREACHED() << "printToPDF() not supported in WebViewImpl";

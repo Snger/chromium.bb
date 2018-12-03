@@ -43,6 +43,10 @@ struct RendererUtil
                                   const WebView::InputEvent *events,
                                   size_t                     eventsCount);
 
+    static void drawContentsToBlob(content::RenderView        *rv,
+                                   Blob                       *blob,
+                                   const WebView::DrawParams&  params);
+
     static String printToPDF(
         content::RenderView* renderView, const std::string& propertyName);
 };
