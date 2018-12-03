@@ -1571,15 +1571,16 @@ bool LayoutText::CanOptimizeSetText() const {
   return Parent()->IsLayoutBlockFlow() &&
          (Parent()->StyleRef().ContainsLayout() &&
           Parent()->StyleRef().ContainsSize()) &&
-         FirstTextBox() &&
-         (FirstTextBox() == LastTextBox() &&
-          // If "line-height" is "normal" we might need to recompute the
-          // baseline which is not straight forward.
-          !StyleRef().LineHeight().IsNegative() &&
-          // We would need to recompute the position if "direction" is "rtl".
-          StyleRef().IsLeftToRightDirection() &&
-          // We would need to layout the text if it is justified.
-          (StyleRef().GetTextAlign(true) != ETextAlign::kJustify));
+         FirstTextBox() && FirstTextBox() == LastTextBox() &&
+         FirstTextBox()->Root().FirstChild() ==
+             FirstTextBox()->Root().LastChild() &&
+         // If "line-height" is "normal" we might need to recompute the
+         // baseline which is not straight forward.
+         !StyleRef().LineHeight().IsNegative() &&
+         // We would need to recompute the position if "direction" is "rtl".
+         StyleRef().IsLeftToRightDirection() &&
+         // We would need to layout the text if it is justified.
+         (StyleRef().GetTextAlign(true) != ETextAlign::kJustify);
 }
 
 void LayoutText::SetFirstTextBoxLogicalLeft(float text_width) const {
@@ -1646,10 +1647,10 @@ void LayoutText::SetTextWithOffset(scoped_refptr<StringImpl> text,
     FloatRect glyph_bounds;
     float text_width =
         style_to_use->GetFont().Width(text_run, nullptr, &glyph_bounds);
-    // TODO(rego): We could avoid measuring text width in some specific
-    // situations (e.g. if "white-space" property is "pre" and "overflow-wrap"
-    // is "normal").
-    if (text_width <= ContainingBlock()->ContentLogicalWidth()) {
+    // If the text is not wrapping we don't care if it fits or not in the
+    // container as it's not going to be split in multiple lines.
+    if (!style_to_use->AutoWrap() ||
+        (text_width <= ContainingBlock()->ContentLogicalWidth())) {
       FirstTextBox()->ManuallySetStartLenAndLogicalWidth(
           offset, text->length(), LayoutUnit(text_width));
       SetFirstTextBoxLogicalLeft(text_width);
