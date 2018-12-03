@@ -189,6 +189,16 @@ class ProfileImpl : public Profile, public mojom::ProcessClient {
     void setIPCDelegate(ProcessClientDelegate *delegate) override;
 
     void clearWebCache() override;
+
+    void enableSpellCheck(bool enabled) override;
+
+    void setLanguages(const StringRef *languages,
+                      size_t           numLanguages) override;
+
+    void addCustomWords(const StringRef *words, size_t numWords) override;
+
+    void removeCustomWords(const StringRef *words,
+                           size_t           numWords) override;
 };
 
 }  // close namespace blpwtk2

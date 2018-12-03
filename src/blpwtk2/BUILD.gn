@@ -94,6 +94,7 @@ repack("pak") {
     "$root_gen_dir/third_party/blink/public/resources/blink_resources.pak",
     "$root_gen_dir/third_party/blink/public/resources/blink_inspector_resources.pak",
     "$root_gen_dir/third_party/blink/renderer/modules/media_controls/resources/media_controls_resources_100_percent.pak",
+    "$root_gen_dir/chrome/browser_resources.pak",
   ]
 
   deps = [
@@ -101,6 +102,7 @@ repack("pak") {
     "//third_party/blink/public:resources",
     "//third_party/blink/public:inspector_resources",
     "//third_party/blink/renderer/modules/media_controls:media_controls_resources",
+    "//chrome/browser:resources",
   ]
 }
 
@@ -116,6 +118,8 @@ shared_library("blpwtk2") {
     "private/blpwtk2.rc",
     "private/blpwtk2_browsercontextimpl.cc",
     "private/blpwtk2_browsercontextimpl.h",
+    "private/blpwtk2_browsermainparts.cc",
+    "private/blpwtk2_browsermainparts.h",
     "private/blpwtk2_browsermainrunner.cc",
     "private/blpwtk2_browsermainrunner.h",
     "private/blpwtk2_browserthread.cc",
@@ -289,6 +293,9 @@ shared_library("blpwtk2") {
     "//components/keyed_service/content",
     "//components/printing/service",
     "//components/printing/service/public/interfaces",
+    "//components/spellcheck/browser",
+    "//components/spellcheck/common",
+    "//components/spellcheck/renderer",
     "//components/user_prefs",
     "//content",
     "//content:resources",

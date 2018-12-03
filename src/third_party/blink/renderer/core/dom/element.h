@@ -305,6 +305,8 @@ class CORE_EXPORT Element : public ContainerNode {
   virtual int bbScrollWidthNoZoomAdjust() const;
   virtual int bbScrollHeightNoZoomAdjust() const;
 
+  void bbRequestSpellCheck();
+
   IntRect BoundsInViewport() const;
   // For elements that are not contained in any OOPIFs, this returns an
   // intersection rectangle of the bounds rectangle and the viewport
