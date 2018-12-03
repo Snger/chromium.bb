@@ -532,6 +532,11 @@ int ResourceDispatcher::StartAsync(
         std::move(peer), std::move(bridge), static_cast<ResourceType>(request->resource_type),
         request->render_frame_id, request->url, request->method,
         request->referrer, request->download_to_file);
+
+    pending_requests_[request_id]->url_loader_client =
+        std::make_unique<URLLoaderClientImpl>(request_id, this,
+                                              loading_task_runner);
+
     return request_id;
   }
 
