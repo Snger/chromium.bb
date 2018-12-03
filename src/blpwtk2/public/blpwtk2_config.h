@@ -45,6 +45,7 @@
 #define BLPWTK2_FEATURE_FOCUS
 // feature 1
 // feature 2
+#define BLPWTK2_FEATURE_PRINTPDF
 // feature 3
 #define BLPWTK2_FEATURE_CRTHANDLER
 // feature 4

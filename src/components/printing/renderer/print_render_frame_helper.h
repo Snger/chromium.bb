@@ -137,6 +137,8 @@ class PrintRenderFrameHelper
   // |is_pdf| is false, and 1.0f otherwise.
   static double GetScaleFactor(double input_scale_factor, bool is_pdf);
 
+  std::vector<char> PrintToPDF(blink::WebLocalFrame* localframe);
+
  private:
   friend class PrintRenderFrameHelperTestBase;
   FRIEND_TEST_ALL_PREFIXES(MAYBE_PrintRenderFrameHelperPreviewTest,
@@ -335,6 +337,7 @@ class PrintRenderFrameHelper
       const PrintMsg_PrintPages_Params& params,
       int page_count);
 
+#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
   // Given the |device| and |canvas| to draw on, prints the appropriate headers
   // and footers using strings from |header_footer_info| on to the canvas.
   static void PrintHeaderAndFooter(cc::PaintCanvas* canvas,
@@ -344,6 +347,7 @@ class PrintRenderFrameHelper
                                    float webkit_scale_factor,
                                    const PageSizeMargins& page_layout_in_points,
                                    const PrintMsg_Print_Params& params);
+#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
   // Script Initiated Printing ------------------------------------------------
 

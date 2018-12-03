@@ -102,6 +102,7 @@ static_library("chrome_blpwtk2") {
      "//components/printing/renderer",
      "//components/signin/core/browser:signin_buildflags",
      "//components/safe_browsing/web_ui:constants",
+     "//components/printing/renderer",
      "//content",
 
      # required by //chrome/common/chrome_content_client.cc

@@ -257,6 +257,8 @@ class WebViewImpl final : public WebView,
     void setBackgroundColor(NativeColor color) override;
     void setRegion(NativeRegion region) override;
     void clearTooltip() override;
+
+    String printToPDF(const StringRef& propertyName) override;
 };
 
 }  // close namespace blpwtk2
