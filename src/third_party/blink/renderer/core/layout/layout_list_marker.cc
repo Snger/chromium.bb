@@ -219,9 +219,9 @@ LayoutUnit LayoutListMarker::GetWidthOfTextWithSuffix() const {
   // TODO(wkorman): Look into constructing a text run for both text and suffix
   // and painting them together.
   UChar suffix[1] = {
-      ListMarkerText::Suffix(StyleRef().ListStyleType(), list_item_->Value())};
+      ListMarkerText::Suffix(Style()->ListStyleType(), list_item_->Value())};
   TextRun run =
-      ConstructTextRun(font, suffix, 1, StyleRef(), StyleRef().Direction());
+      ConstructTextRun(font, suffix, 1, StyleRef(), Style()->Direction());
   LayoutUnit suffix_space_width = LayoutUnit(font.Width(run));
   return item_width + suffix_space_width;
 }
@@ -278,6 +278,7 @@ LayoutUnit LayoutListMarker::WidthOfSymbol(const ComputedStyle& style) {
 void LayoutListMarker::UpdateMargins() {
   LayoutUnit margin_start;
   LayoutUnit margin_end;
+  const ComputedStyle& style = StyleRef();
   if (IsInside()) {
   #if 0
     std::tie(margin_start, margin_end) =
@@ -474,6 +475,7 @@ bool LayoutListMarker::IsInside() const {
 
 LayoutRect LayoutListMarker::GetRelativeMarkerRect() const {
   LayoutRect relative_rect;
+
   if (IsImage()) {
     IntSize image_size = FlooredIntSize(ImageBulletSize());
     relative_rect = LayoutRect(0, 0, image_size.Width(), image_size.Height());
@@ -482,6 +484,11 @@ LayoutRect LayoutListMarker::GetRelativeMarkerRect() const {
     }
     return relative_rect;
   }
+
+  const SimpleFontData* font_data = Style()->GetFont().PrimaryFont();
+  DCHECK(font_data);
+  if (!font_data)
+    return relative_rect;
 
   switch (GetListStyleCategory()) {
     case ListStyleCategory::kNone:
