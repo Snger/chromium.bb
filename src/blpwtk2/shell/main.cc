@@ -636,6 +636,9 @@ HANDLE spawnProcess()
     if (g_custom_tooltip) {
         cmdline.append(" --custom-tooltip");
     }
+    if (g_renderer_ui) {
+        cmdline.append(" --renderer-ui");
+    }
 
     // It seems like CreateProcess wants a char* instead of
     // a const char*.  So we need to make a copy to a modifiable
