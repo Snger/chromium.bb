@@ -668,21 +668,27 @@ bool RenderWebView::dispatchToRenderViewImpl(const IPC::Message& message)
 {
     content::RenderView *rv =
         content::RenderView::FromRoutingID(d_renderViewRoutingId);
-    DCHECK(rv);
 
-    blink::WebFrame *webFrame = rv->GetWebView()->MainFrame();
+    if (rv) {
+        blink::WebFrame *webFrame = rv->GetWebView()->MainFrame();
 
-    v8::Isolate* isolate = webFrame->ScriptIsolate();
-    v8::Isolate::Scope isolateScope(isolate);
+        v8::Isolate* isolate = webFrame->ScriptIsolate();
+        v8::Isolate::Scope isolateScope(isolate);
 
-    v8::HandleScope handleScope(isolate);
+        v8::HandleScope handleScope(isolate);
 
-    v8::Context::Scope contextScope(
-        webFrame->ToWebLocalFrame()->MainWorldScriptContext());
+        v8::Context::Scope contextScope(
+            webFrame->ToWebLocalFrame()->MainWorldScriptContext());
 
-    return static_cast<IPC::Listener *>(
-        content::RenderThreadImpl::current())
-            ->OnMessageReceived(message);
+        return static_cast<IPC::Listener *>(
+            content::RenderThreadImpl::current())
+                ->OnMessageReceived(message);
+    }
+    else {
+        return static_cast<IPC::Listener *>(
+            content::RenderThreadImpl::current())
+                ->OnMessageReceived(message);
+    }
 }
 
 void RenderWebView::OnRenderViewDestruct()
@@ -803,11 +809,10 @@ void RenderWebView::updateSize()
         return;
     }
 
+    d_compositor->Resize(d_size);
+
     content::RenderWidget *rw =
         content::RenderViewImpl::FromRoutingID(d_renderViewRoutingId);
-    DCHECK(rw);
-
-    d_compositor->Resize(d_size);
 
     content::ResizeParams resize_params = {};
     resize_params.new_size = d_size;
@@ -815,7 +820,7 @@ void RenderWebView::updateSize()
     resize_params.visible_viewport_size = d_size;
     resize_params.display_mode = blink::kWebDisplayModeBrowser;
     resize_params.local_surface_id = d_compositor->GetLocalSurfaceId();
-    resize_params.content_source_id = rw->GetContentSourceId();
+    resize_params.content_source_id = rw ? rw->GetContentSourceId() : 0u;
     GetNativeViewScreenInfo(&resize_params.screen_info, d_hwnd.get());
 
     // Prevent ViewMsg_Resize from being handled by the RenderViewObserver:
