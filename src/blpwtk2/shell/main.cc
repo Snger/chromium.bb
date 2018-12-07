@@ -978,6 +978,9 @@ HANDLE spawnProcess()
     if (g_custom_tooltip) {
         cmdline.append(" --custom-tooltip");
     }
+    if (g_renderer_ui) {
+        cmdline.append(" --renderer-ui");
+    }
 
     for (size_t i = 0; i < g_sideLoadedFonts.size(); ++i) {
         cmdline.append(" --sideload-font=");
