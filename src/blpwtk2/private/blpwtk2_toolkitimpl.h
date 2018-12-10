@@ -27,13 +27,17 @@
 
 #include <blpwtk2_contentmaindelegateimpl.h>
 #include <blpwtk2_processhostdelegate.h>
+#include <blpwtk2_embedderheaptracer.h>
+#include <blpwtk2_embedderheaptracershim.h>
 #include <blpwtk2_toolkit.h>
 
 #include <mojo/public/cpp/bindings/sync_call_restrictions.h>
 #include <sandbox/win/src/sandbox_types.h>
 #include "base/metrics/field_trial.h"
 
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace base {
@@ -74,7 +78,7 @@ class ToolkitImpl : public Toolkit {
     ContentMainDelegateImpl d_mainDelegate;
     std::unique_ptr<content::ContentMainRunner> d_mainRunner;
     MainMessagePump *d_messagePump;
-	std::unique_ptr<base::FieldTrialList> field_trial_list;
+    std::unique_ptr<base::FieldTrialList> field_trial_list;
 
     std::unique_ptr<BrowserThread> d_browserThread;
         // Only used for the RENDERER_MAIN thread mode and when an external
@@ -94,6 +98,9 @@ class ToolkitImpl : public Toolkit {
     std::unique_ptr<gin::IsolateHolder> d_isolateHolder;
         // Only used for ORIGINAL thread mode and when the toolkit is created with
         // browserV8Enabled flag
+
+    std::unordered_map<int, std::unique_ptr<EmbedderHeapTracerShim>> d_heapTracers;
+        // Registered heap tracers.
 
     ~ToolkitImpl() override;
         // Shutdown all threads and delete the toolkit.  To ensure the same
@@ -150,6 +157,8 @@ class ToolkitImpl : public Toolkit {
     v8::Platform *getV8Platform() override;
     void opaqueMessageToRendererAsync(int pid, const StringRef &message) override;
     void setIPCDelegate(ProcessHostDelegate *delegate) override;
+    int addV8HeapTracer(EmbedderHeapTracer *tracer) override;
+    void removeV8HeapTracer(int embedder_id) override;
 };
 
 }  // close namespace blpwtk2
