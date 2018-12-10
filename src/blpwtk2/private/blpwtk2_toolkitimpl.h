@@ -104,9 +104,6 @@ class ToolkitImpl : public Toolkit {
         // Only used for ORIGINAL thread mode and when the toolkit is created with
         // browserV8Enabled flag
 
-    std::unordered_map<int, std::unique_ptr<EmbedderHeapTracerShim>> d_heapTracers;
-        // Registered heap tracers.
-
     scoped_refptr<GpuDataLogger> d_gpuDataLogger;
         // GPU data manager observer to log the gpu process messages
         // note: verbosity of the log depends on chromium gpu debugging switches
