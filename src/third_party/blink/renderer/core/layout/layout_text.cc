@@ -1571,9 +1571,9 @@ bool LayoutText::CanOptimizeSetText() const {
   return Parent()->IsLayoutBlockFlow() &&
          (Parent()->StyleRef().ContainsLayout() &&
           Parent()->StyleRef().ContainsSize()) &&
-         FirstTextBox() && FirstTextBox() == LastTextBox() &&
-         FirstTextBox()->Root().FirstChild() ==
-             FirstTextBox()->Root().LastChild() &&
+         !PreviousSibling() && !NextSibling() && FirstTextBox() &&
+         FirstTextBox() == LastTextBox() &&
+
          // If "line-height" is "normal" we might need to recompute the
          // baseline which is not straight forward.
          !StyleRef().LineHeight().IsNegative() &&
