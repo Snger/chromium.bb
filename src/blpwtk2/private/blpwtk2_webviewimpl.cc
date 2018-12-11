@@ -256,6 +256,11 @@ int WebViewImpl::loadUrl(const StringRef& url)
     return 0;
 }
 
+void WebViewImpl::disableResizeOptimization()
+{
+    NOTREACHED() << "disableResizeOptimization() not supported in WebViewImpl";
+}
+
 int WebViewImpl::getRoutingId() const
 {
     DCHECK(Statics::isInBrowserMainThread());

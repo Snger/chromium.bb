@@ -54,6 +54,7 @@ class WebViewProxy final : public WebView
     bool d_pendingLoadStatus;
     bool d_isMainFrameAccessible;
     bool d_pendingDestroy;
+    bool d_disableResizeOptimization = false;
     std::string d_url;
     std::unique_ptr<WebFrameImpl> d_mainFrame;
 
@@ -98,6 +99,7 @@ class WebViewProxy final : public WebView
             int                      argc,
             v8::Local<v8::Value>    *argv) override;
 
+    void disableResizeOptimization() override;
 
     DISALLOW_COPY_AND_ASSIGN(WebViewProxy);
 
