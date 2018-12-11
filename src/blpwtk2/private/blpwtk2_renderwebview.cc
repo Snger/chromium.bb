@@ -1367,6 +1367,12 @@ String RenderWebView::printToPDF(const StringRef& propertyName)
 }
 #endif
 
+#if defined(BLPWTK2_FEATURE_FASTRESIZE)
+void RenderWebView::disableResizeOptimization()
+{
+}
+#endif
+
 // blpwtk2::WebViewClientDelegate overrides
 void RenderWebView::setClient(WebViewClient *client)
 {

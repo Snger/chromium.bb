@@ -266,6 +266,10 @@ class RenderWebView final : public WebView
     String printToPDF(const StringRef& propertyName) override;
 #endif
 
+#if defined(BLPWTK2_FEATURE_FASTRESIZE)
+    void disableResizeOptimization() override;
+#endif
+
     // IPC::Listener overrides
     bool OnMessageReceived(const IPC::Message& message) override;
 
