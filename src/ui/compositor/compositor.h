@@ -28,6 +28,7 @@
 #include "third_party/skia/include/core/SkMatrix44.h"
 #include "ui/compositor/compositor_animation_observer.h"
 #include "ui/compositor/compositor_export.h"
+#include "ui/compositor/compositor_gpu_observer.h"
 #include "ui/compositor/compositor_lock.h"
 #include "ui/compositor/compositor_observer.h"
 #include "ui/compositor/layer_animator_collection.h"
@@ -357,6 +358,10 @@ class COMPOSITOR_EXPORT Compositor : public cc::LayerTreeHostClient,
   void RemoveAnimationObserver(CompositorAnimationObserver* observer);
   bool HasAnimationObserver(const CompositorAnimationObserver* observer) const;
 
+  void AddGpuObserver(CompositorGpuObserver* observer);
+  void RemoveGpuObserver(CompositorGpuObserver* observer);
+  bool HasGpuObserver(const CompositorGpuObserver* observer) const;
+
   // Creates a compositor lock. Returns NULL if it is not possible to lock at
   // this time (i.e. we're waiting to complete a previous unlock). If the
   // timeout is null, then no timeout is used.
@@ -400,6 +405,9 @@ class COMPOSITOR_EXPORT Compositor : public cc::LayerTreeHostClient,
   void DidCompletePageScaleAnimation() override {}
 
   bool IsForSubframe() override;
+
+  // gpu command buffer callback
+  void OnGpuContextErrorMessage(const char* message, int32_t id);
 
   // cc::LayerTreeHostSingleThreadClient implementation.
   void DidSubmitCompositorFrame() override;
@@ -447,6 +455,7 @@ class COMPOSITOR_EXPORT Compositor : public cc::LayerTreeHostClient,
 
   base::ObserverList<CompositorObserver, true> observer_list_;
   base::ObserverList<CompositorAnimationObserver> animation_observer_list_;
+  base::ObserverList<CompositorGpuObserver> gpu_observer_list_;
 
   gfx::AcceleratedWidget widget_ = gfx::kNullAcceleratedWidget;
   // A sequence number of a current compositor frame for use with metrics.

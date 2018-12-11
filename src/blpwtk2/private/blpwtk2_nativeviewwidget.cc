@@ -135,6 +135,12 @@ void NativeViewWidget::setRegion(blpwtk2::NativeRegion region)
                    ::IsWindowVisible(hwnd));
 }
 
+gfx::NativeWindow NativeViewWidget::GetNativeWindow()
+{
+    DCHECK(d_impl);
+    return d_impl->GetNativeWindow();
+}
+
 // views::WidgetDelegate overrides
 
 void NativeViewWidget::WindowClosing()
