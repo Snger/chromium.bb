@@ -277,6 +277,7 @@ class WebViewImpl final : public WebView,
     String printToPDF(const StringRef& propertyName) override;
     void OnCompositorGpuErrorMessage(const std::string& message) override;
     void OnCompositingShuttingDown(ui::Compositor* compositor) override;
+    void disableResizeOptimization() override;
 };
 
 }  // close namespace blpwtk2

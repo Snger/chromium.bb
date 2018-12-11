@@ -309,6 +309,17 @@ class WebView
     virtual String printToPDF(const StringRef& propertyName) = 0;
         // TODO(imran)
 
+    virtual void disableResizeOptimization() = 0;
+        // Disable resize optimization for this webview.  This optimization
+        // helps to speed up the resize operation by parallelizing the resize
+        // of the OS window and the painting & compositing of the content.
+        //
+        // This optimization occasionally triggers a race condition in the
+        // GPU subprocess.  The GPU process requires the OS window to be sized
+        // before it receives the data from the compositor.  In some rare
+        // cases, this assumption is broken and it causes the content to be
+        // incorrectly scaled.
+
   protected:
     virtual ~WebView();
         // Destroy this WebView.  Note that clients of blpwtk2 should use the
