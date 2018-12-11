@@ -143,6 +143,12 @@ void NativeViewWidget::compositionChanged()
     d_impl->CompositionChanged();
 }
 
+gfx::NativeWindow NativeViewWidget::GetNativeWindow()
+{
+    DCHECK(d_impl);
+    return d_impl->GetNativeWindow();
+}
+
 // views::WidgetDelegate overrides
 
 void NativeViewWidget::WindowClosing()

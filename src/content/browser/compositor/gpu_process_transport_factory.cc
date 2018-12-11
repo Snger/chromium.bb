@@ -115,6 +115,8 @@
 #include "content/browser/compositor/vulkan_browser_compositor_output_surface.h"
 #endif
 
+#include "gpu/command_buffer/client/context_support.h"
+
 using viz::ContextProvider;
 using gpu::gles2::GLES2Interface;
 
@@ -649,6 +651,13 @@ void GpuProcessTransportFactory::EstablishedGpuChannel(
       features::IsVizHitTestingEnabled());
   data->display->Resize(compositor->size());
   data->display->SetOutputIsSecure(data->output_is_secure);
+
+  gpu::ContextSupport* pContextSupport = context_provider ? 
+    context_provider->ContextSupport() : nullptr;
+  if (pContextSupport) {
+    pContextSupport->SetErrorMessageCallback(base::Bind(
+        &ui::Compositor::OnGpuContextErrorMessage, compositor));
+  }
   compositor->SetLayerTreeFrameSink(std::move(layer_tree_frame_sink));
 }
 

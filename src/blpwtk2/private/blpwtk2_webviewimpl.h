@@ -37,6 +37,7 @@
 #include <content/public/common/file_chooser_params.h>
 #include <ui/gfx/native_widget_types.h>
 #include <third_party/blink/public/web/web_text_direction.h>
+#include <ui/compositor/compositor_gpu_observer.h>
 
 namespace content {
 class WebContents;
@@ -80,7 +81,8 @@ class WebViewImpl final : public WebView,
                           private NativeViewWidgetDelegate,
                           public content::WebContentsDelegate,
                           private content::WebContentsObserver,
-                          private base::SupportsWeakPtr<WebViewImpl>
+                          private base::SupportsWeakPtr<WebViewImpl>,
+                          public ui::CompositorGpuObserver
 {
     // DATA
     std::unique_ptr<DevToolsFrontendHostDelegateImpl> d_devToolsFrontEndHost;
@@ -102,6 +104,7 @@ class WebViewImpl final : public WebView,
     int d_lastNCHitTestResult;
     int d_hostId;
     bool d_rendererUI;
+    ui::Compositor* d_gpuCompositor = nullptr;
 
     void createWidget(blpwtk2::NativeView parent);
 
@@ -197,6 +200,11 @@ class WebViewImpl final : public WebView,
     void OnWebContentsLostFocus(content::RenderWidgetHost* render_widget_host) override;
         // Invoked when focus is lost.
 
+    // Sets Error Message Callback to receive the GPU error messages
+    // from the GPU command buffer channel
+    bool StartObservingGpuCompositor();
+    bool StopObservingGpuCompositor();
+
     DISALLOW_COPY_AND_ASSIGN(WebViewImpl);
 
   public:
@@ -266,8 +274,9 @@ class WebViewImpl final : public WebView,
     void setBackgroundColor(NativeColor color) override;
     void setRegion(NativeRegion region) override;
     void clearTooltip() override;
-
     String printToPDF(const StringRef& propertyName) override;
+    void OnCompositorGpuErrorMessage(const std::string& message) override;
+    void OnCompositingShuttingDown(ui::Compositor* compositor) override;
 };
 
 }  // close namespace blpwtk2
