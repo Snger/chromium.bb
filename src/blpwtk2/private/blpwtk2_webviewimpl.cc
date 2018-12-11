@@ -269,6 +269,11 @@ String WebViewImpl::printToPDF(const StringRef& propertyName)
     return String();
 }
 
+void WebViewImpl::disableResizeOptimization()
+{
+    NOTREACHED() << "disableResizeOptimization() not supported in WebViewImpl";
+}
+
 int WebViewImpl::getRoutingId() const
 {
     DCHECK(Statics::isInBrowserMainThread());
