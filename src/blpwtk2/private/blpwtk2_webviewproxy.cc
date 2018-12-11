@@ -71,7 +71,7 @@ float getScreenScaleFactor()
     return scale_x;  // Windows zooms are always symmetric
 }
 
-bool disableResizeOptimization()
+bool shouldSkipResizeOptimization()
 {
     static bool scale_read = false;
     static bool resizeOptimizationDisabled = false;
@@ -463,6 +463,11 @@ v8::MaybeLocal<v8::Value> WebViewProxy::callFunction(
     return localWebFrame->CallFunctionEvenIfScriptDisabled(func, recv, argc, argv);
 }
 
+void WebViewProxy::disableResizeOptimization()
+{
+    d_disableResizeOptimization = true;
+}
+
 // blpwtk2::WebViewClientDelegate overrides
 void WebViewProxy::setClient(WebViewClient *client)
 {
@@ -545,7 +550,7 @@ void WebViewProxy::findReply(int  numberOfMatches,
 
 void WebViewProxy::preResize(const gfx::Size& size)
 {
-    if (d_gotRenderViewInfo && !size.IsEmpty() && !disableResizeOptimization()) {
+    if (!d_disableResizeOptimization && d_gotRenderViewInfo && !size.IsEmpty() && !shouldSkipResizeOptimization()) {
         // If we have renderer info (only happens if we are in-process), we can
         // start resizing the RenderView while we are in the main thread.  This
         // is to avoid a round-trip delay waiting for the resize to get to the
