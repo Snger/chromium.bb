@@ -869,7 +869,7 @@ void WebViewImpl::OnCompositorGpuErrorMessage(const std::string& message) {
 }
 
 void WebViewImpl::OnCompositingShuttingDown(ui::Compositor* pCompositor) {
-  pCompositor->RemoveGpuObserver(this);
+  StopObservingGpuCompositor();
 }
 
 // Start Observing GPU compositor to receive the GPU error messages
@@ -896,12 +896,15 @@ bool WebViewImpl::StartObservingGpuCompositor() {
 
 // Stop Observing GPU compositor
 bool WebViewImpl::StopObservingGpuCompositor() {
-  if (d_gpuCompositor && d_gpuCompositor->HasGpuObserver(this)) {
-    d_gpuCompositor->RemoveGpuObserver(this);
+  bool ret = false;
+  if (d_gpuCompositor) {
+    if (d_gpuCompositor->HasGpuObserver(this)) {
+        d_gpuCompositor->RemoveGpuObserver(this);
+        ret = true;
+    }
     d_gpuCompositor = nullptr;
-    return true;
   }
-  return false;
+  return ret;
 }
 
 }  // close namespace blpwtk2
