@@ -342,6 +342,9 @@ class COMPOSITOR_EXPORT Compositor : public cc::LayerTreeHostClient,
   // mode to use for resources, but may be used eg for tooltip windows.
   bool force_software_compositor() { return force_software_compositor_; }
 
+
+  bool caught_fatal_gpu_error() { return caught_fatal_gpu_error_; }
+
   // Returns the main thread task runner this compositor uses. Users of the
   // compositor generally shouldn't use this.
   scoped_refptr<base::SingleThreadTaskRunner> task_runner() const {
@@ -485,6 +488,7 @@ class COMPOSITOR_EXPORT Compositor : public cc::LayerTreeHostClient,
   bool needs_external_begin_frames_ = false;
 
   const bool force_software_compositor_;
+  bool caught_fatal_gpu_error_ = false;
 
   // The device scale factor of the monitor that this compositor is compositing
   // layers on.
