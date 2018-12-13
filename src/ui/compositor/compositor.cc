@@ -283,6 +283,8 @@ void Compositor::SetLocalSurfaceId(
 void Compositor::SetLayerTreeFrameSink(
     std::unique_ptr<cc::LayerTreeFrameSink> layer_tree_frame_sink) {
   layer_tree_frame_sink_requested_ = false;
+  // resetting the gpu error state
+  caught_fatal_gpu_error_ = false;
   host_->SetLayerTreeFrameSink(std::move(layer_tree_frame_sink));
   // Display properties are reset when the output surface is lost, so update it
   // to match the Compositor's.
@@ -566,6 +568,7 @@ bool Compositor::HasGpuObserver(
 // gpu command buffer callback
 void Compositor::OnGpuContextErrorMessage(const char* message,
                                   int32_t id) {
+  caught_fatal_gpu_error_ = true;
   for (auto& observer : gpu_observer_list_)
     observer.OnCompositorGpuErrorMessage(message);
 }
