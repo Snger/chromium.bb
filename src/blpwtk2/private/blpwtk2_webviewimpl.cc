@@ -1033,6 +1033,9 @@ void WebViewImpl::OnCompositingShuttingDown(ui::Compositor* pCompositor) {
 // Start Observing GPU compositor to receive the GPU error messages
 // from the GPU command buffer channel
 bool WebViewImpl::StartObservingGpuCompositor() {
+  if (!d_widget)
+    return false;
+
   gfx::NativeWindow nativeWindow = d_widget->GetNativeWindow();
   ui::Compositor *pCompositor =  nativeWindow && nativeWindow->layer() ?
                                     nativeWindow->layer()->GetCompositor() : nullptr;

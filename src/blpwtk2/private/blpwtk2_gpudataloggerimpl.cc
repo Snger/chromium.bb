@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Bloomberg Finance L.P.
+ * Copyright (C) 2018 Bloomberg Finance L.P.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -19,7 +19,7 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
- 
+
 
 #include <blpwtk2_config.h>
 
@@ -67,7 +67,6 @@ GpuDataLoggerImpl::~GpuDataLoggerImpl() {}
 
 // Called for any observers whenever there is a log message added to the GPU data.
 void GpuDataLoggerImpl::OnAddLogMessage(int level, const std::string& header, const std::string& message) {
- 
 	switch (level) {
 		case logging::LOG_INFO:
 			LOG(INFO) << "gpu log message: \n" << header << message;
@@ -85,8 +84,7 @@ void GpuDataLoggerImpl::OnAddLogMessage(int level, const std::string& header, co
 			VLOG(level) << "gpu log message: \n" << header << message;
 			break;
 	}
-	
 }
 
-
 }  // namespace blpwtk2
+
