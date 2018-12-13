@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2015 Bloomberg Finance L.P.
+ * Copyright (C) 2018 Bloomberg Finance L.P.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -33,7 +33,7 @@
 
 namespace blpwtk2 {
 
-class BLPWTK2_EXPORT GpuDataLoggerImpl : public GpuDataLogger {
+class GpuDataLoggerImpl : public GpuDataLogger {
  public:
   GpuDataLoggerImpl();
 
