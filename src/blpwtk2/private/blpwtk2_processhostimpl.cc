@@ -42,6 +42,7 @@
 
 #include <base/command_line.h>
 #include <content/public/browser/browser_thread.h>
+#include <ui/gfx/win/rendering_window_manager.h>
 
 namespace blpwtk2 {
 
@@ -501,6 +502,24 @@ void ProcessHostImpl::clearBypassRules() {
 
 void ProcessHostImpl::setPacUrl(const std::string& url) {
   d_impl->context().setPacUrl(StringRef(url));
+}
+
+void ProcessHostImpl::registerNativeViewForComposition(unsigned int view)
+{
+    gfx::RenderingWindowManager::GetInstance()->RegisterParent(
+        reinterpret_cast<NativeView>(view));
+}
+
+void ProcessHostImpl::unregisterNativeViewForComposition(unsigned int view)
+{
+    gfx::RenderingWindowManager::GetInstance()->UnregisterParent(
+        reinterpret_cast<NativeView>(view));
+}
+
+void ProcessHostImpl::resolveNativeViewComposition(uint32_t view)
+{
+    gfx::RenderingWindowManager::GetInstance()->DoSetParentOnChild(
+        reinterpret_cast<NativeView>(view));
 }
 
 }  // namespace blpwtk2
