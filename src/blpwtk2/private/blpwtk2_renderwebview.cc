@@ -234,7 +234,7 @@ RenderWebView::Init(
     d_size = gfx::Rect(rect).size();
 
     d_compositor = RenderCompositorContext::GetInstance()->CreateCompositor(
-        d_hwnd.get(), d_profile);
+        d_hwnd.get());
 
     d_input_method = ui::CreateInputMethod(this, d_hwnd.get());
 }

@@ -1149,6 +1149,14 @@ void GpuProcessHost::SetChildSurface(gpu::SurfaceHandle parent_handle,
   if (!in_process_) {
     DCHECK(process_);
 
+    DWORD parent_process_id = 0;
+    DWORD parent_thread_id =
+        GetWindowThreadProcessId(parent_handle, &parent_process_id);
+    if (!parent_thread_id || parent_process_id != ::GetCurrentProcessId()) {
+      LOG(ERROR) << kBadMessageError;
+      return;
+    }
+
     DWORD child_process_id = 0;
     DWORD child_thread_id =
         GetWindowThreadProcessId(window_handle, &child_process_id);

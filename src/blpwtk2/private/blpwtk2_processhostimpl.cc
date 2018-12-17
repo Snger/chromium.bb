@@ -44,7 +44,6 @@
 #include <base/command_line.h>
 #include <content/public/browser/browser_thread.h>
 #include <printing/backend/print_backend.h>
-#include <ui/gfx/win/rendering_window_manager.h>
 
 namespace blpwtk2 {
 
@@ -554,24 +553,6 @@ void ProcessHostImpl::setPacUrl(const std::string& url) {
   d_impl->context().setPacUrl(StringRef(url));
 }
 
-void ProcessHostImpl::registerNativeViewForComposition(unsigned int view)
-{
-    gfx::RenderingWindowManager::GetInstance()->RegisterParent(
-        reinterpret_cast<NativeView>(view));
-}
-
-void ProcessHostImpl::unregisterNativeViewForComposition(unsigned int view)
-{
-    gfx::RenderingWindowManager::GetInstance()->UnregisterParent(
-        reinterpret_cast<NativeView>(view));
-}
-
-void ProcessHostImpl::resolveNativeViewComposition(uint32_t view)
-{
-    gfx::RenderingWindowManager::GetInstance()->DoSetParentOnChild(
-        reinterpret_cast<NativeView>(view));
-}
-
 void ProcessHostImpl::enableSpellCheck(bool enabled)
 {
     d_impl->context().enableSpellCheck(enabled);
@@ -637,6 +618,7 @@ void ProcessHostImpl::opaqueMessageToBrowserSync(const std::string&             
       LOG(ERROR) << "Message handler is missing for MSG: " << msg;
       std::move(callback).Run("");
     }
+
 }
 
 }  // namespace blpwtk2

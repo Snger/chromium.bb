@@ -121,16 +121,6 @@ interface ProcessHost {
 
     setPacUrl(string url);
 
-    registerNativeViewForComposition(uint32 view);
-    unregisterNativeViewForComposition(uint32 view);
-        // These two functions allow a renderer-owned native view to
-        // host compositor output.
-
-    resolveNativeViewComposition(uint32 view);
-        // This function will cause the browser process to connect the
-        // renderer-owned native view with composition output generated
-        // in the GPU process.
-
     enableSpellCheck(bool enabled);
 
     setLanguages(array<string> languages);
