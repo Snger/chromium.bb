@@ -69,19 +69,19 @@ GpuDataLoggerImpl::~GpuDataLoggerImpl() {}
 void GpuDataLoggerImpl::OnAddLogMessage(int level, const std::string& header, const std::string& message) {
 	switch (level) {
 		case logging::LOG_INFO:
-			LOG(INFO) << "gpu log message: \n" << header << message;
+			LOG(INFO) << "gpu log message: \nHeader: " << header << " Message: " << message;
 			break;
 		case logging::LOG_WARNING:
-			LOG(WARNING) << "gpu log message: \n" << header << message;
+			LOG(WARNING) << "gpu log message: \nHeader: " << header << " Message: " << message;
 			break;
 		case logging::LOG_ERROR:
-			LOG(ERROR) << "gpu log message: \n" << header << message;
+			LOG(ERROR) << "gpu log message: \nHeader: " << header << " Message: " << message;
 			break;
 		case logging::LOG_FATAL:
-			LOG(FATAL) << "gpu log message: \n" << header << message;
+			LOG(FATAL) << "gpu log message: \nHeader: " << header << " Message: " << message;
 			break;
 		default:
-			VLOG(level) << "gpu log message: \n" << header << message;
+			VLOG(level) << "gpu log message: \nHeader: " << header << " Message: " << message;
 			break;
 	}
 }
