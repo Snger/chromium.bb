@@ -121,6 +121,16 @@ class ProfileImpl : public Profile, public mojom::ProcessClient {
         // Returns the pid of the RenderProcess for which this profile is
         // associated with.
 
+    void registerNativeViewForComposition(NativeView view);
+    void unregisterNativeViewForComposition(NativeView view);
+        // These two functions allow a renderer-owned native view to
+        // host compositor output.
+
+    void resolveNativeViewComposition(NativeView view);
+        // This function will cause the browser process to connect the
+        // renderer-owned native view with composition output generated
+        // in the GPU process.
+
     // blpwtk2::Profile overrides
     void destroy() override;
 

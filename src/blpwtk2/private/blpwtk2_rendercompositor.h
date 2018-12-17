@@ -78,6 +78,7 @@ class SharedBitmapManager;
 namespace blpwtk2 {
 
 class LayerTreeFrameSink;
+class ProfileImpl;
 class RenderCompositor;
 
 class RenderCompositorContext {
@@ -86,7 +87,9 @@ class RenderCompositorContext {
     static RenderCompositorContext* GetInstance();
     static void Terminate();
 
-    std::unique_ptr<RenderCompositor> CreateCompositor(gpu::SurfaceHandle gpu_surface_handle);
+    std::unique_ptr<RenderCompositor> CreateCompositor(
+        gpu::SurfaceHandle gpu_surface_handle,
+        blpwtk2::ProfileImpl *profile);
 
     bool RequestNewLayerTreeFrameSink(
         bool use_software, int routing_id,
@@ -158,10 +161,14 @@ class RenderCompositor {
 
     friend class RenderCompositorContext;
 
-    RenderCompositor(RenderCompositorContext *context, gpu::SurfaceHandle gpu_surface_handle);
+    RenderCompositor(
+        RenderCompositorContext *context,
+        gpu::SurfaceHandle gpu_surface_handle,
+        blpwtk2::ProfileImpl *profile);
 
     RenderCompositorContext                             *d_context;
     gpu::SurfaceHandle                                   d_gpu_surface_handle;
+    blpwtk2::ProfileImpl                                *d_profile = nullptr;
     int                                                  d_routing_id = 0;
     viz::LocalSurfaceId                                  d_local_surface_id;
     std::unique_ptr<viz::ParentLocalSurfaceIdAllocator>  d_local_surface_id_allocator;
@@ -193,6 +200,8 @@ class RenderCompositor {
             const viz::LocalSurfaceId& local_surface_id,
             base::WaitableEvent *event);
         void RequestNewLayerTreeFrameSinkImpl(
+            blpwtk2::ProfileImpl *profile,
+            scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner,
             scoped_refptr<gpu::GpuChannelHost> gpu_channel,
             scoped_refptr<base::SingleThreadTaskRunner> compositor_task_runner,
             RenderCompositorContext::Details *context,
