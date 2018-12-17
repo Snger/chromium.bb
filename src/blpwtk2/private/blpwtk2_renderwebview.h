@@ -32,12 +32,14 @@
 #include <blpwtk2_webviewclientdelegate.h>
 #include <blpwtk2_webviewproperties.h>
 
+#include <base/timer/timer.h>
 #include <content/browser/renderer_host/input/mouse_wheel_event_queue.h>
 #include <content/common/text_input_state.h>
 #include <content/common/cursors/webcursor.h>
 #include <content/public/renderer/render_view_observer.h>
 #include <ipc/ipc_listener.h>
 #include <third_party/blink/public/platform/web_drag_operation.h>
+#include <third_party/blink/public/web/web_text_direction.h>
 #include <ui/base/ime/input_method_delegate.h>
 #include <ui/base/ime/text_input_client.h>
 #include <ui/gfx/selection_bound.h>
@@ -77,6 +79,11 @@ class RubberbandOutline;
 
 namespace views {
 class WindowsSessionChangeObserver;
+
+namespace corewm {
+class Tooltip;
+}  // close namespace wm
+
 }  // close namespace views
 
 namespace blpwtk2 {
@@ -149,6 +156,7 @@ class RenderWebView final : public WebView
 
     bool d_nc_hit_test_enabled = false;
     int d_nc_hit_test_result = 0;
+    bool d_mouse_pressed = false;
     bool d_mouse_entered = false, d_mouse_locked = false;
 
     // Who knew that cursor-setting would be such a hassle?
@@ -178,6 +186,16 @@ class RenderWebView final : public WebView
     std::unique_ptr<ui::RubberbandOutline> d_rubberbandOutline;
 #endif
 
+    base::string16 d_tooltip_text, d_last_tooltip_text, d_tooltip_text_at_mouse_press;
+    std::unique_ptr<views::corewm::Tooltip> d_tooltip;
+
+    base::OneShotTimer d_tooltip_defer_timer;
+        // Timer for requesting delayed updates of the tooltip.
+
+    base::OneShotTimer d_tooltip_shown_timer;
+        // Timer to timeout the life of an on-screen tooltip. We hide the tooltip
+        // when this timer fires.
+
     static LPCTSTR GetWindowClass();
     static LRESULT CALLBACK WindowProcedure(HWND   hWnd,
                                             UINT   uMsg,
@@ -201,6 +219,9 @@ class RenderWebView final : public WebView
     void setPlatformCursor(HCURSOR cursor);
     void sendScreenRects();
     void dispatchInputEvent(const blink::WebInputEvent& event);
+    void showTooltip();
+    void hideTooltip();
+    void updateTooltip();
 
 #if defined(BLPWTK2_FEATURE_RUBBERBAND)
     void updateAltDragRubberBanding();
@@ -361,6 +382,9 @@ class RenderWebView final : public WebView
         uint32_t offset,
         const gfx::Range& range);
     void OnSetCursor(const content::WebCursor& cursor);
+    void OnSetTooltipText(
+        const base::string16& tooltip_text,
+        blink::WebTextDirection text_direction_hint);
     void OnShowWidget(int routing_id, gfx::Rect initial_rect);
     void OnStartDragging(
         const content::DropData& drop_data,

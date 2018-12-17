@@ -61,6 +61,7 @@
 #include <ui/gfx/icon_util.h>
 #include <ui/display/display.h>
 #include <ui/display/screen.h>
+#include <ui/views/corewm/tooltip_win.h>
 #include <v8/include/v8.h>
 
 #if defined(BLPWTK2_FEATURE_RUBBERBAND)
@@ -100,6 +101,9 @@ void GetNativeViewScreenInfo(content::ScreenInfo* screen_info,
         screen->GetDisplayMatching(
             gfx::Rect(monitor_info.rcMonitor)));
 }
+
+const int kDelayForTooltipUpdateInMs = 500;
+const int kDefaultTooltipShownTimeoutMs = 10000;
 
 }
 
@@ -237,6 +241,8 @@ RenderWebView::Init(
         d_hwnd.get());
 
     d_input_method = ui::CreateInputMethod(this, d_hwnd.get());
+
+    d_tooltip = std::make_unique<views::corewm::TooltipWin>(d_hwnd.get());
 }
 
 RenderWebView::RenderViewObserver::RenderViewObserver(
@@ -321,6 +327,8 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
 {
     switch (uMsg) {
     case WM_NCDESTROY: {
+        d_tooltip->Hide();
+
         d_compositor->SetVisible(false);
         d_compositor.reset();
 
@@ -466,6 +474,11 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
             case WM_LBUTTONDOWN:
             case WM_MBUTTONDOWN:
             case WM_RBUTTONDOWN: {
+                d_mouse_pressed = true;
+
+                d_tooltip_text_at_mouse_press = d_last_tooltip_text;
+                d_tooltip->Hide();
+
 #if defined(BLPWTK2_FEATURE_FOCUS)
                 // Focus on mouse button down:
                 if (d_properties.takeKeyboardFocusOnMouseDown) {
@@ -480,6 +493,8 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
             case WM_LBUTTONUP:
             case WM_MBUTTONUP:
             case WM_RBUTTONUP: {
+                d_mouse_pressed = false;
+
                 ReleaseCapture();
             } break;
             }
@@ -513,6 +528,10 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         // Mousewheel:
         case WM_MOUSEWHEEL:
         case WM_MOUSEHWHEEL: {
+            if (d_tooltip->IsVisible()) {
+                d_tooltip->Hide();
+            }
+
 #if defined(BLPWTK2_FEATURE_REROUTEMOUSEWHEEL)
             if (ui::RerouteMouseWheel(
                 d_hwnd.get(),
@@ -544,6 +563,11 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         case WM_KEYUP:
         case WM_SYSKEYDOWN:
         case WM_SYSKEYUP: {
+            if (d_tooltip_shown_timer.IsRunning()) {
+                d_tooltip_shown_timer.Stop();
+                hideTooltip();
+            }
+
             ui::KeyEvent event(msg);
 
             #pragma clang diagnostic push
@@ -642,6 +666,14 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
         d_focused = false;
 
         updateFocus();
+    } return 0;
+    case WM_NOTIFY: {
+        LPARAM l_result = 0;
+        if (d_tooltip && static_cast<views::corewm::TooltipWin *>(d_tooltip.get())->
+                HandleNotify(
+                    wParam, reinterpret_cast<NMHDR*>(lParam), &l_result)) {
+            return 1;
+        }
     } return 0;
     default:
         break;
@@ -757,6 +789,8 @@ void RenderWebView::updateVisibility()
     else {
         dispatchToRenderViewImpl(
             ViewMsg_WasHidden(d_renderViewRoutingId));
+
+        d_tooltip->Hide();
     }
 }
 
@@ -881,6 +915,60 @@ void RenderWebView::dispatchInputEvent(const blink::WebInputEvent& event)
                 event, d_wheel_scroll_latching_enabled)?
                 content::InputEventDispatchType::DISPATCH_TYPE_BLOCKING :
                 content::InputEventDispatchType::DISPATCH_TYPE_NON_BLOCKING));
+}
+
+void RenderWebView::showTooltip()
+{
+    POINT location;
+    GetCursorPos(&location);
+
+    d_tooltip->SetText(nullptr, d_last_tooltip_text, gfx::Point(location));
+    d_tooltip->Show();
+
+    if (kDefaultTooltipShownTimeoutMs > 0) {
+        d_tooltip_shown_timer.Start(
+            FROM_HERE,
+            base::TimeDelta::FromMilliseconds(kDefaultTooltipShownTimeoutMs),
+            this,
+            &RenderWebView::hideTooltip);
+    }
+}
+
+void RenderWebView::hideTooltip()
+{
+    d_tooltip->Hide();
+}
+
+void RenderWebView::updateTooltip()
+{
+    if (d_mouse_pressed) {
+        if (d_tooltip_text_at_mouse_press == d_last_tooltip_text) {
+            d_tooltip->Hide();
+            return;
+        }
+    }
+
+    if (d_tooltip_text != d_last_tooltip_text || !d_tooltip->IsVisible()) {
+        d_tooltip_shown_timer.Stop();
+        d_last_tooltip_text = d_tooltip_text;
+
+        if (d_last_tooltip_text.empty()) {
+            d_tooltip->Hide();
+            d_tooltip_defer_timer.Stop();
+        }
+        else {
+            if (d_tooltip_defer_timer.IsRunning()) {
+                d_tooltip_defer_timer.Reset();
+            }
+            else {
+                d_tooltip_defer_timer.Start(
+                    FROM_HERE,
+                    base::TimeDelta::FromMilliseconds(kDelayForTooltipUpdateInMs),
+                    this,
+                    &RenderWebView::showTooltip);
+            }
+        }
+    }
 }
 
 void RenderWebView::destroy()
@@ -2011,6 +2099,14 @@ void RenderWebView::OnSetCursor(const content::WebCursor& cursor)
     }
 }
 
+void RenderWebView::OnSetTooltipText(
+    const base::string16& tooltip_text,
+    blink::WebTextDirection text_direction_hint)
+{
+    d_tooltip_text = tooltip_text;
+    updateTooltip();
+}
+
 void RenderWebView::OnShowWidget(int routing_id, gfx::Rect initial_rect)
 {
     // Will receive 'OnClose()' to destroy:
@@ -2162,6 +2258,8 @@ bool RenderWebView::OnMessageReceived(const IPC::Message& message)
             OnLockMouse)
         IPC_MESSAGE_HANDLER(ViewHostMsg_SetCursor,
             OnSetCursor)
+        IPC_MESSAGE_HANDLER(ViewHostMsg_SetTooltipText,
+            OnSetTooltipText)
         IPC_MESSAGE_HANDLER(ViewHostMsg_SelectionBoundsChanged,
             OnSelectionBoundsChanged)
         IPC_MESSAGE_HANDLER(ViewHostMsg_ShowWidget,
