@@ -22,6 +22,8 @@
 
 #include <blpwtk2_rendercompositor.h>
 
+#include <blpwtk2_profileimpl.h>
+
 #include <base/debug/alias.h>
 #include <base/lazy_instance.h>
 #include <components/viz/common/display/renderer_settings.h>
@@ -685,10 +687,12 @@ void RenderCompositorContext::Details::RequestUncorrelatedNewLayerTreeFrameSinkI
     callback.Run(std::move(layer_tree_frame_sink));
 }
 
-std::unique_ptr<RenderCompositor> RenderCompositorContext::CreateCompositor(gpu::SurfaceHandle gpu_surface_handle)
+std::unique_ptr<RenderCompositor> RenderCompositorContext::CreateCompositor(
+    gpu::SurfaceHandle gpu_surface_handle,
+    blpwtk2::ProfileImpl *profile)
 {
     return std::unique_ptr<RenderCompositor>(
-        new RenderCompositor(this, gpu_surface_handle));
+        new RenderCompositor(this, gpu_surface_handle, profile));
 }
 
 bool RenderCompositorContext::RequestNewLayerTreeFrameSink(
@@ -707,9 +711,12 @@ bool RenderCompositorContext::RequestNewLayerTreeFrameSink(
 }
 
 RenderCompositor::RenderCompositor(
-    RenderCompositorContext *context, gpu::SurfaceHandle gpu_surface_handle)
+    RenderCompositorContext *context,
+    gpu::SurfaceHandle gpu_surface_handle,
+    blpwtk2::ProfileImpl *profile)
 : d_context(context)
 , d_gpu_surface_handle(gpu_surface_handle)
+, d_profile(profile)
 {
     d_details.reset(new Details());
 
@@ -727,6 +734,8 @@ RenderCompositor::RenderCompositor(
 
 RenderCompositor::~RenderCompositor()
 {
+    d_profile->unregisterNativeViewForComposition(d_gpu_surface_handle);
+
     if (d_routing_id) {
         auto it = d_context->d_compositors_by_routing_id.find(d_routing_id);
         if (it != d_context->d_compositors_by_routing_id.end()) {
@@ -810,17 +819,25 @@ void RenderCompositor::RequestNewLayerTreeFrameSink(
     bool use_software,
     const base::Callback<void(std::unique_ptr<cc::LayerTreeFrameSink>)>& callback)
 {
+    d_profile->unregisterNativeViewForComposition(d_gpu_surface_handle);
+
     d_local_surface_id = d_local_surface_id_allocator->GenerateId();
 
     scoped_refptr<gpu::GpuChannelHost> gpu_channel =
         !use_software ? d_context->EstablishPrivilegedGpuChannel() :
                         nullptr;
 
+    if (gpu_channel) {
+        d_profile->registerNativeViewForComposition(d_gpu_surface_handle);
+    }
+
     content::RenderThreadImpl::current()->compositor_task_runner()->
         PostTask(
             FROM_HERE,
             base::Bind(&RenderCompositor::Details::RequestNewLayerTreeFrameSinkImpl,
                 base::Unretained(d_details.get()),
+                d_profile,
+                base::MessageLoop::current()->task_runner(),
                 gpu_channel,
                 content::RenderThreadImpl::current()->compositor_task_runner(),
                 d_context->d_details.get(),
@@ -899,6 +916,8 @@ void RenderCompositor::Details::ResizeImpl(
 }
 
 void RenderCompositor::Details::RequestNewLayerTreeFrameSinkImpl(
+    blpwtk2::ProfileImpl *profile,
+    scoped_refptr<base::SingleThreadTaskRunner> main_thread_task_runner,
     scoped_refptr<gpu::GpuChannelHost> gpu_channel,
     scoped_refptr<base::SingleThreadTaskRunner> compositor_task_runner,
     RenderCompositorContext::Details *context,
@@ -952,6 +971,14 @@ void RenderCompositor::Details::RequestNewLayerTreeFrameSinkImpl(
                 != gpu::ContextResult::kSuccess) {
             context_provider = nullptr;
             worker_context_provider = nullptr;
+        }
+        else {
+            main_thread_task_runner->
+                PostTask(
+                    FROM_HERE,
+                    base::Bind(&ProfileImpl::resolveNativeViewComposition,
+                        base::Unretained(profile),
+                        gpu_surface_handle));
         }
     }
 

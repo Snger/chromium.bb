@@ -176,6 +176,10 @@ class ProcessHostImpl final : public mojom::ProcessHost
     void opaqueMessageToBrowserSync(
         const std::string&                 msg,
         opaqueMessageToBrowserSyncCallback callback) override;
+
+    void registerNativeViewForComposition(unsigned int view) override;
+    void unregisterNativeViewForComposition(unsigned int view) override;
+    void resolveNativeViewComposition(uint32_t view) override;
 };
 
                         // ===========================
