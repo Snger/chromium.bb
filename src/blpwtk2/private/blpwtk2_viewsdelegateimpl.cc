@@ -67,13 +67,6 @@ views::NonClientFrameView* ViewsDelegateImpl::CreateDefaultNonClientFrameView(
     return NULL;
 }
 
-content::WebContents* ViewsDelegateImpl::CreateWebContents(
-    content::BrowserContext* browser_context,
-    content::SiteInstance* site_instance)
-{
-    return NULL;
-}
-
 void ViewsDelegateImpl::OnBeforeWidgetInit(
     views::Widget::InitParams* params,
     views::internal::NativeWidgetDelegate* delegate)

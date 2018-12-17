@@ -144,9 +144,9 @@ void testV8AppendElement(blpwtk2::WebView* webView)
     assert(!script.IsEmpty());  // this should never fail to compile
 
     v8::TryCatch tryCatch(isolate);
-    v8::Handle<v8::Value> result = script->Run();
+    v8::MaybeLocal<v8::Value> result = script->Run(ctxt);
     if (result.IsEmpty()) {
-        v8::String::Utf8Value msg(tryCatch.Exception());
+        v8::String::Utf8Value msg(isolate, tryCatch.Exception());
         std::cout << "EXCEPTION: " << *msg << std::endl;
     }
 }

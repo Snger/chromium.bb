@@ -30,6 +30,7 @@
 #include <base/logging.h>  // for DCHECK
 #include <base/message_loop/message_loop.h>
 #include <base/strings/string_number_conversions.h>
+#include <base/task/task_scheduler/task_scheduler.h>
 #include <chrome/browser/printing/print_job_manager.h>
 #include <content/public/browser/browser_main_runner.h>
 #include <content/public/common/content_switches.h>
@@ -54,6 +55,7 @@ BrowserMainRunner::BrowserMainRunner(
 
     d_mainParams.sandbox_info = &d_sandboxInfo;
     d_impl.reset(content::BrowserMainRunner::Create());
+    base::TaskScheduler::Create("Browser");
     int rc = d_impl->Initialize(d_mainParams);
     DCHECK(-1 == rc);  // it returns -1 for success!!
 

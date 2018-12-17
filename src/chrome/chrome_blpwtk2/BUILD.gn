@@ -61,13 +61,16 @@ static_library("chrome_blpwtk2") {
      "//chrome/services/util_win:lib",
      "//components/signin/core/browser:signin_buildflags",
      "//components/safe_browsing/web_ui:constants",
+     "//components/mirroring/mojom:constants",
+     "//components/mirroring/service:mirroring_service",
+     "//components/services/pdf_compositor/public/cpp:factory",
+     "//components/services/pdf_compositor/public/interfaces",
      "//content",
 
      # required by //chrome/common/chrome_content_client.cc
      "//chrome/browser/metrics/variations:chrome_ui_string_overrider_factory",
      "//chrome/common:resources",
      "//chrome/common/importer:interfaces",
-     "//components/printing/service/public/cpp:factory",
      "//components/services/heap_profiling",
      "//components/services/patch/public/interfaces",
      "//components/services/patch:lib",

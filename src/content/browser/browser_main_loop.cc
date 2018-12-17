@@ -866,6 +866,13 @@ int BrowserMainLoop::PreCreateThreads() {
       GpuDataManagerImpl::GetInstance()));
 #endif
 
+#if !defined(GOOGLE_CHROME_BUILD) || defined(OS_ANDROID)
+  // Single-process is an unsupported and not fully tested mode, so
+  // don't enable it for official Chrome builds (except on Android).
+  if (parsed_command_line_.HasSwitch(switches::kSingleProcess))
+    RenderProcessHost::SetRunRendererInProcess(true);
+#endif
+
   if (parsed_command_line_.HasSwitch(switches::kSingleProcess)) {
     UtilityProcessHost::SetRunUtilityInProcess(true);
   }

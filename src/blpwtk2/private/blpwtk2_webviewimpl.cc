@@ -110,7 +110,7 @@ WebViewImpl::WebViewImpl(WebViewDelegate          *delegate,
 
     content::WebContents::CreateParams createParams(browserContext);
     createParams.render_process_affinity = hostAffinity;
-    d_webContents.reset(content::WebContents::Create(createParams));
+    d_webContents = content::WebContents::Create(createParams);
     d_webContents->SetDelegate(this);
     Observe(d_webContents.get());
 
@@ -635,7 +635,7 @@ bool WebViewImpl::TakeFocus(content::WebContents *source, bool reverse)
 void WebViewImpl::RequestMediaAccessPermission(
     content::WebContents                  *web_contents,
     const content::MediaStreamRequest&     request,
-    const content::MediaResponseCallback&  callback)
+    content::MediaResponseCallback  callback)
 {
     class DummyMediaStreamUI final : public content::MediaStreamUI {
       public:

@@ -95,7 +95,7 @@ std::string DesktopStreamsRegistry::RegisterStream(
   ApprovedDesktopMediaStream& stream = approved_streams_[id];
   stream.source = source;
   stream.device = content::MediaStreamDevice(
-      content::MEDIA_DESKTOP_VIDEO_CAPTURE, source.ToString(), source.ToString());
+      content::MEDIA_GUM_DESKTOP_VIDEO_CAPTURE, source.ToString(), source.ToString());
 
   content::BrowserThread::PostDelayedTask(
       content::BrowserThread::UI, FROM_HERE,

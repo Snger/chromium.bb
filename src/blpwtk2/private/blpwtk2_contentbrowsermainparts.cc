@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Bloomberg Finance L.P.
+ * Copyright (C) 2018 Bloomberg Finance L.P.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -20,28 +20,12 @@
  * IN THE SOFTWARE.
  */
 
-#include <blpwtk2_resourcecontextimpl.h>
+#include "blpwtk2_contentbrowsermainparts.h"
 
-#include <net/dns/host_resolver.h>
-#include <net/url_request/url_request_context_getter.h>
+#include "blpwtk2_browserthread.h"
 
 namespace blpwtk2 {
-
-ResourceContextImpl::ResourceContextImpl(net::URLRequestContextGetter* getter)
-    : d_requestContextGetter(getter)
-{
+    void BrowserMainParts::PreDefaultMainMessageLoopRun(base::OnceClosure quit_closure) {
+        BrowserThread::SetMainMessageLoopQuitClosure(std::move(quit_closure));
+    }
 }
-
-ResourceContextImpl::~ResourceContextImpl()
-{
-}
-
-net::URLRequestContext* ResourceContextImpl::GetRequestContext()
-{
-    return d_requestContextGetter->GetURLRequestContext();
-}
-
-}  // close namespace blpwtk2
-
-// vim: ts=4 et
-

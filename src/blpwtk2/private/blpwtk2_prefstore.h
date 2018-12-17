@@ -38,10 +38,14 @@ namespace blpwtk2 {
 class PrefStore : public PersistentPrefStore {
     void OnInitializationCompleted();
 
-    base::ObserverList<PrefStore::Observer, true> d_observers;
+    base::ObserverList<PrefStore::Observer,
+                       true,
+                       true,
+                       base::internal::UncheckedObserverAdapter>
+        d_observers;
     PrefValueMap d_prefs;
 
-  public:
+   public:
     PrefStore();
 
     // PrefStore
@@ -67,7 +71,6 @@ class PrefStore : public PersistentPrefStore {
     PrefReadError GetReadError() const override;
     PrefReadError ReadPrefs() override;
     void ReadPrefsAsync(ReadErrorDelegate* delegate) override;
-    void CommitPendingWrite(base::OnceClosure done_callback) override;
     void SchedulePendingLossyWrites() override;
     void ClearMutableValues() override;
     void ReportValueChanged(const std::string& key, uint32_t flags) override;

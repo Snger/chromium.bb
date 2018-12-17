@@ -30,7 +30,6 @@ ThreadMode Statics::threadMode = ThreadMode::ORIGINAL;
 base::PlatformThreadId Statics::applicationMainThreadId = base::kInvalidThreadId;
 base::PlatformThreadId Statics::browserMainThreadId = base::kInvalidThreadId;
 ResourceLoader* Statics::inProcessResourceLoader = 0;
-base::MessageLoop* Statics::rendererMessageLoop = 0;
 base::MessageLoop* Statics::browserMainMessageLoop = 0;
 ToolkitCreateParams::ChannelErrorHandler Statics::channelErrorHandler = 0;
 bool Statics::hasDevTools = false;

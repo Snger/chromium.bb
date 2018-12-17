@@ -42,8 +42,7 @@ bool PdfUtil::RenderPDFPageToDC(const void* pdf_buffer,
                                 bool autorotate,
                                 bool use_color)
 {
-    return chrome_pdf::RenderPDFPageToDC(pdf_buffer,
-                                         buffer_size,
+    return chrome_pdf::RenderPDFPageToDC(base::span<const uint8_t>((const uint8_t*)pdf_buffer, buffer_size),
                                          page_number,
                                          dc,
                                          dpi,

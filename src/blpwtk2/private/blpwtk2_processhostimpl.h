@@ -31,7 +31,7 @@
 #include <base/process/process_handle.h>
 #include <base/memory/ref_counted.h>
 #include <ipc/ipc_listener.h>
-#include <mojo/edk/embedder/scoped_platform_handle.h>
+#include <mojo/public/cpp/platform/platform_channel.h>
 #include <third_party/blink/public/platform/interface_registry.h>
 #include <services/service_manager/public/cpp/binder_registry.h>
 #include <content/public/browser/render_process_host.h>
@@ -162,15 +162,15 @@ class ProcessHostImpl::Impl final : public base::RefCounted<Impl>
     // DATA
     base::ProcessId d_processId;
     scoped_refptr<BrowserContextImpl> d_context;
+    std::shared_ptr<base::Process> d_process;
     std::unique_ptr<content::RenderProcessHost> d_renderProcessHost;
-    base::ProcessHandle d_processHandle;
 
     friend class base::RefCounted<Impl>;
     ~Impl();
 
   public:
     // CREATORS
-    Impl(base::ProcessHandle processHandle,
+    Impl(std::shared_ptr<base::Process> process,
          bool isolated,
          const std::string& profileDir);
         // Initialize the ProcessHost (the real implementation).
@@ -183,17 +183,15 @@ class ProcessHostImpl::Impl final : public base::RefCounted<Impl>
 
     // ACCESSORS
     base::ProcessId processId() const;
-    base::ProcessHandle processHandle() const;
     const BrowserContextImpl& context() const;
     const content::RenderProcessHost& renderProcessHost() const;
 
     bool onRenderLaunched(
         base::ProcessHandle render_process_handle,
-        mojo::edk::ScopedPlatformHandle server_channel_handle) const;
+        mojo::PlatformChannelEndpoint server_channel_handle) const;
 
     // MANIPULATORS
     base::ProcessId& processId();
-    base::ProcessHandle& processHandle();
     BrowserContextImpl& context();
     content::RenderProcessHost& renderProcessHost();
 };

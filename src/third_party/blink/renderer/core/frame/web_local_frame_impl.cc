@@ -886,7 +886,7 @@ v8::Local<v8::Object> WebLocalFrameImpl::GlobalProxy() const {
 }
 
 v8::Isolate* WebLocalFrameImpl::ScriptIsolate() const {
-  if (auto ptr = GetFrame()) {
+  if (LocalFrame* ptr = GetFrame()) {
     return ToIsolate(ptr);
   }
   return nullptr;

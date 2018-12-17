@@ -595,8 +595,15 @@ if (is_android) {
     }
 
     defines = []
+    deps = []
 
-    deps = [
+    # Put sandbox at the early beginning to make sure the sandboxed functions
+    # (sandbox\win\src\interception.cc) are not ignored by linker in case SANDBOX_EXPORTS is defined.
+    if(is_win) {
+      deps += [ "//sandbox" ]
+    }
+
+    deps += [
       ":content_shell_lib",
       ":pak",
       "//build/win:default_exe_manifest",
@@ -620,8 +627,6 @@ if (is_android) {
     }
 
     if (is_win) {
-      deps += [ "//sandbox" ]
-
       # This is a large module that can't do incremental linking in some cases.
       configs -= [ "//build/config/win:default_incremental_linking" ]
       configs +=

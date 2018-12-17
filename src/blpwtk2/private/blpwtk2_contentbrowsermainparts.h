@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2013 Bloomberg Finance L.P.
+ * Copyright (C) 2018 Bloomberg Finance L.P.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -20,41 +20,26 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef INCLUDED_BLPWTK2_RESOURCECONTEXTIMPL_H
-#define INCLUDED_BLPWTK2_RESOURCECONTEXTIMPL_H
+#ifndef INCLUDED_BLPWTK2_CONTENTBROWSERMAINPARTS_H
+#define INCLUDED_BLPWTK2_CONTENTBROWSERMAINPARTS_H
 
-#include <blpwtk2_config.h>
-
-#include <content/public/browser/resource_context.h>
-
-namespace net {
-class URLRequestContextGetter;
-}
+#include <content/public/browser/browser_main_parts.h>
 
 namespace blpwtk2 {
+                            // ===================
+                            // class BrowserMainParts
+                            // ===================
 
-// An instance of this class is owned by each BrowserContext.  Per
-// content::ResourceContext, it is constructed in the UI thread, but is used
-// and must be destructed in the IO thread.
-class ResourceContextImpl : public content::ResourceContext {
+class BrowserMainParts : public content::BrowserMainParts
+{
   public:
-    explicit ResourceContextImpl(net::URLRequestContextGetter* getter);
-    ~ResourceContextImpl() final;
+    BrowserMainParts() = default;
+    ~BrowserMainParts() final = default;
 
-    // DEPRECATED: This is no longer a valid given isolated apps/sites and
-    // storage partitioning. This getter returns the default context associated
-    // with a BrowsingContext.
-    net::URLRequestContext* GetRequestContext() override;
-
-  private:
-    scoped_refptr<net::URLRequestContextGetter> d_requestContextGetter;
-
-    DISALLOW_COPY_AND_ASSIGN(ResourceContextImpl);
+    void PreDefaultMainMessageLoopRun(base::OnceClosure quit_closure) final;
 };
 
 }  // close namespace blpwtk2
 
-#endif  // INCLUDED_BLPWTK2_RESOURCECONTEXTIMPL_H
-
-// vim: ts=4 et
+#endif  // INCLUDED_BLPWTK2_CONTENTBROWSERMAINPARTS_H
 

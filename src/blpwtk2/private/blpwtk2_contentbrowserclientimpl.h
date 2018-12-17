@@ -51,7 +51,7 @@ class ContentBrowserClientImpl : public content::ContentBrowserClient {
     DISALLOW_COPY_AND_ASSIGN(ContentBrowserClientImpl);
     
     // The following are the in-process render thread's info
-    std::atomic<mojo::edk::OutgoingBrokerClientInvitation*> d_broker_client_invitation{nullptr};
+    std::atomic<mojo::OutgoingInvitation*> d_broker_client_invitation{nullptr};
 
   public:
     // CREATORS
@@ -74,6 +74,13 @@ class ContentBrowserClientImpl : public content::ContentBrowserClient {
         // Called by WebContents to override the WebKit preferences that are
         // used by the renderer. The content layer will add its own settings,
         // and then it's up to the embedder to update it if it wants.
+    
+    bool ShouldEnableStrictSiteIsolation() override;
+        // Allows the embedder to programmatically control whether the
+        // --site-per-process mode of Site Isolation should be used.
+        //
+        // Note that for correctness, the same value should be consistently returned.
+        // See also https://crbug.com/825369
 
     bool SupportsInProcessRenderer() override;
         // Returns true whether the embedder supports in-process renderers or
@@ -109,10 +116,10 @@ class ContentBrowserClientImpl : public content::ContentBrowserClient {
     // Start the in-process renderer thread.  This will only ever be called if
     // SupportsInProcessRenderer() returns true.
     void StartInProcessRendererThread(
-        mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation,
+        mojo::OutgoingInvitation* broker_client_invitation,
         const std::string& service_token) override;
 
-    mojo::edk::OutgoingBrokerClientInvitation* GetClientInvitation() const;
+    mojo::OutgoingInvitation* GetClientInvitation() const;
 
 #if 0
     std::unique_ptr<base::Value> GetServiceManifestOverlay(

@@ -123,14 +123,15 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     std::unique_ptr<content::ZoomLevelDelegate> CreateZoomLevelDelegate(
         const base::FilePath& partition_path) override;
     base::FilePath GetPath() const override;
+    base::FilePath GetCachePath() const override;
     bool IsOffTheRecord() const override;
     content::ResourceContext *GetResourceContext() override;
     content::DownloadManagerDelegate *GetDownloadManagerDelegate() override;
     content::BrowserPluginGuestManager *GetGuestManager() override;
     storage::SpecialStoragePolicy *GetSpecialStoragePolicy() override;
     content::PushMessagingService *GetPushMessagingService() override;
-    content::SSLHostStateDelegate *GetSSLHostStateDelegate() override;
-    content::PermissionManager *GetPermissionManager() override;
+    content::SSLHostStateDelegate* GetSSLHostStateDelegate() override;
+    content::PermissionControllerDelegate* GetPermissionControllerDelegate() override;
     content::BackgroundFetchDelegate* GetBackgroundFetchDelegate() override;
     content::BackgroundSyncController *GetBackgroundSyncController() override;
     content::BrowsingDataRemoverDelegate* GetBrowsingDataRemoverDelegate()

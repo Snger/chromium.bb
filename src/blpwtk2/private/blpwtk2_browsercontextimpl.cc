@@ -435,6 +435,11 @@ base::FilePath BrowserContextImpl::GetPath() const
     return d_requestContextGetter->path();
 }
 
+base::FilePath BrowserContextImpl::GetCachePath() const
+{
+    return d_requestContextGetter->path();
+}
+
 bool BrowserContextImpl::IsOffTheRecord() const
 {
     DCHECK(!d_isDestroyed);
@@ -474,12 +479,12 @@ content::PushMessagingService *BrowserContextImpl::GetPushMessagingService()
     return nullptr;
 }
 
-content::SSLHostStateDelegate *BrowserContextImpl::GetSSLHostStateDelegate()
+content::SSLHostStateDelegate* BrowserContextImpl::GetSSLHostStateDelegate()
 {
     return nullptr;
 }
 
-content::PermissionManager *BrowserContextImpl::GetPermissionManager()
+content::PermissionControllerDelegate* BrowserContextImpl::GetPermissionControllerDelegate()
 {
     return nullptr;
 }

@@ -23,6 +23,7 @@
 #include <blpwtk2_contentbrowserclientimpl.h>
 
 #include <blpwtk2_browsercontextimpl.h>
+#include <blpwtk2_contentbrowsermainparts.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_urlrequestcontextgetterimpl.h>
 #include <blpwtk2_webcontentsviewdelegateimpl.h>
@@ -86,7 +87,12 @@ ContentBrowserClientImpl::~ContentBrowserClientImpl()
 content::BrowserMainParts* ContentBrowserClientImpl::CreateBrowserMainParts(
     const content::MainFunctionParams& parameters)
 {
-    return new content::BrowserMainParts{};
+    return new BrowserMainParts{};
+}
+
+bool ContentBrowserClientImpl::ShouldEnableStrictSiteIsolation()
+{
+    return false;
 }
 
 void ContentBrowserClientImpl::RenderProcessWillLaunch(
@@ -164,13 +170,13 @@ void ContentBrowserClientImpl::ExposeInterfacesToRenderer(
 }            
 
 void ContentBrowserClientImpl::StartInProcessRendererThread(
-    mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation,
+    mojo::OutgoingInvitation* broker_client_invitation,
     const std::string& service_token)
 {
     d_broker_client_invitation = broker_client_invitation;
 }
 
-mojo::edk::OutgoingBrokerClientInvitation* ContentBrowserClientImpl::GetClientInvitation() const
+mojo::OutgoingInvitation* ContentBrowserClientImpl::GetClientInvitation() const
 {
     return d_broker_client_invitation.load();
 }

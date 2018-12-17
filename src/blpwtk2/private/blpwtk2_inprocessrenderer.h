@@ -34,9 +34,7 @@ class SingleThreadTaskRunner;
 }  // close namespace base
 
 namespace mojo {
-namespace edk {
-    class OutgoingBrokerClientInvitation;
-}
+    class OutgoingInvitation;
 }
 
 namespace blpwtk2 {
@@ -60,7 +58,7 @@ struct InProcessRenderer {
     // or on a secondary thread, depending on the thread mode.  The browserIOTaskRunner
     // should be null if the browser is not in the same process.
     static void init(const scoped_refptr<base::SingleThreadTaskRunner>& browserIOTaskRunner,
-                     mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation,
+                     mojo::OutgoingInvitation* broker_client_invitation,
                      const std::string&                                 serviceToken,
                      int                                                mojoHandle);
 

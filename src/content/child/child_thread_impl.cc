@@ -237,12 +237,9 @@ base::Optional<mojo::IncomingInvitation> InitializeMojoIPCChannel(int file_descr
     endpoint = mojo::PlatformChannel::RecoverPassedEndpointFromCommandLine(
         *base::CommandLine::ForCurrentProcess());
   } else if (file_descriptor) {
-      mojo::edk::ScopedPlatformHandle clientHandle(
-          mojo::edk::PlatformHandle(
-          LongToHandle(file_descriptor)));
-
-      DCHECK(clientHandle.is_valid());
-      platform_channel = std::move(clientHandle);
+    endpoint = mojo::PlatformChannelEndpoint(mojo::PlatformHandle(
+        base::win::ScopedHandle(LongToHandle(file_descriptor))));
+    DCHECK(endpoint.is_valid());
   } else {
     // If this process is elevated, it will have a pipe path passed on the
     // command line.

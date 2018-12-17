@@ -58,13 +58,13 @@
 #include <content/public/browser/browser_thread.h>
 #include <content/public/browser/render_process_host.h>
 #include <content/public/common/content_switches.h>
-#include <content/public/common/mojo_channel_switches.h>
 #include <content/common/in_process_child_thread_params.h>
 #include <content/renderer/render_thread_impl.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/browser/browser_main_loop.h>
 #include <sandbox/win/src/win_utils.h>
 #include <services/service_manager/runner/common/switches.h>
+#include <services/service_manager/sandbox/switches.h>
 #include <third_party/blink/public/platform/web_security_origin.h>
 //#include <third_party/blink/public/web/blink.h>
 #include <third_party/blink/public/web/web_security_policy.h>
@@ -130,7 +130,7 @@ static void setupSandbox(sandbox::SandboxInterfaceInfo *info,
         // Since both 'broker_services' and 'target_services' are be null in
         // our SandboxInterfaceInfo, we don't want chromium to touch it.  This
         // flag prevents chromium from trying to use these services.
-        switches->push_back(switches::kNoSandbox);
+        switches->push_back(service_manager::switches::kNoSandbox);
     }
 }
 
@@ -168,7 +168,7 @@ static void setupDictionaryFiles(const std::string& path)
     if (!path.empty()) {
         LOG(INFO) << "Setting dictionary path: " << path;
         base::ThreadRestrictions::ScopedAllowIO allowIO;
-        PathService::Override(chrome::DIR_APP_DICTIONARIES,
+        base::PathService::Override(chrome::DIR_APP_DICTIONARIES,
                               base::FilePath::FromUTF8Unsafe(path));
     }
 }
@@ -187,7 +187,7 @@ static std::unique_ptr<base::MessagePump> messagePumpForUIFactory()
 static void startRenderer(
     bool isHost,
     const ChannelInfo& channelInfo,
-    mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation) {
+    mojo::OutgoingInvitation* broker_client_invitation) {
   // Run the render thread in the current thread.  Normally, Content calls
   // back to its embedder via the ContentBrowserClient to ask it to
   // initialize the renderer.  In this case, Content doesn't even have the
@@ -376,7 +376,7 @@ std::string ToolkitImpl::createProcessHost(
     std::string hostChannel;
 
     // Disable sync call restriction
-    d_allowSyncCall = std::make_unique<mojo::SyncCallRestrictions::ScopedAllowSyncCall>();
+    mojo::SyncCallRestrictions::ForceSyncCallAllowed();
 
     // If this process is the host and the main thread is being used by the
     // renderer, we need to create another thread to run the process host.
@@ -514,17 +514,15 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
 
         // Run this logic on all child processes. Zygotes will run this at a
         // later point in time when the command line has been updated.
-        if (process_type != switches::kZygoteProcess) {
-            base::FieldTrialList::CreateTrialsFromCommandLine(
-                command_line, switches::kFieldTrialHandle, -1);
+        base::FieldTrialList::CreateTrialsFromCommandLine(
+            command_line, switches::kFieldTrialHandle, -1);
 
-            std::unique_ptr<base::FeatureList> feature_list(
-                new base::FeatureList);
-            base::FieldTrialList::CreateFeaturesFromCommandLine(
-                command_line, switches::kEnableFeatures,
-            switches::kDisableFeatures, feature_list.get());
-            base::FeatureList::SetInstance(std::move(feature_list));
-        }
+        std::unique_ptr<base::FeatureList> feature_list(
+            new base::FeatureList);
+        base::FieldTrialList::CreateFeaturesFromCommandLine(
+            command_line, switches::kEnableFeatures,
+        switches::kDisableFeatures, feature_list.get());
+        base::FeatureList::SetInstance(std::move(feature_list));    
     }
     // Start pumping the message loop.
     startMessageLoop(sandboxInfo);
@@ -563,11 +561,6 @@ ToolkitImpl::~ToolkitImpl()
         InProcessRenderer::cleanup();
 
     d_messagePump->cleanup();
-
-    // The ScopedAllowSyncCall object must be released before the
-    // BrowserThread is destroyed.  This is because the BrowserThread owns the
-    // AtExitManager, which is one of the dependencies of ScopedAllowSyncCall
-    d_allowSyncCall.reset();
 
     if (Statics::isRendererMainThreadMode()) {
         delete base::MessageLoop::current();
@@ -646,8 +639,7 @@ void ToolkitImpl::addOriginToTrustworthyList(const StringRef& originString)
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(Statics::isRendererMainThreadMode());
-    blink::WebSecurityPolicy::AddOriginTrustworthyWhiteList(
-        blink::WebSecurityOrigin::CreateFromString(toWebString(originString)));
+    blink::WebSecurityPolicy::AddOriginTrustworthyWhiteList(toWebString(originString));
 }
 
 void ToolkitImpl::setWebViewHostObserver(WebViewHostObserver* observer)

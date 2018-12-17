@@ -311,12 +311,11 @@ void MainMessagePump::doWork()
 void MainMessagePump::modalLoop(bool enabled)
 {
     if (d_isInsideModalLoop != enabled) {
-        base::MessageLoop* loop = base::MessageLoop::current();
         d_isInsideModalLoop = enabled;
 
         if (enabled) {
             d_scopedNestedTaskAllower =
-                std::make_unique<base::MessageLoop::ScopedNestableTaskAllower>(loop);
+                std::make_unique<base::MessageLoopCurrent::ScopedNestableTaskAllower>();
 
             SetTimer(d_window,
                      reinterpret_cast<WPARAM>(this),
