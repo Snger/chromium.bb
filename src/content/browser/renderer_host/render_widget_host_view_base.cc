@@ -106,7 +106,7 @@ void RenderWidgetHostViewBase::OnRenderFrameMetadataChanged() {
 void RenderWidgetHostViewBase::OnRenderFrameSubmission() {}
 
 void RenderWidgetHostViewBase::SetBackgroundColorToDefault() {
-  SetBackgroundColor(SK_ColorWHITE);
+  SetBackgroundColor(default_background_color_);
 }
 
 gfx::Size RenderWidgetHostViewBase::GetCompositorViewportPixelSize() const {
@@ -236,6 +236,12 @@ void RenderWidgetHostViewBase::WheelEventAck(
 void RenderWidgetHostViewBase::GestureEventAck(
     const blink::WebGestureEvent& event,
     InputEventAckState ack_result) {
+}
+
+void RenderWidgetHostViewBase::SetRubberbandRect(const gfx::Rect& rect) {
+}
+
+void RenderWidgetHostViewBase::HideRubberbandRect() {
 }
 
 void RenderWidgetHostViewBase::SetPopupType(blink::WebPopupType popup_type) {

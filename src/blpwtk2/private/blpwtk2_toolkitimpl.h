@@ -26,13 +26,18 @@
 #include <blpwtk2_config.h>
 
 #include <blpwtk2_contentmaindelegateimpl.h>
+#include <blpwtk2_embedderheaptracer.h>
+#include <blpwtk2_embedderheaptracershim.h>
+#include <blpwtk2_processhostdelegate.h>
 #include <blpwtk2_toolkit.h>
 
 #include <mojo/public/cpp/bindings/sync_call_restrictions.h>
 #include <sandbox/win/src/sandbox_types.h>
 #include "base/metrics/field_trial.h"
 
+#include <memory>
 #include <string>
+#include <unordered_map>
 #include <vector>
 
 namespace base {
@@ -44,6 +49,10 @@ namespace content {
 class ContentMainRunner;
 }  // close namespace content
 
+namespace gin {
+class IsolateHolder;
+}  // close namespace gin
+
 namespace blpwtk2 {
 
 class MainMessagePump;
@@ -52,6 +61,8 @@ class BrowserMainRunner;
 class ProcessHostImpl;
 class Profile;
 class StringRef;
+class GpuDataLogger;
+
 
                         // =================
                         // class ToolkitImpl
@@ -69,7 +80,7 @@ class ToolkitImpl : public Toolkit {
     ContentMainDelegateImpl d_mainDelegate;
     std::unique_ptr<content::ContentMainRunner> d_mainRunner;
     MainMessagePump *d_messagePump;
-	std::unique_ptr<base::FieldTrialList> field_trial_list;
+    std::unique_ptr<base::FieldTrialList> field_trial_list;
 
     std::unique_ptr<BrowserThread> d_browserThread;
         // Only used for the RENDERER_MAIN thread mode and when an external
@@ -85,6 +96,17 @@ class ToolkitImpl : public Toolkit {
         // host process is unavailable.  This object lifts the "disable sync
         // call" restriction placed by the browser code so the renderer can
         // freely make sync calls.
+
+    std::unordered_map<int, std::unique_ptr<EmbedderHeapTracerShim>> d_heapTracers;
+        // Registered heap tracers.
+
+    std::unique_ptr<gin::IsolateHolder> d_isolateHolder;
+        // Only used for ORIGINAL thread mode and when the toolkit is created with
+        // browserV8Enabled flag
+
+    scoped_refptr<GpuDataLogger> d_gpuDataLogger;
+        // GPU data manager observer to log the gpu process messages
+        // note: verbosity of the log depends on chromium gpu debugging switches
 
     ~ToolkitImpl() override;
         // Shutdown all threads and delete the toolkit.  To ensure the same
@@ -102,6 +124,11 @@ class ToolkitImpl : public Toolkit {
         // toolkit is operating as the browser, it launches a
         // BrowerMainRunner.  The browser main runner requires 'sandboxInfo'
         // during its initialization.
+
+    void attachGPUDataLogObserver();
+        // attach the GPU Data logger to the GPU Data manager as observer
+    void detachGPUDataLogObserver();
+        // remove the GPU Data logger attached the GPU Data manager as observer
 
     std::string createProcessHost(
             const sandbox::SandboxInterfaceInfo& sandboxInfo,
@@ -123,6 +150,7 @@ class ToolkitImpl : public Toolkit {
                          const std::string&              hostChannel,
                          const std::vector<std::string>& cmdLineSwitches,
                          bool                            isolated,
+                         bool                            browserV8Enabled,
                          const std::string&              profileDir);
 
     // blpwtk2::Toolkit overrides
@@ -134,11 +162,16 @@ class ToolkitImpl : public Toolkit {
     Profile *getProfile(int pid, bool launchDevToolsServer) override;
     bool preHandleMessage(const NativeMsg *msg) override;
     void postHandleMessage(const NativeMsg *msg) override;
-    v8::Local<v8::Context> createWebScriptContext() override;
+    v8::Local<v8::Context> createWebScriptContext(const StringRef& originString) override;
     void disposeWebScriptContext(v8::Local<v8::Context> context) override;
     void addOriginToTrustworthyList(const StringRef& originString) override;
     void setWebViewHostObserver(WebViewHostObserver* observer) override;
     void setTraceThreshold(unsigned int timeoutMS) override;
+    int addV8HeapTracer(EmbedderHeapTracer *tracer) override;
+    void removeV8HeapTracer(int embedder_id) override;
+    void opaqueMessageToRendererAsync(int pid, const StringRef &message) override;
+    void setIPCDelegate(ProcessHostDelegate *delegate) override;
+    v8::Platform *getV8Platform() override;
 };
 
 }  // close namespace blpwtk2

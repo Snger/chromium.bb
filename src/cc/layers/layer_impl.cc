@@ -58,6 +58,7 @@ LayerImpl::LayerImpl(LayerTreeImpl* tree_impl, int id)
       may_contain_video_(false),
       masks_to_bounds_(false),
       contents_opaque_(false),
+      contents_opaque_for_lcd_text_(false),
       use_parent_backface_visibility_(false),
       should_check_backface_visibility_(false),
       draws_content_(false),
@@ -172,6 +173,29 @@ void LayerImpl::PopulateScaledSharedQuadState(viz::SharedQuadState* state,
                 draw_properties().is_clipped, contents_opaque,
                 draw_properties().opacity, SkBlendMode::kSrcOver,
                 GetSortingContextId());
+}
+
+void LayerImpl::PopulateTransformedSharedQuadState(
+    viz::SharedQuadState* state,
+    const gfx::AxisTransform2d& transform,
+    bool contents_opaque) const {
+  gfx::Transform scaled_draw_transform =
+      draw_properties_.target_space_transform;
+  scaled_draw_transform.Scale(SK_MScalar1 / transform.scale().width(),
+                              SK_MScalar1 / transform.scale().height());
+  scaled_draw_transform.Translate(-transform.translation().x(),
+                                  -transform.translation().y());
+  gfx::Size scaled_bounds = gfx::ScaleToCeiledSize(
+      bounds(), transform.scale().width(), transform.scale().height());
+  gfx::Rect scaled_visible_layer_rect =
+      gfx::ScaleToEnclosingRect(visible_layer_rect(), transform.scale().width(),
+                                transform.scale().height());
+  scaled_visible_layer_rect.Intersect(gfx::Rect(scaled_bounds));
+
+  state->SetAll(scaled_draw_transform, gfx::Rect(scaled_bounds),
+                scaled_visible_layer_rect, draw_properties().clip_rect,
+                draw_properties().is_clipped, contents_opaque, draw_properties().opacity,
+                SkBlendMode::kSrcOver, GetSortingContextId());
 }
 
 bool LayerImpl::WillDraw(DrawMode draw_mode,
@@ -626,6 +650,13 @@ void LayerImpl::SetContentsOpaque(bool opaque) {
   contents_opaque_ = opaque;
 }
 
+void LayerImpl::SetContentsOpaqueForLCDText(bool opaque) {
+  if (contents_opaque_for_lcd_text_ == opaque)
+    return;
+
+  contents_opaque_for_lcd_text_ = opaque;
+}
+
 float LayerImpl::Opacity() const {
   if (const EffectNode* node = GetEffectTree().Node(effect_tree_index()))
     return node->opacity;
@@ -811,18 +842,19 @@ gfx::Transform LayerImpl::ScreenSpaceTransform() const {
 }
 
 bool LayerImpl::CanUseLCDText() const {
+
   if (layer_tree_impl()->settings().layers_always_allowed_lcd_text)
     return true;
   if (!layer_tree_impl()->settings().can_use_lcd_text)
     return false;
-  if (!contents_opaque())
+  if (!contents_opaque() && !contents_opaque_for_lcd_text())
     return false;
 
   if (GetEffectTree().Node(effect_tree_index())->screen_space_opacity != 1.f)
     return false;
   if (!GetTransformTree()
            .Node(transform_tree_index())
-           ->node_and_ancestors_have_only_integer_translation)
+           ->node_and_ancestors_have_only_axis_aligned_transform)
     return false;
   if (static_cast<int>(offset_to_transform_parent().x()) !=
       offset_to_transform_parent().x())
@@ -862,7 +894,7 @@ const RenderSurfaceImpl* LayerImpl::render_target() const {
   return GetEffectTree().GetRenderSurface(render_target_effect_tree_index());
 }
 
-float LayerImpl::GetIdealContentsScale() const {
+std::pair<float, float> LayerImpl::GetIdealContentsScaleAndAspectRatio() const {
   float page_scale = IsAffectedByPageScale()
                          ? layer_tree_impl()->current_page_scale_factor()
                          : 1.f;
@@ -872,7 +904,7 @@ float LayerImpl::GetIdealContentsScale() const {
   if (!layer_tree_impl()
            ->settings()
            .layer_transforms_should_scale_layer_contents) {
-    return default_scale;
+    return std::make_pair(default_scale, 1.0);
   }
 
   const auto& transform = ScreenSpaceTransform();
@@ -903,12 +935,17 @@ float LayerImpl::GetIdealContentsScale() const {
     scale = std::round(scale);
 
     // Don't let the scale fall below the default scale.
-    return std::max(scale, default_scale);
+    return std::make_pair(std::max(scale, default_scale), 1.0);
   }
 
   gfx::Vector2dF transform_scales =
       MathUtil::ComputeTransform2dScaleComponents(transform, default_scale);
-  return std::max(transform_scales.x(), transform_scales.y());
+  return std::make_pair(transform_scales.x(),
+                        transform_scales.y() / transform_scales.x());
+}
+
+float LayerImpl::GetIdealContentsScale() const {
+  return GetIdealContentsScaleAndAspectRatio().first;
 }
 
 PropertyTrees* LayerImpl::GetPropertyTrees() const {

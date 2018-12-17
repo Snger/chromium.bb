@@ -303,7 +303,6 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // on the SiteInstance's ProcessReusePolicy and its url, this may be an
   // existing RenderProcessHost or a new one.
   static RenderProcessHost* GetProcessHostForSiteInstance(
-      int affinity,
       BrowserContext* browser_context,
       SiteInstanceImpl* site_instance);
 
@@ -564,7 +563,6 @@ class CONTENT_EXPORT RenderProcessHostImpl
 
   // Returns the default subframe RenderProcessHost to use for |site_instance|.
   static RenderProcessHost* GetDefaultSubframeProcessHost(
-      int affinity,
       BrowserContext* browser_context,
       SiteInstanceImpl* site_instance,
       bool is_for_guests_only);

@@ -19,6 +19,7 @@
  * FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS
  * IN THE SOFTWARE.
  */
+#include <vector>
 
 #include <blpwtk2_rendererutil.h>
 #include <blpwtk2_blob.h>
@@ -26,6 +27,7 @@
 
 #include <base/logging.h>  // for DCHECK
 
+#include <cc/paint/skia_paint_canvas.h>
 #include <content/renderer/render_widget.h>
 #include <content/public/browser/native_web_keyboard_event.h>
 #include <ui/events/event.h>
@@ -33,6 +35,7 @@
 #include <content/public/renderer/render_view.h>
 #include <third_party/blink/public/web/web_view.h>
 #include <third_party/blink/public/web/web_frame.h>
+#include <third_party/blink/public/web/web_local_frame.h>
 #include <skia/ext/platform_canvas.h>
 #include <third_party/skia/include/core/SkDocument.h>
 #include <third_party/skia/include/core/SkStream.h>
@@ -41,6 +44,8 @@
 #include <ui/events/blink/web_input_event.h>
 #include <ui/aura/window.h>
 #include <ui/aura/client/screen_position_client.h>
+#include <components/printing/renderer/print_render_frame_helper.h>
+#include <v8.h>
 
 namespace blpwtk2 {
 
@@ -162,6 +167,81 @@ void RendererUtil::handleInputEvents(content::RenderWidget *rw, const WebView::I
 }
 
 // hunk separator
+void RendererUtil::drawContentsToBlob(content::RenderView        *rv,
+                                      Blob                       *blob,
+                                      const WebView::DrawParams&  params)
+{
+    blink::WebFrame* webFrame = rv->GetWebView()->MainFrame();
+    DCHECK(webFrame->IsWebLocalFrame());
+
+    int srcWidth = params.srcRegion.right - params.srcRegion.left;
+    int srcHeight = params.srcRegion.bottom - params.srcRegion.top;
+
+    if (params.rendererType == WebView::DrawParams::RendererType::PDF) {
+        // FIXME: Fix support for generating PDF blobs
+#if 0
+        SkDynamicMemoryWStream& pdf_stream = blob->makeSkStream();
+        {
+            SkDocument::PDFMetadata metadata;
+            metadata.fRasterDPI = params.dpi;
+
+            sk_sp<SkDocument> document(
+                    SkDocument::MakePDF(&pdf_stream, metadata).release());
+
+            SkCanvas *canvas = document->beginPage(params.destWidth, params.destHeight);
+            DCHECK(canvas);
+            canvas->scale(params.destWidth / srcWidth, params.destHeight / srcHeight);
+
+            webFrame->DrawInCanvas(blink::WebRect(params.srcRegion.left, params.srcRegion.top, srcWidth, srcHeight),
+                                   blink::WebString::FromUTF8(params.styleClass.data(), params.styleClass.length()),
+                                   *canvas);
+            canvas->flush();
+            document->endPage();
+        }
+#endif
+    }
+    else if (params.rendererType == WebView::DrawParams::RendererType::Bitmap) {
+        SkBitmap& bitmap = blob->makeSkBitmap();        
+        bitmap.allocN32Pixels(params.destWidth + 0.5, params.destHeight + 0.5);
+
+        cc::SkiaPaintCanvas canvas(bitmap);
+        canvas.scale(params.destWidth / srcWidth, params.destHeight / srcHeight);
+
+        webFrame->DrawInCanvas(blink::WebRect(params.srcRegion.left, params.srcRegion.top, srcWidth, srcHeight),
+                               blink::WebString::FromUTF8(params.styleClass.data(), params.styleClass.length()),
+                               &canvas);
+
+        canvas.flush();
+    }
+}
+
+String RendererUtil::printToPDF(
+    content::RenderView* renderView, const std::string& propertyName)
+{
+    blpwtk2::String returnVal;
+    v8::Isolate* isolate = v8::Isolate::GetCurrent();
+    v8::HandleScope handleScope(isolate);
+
+    for (auto* frame = renderView->GetWebView()->MainFrame(); frame;
+         frame = frame->TraverseNext()) {
+      if (auto* local_frame = frame->ToWebLocalFrame()) {
+        v8::Local<v8::Context> jsContext =
+            local_frame->MainWorldScriptContext();
+        v8::Local<v8::Object> winObject = jsContext->Global();
+
+        if (winObject->Has(
+                v8::String::NewFromUtf8(isolate, propertyName.c_str()))) {
+          std::vector<char> buffer = printing::PrintRenderFrameHelper::Get(
+                                         renderView->GetMainRenderFrame())
+                                         ->PrintToPDF(local_frame);
+          returnVal.assign(buffer.data(), buffer.size());
+          break;
+        }
+      }
+    }
+
+    return returnVal;
+}
 
 }  // close namespace blpwtk2
 

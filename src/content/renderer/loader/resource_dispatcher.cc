@@ -415,7 +415,12 @@ void ResourceDispatcher::DidChangePriority(int request_id,
     return;
   }
 
-  request_info->url_loader->SetPriority(new_priority, intra_priority_value);
+  // blpwtk2: Null-check before we attempt to use the throttling loader. This
+  // check is needed because we bail out very early in the StartAsync function
+  // if the embedder's URL loader is used, and we never give the chance for
+  // the throttling loader to be installed later in the function.
+  if (request_info->url_loader)
+    request_info->url_loader->SetPriority(new_priority, intra_priority_value);
 }
 
 void ResourceDispatcher::OnTransferSizeUpdated(int request_id,
@@ -527,6 +532,11 @@ int ResourceDispatcher::StartAsync(
         std::move(peer), std::move(bridge), static_cast<ResourceType>(request->resource_type),
         request->render_frame_id, request->url, request->method,
         request->referrer, request->download_to_file);
+
+    pending_requests_[request_id]->url_loader_client =
+        std::make_unique<URLLoaderClientImpl>(request_id, this,
+                                              loading_task_runner);
+
     return request_id;
   }
 

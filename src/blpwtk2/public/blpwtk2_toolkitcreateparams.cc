@@ -41,10 +41,13 @@ namespace blpwtk2 {
 struct ToolkitCreateParamsImpl final
 {
     ThreadMode d_threadMode;
+    ToolkitCreateParams::LogMessageHandler d_logMessageHandler;
+    ToolkitCreateParams::ConsoleLogMessageHandler d_consoleLogMessageHandler;
     ToolkitCreateParams::WinProcExceptionFilter d_winProcExceptionFilter;
     ToolkitCreateParams::ChannelErrorHandler d_channelErrorHandler;
     int d_maxSocketsPerProxy;
     std::vector<std::string> d_commandLineSwitches;
+    std::vector<std::string> d_sideLoadedFonts;
     ResourceLoader* d_inProcessResourceLoader;
     std::string d_dictionaryPath;
     std::string d_hostChannel;
@@ -63,6 +66,7 @@ struct ToolkitCreateParamsImpl final
     std::string d_profileDirectory;
     bool d_isIsolatedProfile;
     bool d_rendererUIEnabled;
+    bool d_browserV8Enabled;
 
     ToolkitCreateParamsImpl();
 };
@@ -73,6 +77,8 @@ struct ToolkitCreateParamsImpl final
 
 ToolkitCreateParamsImpl::ToolkitCreateParamsImpl()
     : d_threadMode(ThreadMode::ORIGINAL)
+    , d_logMessageHandler(0)
+    , d_consoleLogMessageHandler(0)
     , d_winProcExceptionFilter(0)
     , d_channelErrorHandler(0)
     , d_maxSocketsPerProxy(-1000)
@@ -89,6 +95,7 @@ ToolkitCreateParamsImpl::ToolkitCreateParamsImpl()
     , d_inProcessResizeOptimizationDisabled(false)
     , d_isIsolatedProfile(true)
     , d_rendererUIEnabled(false)
+    , d_browserV8Enabled(false)
 {
 }
 
@@ -131,6 +138,16 @@ void ToolkitCreateParams::enableDefaultPrintSettings()
     d_impl->d_useDefaultPrintSettings = true;
 }
 
+void ToolkitCreateParams::setLogMessageHandler(LogMessageHandler handler)
+{
+    d_impl->d_logMessageHandler = handler;
+}
+
+void ToolkitCreateParams::setConsoleLogMessageHandler(ConsoleLogMessageHandler handler)
+{
+    d_impl->d_consoleLogMessageHandler = handler;
+}
+
 void ToolkitCreateParams::setWinProcExceptionFilter(WinProcExceptionFilter filter)
 {
     d_impl->d_winProcExceptionFilter = filter;
@@ -158,6 +175,13 @@ void ToolkitCreateParams::appendCommandLineSwitch(const StringRef& switchString)
     d_impl->d_commandLineSwitches.push_back(std::string());
     d_impl->d_commandLineSwitches.back().assign(switchString.data(),
                                                 switchString.length());
+}
+
+void ToolkitCreateParams::appendSideLoadedFontInProcess(const StringRef& fontFile)
+{
+    d_impl->d_sideLoadedFonts.push_back(std::string());
+    d_impl->d_sideLoadedFonts.back().assign(fontFile.data(),
+                                            fontFile.length());
 }
 
 void ToolkitCreateParams::setInProcessResourceLoader(
@@ -245,7 +269,7 @@ void ToolkitCreateParams::setProfileDirectory(const StringRef& profileDir)
     d_impl->d_profileDirectory = std::string(profileDir.data(),
                                              profileDir.size());
 }
-    
+
 void ToolkitCreateParams::disableIsolatedProfile()
 {
     d_impl->d_isIsolatedProfile = false;
@@ -256,6 +280,11 @@ void ToolkitCreateParams::setRendererUIEnabled(bool rendererUIEnabled)
     d_impl->d_rendererUIEnabled = rendererUIEnabled;
 }
 
+void ToolkitCreateParams::setBrowserV8Enabled(bool browserV8Enabled)
+{
+    d_impl->d_browserV8Enabled = browserV8Enabled;
+}
+
 ThreadMode ToolkitCreateParams::threadMode() const
 {
     return d_impl->d_threadMode;
@@ -264,6 +293,16 @@ ThreadMode ToolkitCreateParams::threadMode() const
 bool ToolkitCreateParams::useDefaultPrintSettings() const
 {
     return d_impl->d_useDefaultPrintSettings;
+}
+
+ToolkitCreateParams::LogMessageHandler ToolkitCreateParams::logMessageHandler() const
+{
+    return d_impl->d_logMessageHandler;
+}
+
+ToolkitCreateParams::ConsoleLogMessageHandler ToolkitCreateParams::consoleLogMessageHandler() const
+{
+    return d_impl->d_consoleLogMessageHandler;
 }
 
 ToolkitCreateParams::WinProcExceptionFilter ToolkitCreateParams::winProcExceptionFilter() const
@@ -301,6 +340,17 @@ StringRef ToolkitCreateParams::commandLineSwitchAt(size_t index) const
 {
     DCHECK(index < d_impl->d_commandLineSwitches.size());
     return d_impl->d_commandLineSwitches[index];
+}
+
+size_t ToolkitCreateParams::numSideLoadedFonts() const
+{
+    return d_impl->d_sideLoadedFonts.size();
+}
+
+StringRef ToolkitCreateParams::sideLoadedFontAt(size_t index) const
+{
+    DCHECK(index < d_impl->d_sideLoadedFonts.size());
+    return d_impl->d_sideLoadedFonts[index];
 }
 
 ResourceLoader* ToolkitCreateParams::inProcessResourceLoader() const
@@ -371,6 +421,11 @@ bool ToolkitCreateParams::isInProcessResizeOptimizationDisabled() const
 bool ToolkitCreateParams::rendererUIEnabled() const
 {
     return d_impl->d_rendererUIEnabled;
+}
+
+bool ToolkitCreateParams::browserV8Enabled() const
+{
+    return d_impl->d_browserV8Enabled;
 }
 
 StringRef ToolkitCreateParams::profileDirectory() const

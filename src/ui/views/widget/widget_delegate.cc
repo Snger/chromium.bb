@@ -165,7 +165,19 @@ bool WidgetDelegate::WillProcessWorkAreaChange() const {
   return false;
 }
 
+aura::Window* WidgetDelegate::GetDefaultActivationWindow() {
+  return NULL;
+}
+
 bool WidgetDelegate::WidgetHasHitTestMask() const {
+  return false;
+}
+
+bool WidgetDelegate::OnNCHitTest(int* result, const gfx::Point& point) {
+  return false;
+}
+
+bool WidgetDelegate::OnNCDragBegin(int hit_test_code) {
   return false;
 }
 

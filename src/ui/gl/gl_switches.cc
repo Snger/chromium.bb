@@ -114,6 +114,10 @@ const char kEnableDirectCompositionLayers[] =
 const char kDisableDirectCompositionLayers[] =
     "disable-direct-composition-layers";
 
+// Disable falling back to software compositor in case of a GPU fatal error
+const char kDisableGpuCompositorFallBackToSoftwareOnGLError[] =
+    "disable-gpu-compositor-fallback-to-software-on-gl-error";
+
 // Enables the presentation callback for SwapBuffers, SwapBuffersAsync, etc.
 const char kEnablePresentationCallback[] = "enable-presentation-callback";
 

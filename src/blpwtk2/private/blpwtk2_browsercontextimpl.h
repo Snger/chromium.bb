@@ -43,6 +43,7 @@ class PrefService;
 namespace blpwtk2 {
 
 class ResourceContextImpl;
+class SpellCheckConfig;
 class URLRequestContextGetterImpl;
 
                         // ========================
@@ -118,7 +119,24 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     void addBypassRule(const StringRef& rule) override;
     void clearBypassRules() override;
     void setPacUrl(const StringRef& url) override;
+    void dumpDiagnostics(DiagnosticInfoType type,
+                         const StringRef&   path) override;
 
+    void enableSpellCheck(bool enabled) override;
+
+    void setLanguages(const StringRef *languages,
+                      size_t           numLanguages) override;
+
+    void addCustomWords(const StringRef *words,
+                        size_t           numWords) override;
+    void removeCustomWords(const StringRef *words,
+                           size_t           numWords) override;
+    void clearWebCache() override;
+    void setDefaultPrinter(const StringRef& name) override;
+
+    void opaqueMessageToBrowserAsync(const StringRef& msg) override;
+    String opaqueMessageToBrowserSync(const StringRef& msg) override;
+    void setIPCDelegate(ProcessClientDelegate *delegate) override;
     // content::BrowserContext overrides
     std::unique_ptr<content::ZoomLevelDelegate> CreateZoomLevelDelegate(
         const base::FilePath& partition_path) override;
@@ -130,6 +148,7 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     storage::SpecialStoragePolicy *GetSpecialStoragePolicy() override;
     content::PushMessagingService *GetPushMessagingService() override;
     content::SSLHostStateDelegate *GetSSLHostStateDelegate() override;
+    bool AllowDictionaryDownloads() override;
     content::PermissionManager *GetPermissionManager() override;
     content::BackgroundFetchDelegate* GetBackgroundFetchDelegate() override;
     content::BackgroundSyncController *GetBackgroundSyncController() override;
@@ -148,6 +167,8 @@ class BrowserContextImpl final : public base::RefCounted<BrowserContextImpl>
     net::URLRequestContextGetter *CreateMediaRequestContextForStoragePartition(
           const base::FilePath& partition_path,
           bool                  in_memory) override;
+
+	content::FontCollection* GetFontCollection() override;
 };
 
 }  // close namespace blpwtk2

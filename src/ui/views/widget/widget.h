@@ -298,6 +298,8 @@ class VIEWS_EXPORT Widget : public internal::NativeWidgetDelegate,
     // be sent to the widget.
     bool wants_mouse_events_when_inactive = false;
 
+    bool reroute_mouse_wheel_to_any_related_window;
+
     // A map of properties applied to windows when running in mus.
     std::map<std::string, std::vector<uint8_t>> mus_properties;
   };
@@ -444,6 +446,7 @@ class VIEWS_EXPORT Widget : public internal::NativeWidgetDelegate,
 
   // Sizes and/or places the widget to the specified bounds, size or position.
   void SetBounds(const gfx::Rect& bounds);
+  void SetBoundsNoDPIAdjustment(const gfx::Rect& bounds);
   void SetSize(const gfx::Size& size);
 
   // Sizes the window to the specified size and centerizes it.
@@ -675,6 +678,8 @@ class VIEWS_EXPORT Widget : public internal::NativeWidgetDelegate,
   // Tell the window that something caused the frame type to change.
   void FrameTypeChanged();
 
+  void CompositionChanged();
+
   NonClientView* non_client_view() {
     return const_cast<NonClientView*>(
         const_cast<const Widget*>(this)->non_client_view());
@@ -808,6 +813,11 @@ class VIEWS_EXPORT Widget : public internal::NativeWidgetDelegate,
   void OnNativeWidgetEndUserBoundsChange() override;
   bool HasFocusManager() const override;
   void OnNativeWidgetPaint(const ui::PaintContext& context) override;
+  bool OnNCHitTest(int* result, const gfx::Point& point) override;
+  bool OnNCDragBegin(int hit_test_code) override;
+  void OnNCDragMove() override;
+  void OnNCDragEnd() override;
+  void OnNCDoubleClick() override;
   int GetNonClientComponent(const gfx::Point& point) override;
   void OnKeyEvent(ui::KeyEvent* event) override;
   void OnMouseEvent(ui::MouseEvent* event) override;

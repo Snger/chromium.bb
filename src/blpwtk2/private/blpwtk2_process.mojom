@@ -33,6 +33,9 @@ enum ProxyConfigType {
 };
 
 struct WebViewCreateParams {
+    bool takeKeyboardFocusOnMouseDown;
+    bool takeLogicalFocusOnMouseDown;
+    bool activateWindowOnMouseDown;
     bool domPasteEnabled;
     bool javascriptCanAccessClipboard;
     bool rerouteMouseWheelToAnyRelatedWindow;
@@ -54,7 +57,7 @@ interface ProcessHost {
         // initialize the toolkit.  This will allow the toolkit to establish
         // a Mojo connection so the process can issue Mojo requests.
 
-    bindProcess(uint32 pid, bool launchDevToolsServer);
+    bindProcess(uint32 pid, bool launchDevToolsServer) => (ProcessClient& client);
         // Once a child process establishes a Mojo connection given a channel
         // info, it must call bindProcess with its pid to signal the browser
         // to associate the connection of the incoming request with the
@@ -70,6 +73,13 @@ interface ProcessHost {
     [Sync]
     registerScreenForStreaming(uint32 view) => (string media_id);
         // Register a Display device as a streaming media source
+
+    dumpDiagnostics(int32 type, string path);
+        // Request process host to dump diagnostic information to the file
+        // located in 'path'.
+
+    setDefaultPrinter(string name);
+        // Sets the printer to use by default
 
     addHttpProxy(ProxyConfigType type, string host, int32 port);
         // Add a new proxy host 'host':'port'.  This will cause the browser
@@ -120,6 +130,23 @@ interface ProcessHost {
         // This function will cause the browser process to connect the
         // renderer-owned native view with composition output generated
         // in the GPU process.
+
+    enableSpellCheck(bool enabled);
+
+    setLanguages(array<string> languages);
+
+    addCustomWords(array<string> words);
+
+    removeCustomWords(array<string> words);
+
+    opaqueMessageToBrowserAsync(string msg);
+
+    [Sync]
+    opaqueMessageToBrowserSync(string msg) => (string response);
+};
+
+interface ProcessClient {
+    opaqueMessageToRendererAsync(string msg);
 };
 
 // vim: ts=4 et

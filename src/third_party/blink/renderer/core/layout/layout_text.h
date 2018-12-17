@@ -182,7 +182,9 @@ class CORE_EXPORT LayoutText : public LayoutObject {
   float FirstRunX() const;
   float FirstRunY() const;
 
-  virtual void SetText(scoped_refptr<StringImpl>, bool force = false);
+  virtual void SetText(scoped_refptr<StringImpl>,
+                       bool force = false,
+                       bool avoid_layout_and_only_paint = false);
   void SetTextWithOffset(scoped_refptr<StringImpl>,
                          unsigned offset,
                          unsigned len,
@@ -352,6 +354,9 @@ class CORE_EXPORT LayoutText : public LayoutObject {
       delete;  // This will catch anyone doing an unnecessary check.
 
   LayoutRect LocalVisualRectIgnoringVisibility() const final;
+
+  bool CanOptimizeSetText() const;
+  void SetFirstTextBoxLogicalLeft(float text_width) const;
 
   // We put the bitfield first to minimize padding on 64-bit.
 

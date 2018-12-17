@@ -76,11 +76,11 @@
 namespace blink {
 
 std::unique_ptr<GraphicsLayer> GraphicsLayer::Create(
-    GraphicsLayerClient& client) {
-  return base::WrapUnique(new GraphicsLayer(client));
+    GraphicsLayerClient& client, bool use_nearest_neighbor_filter) {
+  return base::WrapUnique(new GraphicsLayer(client, use_nearest_neighbor_filter));
 }
 
-GraphicsLayer::GraphicsLayer(GraphicsLayerClient& client)
+GraphicsLayer::GraphicsLayer(GraphicsLayerClient& client, bool use_nearest_neighbor_filter)
     : client_(client),
       background_color_(Color::kTransparent),
       opacity_(1),
@@ -97,6 +97,7 @@ GraphicsLayer::GraphicsLayer(GraphicsLayerClient& client)
       has_scroll_parent_(false),
       has_clip_parent_(false),
       painted_(false),
+      use_nearest_neighbor_filter_(use_nearest_neighbor_filter),
       painting_phase_(kGraphicsLayerPaintAllWithOverflowClip),
       parent_(nullptr),
       mask_layer_(nullptr),
@@ -1104,6 +1105,11 @@ void GraphicsLayer::SetContentsOpaque(bool opaque) {
     contents_layer_->SetOpaque(opaque);
 }
 
+void GraphicsLayer::setDefaultLCDBackgroundColor(const Color& color) {
+  layer_->setDefaultLCDBackgroundColor(color.Rgb());
+  layer_->Layer()->setOpaqueForLCDText(color.Alpha() == 255);
+}
+
 void GraphicsLayer::SetMaskLayer(GraphicsLayer* mask_layer) {
   if (mask_layer == mask_layer_)
     return;
@@ -1452,6 +1458,10 @@ FloatSize GraphicsLayer::VisualRectSubpixelOffset() const {
   if (GetCompositingReasons() & CompositingReason::kComboAllDirectReasons)
     return FloatSize(client_.SubpixelAccumulation());
   return FloatSize();
+}
+
+bool GraphicsLayer::NearestNeighbor() const {
+  return use_nearest_neighbor_filter_;
 }
 
 bool ScopedSetNeedsDisplayInRectForTrackingOnly::s_enabled_ = false;

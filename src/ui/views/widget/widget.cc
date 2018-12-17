@@ -138,7 +138,8 @@ Widget::InitParams::InitParams(Type type)
       layer_type(ui::LAYER_TEXTURED),
       context(nullptr),
       force_show_in_taskbar(false),
-      force_software_compositing(false) {}
+      force_software_compositing(false),
+      reroute_mouse_wheel_to_any_related_window(false) {}
 
 Widget::InitParams::InitParams(const InitParams& other) = default;
 
@@ -514,6 +515,10 @@ std::string Widget::GetWorkspace() const {
 
 void Widget::SetBounds(const gfx::Rect& bounds) {
   native_widget_->SetBounds(bounds);
+}
+
+void Widget::SetBoundsNoDPIAdjustment(const gfx::Rect& bounds) {
+  native_widget_->SetBoundsNoDPIAdjustment(bounds);
 }
 
 void Widget::SetSize(const gfx::Size& size) {
@@ -925,6 +930,10 @@ void Widget::FrameTypeChanged() {
   native_widget_->FrameTypeChanged();
 }
 
+void Widget::CompositionChanged() {
+  native_widget_->CompositionChanged();
+}
+
 const ui::Compositor* Widget::GetCompositor() const {
   return native_widget_->GetCompositor();
 }
@@ -1161,6 +1170,26 @@ void Widget::OnNativeWidgetPaint(const ui::PaintContext& context) {
   if (!native_widget_initialized_)
     return;
   GetRootView()->PaintFromPaintRoot(context);
+}
+
+bool Widget::OnNCHitTest(int* result, const gfx::Point& point) {
+  return widget_delegate_->OnNCHitTest(result, point);
+}
+
+bool Widget::OnNCDragBegin(int hit_test_code) {
+  return widget_delegate_->OnNCDragBegin(hit_test_code);
+}
+
+void Widget::OnNCDragMove() {
+  return widget_delegate_->OnNCDragMove();
+}
+
+void Widget::OnNCDragEnd() {
+  return widget_delegate_->OnNCDragEnd();
+}
+
+void Widget::OnNCDoubleClick() {
+  return widget_delegate_->OnNCDoubleClick();
 }
 
 int Widget::GetNonClientComponent(const gfx::Point& point) {

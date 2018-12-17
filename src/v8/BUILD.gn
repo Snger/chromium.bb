@@ -1339,6 +1339,8 @@ v8_source_set("v8_base") {
     "include/v8-util.h",
     "include/v8.h",
     "include/v8config.h",
+    "include/bb-v8-util.h",
+    "include/bb-v8-util.cc",
     "src/accessors.cc",
     "src/accessors.h",
     "src/address-map.cc",
@@ -2650,7 +2652,7 @@ v8_source_set("v8_base") {
     "//blpwtk2:blpwtk2_public",
   ]
 
-  
+
 }
 
 v8_component("v8_libbase") {
@@ -3032,7 +3034,6 @@ group("v8_fuzzers") {
 if (is_component_build) {
   v8_component("v8") {
     sources = [
-      "src/blpv8.rc",
       "src/v8dll-main.cc",
     ]
     deps = [
@@ -3059,11 +3060,6 @@ if (is_component_build) {
       #          blpwtk2:blpwtk2_generate_sources
       "//blpwtk2:blpwtk2_public",
     ]
-    if (bb_version != "") {
-      output_name = "blpv8.$bb_version"
-    } else {
-      output_name = "blpv8"
-    }
   }
 
   v8_component("v8_for_testing") {

@@ -105,6 +105,7 @@
         "border-right-width",
         "clip",
         "user-select",
+        "rubberbandable",
         "border-bottom-width",
         "webkit-tap-highlight-color",
         "direction",
@@ -572,7 +573,9 @@
         "scroll-snap-points-x",
         "scroll-snap-points-y",
         "scroll-snap-coordinate",
+        "-bb-lcd-background-color",
         "variable",
+        "-bb-suppress-needs-compositing-input-update"
     ],
     "properties": {}
 }

@@ -1565,12 +1565,100 @@ float LayoutText::FirstRunY() const {
   return FirstTextBox() ? FirstTextBox()->Y().ToFloat() : 0;
 }
 
+bool LayoutText::CanOptimizeSetText() const {
+  // If we have only one line of text and "contain: layout size" we can avoid
+  // doing a layout and only paint in the SetText() operation.
+  return Parent()->IsLayoutBlockFlow() &&
+         (Parent()->StyleRef().ContainsLayout() &&
+          Parent()->StyleRef().ContainsSize()) &&
+         !PreviousSibling() && !NextSibling() && FirstTextBox() &&
+         FirstTextBox() == LastTextBox() &&
+
+         // If "line-height" is "normal" we might need to recompute the
+         // baseline which is not straight forward.
+         !StyleRef().LineHeight().IsNegative() &&
+         // We would need to recompute the position if "direction" is "rtl".
+         StyleRef().IsLeftToRightDirection() &&
+         // We would need to layout the text if it is justified.
+         (StyleRef().GetTextAlign(true) != ETextAlign::kJustify);
+}
+
+void LayoutText::SetFirstTextBoxLogicalLeft(float text_width) const {
+  DCHECK(FirstTextBox());
+  DCHECK(ContainingBlock());
+  DCHECK(StyleRef().IsLeftToRightDirection());
+
+  LayoutUnit offset_left = ContainingBlock()->LogicalLeftOffsetForContent();
+  LayoutUnit available_space = ContainingBlock()->ContentLogicalWidth();
+
+  switch (StyleRef().GetTextAlign(true)) {
+    case ETextAlign::kLeft:
+    case ETextAlign::kWebkitLeft:
+    case ETextAlign::kJustify:
+    case ETextAlign::kStart:
+      // Do nothing.
+      break;
+    case ETextAlign::kRight:
+    case ETextAlign::kWebkitRight:
+    case ETextAlign::kEnd:
+      offset_left += available_space - text_width;
+      break;
+    case ETextAlign::kCenter:
+    case ETextAlign::kWebkitCenter:
+      offset_left += (available_space - text_width) / 2;
+      break;
+  }
+
+  FirstTextBox()->SetLogicalLeft(offset_left);
+}
+
+extern bool g_bbNoRelayoutOnSetCharacterData;
+
+bool ShouldSkipRelayoutOnSetText(const LayoutText* lt)
+{
+  return g_bbNoRelayoutOnSetCharacterData
+    && lt->FirstTextBox()
+    && lt->FirstTextBox() == lt->LastTextBox();
+}
+
 void LayoutText::SetTextWithOffset(scoped_refptr<StringImpl> text,
                                    unsigned offset,
                                    unsigned len,
                                    bool force) {
   if (!force && Equal(text_.Impl(), text.get()))
     return;
+  
+  if (ShouldSkipRelayoutOnSetText(this)) {
+    FirstTextBox()->SetStartAndLen(0, text->length());
+    lines_dirty_ = false;
+    SetText(std::move(text), force);
+    return;
+  }
+
+  if (CanOptimizeSetText() &&
+      // Check that we are replacing the whole text.
+      offset == 0 && len == TextLength()) {
+    const ComputedStyle* style_to_use =
+        FirstTextBox()->GetLineLayoutItem().Style(
+            FirstTextBox()->IsFirstLineStyle());
+    TextRun text_run = TextRun(String(text));
+    text_run.SetTabSize(!style_to_use->CollapseWhiteSpace(),
+                        style_to_use->GetTabSize());
+    FloatRect glyph_bounds;
+    float text_width =
+        style_to_use->GetFont().Width(text_run, nullptr, &glyph_bounds);
+    // If the text is not wrapping we don't care if it fits or not in the
+    // container as it's not going to be split in multiple lines.
+    if (!style_to_use->AutoWrap() ||
+        (text_width <= ContainingBlock()->ContentLogicalWidth())) {
+      FirstTextBox()->ManuallySetStartLenAndLogicalWidth(
+          offset, text->length(), LayoutUnit(text_width));
+      SetFirstTextBoxLogicalLeft(text_width);
+      SetText(std::move(text), force, true);
+      lines_dirty_ = false;
+      return;
+    }
+  }
 
   unsigned old_len = TextLength();
   unsigned new_len = text->length();
@@ -1766,7 +1854,9 @@ void LayoutText::SecureText(UChar mask) {
   }
 }
 
-void LayoutText::SetText(scoped_refptr<StringImpl> text, bool force) {
+void LayoutText::SetText(scoped_refptr<StringImpl> text,
+                         bool force,
+                         bool avoid_layout_and_only_paint) {
   DCHECK(text);
 
   if (!force && Equal(text_.Impl(), text.get()))
@@ -1778,9 +1868,16 @@ void LayoutText::SetText(scoped_refptr<StringImpl> text, bool force) {
   // To avoid that, we call setNeedsLayoutAndPrefWidthsRecalc() only if this
   // LayoutText has parent.
   if (Parent()) {
-    SetNeedsLayoutAndPrefWidthsRecalcAndFullPaintInvalidation(
-        LayoutInvalidationReason::kTextChanged);
+    if (ShouldSkipRelayoutOnSetText(this)) {
+      SetShouldDoFullPaintInvalidation();
+    } else if (avoid_layout_and_only_paint) {
+      SetShouldDoFullPaintInvalidation();
+    } else {
+      SetNeedsLayoutAndPrefWidthsRecalcAndFullPaintInvalidation(
+          LayoutInvalidationReason::kTextChanged);
+    }
   }
+
   known_to_have_no_overflow_and_no_fallback_fonts_ = false;
 
   if (AXObjectCache* cache = GetDocument().ExistingAXObjectCache())

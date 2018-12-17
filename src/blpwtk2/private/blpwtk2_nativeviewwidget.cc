@@ -34,6 +34,7 @@ namespace blpwtk2 {
 NativeViewWidget::NativeViewWidget(gfx::NativeView contents,
                                    blpwtk2::NativeView parent,
                                    NativeViewWidgetDelegate* delegate,
+                                   bool activatable,
                                    bool rerouteMouseWheelToAnyRelatedWindow)
 : d_delegate(delegate)
 , d_nativeViewHost(new views::NativeViewHost())
@@ -47,8 +48,9 @@ NativeViewWidget::NativeViewWidget(gfx::NativeView contents,
     params.delegate = this;
     params.type = views::Widget::InitParams::TYPE_WINDOW_FRAMELESS;
     params.opacity = views::Widget::InitParams::OPAQUE_WINDOW;
-    params.activatable = views::Widget::InitParams::ACTIVATABLE_DEFAULT;
+    params.activatable = activatable ? views::Widget::InitParams::ACTIVATABLE_DEFAULT : views::Widget::InitParams::ACTIVATABLE_NO;
     params.layer_type = ui::LAYER_SOLID_COLOR;
+    params.reroute_mouse_wheel_to_any_related_window = rerouteMouseWheelToAnyRelatedWindow;
     d_impl->set_focus_on_creation(false);
     d_impl->Init(params);
     d_nativeViewHost->Attach(contents);
@@ -110,7 +112,7 @@ void NativeViewWidget::hide()
 void NativeViewWidget::move(int x, int y, int width, int height)
 {
     DCHECK(d_impl);
-    d_impl->SetBounds(gfx::Rect(x, y, width, height));
+    d_impl->SetBoundsNoDPIAdjustment(gfx::Rect(x, y, width, height));
 }
 
 void NativeViewWidget::focus()
@@ -135,6 +137,18 @@ void NativeViewWidget::setRegion(blpwtk2::NativeRegion region)
                    ::IsWindowVisible(hwnd));
 }
 
+void NativeViewWidget::compositionChanged()
+{
+    DCHECK(d_impl);
+    d_impl->CompositionChanged();
+}
+
+gfx::NativeWindow NativeViewWidget::GetNativeWindow()
+{
+    DCHECK(d_impl);
+    return d_impl->GetNativeWindow();
+}
+
 // views::WidgetDelegate overrides
 
 void NativeViewWidget::WindowClosing()
@@ -150,9 +164,48 @@ void NativeViewWidget::WindowClosing()
     d_delegate = 0;
 }
 
+aura::Window* NativeViewWidget::GetDefaultActivationWindow()
+{
+    if (d_delegate)
+        return d_delegate->GetDefaultActivationWindow();
+    return NULL;
+}
+
 views::View* NativeViewWidget::GetContentsView()
 {
     return this;
+}
+
+bool NativeViewWidget::OnNCHitTest(int* result, const gfx::Point& point)
+{
+    if (d_delegate)
+        return d_delegate->OnNCHitTest(result);
+    return false;
+}
+
+bool NativeViewWidget::OnNCDragBegin(int hit_test_code)
+{
+    if (d_delegate)
+        return d_delegate->OnNCDragBegin(hit_test_code);
+    return false;
+}
+
+void NativeViewWidget::OnNCDragMove()
+{
+    if (d_delegate)
+        d_delegate->OnNCDragMove();
+}
+
+void NativeViewWidget::OnNCDragEnd()
+{
+    if (d_delegate)
+        d_delegate->OnNCDragEnd();
+}
+
+void NativeViewWidget::OnNCDoubleClick()
+{
+    if (d_delegate)
+        d_delegate->OnNCDoubleClick();
 }
 
 }  // close namespace blpwtk2

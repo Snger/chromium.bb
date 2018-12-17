@@ -48,6 +48,12 @@ WebViewHostImpl::WebViewHostImpl(
 {
     WebViewProperties properties;
 
+    properties.takeKeyboardFocusOnMouseDown =
+        params.takeKeyboardFocusOnMouseDown;
+    properties.takeLogicalFocusOnMouseDown =
+        params.takeLogicalFocusOnMouseDown;
+    properties.activateWindowOnMouseDown =
+        params.activateWindowOnMouseDown;
     properties.domPasteEnabled =
         params.domPasteEnabled;
     properties.javascriptCanAccessClipboard =
@@ -227,6 +233,12 @@ void WebViewHostImpl::ncDragEnd(WebView *source, const POINT& endPoint)
                        base::Unretained(this)));
 }
 
+void WebViewHostImpl::ncDoubleClick(WebView *source, const POINT& point)
+{
+    DCHECK(source == d_impl);
+    d_clientPtr->ncDoubleClick(point.x, point.y);
+}
+
 void WebViewHostImpl::findState(WebView *source,
                                 int      numberOfMatches,
                                 int      activeMatchOrdinal,
@@ -238,6 +250,18 @@ void WebViewHostImpl::findState(WebView *source,
     // WebViewClientImpl (by using findStateWithReqId) and let it filter out
     // all but the latest response.
     NOTREACHED() << "findState should come in via findStateWithReqId";
+}
+
+void WebViewHostImpl::devToolsAgentHostAttached(WebView *source)
+{
+    DCHECK(source == d_impl);
+    d_clientPtr->devToolsAgentHostAttached();
+}
+
+void WebViewHostImpl::devToolsAgentHostDetached(WebView *source)
+{
+    DCHECK(source == d_impl);
+    d_clientPtr->devToolsAgentHostDetached();
 }
 
 // Mojo callbacks
@@ -390,6 +414,16 @@ void WebViewHostImpl::stop()
     d_impl->stop();
 }
 
+void WebViewHostImpl::takeKeyboardFocus()
+{
+    d_impl->takeKeyboardFocus();
+}
+
+void WebViewHostImpl::setLogicalFocus(bool focused)
+{
+    d_impl->setLogicalFocus(focused);
+}
+
 void WebViewHostImpl::performCustomContextMenuAction(int id)
 {
     d_impl->performCustomContextMenuAction(id);
@@ -438,6 +472,11 @@ void WebViewHostImpl::deleteSelection()
 void WebViewHostImpl::enableNCHitTest(bool enabled)
 {
     d_impl->enableNCHitTest(enabled);
+}
+
+void WebViewHostImpl::enableAltDragRubberbanding(bool enabled)
+{
+    d_impl->enableAltDragRubberbanding(enabled);
 }
 
 void WebViewHostImpl::find(int                reqId,
@@ -506,6 +545,11 @@ void WebViewHostImpl::clearTooltip()
 void WebViewHostImpl::setParent(unsigned int window)
 {
     d_impl->setParent(reinterpret_cast<NativeView>(window));
+}
+
+void WebViewHostImpl::rootWindowCompositionChanged()
+{
+    d_impl->rootWindowCompositionChanged();
 }
 
 }  // close namespace blpwtk2

@@ -104,7 +104,7 @@ class BLPWTK2_EXPORT WebViewDelegate {
         // contains the mouse position where the drag ended, in screen
         // coordinates.
 
-    virtual void ncDoubleClick(WebView *source, const POINT& endPoint) {}
+    virtual void ncDoubleClick(WebView *source, const POINT& point) {}
         // TODO(imran)
 
     virtual void findState(WebView *source,
@@ -113,6 +113,24 @@ class BLPWTK2_EXPORT WebViewDelegate {
                            bool     finalUpdate) {}
         // Invoked response to a WebView::find method call to report
         // find-on-page status update.
+
+    virtual void startPerformanceTiming() {}
+        // Begin performance timing for a Chromium operation. The behavior is
+        // undefined unless 'stopTiming' is called to end this timed
+        // operation.
+
+    virtual void stopPerformanceTiming() {}
+        // End performance timing for a Chromium operation. The behavior is
+        // undefined unless there was a corresponding 'startTiming' call that
+        // preceded this call.
+
+    virtual void devToolsAgentHostAttached(WebView *source) {}
+        // Notify the embedder that a devtools frontend is connected to this
+        // webview's devtools agent.
+
+    virtual void devToolsAgentHostDetached(WebView *source) {}
+        // Notify the embedder that a devtools frontend is disconnected from
+        // this webview's devtools agent.
 };
 
 }  // close namespace blpwtk2

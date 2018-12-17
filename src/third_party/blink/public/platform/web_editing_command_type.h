@@ -153,6 +153,11 @@ enum class WebEditingCommandType {
   kYankAndSelect = 138,
   kAlignCenter = 139,
 
+  // Bloomberg-specific commands
+  kInsertHTMLNested = 140,
+  kIndentBlock = 141,
+  kOutdentBlock = 142,
+
   // Add new commands immediately above this line.
   kNumberOfCommandTypes,
 

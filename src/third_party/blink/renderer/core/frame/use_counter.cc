@@ -1136,6 +1136,12 @@ int UseCounter::MapCSSPropertyIdToCSSSampleIdForHistogram(
       return 591;
     case CSSPropertyGap:
       return 592;
+    case CSSPropertyRubberbandable:
+      return 593;
+    case CSSPropertyBbLcdBackgroundColor:
+      return 594;
+    case CSSPropertyBbSuppressNeedsCompositingInputUpdate:
+      return 595;
     // 1. Add new features above this line (don't change the assigned numbers of
     // the existing items).
     // 2. Update kMaximumCSSSampleId (defined in
@@ -1148,7 +1154,6 @@ int UseCounter::MapCSSPropertyIdToCSSSampleIdForHistogram(
       return 0;
   }
 
-  NOTREACHED();
   return 0;
 }
 

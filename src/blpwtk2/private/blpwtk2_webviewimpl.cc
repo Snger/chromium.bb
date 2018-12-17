@@ -60,6 +60,7 @@
 #include <third_party/blink/public/web/web_find_options.h>
 #include <third_party/blink/public/web/web_view.h>
 #include <ui/base/win/hidden_window.h>
+#include <ui/aura/window.h>
 #include <errno.h>
 
 namespace blpwtk2 {
@@ -101,6 +102,7 @@ WebViewImpl::WebViewImpl(WebViewDelegate          *delegate,
     , d_isDeletingSoon(false)
     , d_ncHitTestEnabled(false)
     , d_ncHitTestPendingAck(false)
+    , d_altDragRubberbandingEnabled(false)
     , d_lastNCHitTestResult(HTCLIENT)
     , d_hostId(hostAffinity)
     , d_rendererUI(rendererUI)
@@ -137,6 +139,8 @@ WebViewImpl::WebViewImpl(WebViewDelegate          *delegate,
     prefs->use_bitmaps              = fontRenderParams.use_bitmaps;
     prefs->subpixel_rendering       = fontRenderParams.subpixel_rendering;
 
+    printing::PrintViewManager::CreateForWebContents(d_webContents.get());
+
     createWidget(parent);
 
     if (initiallyVisible) {
@@ -150,6 +154,8 @@ WebViewImpl::~WebViewImpl()
     DCHECK(d_wasDestroyed);
     DCHECK(d_isReadyForDelete);
     DCHECK(d_isDeletingSoon);
+
+    StopObservingGpuCompositor();
 
     g_instances.erase(this);
 
@@ -223,6 +229,12 @@ void WebViewImpl::onRenderViewHostMadeCurrent(content::RenderViewHost *renderVie
     if (routingId >= 0 && d_implClient) {
         d_implClient->gotNewRenderViewRoutingId(routingId);
     }
+
+#ifdef BB_RENDER_VIEW_HOST_SUPPORTS_RUBBERBANDING
+    renderViewHost->EnableAltDragRubberbanding(d_altDragRubberbandingEnabled);
+#endif
+
+    StartObservingGpuCompositor();
 }
 
 void WebViewImpl::destroy()
@@ -267,6 +279,22 @@ int WebViewImpl::loadUrl(const StringRef& url)
     return 0;
 }
 
+void WebViewImpl::drawContentsToBlob(Blob *blob, const DrawParams& params)
+{
+    NOTREACHED() << "drawContentsToBlob() not supported in WebViewImpl";
+}
+
+String WebViewImpl::printToPDF(const StringRef& propertyName)
+{
+    NOTREACHED() << "printToPDF() not supported in WebViewImpl";
+    return String();
+}
+
+void WebViewImpl::disableResizeOptimization()
+{
+    NOTREACHED() << "disableResizeOptimization() not supported in WebViewImpl";
+}
+
 int WebViewImpl::getRoutingId() const
 {
     DCHECK(Statics::isInBrowserMainThread());
@@ -305,6 +333,13 @@ void WebViewImpl::clearTooltip()
             d_webContents->GetRenderWidgetHostView());
 
     rwhv->SetTooltipText(L"");
+}
+
+void WebViewImpl::rootWindowCompositionChanged()
+{
+    if (d_widget) {
+        d_widget->compositionChanged();
+    }
 }
 
 v8::MaybeLocal<v8::Value> WebViewImpl::callFunction(v8::Local<v8::Function>  func,
@@ -407,6 +442,27 @@ void WebViewImpl::stop()
     DCHECK(Statics::isInBrowserMainThread());
     DCHECK(!d_wasDestroyed);
     d_webContents->Stop();
+}
+
+void WebViewImpl::takeKeyboardFocus()
+{
+    DCHECK(Statics::isInBrowserMainThread());
+    DCHECK(!d_wasDestroyed);
+    if (d_widget) {
+        d_widget->focus();
+    }
+}
+
+void WebViewImpl::setLogicalFocus(bool focused)
+{
+    DCHECK(Statics::isInBrowserMainThread());
+    DCHECK(!d_wasDestroyed);
+    if (focused) {
+        d_webContents->Focus();
+    }
+    else {
+        d_webContents->GetRenderWidgetHostView()->Blur();
+    }
 }
 
 void WebViewImpl::show()
@@ -524,6 +580,42 @@ void WebViewImpl::performCustomContextMenuAction(int actionId)
     d_webContents->ExecuteCustomContextMenuCommand(actionId, d_customContext);
 }
 
+void WebViewImpl::enableAltDragRubberbanding(bool enabled)
+{
+    DCHECK(Statics::isInBrowserMainThread());
+    DCHECK(!d_wasDestroyed);
+    d_altDragRubberbandingEnabled = enabled;
+
+#ifdef BB_RENDER_VIEW_HOST_SUPPORTS_RUBBERBANDING
+    if (d_webContents->GetRenderViewHost()) {
+        d_webContents->GetRenderViewHost()->EnableAltDragRubberbanding(enabled);
+    }
+#endif
+}
+
+bool WebViewImpl::forceStartRubberbanding(int x, int y)
+{
+    NOTREACHED() << "forceStartRubberbanding() not supported in WebViewImpl";
+    return false;
+}
+
+bool WebViewImpl::isRubberbanding() const
+{
+    NOTREACHED() << "isRubberbanding() not supported in WebViewImpl";
+    return false;
+}
+
+void WebViewImpl::abortRubberbanding()
+{
+    NOTREACHED() << "abortRubberbanding() not supported in WebViewImpl";
+}
+
+String WebViewImpl::getTextInRubberband(const NativeRect& rect)
+{
+    NOTREACHED() << "getTextInRubberband() not supported in WebViewImpl";
+    return String();
+}
+
 void WebViewImpl::find(const StringRef& text, bool matchCase, bool forward)
 {
     DCHECK(Statics::isOriginalThreadMode())
@@ -612,6 +704,7 @@ void WebViewImpl::createWidget(blpwtk2::NativeView parent)
         d_webContents->GetNativeView(),
         parent,
         this,
+        d_properties.activateWindowOnMouseDown,
         d_properties.rerouteMouseWheelToAnyRelatedWindow);
 
     if (d_implClient) {
@@ -793,6 +886,15 @@ void WebViewImpl::OnNCDragEnd()
     }
 }
 
+void WebViewImpl::OnNCDoubleClick()
+{
+    if (d_delegate) {
+        POINT screenPoint;
+        ::GetCursorPos(&screenPoint);
+        d_delegate->ncDoubleClick(this, screenPoint);
+    }
+}
+
 aura::Window *WebViewImpl::GetDefaultActivationWindow()
 {
     DCHECK(Statics::isInBrowserMainThread());
@@ -801,6 +903,18 @@ aura::Window *WebViewImpl::GetDefaultActivationWindow()
         return rwhv->GetNativeView();
     }
     return nullptr;
+}
+
+bool WebViewImpl::ShouldSetKeyboardFocusOnMouseDown()
+{
+    DCHECK(Statics::isInBrowserMainThread());
+    return d_properties.takeKeyboardFocusOnMouseDown;
+}
+
+bool WebViewImpl::ShouldSetLogicalFocusOnMouseDown()
+{
+    DCHECK(Statics::isInBrowserMainThread());
+    return d_properties.takeLogicalFocusOnMouseDown;
 }
 
 void WebViewImpl::FindReply(content::WebContents *source_contents,
@@ -831,6 +945,20 @@ void WebViewImpl::FindReply(content::WebContents *source_contents,
                               d_find->numberOfMatches(),
                               d_find->activeMatchIndex(),
                               final_update);
+    }
+}
+
+void WebViewImpl::DevToolsAgentHostAttached(content::WebContents* web_contents)
+{
+    if (d_delegate) {
+        d_delegate->devToolsAgentHostAttached(this);
+    }
+}
+
+void WebViewImpl::DevToolsAgentHostDetached(content::WebContents* web_contents)
+{
+    if (d_delegate) {
+        d_delegate->devToolsAgentHostDetached(this);
     }
 }
 
@@ -874,6 +1002,70 @@ void WebViewImpl::DidFailLoad(content::RenderFrameHost *render_frame_host,
     if (!render_frame_host->GetParent()) {
         d_delegate->didFailLoad(this, validated_url.spec());
     }
+}
+
+void WebViewImpl::OnWebContentsFocused(content::RenderWidgetHost*)
+{
+    DCHECK(Statics::isInBrowserMainThread());
+    if (d_wasDestroyed) return;
+    if (d_delegate)
+        d_delegate->focused(this);
+}
+
+void WebViewImpl::OnWebContentsLostFocus(content::RenderWidgetHost*)
+{
+    DCHECK(Statics::isInBrowserMainThread());
+    if (d_wasDestroyed) return;
+    if (d_delegate)
+        d_delegate->blurred(this);
+}
+
+void WebViewImpl::OnCompositorGpuErrorMessage(const std::string& message) {
+  d_renderViewHost->GetMainFrame()->AddMessageToConsole(
+      content::CONSOLE_MESSAGE_LEVEL_ERROR, 
+      "Gpu compositing error: " + message);
+}
+
+void WebViewImpl::OnCompositingShuttingDown(ui::Compositor* pCompositor) {
+  StopObservingGpuCompositor();
+}
+
+// Start Observing GPU compositor to receive the GPU error messages
+// from the GPU command buffer channel
+bool WebViewImpl::StartObservingGpuCompositor() {
+  if (!d_widget)
+    return false;
+
+  gfx::NativeWindow nativeWindow = d_widget->GetNativeWindow();
+  ui::Compositor *pCompositor =  nativeWindow && nativeWindow->layer() ?
+                                    nativeWindow->layer()->GetCompositor() : nullptr;
+  if (pCompositor) {
+    if (d_gpuCompositor != pCompositor) {
+      StopObservingGpuCompositor();
+      d_gpuCompositor = pCompositor;
+      if (!d_gpuCompositor->HasGpuObserver(this)) {
+        d_gpuCompositor->AddGpuObserver(this);
+        return true;
+      }
+    }
+  }
+  else {
+    LOG(WARNING) << "No Compositor to observe";
+  }
+  return false;
+}
+
+// Stop Observing GPU compositor
+bool WebViewImpl::StopObservingGpuCompositor() {
+  bool ret = false;
+  if (d_gpuCompositor) {
+    if (d_gpuCompositor->HasGpuObserver(this)) {
+        d_gpuCompositor->RemoveGpuObserver(this);
+        ret = true;
+    }
+    d_gpuCompositor = nullptr;
+  }
+  return ret;
 }
 
 }  // close namespace blpwtk2

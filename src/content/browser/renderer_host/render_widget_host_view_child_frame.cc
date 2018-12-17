@@ -73,7 +73,7 @@ RenderWidgetHostViewChildFrame::RenderWidgetHostViewChildFrame(
       frame_connector_(nullptr),
       enable_viz_(
           base::FeatureList::IsEnabled(features::kVizDisplayCompositor)),
-      background_color_(SK_ColorWHITE),
+      background_color_(default_background_color_),
       scroll_bubbling_state_(NO_ACTIVE_GESTURE_SCROLL),
       weak_factory_(this) {
   if (base::FeatureList::IsEnabled(features::kMash)) {

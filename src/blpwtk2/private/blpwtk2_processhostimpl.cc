@@ -32,6 +32,7 @@
 #include <blpwtk2_utility.h>
 #include <blpwtk2_webviewhostimpl.h>
 #include <blpwtk2_webviewhostobserver.h>
+#include <blpwtk2_processhostdelegate.h>
 
 #include <content/browser/renderer_host/render_process_host_impl.h>
 #include <mojo/edk/embedder/embedder.h>
@@ -42,6 +43,7 @@
 
 #include <base/command_line.h>
 #include <content/public/browser/browser_thread.h>
+#include <printing/backend/print_backend.h>
 #include <ui/gfx/win/rendering_window_manager.h>
 
 namespace blpwtk2 {
@@ -110,13 +112,15 @@ void releaseBrowserContext(scoped_refptr<BrowserContextImpl>&& context) {
 // class ProcessHostImpl::Impl
 // ---------------------------
 
-ProcessHostImpl::Impl::Impl(bool isolated, const std::string& profileDir)
+ProcessHostImpl::Impl::Impl(base::ProcessHandle processHandle,
+                            bool isolated,
+                            const std::string& profileDir)
     : d_processId(0),
       d_context(getBrowserContext(isolated, profileDir)),
       d_renderProcessHost(content::RenderProcessHost::CreateProcessHost(
-          base::GetCurrentProcessHandle(),
+          processHandle,
           d_context.get())),
-      d_processHandle(0) {
+      d_processHandle(processHandle) {
   // Initialize the RenderProcessHost.  This will register all the Mojo
   // services provided by RenderProcessHost and will call back to the
   // ChromeContentClient to register external services.  In this case,
@@ -209,6 +213,8 @@ bool ProcessHostImpl::Impl::onRenderLaunched(
 std::map<base::ProcessId, scoped_refptr<ProcessHostImpl::Impl>>
     ProcessHostImpl::s_unboundHosts;
 static std::set<ProcessHostImpl*> g_instances;
+static ProcessHostDelegate *g_ipcDelegate;
+static std::unordered_map<base::ProcessId, ProcessHostImpl*> s_boundedHosts;
 
 ProcessHostImpl::ProcessHostImpl(
     const scoped_refptr<base::SingleThreadTaskRunner>& runner)
@@ -221,6 +227,11 @@ ProcessHostImpl::ProcessHostImpl(
 
 ProcessHostImpl::~ProcessHostImpl() {
   g_instances.erase(this);
+
+  if (d_impl && d_impl->processId()) {
+    int pid = d_impl->processId();
+    s_boundedHosts.erase(pid);
+  }
 }
 
 int ProcessHostImpl::createPipeHandleForChild(base::ProcessId processId,
@@ -229,14 +240,13 @@ int ProcessHostImpl::createPipeHandleForChild(base::ProcessId processId,
   base::ProcessHandle processHandle;
 
   DCHECK(!d_impl);
-  d_impl = new Impl(isolated, profileDir);
 
   // Create a pipe for Mojo
   mojo::edk::PlatformChannelPair channel_pair;
   HANDLE fileDescriptor;
 
   if (processId != base::GetCurrentProcId()) {
-    processHandle = OpenProcess(PROCESS_DUP_HANDLE, FALSE, processId);
+    processHandle = OpenProcess(PROCESS_DUP_HANDLE | PROCESS_QUERY_INFORMATION, FALSE, processId);
 
     // Duplicate the "client" side of the pipe on the child process'
     // descriptor table
@@ -248,12 +258,13 @@ int ProcessHostImpl::createPipeHandleForChild(base::ProcessId processId,
 
     // Let the ProcessHostImpl::Impl hold the process handle so it can
     // close it upon object destruction.
-    d_impl->processHandle() = processHandle;
+    d_impl = new Impl(processHandle, isolated, profileDir);
 
     d_impl->onRenderLaunched(processHandle,
                            channel_pair.PassServerHandle());
   } else {
     processHandle = base::GetCurrentProcessHandle();
+    d_impl = new Impl(processHandle, isolated, profileDir);
     fileDescriptor = channel_pair.PassClientHandle().release().handle;
   }
   return HandleToLong(fileDescriptor);
@@ -334,12 +345,35 @@ void ProcessHostImpl::getHostId(int* hostId,
 }
 
 // static
+void ProcessHostImpl::opaqueMessageToRendererAsync(int pid, const StringRef &message)
+{
+  auto it = s_boundedHosts.find(pid);
+
+  if (s_boundedHosts.end() != it) {
+    ProcessHostImpl *instance = it->second;
+    instance->processClientPtr->opaqueMessageToRendererAsync(
+                std::string(message.data(), message.size()));
+
+  }
+  else {
+    LOG(ERROR) << "No processhost is bounded with this pid";
+  }
+}
+
+// static
+void ProcessHostImpl::setIPCDelegate(ProcessHostDelegate *delegate)
+{
+  g_ipcDelegate = delegate;
+}
+
+// static
 void ProcessHostImpl::releaseAll() {
   for (ProcessHostImpl* instance : g_instances) {
     instance->d_impl = nullptr;
   }
 
   s_unboundHosts.clear();
+  s_boundedHosts.clear();
 }
 
 // mojom::ProcessHost overrides
@@ -355,7 +389,9 @@ void ProcessHostImpl::createHostChannel(unsigned int pid,
                                             isolated, profileDir, runner));
 }
 
-void ProcessHostImpl::bindProcess(unsigned int pid, bool launchDevToolsServer) {
+void ProcessHostImpl::bindProcess(unsigned int pid,
+                                  bool launchDevToolsServer,
+                                  bindProcessCallback callback) {
   auto it = s_unboundHosts.find(static_cast<base::ProcessId>(pid));
   DCHECK(s_unboundHosts.end() != it);
 
@@ -389,6 +425,9 @@ void ProcessHostImpl::bindProcess(unsigned int pid, bool launchDevToolsServer) {
       LOG(ERROR) << "Couldn't locate process host for pid: " << pid;
     }
   }
+
+  std::move(callback).Run(mojo::MakeRequest(&processClientPtr));
+  s_boundedHosts[pid] = this;
 }
 
 void ProcessHostImpl::createWebView(mojom::WebViewHostRequest hostRequest,
@@ -446,6 +485,17 @@ void ProcessHostImpl::registerScreenForStreaming(
   String media_id = d_impl->context().registerScreenForStreaming(
       reinterpret_cast<NativeScreen>(screen));
   std::move(callback).Run(std::string(media_id.data(), media_id.size()));
+}
+
+void ProcessHostImpl::dumpDiagnostics(int type, const std::string& path)
+{
+    d_impl->context().dumpDiagnostics(
+            static_cast<Profile::DiagnosticInfoType>(type), StringRef(path));
+}
+
+void ProcessHostImpl::setDefaultPrinter(const std::string& name)
+{
+    d_impl->context().setDefaultPrinter(StringRef(name));
 }
 
 void ProcessHostImpl::addHttpProxy(mojom::ProxyConfigType type,
@@ -520,6 +570,73 @@ void ProcessHostImpl::resolveNativeViewComposition(uint32_t view)
 {
     gfx::RenderingWindowManager::GetInstance()->DoSetParentOnChild(
         reinterpret_cast<NativeView>(view));
+}
+
+void ProcessHostImpl::enableSpellCheck(bool enabled)
+{
+    d_impl->context().enableSpellCheck(enabled);
+}
+
+void ProcessHostImpl::setLanguages(const std::vector<std::string>& languages)
+{
+    std::vector<StringRef> languageList;
+
+    for (auto& lang : languages) {
+        languageList.push_back(StringRef(lang));
+    }
+
+    d_impl->context().setLanguages(languageList.data(), languageList.size());
+}
+
+void ProcessHostImpl::addCustomWords(const std::vector<std::string>& words)
+{
+    std::vector<StringRef> wordList;
+
+    for (auto& word : words) {
+        wordList.push_back(StringRef(word));
+    }
+
+    d_impl->context().addCustomWords(wordList.data(), wordList.size());
+}
+
+void ProcessHostImpl::removeCustomWords(const std::vector<std::string>& words)
+{
+    std::vector<StringRef> wordList;
+
+    for (auto& word : words) {
+        wordList.push_back(StringRef(word));
+    }
+
+    d_impl->context().removeCustomWords(wordList.data(), wordList.size());
+}
+
+void ProcessHostImpl::opaqueMessageToBrowserAsync(const std::string& msg)
+{
+    if (g_ipcDelegate) {
+      int pid = d_impl->processId();
+
+      g_ipcDelegate->onBrowserReceivedAsync(pid, StringRef(msg.data(), msg.size()));
+    }
+    else {
+      LOG(ERROR) << "Message handler is missing for MSG: " << msg;
+    }
+}
+
+void ProcessHostImpl::opaqueMessageToBrowserSync(const std::string&                 msg,
+                                                 opaqueMessageToBrowserSyncCallback callback)
+{
+    if (g_ipcDelegate) {
+      int pid = d_impl->processId();
+
+      String result =
+        g_ipcDelegate->onBrowserReceivedSync(pid, StringRef(msg.data(), msg.size()));
+
+      std::move(callback).Run(std::string(result.data(), result.size()));
+    }
+    else {
+      LOG(ERROR) << "Message handler is missing for MSG: " << msg;
+      std::move(callback).Run("");
+    }
 }
 
 }  // namespace blpwtk2

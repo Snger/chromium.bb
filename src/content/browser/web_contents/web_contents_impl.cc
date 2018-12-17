@@ -2197,6 +2197,14 @@ void WebContentsImpl::ExitFullscreenMode(bool will_cause_resize) {
   }
 }
 
+bool WebContentsImpl::ShouldSetKeyboardFocusOnMouseDown() {
+  return !delegate_ || delegate_->ShouldSetKeyboardFocusOnMouseDown();
+}
+
+bool WebContentsImpl::ShouldSetLogicalFocusOnMouseDown() {
+  return !delegate_ || delegate_->ShouldSetLogicalFocusOnMouseDown();
+}
+
 bool WebContentsImpl::IsFullscreenForCurrentTab() const {
   return delegate_ ? delegate_->IsFullscreenForTabOrPending(this) : false;
 }
@@ -4997,6 +5005,14 @@ void WebContentsImpl::SetShowingContextMenu(bool showing) {
     static_cast<RenderWidgetHostViewBase*>(view)->SetShowingContextMenu(
         showing);
   }
+}
+
+void WebContentsImpl::DevToolsAgentHostAttached() {
+  delegate_->DevToolsAgentHostAttached(this);
+}
+
+void WebContentsImpl::DevToolsAgentHostDetached() {
+  delegate_->DevToolsAgentHostDetached(this);
 }
 
 void WebContentsImpl::ClearFocusedElement() {

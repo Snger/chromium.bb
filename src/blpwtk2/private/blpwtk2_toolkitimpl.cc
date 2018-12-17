@@ -26,6 +26,7 @@
 #include <blpwtk2_browsermainrunner.h>
 #include <blpwtk2_contentbrowserclientimpl.h>
 
+#include <blpwtk2_gpudatalogger.h>
 #include <blpwtk2_browserthread.h>
 #include <blpwtk2_channelinfo.h>
 #include <blpwtk2_desktopstreamsregistry.h>
@@ -58,19 +59,26 @@
 #include <content/public/app/sandbox_helper_win.h>  // for InitializeSandboxInfo
 #include <content/public/browser/browser_thread.h>
 #include <content/public/browser/render_process_host.h>
+#include <content/public/browser/gpu_data_manager.h>
 #include <content/public/common/content_switches.h>
 #include <content/public/common/mojo_channel_switches.h>
 #include <content/common/in_process_child_thread_params.h>
 #include <content/renderer/render_thread_impl.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/browser/browser_main_loop.h>
+#include <gin/public/v8_platform.h>
 #include <sandbox/win/src/win_utils.h>
 #include <services/service_manager/runner/common/switches.h>
 #include <third_party/blink/public/platform/web_security_origin.h>
 //#include <third_party/blink/public/web/blink.h>
 #include <third_party/blink/public/web/web_security_policy.h>
-#include <third_party/blink/public/web/web_script_controller.h>
 #include <third_party/blink/public/web/web_script_bindings.h>
+#include <third_party/blink/public/web/web_script_controller.h>
+#include <gin/public/multi_heap_tracer.h>
+#include <gin/v8_initializer.h>
+
+#include <tuple>
+#include <utility>
 
 namespace blpwtk2 {
 
@@ -183,7 +191,7 @@ static std::unique_ptr<base::MessagePump> messagePumpForUIFactory()
         return std::unique_ptr<base::MessagePump>(new MainMessagePump());
     }
 
-    return std::unique_ptr<base::MessagePump>(new base::MessagePumpForUI()); 
+    return std::unique_ptr<base::MessagePump>(new base::MessagePumpForUI());
 }
 
 static void startRenderer(
@@ -406,6 +414,24 @@ std::string ToolkitImpl::createProcessHost(
     return hostChannel;
 }
 
+void ToolkitImpl::attachGPUDataLogObserver()
+{
+    detachGPUDataLogObserver();
+    // attach the GPU Data logger to the GPU Data manager as observer
+    d_gpuDataLogger = GpuDataLogger::Create();
+    d_gpuDataLogger->AddRef();
+    content::GpuDataManager::GetInstance()->AddObserver(d_gpuDataLogger.get());
+}
+
+void ToolkitImpl::detachGPUDataLogObserver()
+{
+    if (d_gpuDataLogger) {
+         content::GpuDataManager::GetInstance()->RemoveObserver(d_gpuDataLogger.get());
+        d_gpuDataLogger->Release();
+        d_gpuDataLogger = nullptr;
+    }
+}
+
 ToolkitImpl *ToolkitImpl::instance()
 {
     return g_instance;
@@ -421,6 +447,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
                          const std::string&              hostChannel,
                          const std::vector<std::string>& cmdLineSwitches,
                          bool                            isolated,
+                         bool                            browserV8Enabled,
                          const std::string&              profileDir)
     : d_mainDelegate(false)
 {
@@ -430,9 +457,10 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
     bool isHost = currentHostChannel.empty();
 
     DCHECK(!g_instance);
-    g_instance = this;    
+    g_instance = this;
     content::InitializeMojo();
     base::CommandLine::Init(0, nullptr);
+    blink::WebScriptController::SetStackCaptureControlledByInspector(false);
 
     // Setup sandbox
     sandbox::SandboxInterfaceInfo sandboxInfo;
@@ -505,7 +533,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
  	    // base::FieldTrialList::GetInitiallyActiveFieldTrials(...) Line 719
         // from: variations::ChildProcessFieldTrialSyncer::InitFieldTrialObserving(...) Line 34
  	    // from: content::ChildThreadImpl::Init(...) Line 618
-            
+
         // The following code is adapted from InitializeFieldTrialAndFeatureList(..) in content_main_runner.cc
         //
         // Initialize statistical testing infrastructure.  We set the entropy
@@ -526,10 +554,12 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
                 command_line, switches::kEnableFeatures,
             switches::kDisableFeatures, feature_list.get());
             base::FeatureList::SetInstance(std::move(feature_list));
-        }        
+        }
     }
     // Start pumping the message loop.
     startMessageLoop(sandboxInfo);
+
+    attachGPUDataLogObserver();
 
     if (Statics::isRendererMainThreadMode()) {
         // Initialize the renderer.
@@ -537,11 +567,29 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
         ContentBrowserClientImpl* pBrowserClientImpl = d_mainDelegate.GetContentBrowserClientImpl();
         startRenderer(isHost, channelInfo, pBrowserClientImpl ? pBrowserClientImpl->GetClientInvitation() : nullptr);
     }
+
+    else if (isHost && browserV8Enabled && Statics::isOriginalThreadMode()) {
+#ifdef V8_USE_EXTERNAL_STARTUP_DATA
+        gin::V8Initializer::LoadV8Snapshot();
+        gin::V8Initializer::LoadV8Natives();
+#endif
+        gin::IsolateHolder::Initialize(gin::IsolateHolder::kNonStrictMode,
+                                       gin::IsolateHolder::kStableV8Extras,
+                                       gin::ArrayBufferAllocator::SharedInstance());
+
+        auto taskRunner = content::BrowserThread::GetTaskRunnerForThread(
+                                                    content::BrowserThread::UI);
+
+        d_isolateHolder.reset(new gin::IsolateHolder(taskRunner));
+        d_isolateHolder->isolate()->Enter();
+    }
 }
 
 ToolkitImpl::~ToolkitImpl()
 {
     LOG(INFO) << "Shutting down threads...";
+
+    detachGPUDataLogObserver();
 
     if (Statics::isRendererMainThreadMode()) {
         if (d_browserThread.get()) {
@@ -571,6 +619,12 @@ ToolkitImpl::~ToolkitImpl()
     // AtExitManager, which is one of the dependencies of ScopedAllowSyncCall
     d_allowSyncCall.reset();
 
+    if (d_isolateHolder) {
+        DCHECK(Statics::isOriginalThreadMode());
+        d_isolateHolder->isolate()->Exit();
+        d_isolateHolder.reset();
+    }
+
     if (Statics::isRendererMainThreadMode()) {
         delete base::MessageLoop::current();
         d_browserThread.reset();
@@ -582,6 +636,8 @@ ToolkitImpl::~ToolkitImpl()
 
     d_mainRunner->Shutdown();
     d_mainRunner.reset();
+
+    sandbox::CallOnExitHandlers();
 
     DCHECK(g_instance);
     g_instance = nullptr;
@@ -644,9 +700,10 @@ void ToolkitImpl::postHandleMessage(const NativeMsg *msg)
     return d_messagePump->postHandleMessage(*msg);
 }
 
-v8::Local<v8::Context> ToolkitImpl::createWebScriptContext()
+v8::Local<v8::Context> ToolkitImpl::createWebScriptContext(const StringRef& originString)
 {
-    return blink::WebScriptBindings::CreateWebScriptContext();
+    return blink::WebScriptBindings::CreateWebScriptContext(
+        blink::WebSecurityOrigin::CreateFromString(toWebString(originString)));
 }
 
 void ToolkitImpl::disposeWebScriptContext(v8::Local<v8::Context> context)
@@ -681,7 +738,51 @@ void ToolkitImpl::setTraceThreshold(unsigned int timeoutMS)
     d_messagePump->setTraceThreshold(timeoutMS);
 }
 
-}  // close namespace blpwtk2
+int ToolkitImpl::addV8HeapTracer(EmbedderHeapTracer *tracer)
+{
+    auto *multiHeapTracer = gin::MultiHeapTracer::From(v8::Isolate::GetCurrent());
 
+    // We wrap the specified 'tracer' in an 'EmbedderHeapTracerShim' to avoid
+    // passing C++ objects across dll boundaries.
+
+    auto tracerShim = std::make_unique<EmbedderHeapTracerShim>(tracer);
+
+    const int embedder_id = multiHeapTracer->AddHeapTracer(tracerShim.get());
+
+    DCHECK(0 == d_heapTracers.count(embedder_id));
+
+    d_heapTracers.emplace(std::piecewise_construct,
+                          std::forward_as_tuple(embedder_id),
+                          std::forward_as_tuple(std::move(tracerShim)));
+
+    return embedder_id;
+}
+
+void ToolkitImpl::removeV8HeapTracer(int embedder_id)
+{
+    auto *multiHeapTracer = gin::MultiHeapTracer::From(v8::Isolate::GetCurrent());
+    multiHeapTracer->RemoveHeapTracer(embedder_id);
+
+    DCHECK(1 == d_heapTracers.count(embedder_id));
+
+    d_heapTracers.erase(embedder_id);
+}
+
+void ToolkitImpl::opaqueMessageToRendererAsync(int pid, const StringRef &message)
+{
+    ProcessHostImpl::opaqueMessageToRendererAsync(pid, message);
+}
+
+void ToolkitImpl::setIPCDelegate(ProcessHostDelegate *delegate)
+{
+    ProcessHostImpl::setIPCDelegate(delegate);
+}
+
+v8::Platform *ToolkitImpl::getV8Platform()
+{
+    return gin::V8Platform::Get();
+}
+
+}  // close namespace blpwtk2
 // vim: ts=4 et
 

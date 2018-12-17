@@ -806,6 +806,8 @@ void RenderWidget::OnResize(const ResizeParams& params) {
     for (auto& render_frame : render_frames_)
       render_frame.DidChangeVisibleViewport();
   }
+
+  browser_size_ = params.new_size;
 }
 
 void RenderWidget::OnEnableDeviceEmulation(
@@ -889,7 +891,7 @@ void RenderWidget::OnHandleInputEvent(
     return;
 
   HandledEventCallback callback;
-  if (dispatch_type == DISPATCH_TYPE_BLOCKING) {
+  if (dispatch_type == DISPATCH_TYPE_BLOCKING && !bb_OnHandleInputEvent_no_ack_) {
     callback = base::Bind(
         &RenderWidget::SendInputEventAck, this, input_event->GetType(),
         ui::WebInputEventTraits::GetUniqueTouchEventId(*input_event));
@@ -1467,7 +1469,7 @@ blink::WebLayerTreeView* RenderWidget::InitializeLayerTreeView() {
   compositor_->SetIsForOopif(for_oopif_);
   auto layer_tree_host = RenderWidgetCompositor::CreateLayerTreeHost(
       compositor_.get(), compositor_.get(), animation_host.get(),
-      compositor_deps_, screen_info_);
+      compositor_deps_, screen_info_, routing_id_);
   compositor_->Initialize(std::move(layer_tree_host),
                           std::move(animation_host));
 
@@ -1969,6 +1971,10 @@ void RenderWidget::OnUpdateScreenRects(const gfx::Rect& view_screen_rect,
   } else {
     SetScreenRects(view_screen_rect, window_screen_rect);
   }
+
+  if (GetWebWidget())
+    GetWebWidget()->DidChangeWindowRect();
+
   Send(new ViewHostMsg_UpdateScreenRects_ACK(routing_id()));
 }
 

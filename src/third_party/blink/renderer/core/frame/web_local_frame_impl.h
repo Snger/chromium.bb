@@ -147,6 +147,7 @@ class CORE_EXPORT WebLocalFrameImpl final
   v8::Local<v8::Context> MainWorldScriptContext() const override;
   v8::Local<v8::Object> GlobalProxy() const override;
   v8::Isolate* ScriptIsolate() const override;
+  void DrawInCanvas(const WebRect&, const WebString&, cc::PaintCanvas*) override;
 
   void Reload(WebFrameLoadType) override;
   void ReloadWithOverrideURL(const WebURL& override_url,

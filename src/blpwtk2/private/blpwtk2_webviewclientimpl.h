@@ -104,6 +104,8 @@ class WebViewClientImpl final : public WebViewClient
 
     void setParent(NativeView parent) override;
 
+    void takeKeyboardFocus() override;
+
     void find(const std::string& text,
               bool               matchCase,
               bool               forward) override;
@@ -162,6 +164,12 @@ class WebViewClientImpl final : public WebViewClient
                    bool finalUpdate) override;
         // This is the reply message for WebViewHost::find().  The host can
         // send multiple 'findReply' response for a single 'find' request.
+
+    void devToolsAgentHostAttached() override;
+        // Notify the client that the devtools frontend is connected.
+
+    void devToolsAgentHostDetached() override;
+        // Notify the client that the devtools frontend is disconnected.
 
     // Mojo callbacks
     void loadStatus(int status);

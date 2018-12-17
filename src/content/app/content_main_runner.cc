@@ -69,6 +69,7 @@
 #include <cstring>
 
 #include "base/trace_event/trace_event_etw_export_win.h"
+#include "base/win/process_startup_helper.h"
 #include "sandbox/win/src/sandbox_types.h"
 #include "ui/display/win/dpi.h"
 #elif defined(OS_MACOSX)
@@ -450,6 +451,14 @@ base::LazyInstance<ContentRendererClient>::DestructorAtExit
 base::LazyInstance<ContentUtilityClient>::DestructorAtExit
     g_empty_content_utility_client = LAZY_INSTANCE_INITIALIZER;
 #endif  // !CHROME_MULTIPLE_DLL_BROWSER
+
+// static
+void ContentMainRunner::SetCRTErrorHandlerFunctions(_invalid_parameter_handler ivph, _purecall_handler pch) {
+  if (ivph)
+    base::win::SetInvalidParamHandler(ivph);
+  if (pch)
+    base::win::SetPurecallHandler(pch);
+}
 
 class ContentClientInitializer {
  public:

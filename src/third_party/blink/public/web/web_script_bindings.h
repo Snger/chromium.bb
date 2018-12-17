@@ -32,12 +32,13 @@ template <class T> class Local;
 
 namespace blink {
 
+class WebSecurityOrigin;
 class WebString;
 
 class WebScriptBindings {
 public:
     // Creates a V8 context that can access the DOM.
-    BLINK_EXPORT static v8::Local<v8::Context> CreateWebScriptContext();
+    BLINK_EXPORT static v8::Local<v8::Context> CreateWebScriptContext(const WebSecurityOrigin&);
 
     // Disposes of per-context data for a context created with 'createWebScriptContext()':
     BLINK_EXPORT static void DisposeWebScriptContext(v8::Local<v8::Context> context);

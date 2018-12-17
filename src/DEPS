@@ -35,13 +35,12 @@ vars = {
   'checkout_instrumented_libraries':
     'checkout_linux and checkout_configuration == "default"',
   'checkout_libaom': True,
-  'checkout_nacl': True,
+  'checkout_nacl': False,
   'checkout_oculus_sdk':
     'checkout_src_internal and checkout_win',
   'checkout_src_internal': False,
   'checkout_telemetry_dependencies': False,
-  'checkout_traffic_annotation_tools':
-    'checkout_configuration == "default"',
+  'checkout_traffic_annotation_tools': False,
   'chromium_git':
     'https://chromium.googlesource.com',
   'cros_board':
@@ -87,7 +86,8 @@ vars = {
   'v8_revision':
     '8457e810efd34381448d51d93f50079cf1f6a812',
   'webrtc_git':
-    'https://webrtc.googlesource.com'
+    'https://webrtc.googlesource.com',
+  'checkout_blpwtk2': True
 }
 
 allowed_hosts = [
@@ -1514,7 +1514,9 @@ hooks = [
     'pattern':
       '.',
     'name':
-      'clang'
+      'clang',
+    'condition':
+      'not checkout_blpwtk2'
   },
   {
     'action': [
@@ -1587,7 +1589,7 @@ hooks = [
     'name':
       'gn_win',
     'condition':
-      'host_os == "win"'
+      'host_os == "win" and not checkout_blpwtk2'
   },
   {
     'action': [
@@ -1641,7 +1643,7 @@ hooks = [
     'name':
       'clang_format_win',
     'condition':
-      'host_os == "win"'
+      'host_os == "win" and not checkout_blpwtk2'
   },
   {
     'action': [
@@ -1695,7 +1697,7 @@ hooks = [
     'name':
       'rc_win',
     'condition':
-      'checkout_win and host_os == "win"'
+      '(checkout_win and host_os == "win") and not checkout_blpwtk2'
   },
   {
     'action': [
@@ -1767,7 +1769,7 @@ hooks = [
     'name':
       'orderfiles_win',
     'condition':
-      'checkout_win'
+      'checkout_win and not checkout_blpwtk2'
   },
   {
     'action': [
@@ -1785,7 +1787,7 @@ hooks = [
     'name':
       'luci-go_win',
     'condition':
-      'host_os == "win"'
+      'host_os == "win" and not checkout_blpwtk2'
   },
   {
     'action': [
@@ -1837,7 +1839,7 @@ hooks = [
     'name':
       'syzygy-binaries',
     'condition':
-      'host_os == "win"'
+      'host_os == "win" and not checkout_blpwtk2'
   },
   {
     'action': [
@@ -1857,7 +1859,7 @@ hooks = [
     'name':
       'apache_win32',
     'condition':
-      'host_os == "win"'
+      'host_os == "win" and not checkout_blpwtk2'
   },
   {
     'action': [
@@ -1910,7 +1912,9 @@ hooks = [
     'pattern':
       '.',
     'name':
-      'wasm_fuzzer'
+      'wasm_fuzzer',
+    'condition':
+      'not checkout_blpwtk2'
   },
   {
     'action': [
@@ -1966,7 +1970,7 @@ hooks = [
     'name':
       'node_win',
     'condition':
-      'host_os == "win"'
+      'host_os == "win" and not checkout_blpwtk2'
   },
   {
     'action': [
@@ -1983,7 +1987,9 @@ hooks = [
     'pattern':
       '.',
     'name':
-      'webui_node_modules'
+      'webui_node_modules',
+    'condition':
+      'not checkout_blpwtk2'
   },
   {
     'action': [
@@ -2021,7 +2027,9 @@ hooks = [
     'pattern':
       '.',
     'name':
-      'fetch_telemetry_binary_dependencies'
+      'fetch_telemetry_binary_dependencies',
+    'condition':
+      'not checkout_blpwtk2'
   },
   {
     'action': [
@@ -2076,7 +2084,9 @@ hooks = [
     'pattern':
       '.',
     'name':
-      'zucchini_testdata'
+      'zucchini_testdata',
+    'condition':
+      'not checkout_blpwtk2'
   },
   {
     'action': [
@@ -2290,7 +2300,9 @@ hooks = [
     'pattern':
       '.',
     'name':
-      'vpython_common'
+      'vpython_common',
+    'condition':
+      'not checkout_blpwtk2'
   }
 ]
 

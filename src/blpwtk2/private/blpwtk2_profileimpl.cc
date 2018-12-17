@@ -29,6 +29,7 @@
 #include <blpwtk2_stringref.h>
 #include <blpwtk2_webviewclientimpl.h>
 #include <blpwtk2_mainmessagepump.h>
+#include <blpwtk2_processclientdelegate.h>
 
 #include <base/bind.h>
 #include <base/message_loop/message_loop.h>
@@ -37,8 +38,10 @@
 #include <ipc/ipc_sync_channel.h>
 #include <content/public/renderer/render_thread.h>
 #include <content/common/service_manager/child_connection.h>
+#include <components/printing/renderer/print_render_frame_helper.h>
 #include <mojo/public/cpp/bindings/strong_binding.h>
 #include <services/service_manager/public/cpp/connector.h>
+#include <third_party/blink/public/platform/web_cache.h>
 
 namespace blpwtk2 {
 
@@ -60,6 +63,8 @@ ProfileImpl::ProfileImpl(MainMessagePump *pump,
     : d_numWebViews(0)
     , d_processId(pid)
     , d_pump(pump)
+    , d_binding(this)
+    , d_ipcDelegate(nullptr)
 {
     static const std::string SERVICE_NAME("content_browser");
     g_instances.insert(this);
@@ -67,7 +72,11 @@ ProfileImpl::ProfileImpl(MainMessagePump *pump,
     content::RenderThread* renderThread = content::RenderThread::Get();
 	renderThread->GetConnector()->BindInterface(SERVICE_NAME, &d_hostPtr);
     DCHECK(0 != pid);
-    d_hostPtr->bindProcess(pid, launchDevToolsServer);
+
+    d_hostPtr->bindProcess(
+        pid,
+        launchDevToolsServer,
+        base::Bind(&ProfileImpl::onBindProcessDone, base::Unretained(this)));
 }
 
 ProfileImpl::~ProfileImpl()
@@ -387,6 +396,102 @@ void ProfileImpl::setPacUrl(const StringRef& url)
 {
     d_hostPtr->setPacUrl(std::string(url.data(), url.size()));
 }
+
+void ProfileImpl::dumpDiagnostics(DiagnosticInfoType type,
+                                  const StringRef&   path)
+{
+    d_hostPtr->dumpDiagnostics(static_cast<int>(type),
+                               std::string(path.data(), path.size()));
+}
+
+void ProfileImpl::enableSpellCheck(bool enabled)
+{
+    d_hostPtr->enableSpellCheck(enabled);
+}
+
+void ProfileImpl::setLanguages(const StringRef *languages,
+                               size_t           numLanguages)
+{
+    std::vector<std::string> languageList;
+
+    for (size_t i=0; i<numLanguages; ++i) {
+        languageList.push_back(languages[i].toStdString());
+    }
+
+    d_hostPtr->setLanguages(languageList);
+}
+
+void ProfileImpl::addCustomWords(const StringRef *words, size_t numWords)
+{
+    std::vector<std::string> wordList;
+
+    for (size_t i=0; i<numWords; ++i) {
+        wordList.push_back(words[i].toStdString());
+    }
+
+    d_hostPtr->addCustomWords(wordList);
+}
+
+void ProfileImpl::removeCustomWords(const StringRef *words,
+                                    size_t           numWords)
+{
+    std::vector<std::string> wordList;
+
+    for (size_t i=0; i<numWords; ++i) {
+        wordList.push_back(words[i].toStdString());
+    }
+
+    d_hostPtr->removeCustomWords(wordList);
+}
+
+void ProfileImpl::clearWebCache()
+{
+    blink::WebCache::Clear();
+}
+
+void ProfileImpl::setDefaultPrinter(const StringRef& name)
+{
+    printing::PrintRenderFrameHelper::UseDefaultPrintSettings();
+    d_hostPtr->setDefaultPrinter(std::string(name.data(), name.size()));
+}
+
+void ProfileImpl::onBindProcessDone(
+    mojom::ProcessClientRequest processClientRequest)
+{
+    d_binding.Bind(std::move(processClientRequest));
+}
+
+void ProfileImpl::opaqueMessageToBrowserAsync(const StringRef& msg)
+{
+    d_hostPtr->opaqueMessageToBrowserAsync(std::string(msg.data(), msg.size()));
+}
+
+String ProfileImpl::opaqueMessageToBrowserSync(const StringRef& msg)
+{
+    std::string result;
+
+    if (d_hostPtr->opaqueMessageToBrowserSync(
+                std::string(msg.data(), msg.size()), &result)) {
+
+        return String(result.data(), result.size());
+    }
+    else {
+        return String();
+    }
+}
+
+void ProfileImpl::opaqueMessageToRendererAsync(const std::string& msg)
+{
+    if (d_ipcDelegate) {
+        d_ipcDelegate->onRendererReceivedAsync(StringRef(msg.data(), msg.size()));
+    }
+}
+
+void ProfileImpl::setIPCDelegate(ProcessClientDelegate *delegate)
+{
+    d_ipcDelegate = delegate;
+}
+
 
 }  // close namespace blpwtk2
 

@@ -165,6 +165,18 @@ void WebViewClientImpl::setParent(NativeView parent)
     }
 }
 
+void WebViewClientImpl::takeKeyboardFocus()
+{
+    LOG(INFO) << "takeKeyboardFocus";
+    if (d_nativeView) {
+        ::SetFocus(d_nativeView);
+    }
+    else {
+        DCHECK(d_hostPtr);
+        d_hostPtr->takeKeyboardFocus();
+    }
+}
+
 void WebViewClientImpl::find(
         const std::string& text, bool matchCase, bool forward)
 {
@@ -296,6 +308,24 @@ void WebViewClientImpl::findReply(int  reqId,
         d_delegate->findReply(d_findState->numberOfMatches(),
                               d_findState->activeMatchIndex(),
                               finalUpdate);
+    }
+}
+
+void WebViewClientImpl::devToolsAgentHostAttached()
+{
+    DCHECK(d_delegate);
+
+    if (d_delegate) {
+        d_delegate->devToolsAgentHostAttached();
+    }
+}
+
+void WebViewClientImpl::devToolsAgentHostDetached()
+{
+    DCHECK(d_delegate);
+
+    if (d_delegate) {
+        d_delegate->devToolsAgentHostDetached();
     }
 }
 

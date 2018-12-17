@@ -35,7 +35,7 @@
 #endif
 #endif  // V8_USE_EXTERNAL_STARTUP_DATA
 
-#include <blpv8_products.h>  // For BLPV8_NATIVES_BLOB_NAME, BLPV8_SNAPSHOT_BLOB_NAME
+#include <blpwtk2_products.h>  // For BLPWTK2_NATIVES_BLOB_NAME, BLPWTK2_SNAPSHOT_BLOB_NAME
 
 namespace gin {
 
@@ -72,7 +72,7 @@ using OpenedFileMap =
 base::LazyInstance<OpenedFileMap>::Leaky g_opened_files =
     LAZY_INSTANCE_INITIALIZER;
 
-const char kNativesFileName[] = BLPV8_NATIVES_BLOB_NAME;
+const char kNativesFileName[] = BLPWTK2_NATIVES_BLOB_NAME;
 
 #if defined(OS_ANDROID)
 const char kV8ContextSnapshotFileName64[] = "v8_context_snapshot_64.bin";
@@ -89,8 +89,8 @@ const char kSnapshotFileName32[] = "snapshot_blob_32.bin";
 #endif
 
 #else  // defined(OS_ANDROID)
-const char kV8ContextSnapshotFileName[] = BLPV8_CONTEXT_SNAPSHOT_NAME;
-const char kSnapshotFileName[] = BLPV8_SNAPSHOT_BLOB_NAME;
+const char kV8ContextSnapshotFileName[] = BLPWTK2_CONTEXT_SNAPSHOT_NAME;
+const char kSnapshotFileName[] = BLPWTK2_SNAPSHOT_BLOB_NAME;
 #endif  // defined(OS_ANDROID)
 
 const char* GetSnapshotFileName(

@@ -257,6 +257,7 @@ void URLRequestContextGetterImpl::initialize()
         url::kFileScheme,
         std::make_unique<net::FileProtocolHandler>(std::move(task_runner)));
 
+    builder.SetInterceptors(std::move(d_requestInterceptors));
     d_urlRequestContext = builder.Build();
 }
 

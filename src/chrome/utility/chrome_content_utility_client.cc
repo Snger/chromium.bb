@@ -59,7 +59,7 @@
 #include "chrome/utility/mash_service_factory.h"
 #endif
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
+#if BUILDFLAG(ENABLE_PRINTING)
 #include "chrome/services/printing/printing_service.h"
 #include "chrome/services/printing/public/mojom/constants.mojom.h"
 #endif
@@ -172,9 +172,7 @@ void ChromeContentUtilityClient::RegisterServices(
   pdf_compositor_info.factory =
       base::Bind(&printing::CreatePdfCompositorService, GetUserAgent());
   services->emplace(printing::mojom::kServiceName, pdf_compositor_info);
-#endif
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
   {
     service_manager::EmbeddedServiceInfo printing_info;
     printing_info.factory =

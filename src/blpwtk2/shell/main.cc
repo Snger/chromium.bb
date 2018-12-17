@@ -32,18 +32,25 @@
 #include <string>
 #include <set>
 #include <vector>
-
-#include <assert.h>
-
+#include <iostream>
 #include <blpwtk2.h>
 
+#include <third_party/blink/public/platform/web_security_origin.h>
+
 #include <v8.h>
+
+// assert.h must be included after all chromium related includes.
+// We want to use the assert() from assert.h rather than the one
+// defined in base/logging.h
+#include <assert.h>
 
 HINSTANCE g_instance = 0;
 WNDPROC g_defaultEditWndProc = 0;
 blpwtk2::Toolkit* g_toolkit = 0;
 blpwtk2::Profile* g_profile = 0;
+bool g_spellCheckEnabled;
 std::set<std::string> g_languages;
+std::vector<std::string> g_sideLoadedFonts;
 std::string g_url;
 std::string g_dictDir;
 bool g_in_process_renderer = true;
@@ -53,6 +60,8 @@ bool g_renderer_ui = false;
 HANDLE g_hJob;
 MSG g_msg;
 bool g_isInsideEventLoop;
+bool g_webScriptContextAvailable = false;
+std::string g_webScriptContextSecurityOrigin;
 
 #define BUTTON_WIDTH 72
 #define FIND_LABEL_WIDTH (BUTTON_WIDTH*3/4)
@@ -80,11 +89,23 @@ enum {
     IDM_FILE,
     IDM_NEW_WINDOW,
     IDM_CLOSE_WINDOW,
+    IDM_CLEAR_WEB_CACHE,
     IDM_EXIT,
     IDM_TEST,
     IDM_TEST_V8_APPEND_ELEMENT,
+    IDM_TEST_ACCESS_DOM_FROM_WEB_SCRIPT_CONTEXT,
+    IDM_TEST_KEYBOARD_FOCUS,
+    IDM_TEST_LOGICAL_FOCUS,
+    IDM_TEST_LOGICAL_BLUR,
     IDM_TEST_PLAY_KEYBOARD_EVENTS,
+    IDM_TEST_GET_PDF,
+    IDM_TEST_GET_BITMAP,
     IDM_TEST_DUMP_LAYOUT_TREE,
+    IDM_TEST_DUMP_GPU_INFO,
+    IDM_SPELLCHECK,
+    IDM_SPELLCHECK_ENABLED,
+    IDM_SEND_IPC_ASYNC,
+    IDM_SEND_IPC_SYNC,
     IDM_LANGUAGES,
     IDM_LANGUAGE_DE,
     IDM_LANGUAGE_EN_GB,
@@ -100,6 +121,7 @@ enum {
     IDM_PASTE,
     IDM_DELETE,
     IDM_INSPECT,
+    IDM_ADD_TO_DICTIONARY,
     IDM_CONTEXT_MENU_BASE_CUSTOM_TAG = 5000,
     IDM_CONTEXT_MENU_END_CUSTOM_TAG = 5999,
     IDM_CONTEXT_MENU_BASE_SPELL_TAG = 6000,
@@ -117,11 +139,14 @@ static const char LANGUAGE_PT_PT[] = "pt-PT";
 static const char LANGUAGE_RU[] = "ru-RU";
 
 class Shell;
+class ProcessClientDelegateImpl;
+class ProcessHostDelegateImpl;
 int registerShellWindowClass();
 Shell* createShell(blpwtk2::Profile* profile, blpwtk2::WebView* webView = 0, bool forDevTools = false);
 blpwtk2::ResourceLoader* createInProcessResourceLoader();
 void populateSubmenu(HMENU menu, int menuIdStart, const blpwtk2::ContextMenuItem& item);
 void populateContextMenu(HMENU menu, int menuIdStart, const blpwtk2::ContextMenuParams& params);
+void updateSpellCheckConfig(blpwtk2::Profile* profile);
 void toggleLanguage(blpwtk2::Profile* profile, const std::string& language);
 const char* getHeaderFooterHTMLContent();
 
@@ -146,6 +171,58 @@ void testV8AppendElement(blpwtk2::WebView* webView)
     if (result.IsEmpty()) {
         v8::String::Utf8Value msg(tryCatch.Exception());
         std::cout << "EXCEPTION: " << *msg << std::endl;
+    }
+}
+
+void testAccessDOMFromWebScriptContext(const v8::Global<v8::Context>& webScriptContext, blpwtk2::WebView* webView)
+{
+    blpwtk2::WebFrame* mainFrame = webView->mainFrame();
+    v8::Isolate* isolate = mainFrame->scriptIsolate();
+    v8::HandleScope handleScope(isolate);
+    v8::Local<v8::Value> domWindow, domDocument;
+
+    {
+        v8::Local<v8::Context> ctxt = mainFrame->mainWorldScriptContext();
+        v8::Context::Scope contextScope(ctxt);
+
+        domWindow = ctxt->Global()->Get(
+            v8::String::NewFromUtf8(
+                isolate, "window"));
+        domDocument = ctxt->Global()->Get(
+            v8::String::NewFromUtf8(
+                isolate, "document"));
+    }
+
+    {
+        v8::Local<v8::Context> ctxt = webScriptContext.Get(isolate);
+        v8::Context::Scope contextScope(ctxt);
+
+        ctxt->Global()->Set(
+            v8::String::NewFromUtf8(
+                isolate, "domWindow"),
+                domWindow);
+        ctxt->Global()->Set(
+            v8::String::NewFromUtf8(
+                isolate, "domDocument"),
+                domDocument);
+
+        static const char SCRIPT[] =
+            "domWindow.location + domDocument.body.innerHTML;\n";
+
+        v8::ScriptCompiler::Source compilerSource(v8::String::NewFromUtf8(isolate, SCRIPT));
+        v8::Local<v8::Script> script = v8::ScriptCompiler::Compile(ctxt, &compilerSource).ToLocalChecked();
+        assert(!script.IsEmpty());  // this should never fail to compile
+
+        v8::TryCatch tryCatch(isolate);
+        v8::Handle<v8::Value> result = script->Run();
+        if (result.IsEmpty()) {
+            v8::String::Utf8Value msg(tryCatch.Exception());
+            std::cout << "EXCEPTION: " << *msg << std::endl;
+        }
+        else if (result->IsString()) {
+            v8::String::Utf8Value msg(result);
+            std::cout << "RESULT: " << *msg << std::endl;
+        }
     }
 }
 
@@ -176,6 +253,198 @@ void getWebViewPosition(HWND hwnd, int *left, int *top, int *width, int *height)
     *height = rect.bottom - URLBAR_HEIGHT;
 }
 
+void testGetPicture(blpwtk2::NativeView hwnd,
+                    blpwtk2::WebView* webView,
+                    blpwtk2::WebView::DrawParams::RendererType rendererType,
+                    int scaleX,
+                    int scaleY)
+{
+    // NOTE: The PDF engine issues different commands based on the type of
+    // device it is drawing to
+    //
+    //   Real printer:  Rasterizes the output into a bitmap and block
+    //                  transfers it to the provided device context. This is
+    //                  a temporary workaround in
+    //                  PDFiumEngineExports::RenderPDFPageToDC
+    //
+    //   non-EMF files: Uses the CGdiDisplayDriver driver to issue the draw
+    //                  commands on the provided device context.
+    //
+    //   EMF files:     Uses the CGdiPrinterDriver driver to issue the draw
+    //                  commands on the provided device context.
+    //
+    // Using EMF files produces a very low-quality output. This is probably due
+    // to an incorrect assumption by CFX_WindowsDevice::CreateDriver to assume
+    // all EMF files to be compatible with a printer device rather than being
+    // truely device independent.
+    //
+    // To ensure the test driver generates an output close to the output that
+    // will be sent to the printer, we will use a non-EMF files (ie. Bitmap)
+    // to test the drawContent method. Once the workaround in RenderPDFPageToDC
+    // is removed and CFX_WindowsDevice::CreateDriver creates a driver that
+    // issues device-independent commands, we can switch the test driver to use
+    // EMF files instead.
+
+    int left = 0, top = 0, width = 0, height = 0;
+
+    assert(webView);
+    getWebViewPosition(hwnd, &left, &top, &width, &height);
+
+    if (!width || !height) {
+        std::cout << "Unable to get bitmap of canvas. Canvas area is zero" << std::endl;
+        return;
+    }
+
+    blpwtk2::NativeDeviceContext refDeviceContext = GetDC(hwnd);
+
+#ifdef USE_EMF
+    RECT rect = { 0 };
+    int iWidthMM = GetDeviceCaps(refDeviceContext, HORZSIZE);
+    int iHeightMM = GetDeviceCaps(refDeviceContext, VERTSIZE);
+    int iWidthPels = GetDeviceCaps(refDeviceContext, HORZRES);
+    int iHeightPels = GetDeviceCaps(refDeviceContext, VERTRES);
+
+    rect.right = (scaleX * width * iWidthMM * 100) / iWidthPels;
+    rect.bottom = (scaleY * height * iHeightMM * 100) / iHeightPels;
+
+    blpwtk2::NativeDeviceContext deviceContext = CreateEnhMetaFileW(refDeviceContext, L"outputPicture.emf", &rect, L"blpwtk2_shell");
+#else
+    const int bytesPerRow = width * scaleX * 4;
+    const long imageDataSize = bytesPerRow * height * scaleY;
+
+    BITMAPFILEHEADER fileHeader = {
+        0x4d42,
+        sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER) + imageDataSize,
+        0,
+        0,
+        sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER),
+    };
+
+    BITMAPINFO bmi = { {
+            sizeof(BITMAPINFOHEADER),
+            width * scaleX,
+            height * scaleY,
+            1,
+            32,
+            BI_RGB
+        } };
+
+    // Use the device context of the parent HWND as a template to create a new
+    // device context.
+    blpwtk2::NativeDeviceContext deviceContext = CreateCompatibleDC(refDeviceContext);
+#endif
+
+    ReleaseDC(hwnd, refDeviceContext);
+
+    // This is the best stretch mode
+    SetStretchBltMode(deviceContext, HALFTONE);
+
+#ifndef USE_EMF
+    // Create a new bitmap object
+    void *buffer = (void*) NULL;
+    HBITMAP bitmap = CreateDIBSection(deviceContext, &bmi, DIB_RGB_COLORS, &buffer, 0, 0);
+
+    // Set the new bitmap object as a backing surface for the device context.
+    // The original backing surface is saved in originalSurface
+    HGDIOBJ originalSurface = SelectObject(deviceContext, bitmap);
+#endif
+
+    // Draw the contents of the webview onto the device context
+    blpwtk2::WebView::DrawParams drawParams;
+    drawParams.srcRegion = { 0, 0, width, height };
+    drawParams.destWidth = width * scaleX;
+    drawParams.destHeight = height * scaleY;
+    drawParams.styleClass = "screen-grab";
+    drawParams.rendererType = rendererType;
+    drawParams.dpi = 72;
+
+    if (rendererType == blpwtk2::WebView::DrawParams::RendererType::PDF) {
+        std::vector<char> pdf_data;
+        {
+            blpwtk2::Blob blob;
+            webView->drawContentsToBlob(&blob, drawParams);
+
+            pdf_data.resize(blob.size());
+            blob.copyTo(&pdf_data[0]);
+        }
+
+        blpwtk2::PdfUtil::RenderPDFPageToDC(pdf_data.data(),
+                                            pdf_data.size(),
+                                            0,
+                                            deviceContext,
+                                            drawParams.dpi,
+                                            0,
+                                            0,
+                                            drawParams.destWidth,
+                                            drawParams.destHeight,
+                                            false,
+                                            false,
+                                            false,
+                                            false,
+                                            false,
+                                            true);
+    }
+    else if (rendererType == blpwtk2::WebView::DrawParams::RendererType::Bitmap) {
+        std::vector<char> bmp_data;
+        {
+            blpwtk2::Blob blob;
+            webView->drawContentsToBlob(&blob, drawParams);
+
+            bmp_data.resize(blob.size());
+            blob.copyTo(&bmp_data[0]);
+        }
+
+        // Create a device context to associate with the bitmap object
+        blpwtk2::NativeDeviceContext bitmapDeviceContext = CreateCompatibleDC(deviceContext);
+
+        // Create a new bitmap object
+        void *buffer = (void*)NULL;
+        BITMAPINFO bmi = { *reinterpret_cast<BITMAPINFOHEADER*>(bmp_data.data() + sizeof(BITMAPFILEHEADER)) };
+        HBITMAP inputBitmap = CreateDIBSection(bitmapDeviceContext, &bmi, DIB_RGB_COLORS, &buffer, 0, 0);
+
+        // Copy bitmap data from blob into bitmap object
+        memcpy(buffer,
+               bmp_data.data() + sizeof(BITMAPFILEHEADER) + sizeof(BITMAPINFOHEADER),
+               bmp_data.size() - sizeof(BITMAPFILEHEADER) - sizeof(BITMAPINFOHEADER));
+
+        // Block transfer image from bitmap object to 'deviceContext'
+        HGDIOBJ originalSurface = SelectObject(bitmapDeviceContext, inputBitmap);
+        BitBlt(deviceContext,
+               0,
+               0,
+               drawParams.destWidth,
+               drawParams.destHeight,
+               bitmapDeviceContext,
+               0,
+               0,
+               SRCCOPY);
+
+        SelectObject(bitmapDeviceContext, originalSurface);
+        DeleteObject(inputBitmap);
+        DeleteDC(bitmapDeviceContext);
+    }
+
+#ifdef USE_EMF
+    HENHMETAFILE emf = CloseEnhMetaFile(deviceContext);
+    DeleteEnhMetaFile(emf);
+#else
+    // The device context is switched back to use the original backing surface.
+    SelectObject(deviceContext, originalSurface);
+
+    std::ofstream file("outputBitmap.bmp", std::ios::binary);
+    file.write(reinterpret_cast<char *>(&fileHeader), sizeof(fileHeader));
+    file.write(reinterpret_cast<char *>(&bmi.bmiHeader), sizeof(bmi.bmiHeader));
+    file.write(reinterpret_cast<char *>(buffer), imageDataSize);
+    file.close();
+
+    // Delete the bitmap object and its associated memory
+    DeleteObject(bitmap);
+
+    // Delete the device context
+    DeleteDC(deviceContext);
+#endif
+}
+
 class Shell : public blpwtk2::WebViewDelegate {
 public:
     static std::set<Shell*> s_shells;
@@ -183,23 +452,29 @@ public:
     HWND d_mainWnd;
     HWND d_urlEntryWnd;
     HWND d_findEntryHwnd;
+    HMENU d_spellCheckMenu;
     blpwtk2::WebView* d_webView;
+    v8::Global<v8::Value> d_securityToken;
+    v8::Global<v8::Context> d_webScriptContext;
     blpwtk2::Profile* d_profile;
     Shell* d_inspectorShell;
     Shell* d_inspectorFor;
     POINT d_contextMenuPoint;
     std::string d_findText;
     std::vector<std::string> d_contextMenuSpellReplacements;
+    std::string d_misspelledWord;
 
     Shell(HWND mainWnd,
           HWND urlEntryWnd,
           HWND findEntryHwnd,
+          HMENU spellCheckMenu,
           blpwtk2::Profile* profile,
           blpwtk2::WebView* webView = 0,
           bool useExternalRenderer = false)
         : d_mainWnd(mainWnd)
         , d_urlEntryWnd(urlEntryWnd)
         , d_findEntryHwnd(findEntryHwnd)
+        , d_spellCheckMenu(spellCheckMenu)
         , d_webView(webView)
         , d_profile(profile)
         , d_inspectorShell(0)
@@ -220,6 +495,7 @@ public:
             d_webView->setParent(d_mainWnd);
 
             d_webView->show();
+            d_webView->enableAltDragRubberbanding(true);
             d_webView->enableNCHitTest(g_custom_hit_test);
 
             SetWindowLongPtr(d_mainWnd, GWLP_USERDATA, reinterpret_cast<LONG_PTR>(this));
@@ -311,6 +587,10 @@ public:
         return d_webView;
     }
 
+    v8::Global<v8::Context>& webScriptContext() {
+        return d_webScriptContext;
+    }
+
     ///////// WebViewDelegate overrides
 
     void created(blpwtk2::WebView* source) override
@@ -338,6 +618,23 @@ public:
         EnableWindow(GetDlgItem(d_mainWnd, IDC_BACK), TRUE);
         EnableWindow(GetDlgItem(d_mainWnd, IDC_FORWARD), TRUE);
         EnableWindow(GetDlgItem(d_mainWnd, IDC_RELOAD), TRUE);
+
+        if (g_webScriptContextAvailable) {
+            blpwtk2::WebFrame* mainFrame = d_webView->mainFrame();
+            v8::Isolate* isolate = mainFrame->scriptIsolate();
+            v8::HandleScope handleScope(isolate);
+
+            d_securityToken.Reset(isolate, v8::Symbol::New(isolate));
+
+            v8::Local<v8::Context> webScriptContext =
+                g_toolkit->createWebScriptContext(
+                    blpwtk2::StringRef(g_webScriptContextSecurityOrigin));
+
+            webScriptContext->SetSecurityToken(d_securityToken.Get(isolate));
+            d_webScriptContext = v8::Global<v8::Context>(isolate, webScriptContext);
+
+            mainFrame->mainWorldScriptContext()->SetSecurityToken(d_securityToken.Get(isolate));
+        }
     }
 
     // Invoked when the main frame failed loading the specified 'url', or was
@@ -534,6 +831,17 @@ public:
 
         AppendMenu(menu, MF_STRING, IDM_INSPECT, L"I&nspect Element");
 
+        if (!params.misspelledWord().isEmpty()) {
+            AppendMenu(menu, MF_SEPARATOR, 0, NULL);
+
+            d_misspelledWord.assign(params.misspelledWord().data(),
+                                    params.misspelledWord().length());
+
+            std::string menuText = "Add to dictionary: ";
+            menuText.append(d_misspelledWord.c_str());
+            AppendMenuA(menu, MF_STRING, IDM_ADD_TO_DICTIONARY, menuText.c_str());
+        }
+
         d_contextMenuSpellReplacements.clear();
 
         if (params.numSpellSuggestions() > 0) {
@@ -552,6 +860,40 @@ public:
     }
 };
 std::set<Shell*> Shell::s_shells;
+
+class ProcessClientDelegateImpl: public blpwtk2::ProcessClientDelegate {
+public:
+    void onRendererReceivedAsync(const blpwtk2::StringRef& message) override
+    {
+        std::cout << "Renderer received Async message: "
+                  << std::string(message.data(), message.size())
+                  << std::endl;
+    }
+};
+
+class ProcessHostDelegateImpl: public blpwtk2::ProcessHostDelegate {
+public:
+    void onBrowserReceivedAsync(int pid, const blpwtk2::StringRef& message) override
+    {
+        std::cout << "Browser(pid: " << GetCurrentProcessId() << ")" << " received Async message from pid " << pid << ": "
+                  << std::string(message.data(), message.size())
+                  << std::endl;
+
+        std::cout << "Browser async responses with ACK to pid " << pid << std::endl;
+        g_toolkit->opaqueMessageToRendererAsync(pid, "ACK");
+    }
+
+    blpwtk2::String onBrowserReceivedSync(int pid, const blpwtk2::StringRef& message) override
+    {
+        std::cout << "Browser(pid: " << GetCurrentProcessId() << ")" << " received Sync message from pid " << pid << ": "
+                  << std::string(message.data(), message.size())
+                  << std::endl;
+
+        std::cout << "Browser responses with ACK" << std::endl;
+
+        return blpwtk2::String("ACK");
+    }
+};
 
 void runMessageLoop()
 {
@@ -638,6 +980,11 @@ HANDLE spawnProcess()
     }
     if (g_renderer_ui) {
         cmdline.append(" --renderer-ui");
+    }
+
+    for (size_t i = 0; i < g_sideLoadedFonts.size(); ++i) {
+        cmdline.append(" --sideload-font=");
+        cmdline.append(g_sideLoadedFonts[i]);
     }
 
     // It seems like CreateProcess wants a char* instead of
@@ -729,6 +1076,50 @@ void runHost()
     ::CloseHandle(g_hJob);
 }
 
+void testBrowserV8() {
+    v8::Isolate *isolate = v8::Isolate::GetCurrent();
+    v8::Isolate::Scope isolate_scope(isolate);
+    v8::HandleScope handle_scope(isolate);
+    v8::Local<v8::Context> context = v8::Context::New(isolate);
+    v8::Context::Scope context_scope(context);
+
+    v8::Local<v8::String> source =
+        v8::String::NewFromUtf8(isolate, "'Hello' + ', World!'",
+                            v8::NewStringType::kNormal).ToLocalChecked();
+
+    v8::Local<v8::Script> script =
+                v8::Script::Compile(context, source).ToLocalChecked();
+    v8::Local<v8::Value> result = script->Run(context).ToLocalChecked();
+
+    v8::String::Utf8Value utf8(isolate, result);
+    std::cout << "Browser V8 Hello world test -- " << *utf8 << std::endl;
+}
+
+void logMessageHandler(blpwtk2::ToolkitCreateParams::LogMessageSeverity severity,
+                       const char* file,
+                       int line,
+                       const char* message)
+{
+    std::cout << "[" << file << ":" << line << "] " << message << std::endl;
+}
+
+void consoleLogMessageHandler(blpwtk2::ToolkitCreateParams::LogMessageSeverity severity,
+                              const blpwtk2::StringRef& file,
+                              unsigned line,
+                              unsigned column,
+                              const blpwtk2::StringRef& message,
+                              const blpwtk2::StringRef& stack_trace)
+{
+    std::cout << "[" << std::string(file.data(), file.length()) << ":"
+              << line << ":" << column << "] "
+              << std::string(message.data(), message.length()) << std::endl;
+     if (!stack_trace.isEmpty()) {
+          std::cout << "Stack Trace:"
+                    << std::string(stack_trace.data(), stack_trace.length())
+                    << std::endl;
+     }
+}
+
 int main(int, const char**)
 {
     g_instance = GetModuleHandle(NULL);
@@ -767,6 +1158,11 @@ int main(int, const char**)
                 sprintf_s(buf, sizeof(buf), "%S", argv[i]+15);
                 fileMapping = buf;
             }
+            else if (0 == wcsncmp(L"--sideload-font=", argv[i], 16)) {
+                char buf[1024];
+                sprintf_s(buf, sizeof(buf), "%S", argv[i] + 16);
+                g_sideLoadedFonts.push_back(buf);
+            }
             else if (0 == wcsncmp(L"--dict-dir=", argv[i], 11)) {
                 char buf[1024];
                 sprintf_s(buf, sizeof(buf), "%S", argv[i] + 11);
@@ -782,6 +1178,11 @@ int main(int, const char**)
                 char buf[1024];
                 sprintf_s(buf, sizeof(buf), "%S", argv[i]+14);
                 proxyPort = atoi(buf);
+            }
+            else if (0 == wcsncmp(L"--web-script-context-security-origin=", argv[i], 37)) {
+                char buf[1024];
+                sprintf_s(buf, sizeof(buf), "%S", argv[i]+37);
+                g_webScriptContextSecurityOrigin = buf;
             }
             else if (argv[i][0] != '-') {
                 char buf[1024];
@@ -837,19 +1238,32 @@ int main(int, const char**)
         else {
             toolkitParams.setRendererUIEnabled(g_renderer_ui);
         }
+
+        g_webScriptContextAvailable = true;
+        toolkitParams.appendCommandLineSwitch("disable-web-security");
     }
     else {
         toolkitParams.setThreadMode(blpwtk2::ThreadMode::ORIGINAL);
         toolkitParams.disableInProcessRenderer();
+        toolkitParams.setBrowserV8Enabled(true);
+    }
+
+    for (size_t i = 0; i < g_sideLoadedFonts.size(); ++i) {
+        toolkitParams.appendSideLoadedFontInProcess(g_sideLoadedFonts[i]);
     }
 
     toolkitParams.setHeaderFooterHTML(getHeaderFooterHTMLContent());
     toolkitParams.enablePrintBackgroundGraphics();
     toolkitParams.setDictionaryPath(g_dictDir);
+    toolkitParams.setLogMessageHandler(logMessageHandler);
+    toolkitParams.setConsoleLogMessageHandler(consoleLogMessageHandler);
 
     g_toolkit = blpwtk2::ToolkitFactory::create(toolkitParams);
+    ProcessHostDelegateImpl hostIPCDelegate;
+    g_toolkit->setIPCDelegate(&hostIPCDelegate);
 
     if (isProcessHost && host == blpwtk2::ThreadMode::ORIGINAL) {
+        testBrowserV8();
         runHost();
         g_toolkit->destroy();
         g_toolkit = 0;
@@ -871,7 +1285,19 @@ int main(int, const char**)
         g_profile->addFallbackProxy(type, hostname, proxyPort);
     }
 
+    g_spellCheckEnabled = true;
     g_languages.insert(LANGUAGE_EN_US);
+    updateSpellCheckConfig(g_profile);
+
+    // Configure custom words.
+    std::vector<blpwtk2::StringRef> customWords;
+    customWords.push_back("foo");
+    customWords.push_back("zzzx");
+    customWords.push_back("Bloomberg");
+    g_profile->addCustomWords(customWords.data(), customWords.size());
+
+    ProcessClientDelegateImpl clientIPCDelegate;
+    g_profile->setIPCDelegate(&clientIPCDelegate);
 
     if (isProcessHost && host == blpwtk2::ThreadMode::RENDERER_MAIN) {
         runHost();
@@ -881,7 +1307,8 @@ int main(int, const char**)
         firstShell->webView()->loadUrl(g_url);
         ShowWindow(firstShell->d_mainWnd, SW_SHOW);
         UpdateWindow(firstShell->d_mainWnd);
-
+        firstShell->d_webView->takeKeyboardFocus();
+        firstShell->d_webView->setLogicalFocus(true);
         runMessageLoop();
     }
 
@@ -931,12 +1358,18 @@ LRESULT CALLBACK shellWndProc(HWND hwnd,        // handle to window
         switch (wmId) {
         case IDC_BACK:
             shell->webView()->goBack();
+            shell->webView()->takeKeyboardFocus();
+            shell->webView()->setLogicalFocus(true);
             return 0;
         case IDC_FORWARD:
             shell->webView()->goForward();
+            shell->webView()->takeKeyboardFocus();
+            shell->webView()->setLogicalFocus(true);
             return 0;
         case IDC_RELOAD:
             shell->webView()->reload();
+            shell->webView()->takeKeyboardFocus();
+            shell->webView()->setLogicalFocus(true);
             return 0;
         case IDC_FIND_ENTRY:
             if (HIWORD(wParam) == EN_CHANGE) {
@@ -949,22 +1382,68 @@ LRESULT CALLBACK shellWndProc(HWND hwnd,        // handle to window
             return 0;
         case IDC_STOP:
             shell->webView()->stop();
+            shell->d_webView->takeKeyboardFocus();
+            shell->d_webView->setLogicalFocus(true);
             return 0;
         case IDM_NEW_WINDOW:
             newShell = createShell(shell->d_profile);
             newShell->webView()->loadUrl(g_url);
             ShowWindow(newShell->d_mainWnd, SW_SHOW);
             UpdateWindow(newShell->d_mainWnd);
+            newShell->d_webView->takeKeyboardFocus();
+            newShell->d_webView->setLogicalFocus(true);
             return 0;
         case IDM_CLOSE_WINDOW:
             DestroyWindow(shell->d_mainWnd);
             return 0;
+        case IDM_CLEAR_WEB_CACHE:
+            g_profile->clearWebCache();
+            return 0;
         case IDM_TEST_V8_APPEND_ELEMENT:
             testV8AppendElement(shell->webView());
+            return 0;
+        case IDM_TEST_ACCESS_DOM_FROM_WEB_SCRIPT_CONTEXT:
+            testAccessDOMFromWebScriptContext(
+                shell->webScriptContext(), shell->webView());
+            return 0;
+        case IDM_TEST_KEYBOARD_FOCUS:
+            shell->d_webView->takeKeyboardFocus();
+            return 0;
+        case IDM_TEST_LOGICAL_FOCUS:
+            shell->d_webView->setLogicalFocus(true);
+            return 0;
+        case IDM_TEST_LOGICAL_BLUR:
+            shell->d_webView->setLogicalFocus(false);
             return 0;
         case IDM_TEST_PLAY_KEYBOARD_EVENTS:
             testPlayKeyboardEvents(shell->d_mainWnd, shell->webView());
             return 0;
+        case IDM_TEST_DUMP_GPU_INFO:
+            shell->d_profile->dumpDiagnostics(
+                    blpwtk2::Profile::DiagnosticInfoType::GPU, "gpuInfo.txt");
+            return 0;
+        case IDM_SPELLCHECK_ENABLED:
+            g_spellCheckEnabled = !g_spellCheckEnabled;
+            updateSpellCheckConfig(shell->d_profile);
+            return 0;
+        case IDM_TEST_GET_PDF:
+            testGetPicture(shell->d_mainWnd, shell->d_webView, blpwtk2::WebView::DrawParams::RendererType::PDF, 2, 2);
+            return 0;
+        case IDM_TEST_GET_BITMAP:
+            testGetPicture(shell->d_mainWnd, shell->d_webView, blpwtk2::WebView::DrawParams::RendererType::Bitmap, 2, 2);
+            return 0;
+        case IDM_SEND_IPC_ASYNC:
+            std::cout << "ASYNC IPC from renderer to browser: 'Hello Browser'" << std::endl;
+            g_profile->opaqueMessageToBrowserAsync("Hello Browser");
+            return 0;
+        case IDM_SEND_IPC_SYNC:
+        {
+            std::cout << "SYNC IPC from renderer to browser: 'Hello Browser'" << std::endl;
+            blpwtk2::String result = g_profile->opaqueMessageToBrowserSync("Hello Browser");
+
+            std::cout << "Renderer received SYNC response: " << std::string(result.data(), result.size()) << std::endl;
+            return 0;
+        }
         case IDM_LANGUAGE_DE:
             toggleLanguage(shell->d_profile, LANGUAGE_DE);
             return 0;
@@ -1008,6 +1487,8 @@ LRESULT CALLBACK shellWndProc(HWND hwnd,        // handle to window
             if (shell->d_inspectorShell) {
                 BringWindowToTop(shell->d_inspectorShell->d_mainWnd);
                 shell->d_inspectorShell->webView()->inspectElementAt(shell->d_contextMenuPoint);
+                shell->d_inspectorShell->d_webView->takeKeyboardFocus();
+                shell->d_inspectorShell->d_webView->setLogicalFocus(true);
                 return 0;
             }
             {
@@ -1019,6 +1500,14 @@ LRESULT CALLBACK shellWndProc(HWND hwnd,        // handle to window
             UpdateWindow(shell->d_inspectorShell->d_mainWnd);
             shell->d_inspectorShell->webView()->loadInspector(::GetCurrentProcessId(), shell->webView()->getRoutingId());
             shell->d_inspectorShell->webView()->inspectElementAt(shell->d_contextMenuPoint);
+            shell->d_inspectorShell->d_webView->takeKeyboardFocus();
+            shell->d_inspectorShell->d_webView->setLogicalFocus(true);
+            return 0;
+        case IDM_ADD_TO_DICTIONARY:
+            {
+                blpwtk2::StringRef word = shell->d_misspelledWord;
+                shell->d_profile->addCustomWords(&word, 1);
+            }
             return 0;
         case IDM_EXIT:
             std::vector<Shell*> shells(Shell::s_shells.begin(), Shell::s_shells.end());
@@ -1030,6 +1519,9 @@ LRESULT CALLBACK shellWndProc(HWND hwnd,        // handle to window
     case WM_INITMENUPOPUP: {
             HMENU menu = (HMENU)wParam;
 
+            adjustMenuItemStateFlag(shell->d_spellCheckMenu, 1, MFS_DISABLED, !g_spellCheckEnabled);
+            adjustMenuItemStateFlag(shell->d_spellCheckMenu, 2, MFS_DISABLED, !g_spellCheckEnabled);
+            CheckMenuItem(menu, IDM_SPELLCHECK_ENABLED, g_spellCheckEnabled ? MF_CHECKED : MF_UNCHECKED);
             CheckMenuItem(menu, IDM_LANGUAGE_DE, g_languages.find(LANGUAGE_DE) != g_languages.end() ? MF_CHECKED : MF_UNCHECKED);
             CheckMenuItem(menu, IDM_LANGUAGE_EN_GB, g_languages.find(LANGUAGE_EN_GB) != g_languages.end() ? MF_CHECKED : MF_UNCHECKED);
             CheckMenuItem(menu, IDM_LANGUAGE_EN_US, g_languages.find(LANGUAGE_EN_US) != g_languages.end() ? MF_CHECKED : MF_UNCHECKED);
@@ -1085,6 +1577,8 @@ LRESULT CALLBACK urlEntryWndProc(HWND hwnd,        // handle to window
             if (str_len > 0) {
                 str[str_len] = 0;  // EM_GETLINE doesn't NULL terminate.
                 shell->webView()->loadUrl(str);
+                shell->webView()->takeKeyboardFocus();
+                shell->webView()->setLogicalFocus(true);
             }
             return 0;
         }
@@ -1144,14 +1638,32 @@ Shell* createShell(blpwtk2::Profile* profile, blpwtk2::WebView* webView, bool fo
     HMENU fileMenu = CreateMenu();
     AppendMenu(fileMenu, MF_STRING, IDM_NEW_WINDOW, L"&New Window");
     AppendMenu(fileMenu, MF_STRING, IDM_CLOSE_WINDOW, L"&Close Window");
+    AppendMenu(fileMenu, MF_STRING, IDM_CLEAR_WEB_CACHE, L"Clear Web Cache");
+    AppendMenu(fileMenu, MF_SEPARATOR, 0, 0);
+    AppendMenu(fileMenu, MF_STRING, IDM_INSPECT, L"Inspect...");
     AppendMenu(fileMenu, MF_SEPARATOR, 0, 0);
     AppendMenu(fileMenu, MF_STRING, IDM_EXIT, L"E&xit");
     AppendMenu(menu, MF_POPUP, (UINT_PTR)fileMenu, L"&File");
     HMENU testMenu = CreateMenu();
     AppendMenu(testMenu, MF_STRING, IDM_TEST_V8_APPEND_ELEMENT, L"Append Element Using &V8");
+    if (g_webScriptContextAvailable) {
+        AppendMenu(testMenu, MF_STRING, IDM_TEST_ACCESS_DOM_FROM_WEB_SCRIPT_CONTEXT, L"Access the DOM from a 'web script context'");
+    }
+    AppendMenu(testMenu, MF_STRING, IDM_TEST_KEYBOARD_FOCUS, L"Test Keyboard Focus");
+    AppendMenu(testMenu, MF_STRING, IDM_TEST_LOGICAL_FOCUS, L"Test Logical Focus");
+    AppendMenu(testMenu, MF_STRING, IDM_TEST_LOGICAL_BLUR, L"Test Logical Blur");
     AppendMenu(testMenu, MF_STRING, IDM_TEST_PLAY_KEYBOARD_EVENTS, L"Test Play Keyboard Events");
+    AppendMenu(testMenu, MF_STRING, IDM_TEST_GET_PDF, L"Test Capture PDF");
+    AppendMenu(testMenu, MF_STRING, IDM_TEST_GET_BITMAP, L"Test Capture Bitmap");
     AppendMenu(testMenu, MF_STRING, IDM_TEST_DUMP_LAYOUT_TREE, L"Dump Layout Tree");
+    AppendMenu(testMenu, MF_STRING, IDM_TEST_DUMP_GPU_INFO, L"Dump GPU Information");
+    HMENU ipcMenu = CreateMenu();
+    AppendMenu(ipcMenu, MF_STRING, IDM_SEND_IPC_SYNC, L"Send IPC sync from renderer to browser");
+    AppendMenu(ipcMenu, MF_STRING, IDM_SEND_IPC_ASYNC, L"Send IPC async from renderer to browser");
+    AppendMenu(testMenu, MF_POPUP, (UINT_PTR)ipcMenu, L"&IPC");
     AppendMenu(menu, MF_POPUP, (UINT_PTR)testMenu, L"&Test");
+    HMENU spellCheckMenu = CreateMenu();
+    AppendMenu(spellCheckMenu, MF_STRING, IDM_SPELLCHECK_ENABLED, L"Enable &Spellcheck");
     HMENU languagesMenu = CreateMenu();
     AppendMenu(languagesMenu, MF_STRING, IDM_LANGUAGE_DE, L"&German");
     AppendMenu(languagesMenu, MF_STRING, IDM_LANGUAGE_EN_GB, L"&English (Great Britain)");
@@ -1162,6 +1674,8 @@ Shell* createShell(blpwtk2::Profile* profile, blpwtk2::WebView* webView, bool fo
     AppendMenu(languagesMenu, MF_STRING, IDM_LANGUAGE_PT_BR, L"Portuguese (&Brazil)");
     AppendMenu(languagesMenu, MF_STRING, IDM_LANGUAGE_PT_PT, L"Portuguese (&Portugal)");
     AppendMenu(languagesMenu, MF_STRING, IDM_LANGUAGE_RU, L"&Russian");
+    AppendMenu(spellCheckMenu, MF_POPUP, (UINT_PTR)languagesMenu, L"&Languages");
+    AppendMenu(menu, MF_POPUP, (UINT_PTR)spellCheckMenu, L"&Spelling");
     SetMenu(mainWnd, menu);
 
     HWND hwnd;
@@ -1234,7 +1748,7 @@ Shell* createShell(blpwtk2::Profile* profile, blpwtk2::WebView* webView, bool fo
         g_defaultEditWndProc = reinterpret_cast<WNDPROC>(GetWindowLongPtr(urlEntryWnd, GWLP_WNDPROC));
     SetWindowLongPtr(urlEntryWnd, GWLP_WNDPROC, reinterpret_cast<LONG_PTR>(urlEntryWndProc));
 
-    return new Shell(mainWnd, urlEntryWnd, findEntryHwnd, profile, webView, forDevTools);
+    return new Shell(mainWnd, urlEntryWnd, findEntryHwnd, spellCheckMenu, profile, webView, forDevTools);
 }
 
 void populateMenuItem(HMENU menu, int menuIdStart, const blpwtk2::ContextMenuItem& item)
@@ -1272,6 +1786,18 @@ void populateSubmenu(HMENU menu, int menuIdStart, const blpwtk2::ContextMenuItem
     }
 }
 
+void updateSpellCheckConfig(blpwtk2::Profile* profile)
+{
+    std::vector<blpwtk2::StringRef> languages;
+    for (std::set<std::string>::const_iterator it = g_languages.begin();
+                                               it != g_languages.end();
+                                               ++it) {
+        languages.push_back(it->c_str());
+    }
+    profile->setLanguages(languages.data(), languages.size());
+    profile->enableSpellCheck(g_spellCheckEnabled);
+}
+
 void toggleLanguage(blpwtk2::Profile* profile, const std::string& language)
 {
     if (g_languages.find(language) == g_languages.end()) {
@@ -1280,6 +1806,7 @@ void toggleLanguage(blpwtk2::Profile* profile, const std::string& language)
     else {
         g_languages.erase(language);
     }
+    updateSpellCheckConfig(profile);
 }
 
 class DummyResourceLoader : public blpwtk2::ResourceLoader {

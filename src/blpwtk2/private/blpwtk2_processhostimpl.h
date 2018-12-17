@@ -24,6 +24,7 @@
 #define INCLUDED_BLPWTK2_PROCESSHOSTIMPL_H
 
 #include <blpwtk2_config.h>
+#include <blpwtk2_string.h>
 #include <blpwtk2/private/blpwtk2_process.mojom.h>
 
 #include <base/compiler_specific.h>
@@ -41,6 +42,7 @@
 namespace blpwtk2 {
 class ProcessHostImplInternal;
 class BrowserContextImpl;
+class ProcessHostDelegate;
 
                         // =====================
                         // class ProcessHostImpl
@@ -59,6 +61,8 @@ class ProcessHostImpl final : public mojom::ProcessHost
     // DATA
     scoped_refptr<Impl> d_impl;
     scoped_refptr<base::SingleThreadTaskRunner> d_runner;
+    mojom::ProcessClientPtr processClientPtr;
+
     static std::map<base::ProcessId,scoped_refptr<Impl> > s_unboundHosts;
 
     explicit ProcessHostImpl(const scoped_refptr<base::SingleThreadTaskRunner>& runner);
@@ -111,6 +115,10 @@ class ProcessHostImpl final : public mojom::ProcessHost
 
     static void releaseAll();
 
+    // Send IPC to renderer async
+    static void opaqueMessageToRendererAsync(int pid, const StringRef &message);
+    static void setIPCDelegate(ProcessHostDelegate *delegate);
+
     // mojom::ProcessHost overrides
     void createHostChannel(
             unsigned int                     pid,
@@ -118,7 +126,9 @@ class ProcessHostImpl final : public mojom::ProcessHost
             const std::string&               profileDir,
             createHostChannelCallback callback) override;
 
-    void bindProcess(unsigned int pid, bool launchDevToolsServer) override;
+    void bindProcess(unsigned int pid,
+                     bool launchDevToolsServer,
+                     bindProcessCallback callback) override;
 
     void createWebView(
             mojom::WebViewHostRequest     hostRequest,
@@ -132,6 +142,10 @@ class ProcessHostImpl final : public mojom::ProcessHost
     void registerScreenForStreaming(
             unsigned int                              screen,
             registerScreenForStreamingCallback callback) override;
+
+    void dumpDiagnostics(int type, const std::string& path) override;
+
+    void setDefaultPrinter(const std::string& name) override;
 
     void addHttpProxy(mojom::ProxyConfigType type,
                       const std::string&     host,
@@ -156,6 +170,17 @@ class ProcessHostImpl final : public mojom::ProcessHost
     void registerNativeViewForComposition(unsigned int view) override;
     void unregisterNativeViewForComposition(unsigned int view) override;
     void resolveNativeViewComposition(uint32_t view) override;
+
+    void enableSpellCheck(bool enabled) override;
+    void setLanguages(const std::vector<std::string>& languages) override;
+    void addCustomWords(const std::vector<std::string>& words) override;
+    void removeCustomWords(const std::vector<std::string>& words) override;
+
+    // The following two functions are handlers for IPC from renderer
+    void opaqueMessageToBrowserAsync(const std::string& msg) override;
+    void opaqueMessageToBrowserSync(
+        const std::string&                 msg,
+        opaqueMessageToBrowserSyncCallback callback) override;
 };
 
                         // ===========================
@@ -175,7 +200,9 @@ class ProcessHostImpl::Impl final : public base::RefCounted<Impl>
 
   public:
     // CREATORS
-    Impl(bool isolated, const std::string& profileDir);
+    Impl(base::ProcessHandle processHandle,
+         bool isolated,
+         const std::string& profileDir);
         // Initialize the ProcessHost (the real implementation).
         // 'profileDir' is a path to the directory that will be used by the
         // browser context to store profile data.

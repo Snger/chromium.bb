@@ -32,6 +32,7 @@
 #include <blpwtk2_blob.h>
 #include <blpwtk2_rendererutil.h>
 
+#include <cc/trees/proxy_main.h>
 #include <content/renderer/render_view_impl.h>
 #include <content/public/renderer/render_view.h>
 #include <third_party/blink/public/web/web_local_frame.h>
@@ -42,7 +43,185 @@
 #include <unordered_map>
 #include <unordered_set>
 
+namespace {
+
+const int DEFAULT_DPI_X = 96;
+
+float getScreenScaleFactor()
+{
+    static float scale_x = -1;
+
+    if (scale_x < 0) {
+        HWND desktop_window = ::GetDesktopWindow();
+        HDC screen_dc = ::GetDC(desktop_window);
+        if (screen_dc == NULL) {
+            return 1.0;
+        }
+        int dpi_x = ::GetDeviceCaps(screen_dc, LOGPIXELSX);
+        ::ReleaseDC(desktop_window, screen_dc);
+        scale_x = (float)dpi_x / DEFAULT_DPI_X;
+
+        if (scale_x <= 1.25) {
+            // From WebKit: Force 125% and below to 100% scale. We do this to
+            // maintain previous (non-DPI-aware) behavior where only the font
+            // size was boosted.
+            scale_x = 1.0;
+        }
+    }
+
+    return scale_x;  // Windows zooms are always symmetric
+}
+
+bool shouldSkipResizeOptimization()
+{
+    static bool scale_read = false;
+    static bool resizeOptimizationDisabled = false;
+    static long lastCallMS = 0;
+    SYSTEMTIME st;
+    ::GetSystemTime(&st);
+    long time = st.wHour * 3600000 + st.wMinute * 60000 + st.wSecond * 1000 + st.wMilliseconds;
+    bool hasBeenFullSecond = time < lastCallMS || time - lastCallMS > 1000;
+
+    // To workaround a very rare case where a webview is initially sized
+    // incorrectly, we only apply the resize optimization when the last resize
+    // operation occured less than a second ago.  This allows the optimization
+    // to be used for user-driven interactive resize sessions.
+    lastCallMS = time;
+
+    if (!scale_read) {
+        HKEY userKey;
+        if (ERROR_SUCCESS != ::RegOpenCurrentUser(KEY_QUERY_VALUE, &userKey)) {
+            return false;
+        }
+
+        HKEY dwmKey;
+        long result = ::RegOpenKeyExW(userKey,
+                                      L"Software\\Microsoft\\Windows\\DWM",
+                                      0,
+                                      KEY_QUERY_VALUE,
+                                      &dwmKey);
+
+        ::RegCloseKey(userKey);
+
+        if (ERROR_SUCCESS != result) {
+            return false;
+        }
+
+        scale_read = true;
+
+        unsigned long dpiScaling;
+        unsigned long size = sizeof(dpiScaling);
+        result = ::RegQueryValueExW(dwmKey,
+                                    L"UseDpiScaling",
+                                    NULL,
+                                    NULL,
+                                    reinterpret_cast<unsigned char*>(&dpiScaling),
+                                    &size);
+
+        unsigned long compPolicy;
+        long result2 = ::RegQueryValueExW(
+                                     dwmKey,
+                                     L"CompositionPolicy",
+                                     NULL,
+                                     NULL,
+                                     reinterpret_cast<unsigned char*>(&compPolicy),
+                                     &size);
+
+        ::RegCloseKey(dwmKey);
+
+        BOOL compEnabled;
+        HRESULT result3 = ::DwmIsCompositionEnabled(&compEnabled);
+
+        if (ERROR_SUCCESS != result || ERROR_SUCCESS != result2 || !SUCCEEDED(result3)) {
+            resizeOptimizationDisabled = false;
+            return false;
+        }
+
+        resizeOptimizationDisabled = !dpiScaling || compPolicy || !compEnabled ? true : false;
+    }
+
+    return hasBeenFullSecond || blpwtk2::Statics::inProcessResizeOptimizationDisabled || (resizeOptimizationDisabled && getScreenScaleFactor() > 1.0);
+}
+
+}  // close anonymous namespace
+
 #define GetAValue(argb)      (LOBYTE((argb)>>24))
+
+namespace {
+                        // =========================
+                        // class PerformanceProfiler
+                        // =========================
+
+class PerformanceProfiler final : public cc::Profiler {
+    typedef std::unordered_map<int, blpwtk2::WebViewDelegate *> DelegateMap;
+    typedef std::unordered_set<int> ProfileSet;
+
+    bool d_isProfilerSet;
+    DelegateMap d_delegateMap;
+    ProfileSet d_activeProfiles;
+
+  public:
+    PerformanceProfiler();
+
+    void setDelegate(int routingId, blpwtk2::WebViewDelegate *delegate);
+    void beginProfile(int routingId) override;
+    void endProfile(int routingId) override;
+};
+
+                        // -------------------------
+                        // class PerformanceProfiler
+                        // -------------------------
+
+PerformanceProfiler::PerformanceProfiler()
+    : d_isProfilerSet(false)
+{
+}
+
+void PerformanceProfiler::setDelegate(int routingId, blpwtk2::WebViewDelegate *delegate)
+{
+    // Remove any existing delegate associated with this routing id
+    DelegateMap::iterator iter = d_delegateMap.find(routingId);
+    if (iter != d_delegateMap.end()) {
+        if (d_activeProfiles.find(routingId) != d_activeProfiles.end()) {
+            endProfile(routingId);
+        }
+        d_delegateMap.erase(iter);
+    }
+
+    if (delegate) {
+        d_delegateMap[routingId] = delegate;
+
+        if (!d_isProfilerSet) {
+            d_isProfilerSet = true;
+            cc::ProxyMain::SetProfiler(this);
+        }
+    }
+}
+
+void PerformanceProfiler::beginProfile(int routingId)
+{
+    DelegateMap::iterator iter = d_delegateMap.find(routingId);
+    if (iter == d_delegateMap.end()) {
+        return;
+    }
+
+    d_activeProfiles.insert(routingId);
+    iter->second->startPerformanceTiming();
+}
+
+void PerformanceProfiler::endProfile(int routingId)
+{
+    DelegateMap::iterator iter = d_delegateMap.find(routingId);
+    if (iter == d_delegateMap.end()) {
+        return;
+    }
+
+    d_activeProfiles.erase(routingId);
+    iter->second->stopPerformanceTiming();
+}
+
+PerformanceProfiler s_profiler;
+}
 
 namespace blpwtk2 {
 
@@ -79,6 +258,7 @@ void WebViewProxy::destroy()
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(!d_pendingDestroy);
+    s_profiler.setDelegate(d_renderViewRoutingId, nullptr);
 
     // Schedule a deletion of this WebViewProxy.  The reason we don't delete
     // the object right here right now is because there may be a callback
@@ -119,8 +299,15 @@ int WebViewProxy::loadUrl(const StringRef& url)
     d_pendingLoadStatus = true;
     d_url = std::string(url.data(), url.length());
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", loadUrl=" << d_url;
+    d_mainFrame.reset();
     d_client->loadUrl(d_url);
     return 0;
+}
+
+void WebViewProxy::rootWindowCompositionChanged()
+{
+    DCHECK(Statics::isInApplicationMainThread());
+    d_client->proxy()->rootWindowCompositionChanged();
 }
 
 void WebViewProxy::loadInspector(unsigned int pid, int routingId)
@@ -138,6 +325,19 @@ void WebViewProxy::inspectElementAt(const POINT& point)
     d_client->proxy()->inspectElementAt(point.x, point.y);
 }
 
+void WebViewProxy::drawContentsToBlob(Blob *blob, const DrawParams& params)
+{
+    DCHECK(Statics::isRendererMainThreadMode());
+    DCHECK(Statics::isInApplicationMainThread());
+    DCHECK(d_isMainFrameAccessible)
+        << "You should wait for didFinishLoad";
+    DCHECK(d_gotRenderViewInfo);
+    DCHECK(blob);
+
+    content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    RendererUtil::drawContentsToBlob(rv, blob, params);
+}
+
 int WebViewProxy::goBack()
 {
     DCHECK(Statics::isInApplicationMainThread());
@@ -147,6 +347,7 @@ int WebViewProxy::goBack()
 
     d_pendingLoadStatus = true;
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", goBack()";
+    d_mainFrame.reset();
     d_client->goBack();
     return 0;
 }
@@ -160,6 +361,7 @@ int WebViewProxy::goForward()
 
     d_pendingLoadStatus = true;
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", goForward()";
+    d_mainFrame.reset();
     d_client->goForward();
     return 0;
 }
@@ -173,6 +375,7 @@ int WebViewProxy::reload()
 
     d_pendingLoadStatus = true;
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", reload()";
+    d_mainFrame.reset();
     d_client->reload();
     return 0;
 }
@@ -182,6 +385,32 @@ void WebViewProxy::stop()
     DCHECK(Statics::isInApplicationMainThread());
     LOG(INFO) << "routingId=" << d_renderViewRoutingId << ", stop";
     d_client->proxy()->stop();
+}
+
+void WebViewProxy::takeKeyboardFocus()
+{
+    DCHECK(Statics::isInApplicationMainThread());
+    d_client->takeKeyboardFocus();
+}
+
+void WebViewProxy::setLogicalFocus(bool focused)
+{
+    DCHECK(Statics::isInApplicationMainThread());
+    LOG(INFO) << "routingId=" << d_renderViewRoutingId
+              << ", setLogicalFocus " << (focused ? "true" : "false");
+
+    if (d_gotRenderViewInfo) {
+        // If we have the renderer in-process, then set the logical focus
+        // immediately so that handleInputEvents will work as expected.
+        content::RenderViewImpl *rv =
+            content::RenderViewImpl::FromRoutingID(d_renderViewRoutingId);
+        DCHECK(rv);
+        rv->SetFocus(focused);
+    }
+
+    // Send the message, which will update the browser-side aura::Window focus
+    // state.
+    d_client->proxy()->setLogicalFocus(focused); 
 }
 
 void WebViewProxy::show()
@@ -258,6 +487,50 @@ void WebViewProxy::find(const StringRef& text, bool matchCase, bool forward)
     d_client->find(std::string(text.data(), text.size()), matchCase, forward);
 }
 
+void WebViewProxy::enableAltDragRubberbanding(bool enabled)
+{
+    DCHECK(Statics::isInApplicationMainThread());
+    d_client->proxy()->enableAltDragRubberbanding(enabled);
+}
+
+bool WebViewProxy::forceStartRubberbanding(int x, int y)
+{
+    DCHECK(Statics::isRendererMainThreadMode());
+    DCHECK(Statics::isInApplicationMainThread());
+    content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    blink::WebView* webView = rv->GetWebView();
+    return webView->ForceStartRubberbanding(x, y);
+}
+
+bool WebViewProxy::isRubberbanding() const
+{
+    DCHECK(Statics::isRendererMainThreadMode());
+    DCHECK(Statics::isInApplicationMainThread());
+    content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    blink::WebView* webView = rv->GetWebView();
+    return webView->IsRubberbanding();
+}
+
+void WebViewProxy::abortRubberbanding()
+{
+    DCHECK(Statics::isRendererMainThreadMode());
+    DCHECK(Statics::isInApplicationMainThread());
+    content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    blink::WebView* webView = rv->GetWebView();
+    webView->AbortRubberbanding();
+}
+
+String WebViewProxy::getTextInRubberband(const NativeRect& rect)
+{
+    DCHECK(Statics::isRendererMainThreadMode());
+    DCHECK(Statics::isInApplicationMainThread());
+    content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    blink::WebView* webView = rv->GetWebView();
+    blink::WebRect webRect(rect.left, rect.top, rect.right - rect.left, rect.bottom - rect.top);
+    std::string str = webView->GetTextInRubberband(webRect).Utf8();
+    return String(str.data(), str.size());
+}
+
 void WebViewProxy::stopFind(bool preserveSelection)
 {
     DCHECK(Statics::isInApplicationMainThread());
@@ -302,6 +575,8 @@ void WebViewProxy::setDelegate(WebViewDelegate *delegate)
 {
     DCHECK(Statics::isInApplicationMainThread());
     d_delegate = delegate;
+
+    s_profiler.setDelegate(d_renderViewRoutingId, d_delegate);
 }
 
 int WebViewProxy::getRoutingId() const
@@ -359,6 +634,17 @@ v8::MaybeLocal<v8::Value> WebViewProxy::callFunction(
     blink::WebLocalFrame* localWebFrame = webFrame->ToWebLocalFrame();
 
     return localWebFrame->CallFunctionEvenIfScriptDisabled(func, recv, argc, argv);
+}
+
+String WebViewProxy::printToPDF(const StringRef& propertyName)
+{
+    content::RenderView *rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+    return RendererUtil::printToPDF(rv, propertyName.toStdString());
+}
+
+void WebViewProxy::disableResizeOptimization()
+{
+    d_disableResizeOptimization = true;
 }
 
 // blpwtk2::WebViewClientDelegate overrides
@@ -443,6 +729,16 @@ void WebViewProxy::findReply(int  numberOfMatches,
 
 void WebViewProxy::preResize(const gfx::Size& size)
 {
+    if (!d_disableResizeOptimization && d_gotRenderViewInfo && !size.IsEmpty() && !shouldSkipResizeOptimization()) {
+        // If we have renderer info (only happens if we are in-process), we can
+        // start resizing the RenderView while we are in the main thread.  This
+        // is to avoid a round-trip delay waiting for the resize to get to the
+        // browser thread, and it sending a ViewMsg_Resize back to this thread.
+        // We disable this optimization in XP-style DPI scaling.
+        content::RenderView* rv = content::RenderView::FromRoutingID(d_renderViewRoutingId);
+        DCHECK(rv);
+        rv->SetSize(size);
+    }
 }
 
 void WebViewProxy::notifyRoutingId(int id)
@@ -467,6 +763,8 @@ void WebViewProxy::notifyRoutingId(int id)
     }
 
     d_gotRenderViewInfo = true;
+    s_profiler.setDelegate(d_renderViewRoutingId, nullptr);
+    s_profiler.setDelegate(id, d_delegate);
 
     d_renderViewRoutingId = id;
     LOG(INFO) << "routingId=" << id;
@@ -496,6 +794,20 @@ void WebViewProxy::onLoadStatus(int status)
         if (d_delegate) {
             d_delegate->didFailLoad(this, StringRef(d_url));
         }
+    }
+}
+
+void WebViewProxy::devToolsAgentHostAttached()
+{
+    if (d_delegate) {
+        d_delegate->devToolsAgentHostAttached(this);
+    }
+}
+
+void WebViewProxy::devToolsAgentHostDetached()
+{
+    if (d_delegate) {
+        d_delegate->devToolsAgentHostDetached(this);
     }
 }
 

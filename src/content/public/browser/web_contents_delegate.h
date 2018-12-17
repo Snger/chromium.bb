@@ -427,6 +427,9 @@ class CONTENT_EXPORT WebContentsDelegate {
                          int active_match_ordinal,
                          bool final_update) {}
 
+  virtual void DevToolsAgentHostAttached(WebContents* web_contents) {}
+  virtual void DevToolsAgentHostDetached(WebContents* web_contents) {}
+
 #if defined(OS_ANDROID)
   // Provides the rects of the current find-in-page matches.
   // Sent as a reply to RequestFindMatchRects.
@@ -508,6 +511,10 @@ class CONTENT_EXPORT WebContentsDelegate {
       const GURL& url,
       const base::FilePath& plugin_path,
       const base::Callback<void(bool)>& callback);
+
+  // Return true if the RWHV should take focus on mouse-down.
+  virtual bool ShouldSetKeyboardFocusOnMouseDown();
+  virtual bool ShouldSetLogicalFocusOnMouseDown();
 
   // Returns the size for the new render view created for the pending entry in
   // |web_contents|; if there's no size, returns an empty size.

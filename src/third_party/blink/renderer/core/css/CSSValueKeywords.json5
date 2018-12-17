@@ -409,6 +409,7 @@
     "col-resize",
     "row-resize",
     "text",
+    "text-with-leading-tab",
     "wait",
     "help",
     "all-scroll",
@@ -478,6 +479,7 @@
     "pre",
     "pre-line",
     "pre-wrap",
+    "-bb-pre-wrap-text",
     "relative",
     "scroll",
     "separate",
@@ -613,6 +615,7 @@
     //
     "break-all",
     "keep-all",
+    "-bb-keep-all-if-korean",
 
     //
     // word-wrap

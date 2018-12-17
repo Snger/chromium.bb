@@ -37,10 +37,12 @@
 #include <content/public/common/file_chooser_params.h>
 #include <ui/gfx/native_widget_types.h>
 #include <third_party/blink/public/web/web_text_direction.h>
+#include <ui/compositor/compositor_gpu_observer.h>
 
 namespace content {
 class WebContents;
 struct WebPreferences;
+class RenderWidgetHost;
 }  // close namespace content
 
 namespace views {
@@ -79,7 +81,8 @@ class WebViewImpl final : public WebView,
                           private NativeViewWidgetDelegate,
                           public content::WebContentsDelegate,
                           private content::WebContentsObserver,
-                          private base::SupportsWeakPtr<WebViewImpl>
+                          private base::SupportsWeakPtr<WebViewImpl>,
+                          public ui::CompositorGpuObserver
 {
     // DATA
     std::unique_ptr<DevToolsFrontendHostDelegateImpl> d_devToolsFrontEndHost;
@@ -97,9 +100,11 @@ class WebViewImpl final : public WebView,
     bool d_isDeletingSoon;    // when DeleteSoon has been called
     bool d_ncHitTestEnabled;
     bool d_ncHitTestPendingAck;
+    bool d_altDragRubberbandingEnabled;
     int d_lastNCHitTestResult;
     int d_hostId;
     bool d_rendererUI;
+    ui::Compositor* d_gpuCompositor = nullptr;
 
     void createWidget(blpwtk2::NativeView parent);
 
@@ -109,6 +114,7 @@ class WebViewImpl final : public WebView,
     bool OnNCDragBegin(int hitTestCode) override;
     void OnNCDragMove() override;
     void OnNCDragEnd() override;
+    void OnNCDoubleClick() override;
     aura::Window* GetDefaultActivationWindow() override;
 
     // content::WebContentsDelegate overrides
@@ -138,6 +144,10 @@ class WebViewImpl final : public WebView,
         // Note that this does not query the user. |type| must be
         // MEDIA_DEVICE_AUDIO_CAPTURE or MEDIA_DEVICE_VIDEO_CAPTURE.
 
+    // Return true if the RWHV should take focus on mouse-down.
+    bool ShouldSetKeyboardFocusOnMouseDown() override;
+    bool ShouldSetLogicalFocusOnMouseDown() override;
+
     void FindReply(content::WebContents *source_contents,
                    int                   request_id,
                    int                   number_of_matches,
@@ -145,6 +155,14 @@ class WebViewImpl final : public WebView,
                    int                   active_match_ordinal,
                    bool                  final_update) override;
         // Information about current find request
+
+    void DevToolsAgentHostAttached(content::WebContents* web_contents) override;
+        // Notify that a frontend is now connected to the devtools agent
+        // associated with this webview.
+
+    void DevToolsAgentHostDetached(content::WebContents* web_contents) override;
+        // Notify that a frontend is now disconnected from the devtools agent
+        // associated with this webview.
 
     // content::WebContentsObserver overrides
     void RenderViewCreated(content::RenderViewHost *render_view_host) override;
@@ -175,6 +193,17 @@ class WebViewImpl final : public WebView,
                      const base::string16&     error_description) override;
         // This method is like DidFinishLoad, but when the load failed or was
         // cancelled, e.g. window.stop() is invoked.
+
+    void OnWebContentsFocused(content::RenderWidgetHost* render_widget_host) override;
+        // Notification that |contents| has gained focus.
+
+    void OnWebContentsLostFocus(content::RenderWidgetHost* render_widget_host) override;
+        // Invoked when focus is lost.
+
+    // Sets Error Message Callback to receive the GPU error messages
+    // from the GPU command buffer channel
+    bool StartObservingGpuCompositor();
+    bool StopObservingGpuCompositor();
 
     DISALLOW_COPY_AND_ASSIGN(WebViewImpl);
 
@@ -213,6 +242,8 @@ class WebViewImpl final : public WebView,
     int goForward() override;
     int reload() override;
     void stop() override;
+    void takeKeyboardFocus() override;
+    void setLogicalFocus(bool focused) override;
     void show() override;
     void hide() override;
     void setParent(NativeView parent) override;
@@ -224,18 +255,29 @@ class WebViewImpl final : public WebView,
     void enableNCHitTest(bool enabled) override;
     void onNCHitTestResult(int x, int y, int result) override;
     void performCustomContextMenuAction(int actionId) override;
+    void enableAltDragRubberbanding(bool enabled) override;
+    bool forceStartRubberbanding(int x, int y) override;
+    bool isRubberbanding() const override;
+    void abortRubberbanding() override;
+    String getTextInRubberband(const NativeRect&) override;
     void find(const StringRef& text, bool matchCase, bool forward) override;
     void stopFind(bool preserveSelection) override;
     void replaceMisspelledRange(const StringRef& text) override;
     void rootWindowPositionChanged() override;
     void rootWindowSettingsChanged() override;
+    void rootWindowCompositionChanged() override;
 
     void handleInputEvents(const InputEvent *events, size_t eventsCount) override;
     void setDelegate(WebViewDelegate* delegate) override;
+    void drawContentsToBlob(Blob *blob, const DrawParams& params) override;
     int getRoutingId() const override;
     void setBackgroundColor(NativeColor color) override;
     void setRegion(NativeRegion region) override;
     void clearTooltip() override;
+    String printToPDF(const StringRef& propertyName) override;
+    void OnCompositorGpuErrorMessage(const std::string& message) override;
+    void OnCompositingShuttingDown(ui::Compositor* compositor) override;
+    void disableResizeOptimization() override;
 };
 
 }  // close namespace blpwtk2

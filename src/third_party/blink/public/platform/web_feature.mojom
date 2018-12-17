@@ -1908,6 +1908,7 @@ enum WebFeature {
   kXRSupportsSession = 2416,
   kXRSessionGetInputSources = 2417,
   kCSSResizeAuto = 2418,
+  kSelectionGetClipboardCopyString = 2419, // Bloomberg-specific at the moment
 
   // Add new features immediately above this line. Don't change assigned
   // numbers of any item, and don't reuse removed slots.

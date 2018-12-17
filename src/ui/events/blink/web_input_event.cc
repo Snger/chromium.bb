@@ -119,7 +119,10 @@ blink::WebKeyboardEvent MakeWebKeyboardEventFromUiEvent(const KeyEvent& event) {
   webkit_event.dom_key = static_cast<int>(event.GetDomKey());
   webkit_event.unmodified_text[0] = event.GetUnmodifiedText();
   webkit_event.text[0] = event.GetText();
-
+  
+  if (::GetKeyState(VK_NUMLOCK) & 0x1) {
+    webkit_event.is_num_lock = true;
+  }
   return webkit_event;
 }
 
@@ -435,6 +438,8 @@ blink::WebMouseEvent MakeWebMouseEventFromUiEvent(const MouseEvent& event) {
       break;
     }
     case ET_MOUSE_ENTERED:
+      type = blink::WebInputEvent::kMouseEnter;
+      break;
     case ET_MOUSE_MOVED:
     case ET_MOUSE_DRAGGED:
       type = blink::WebInputEvent::kMouseMove;

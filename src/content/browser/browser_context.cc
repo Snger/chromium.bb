@@ -613,6 +613,10 @@ void BrowserContext::ShutdownStoragePartitions() {
     RemoveUserData(kStoragePartitionMapKeyName);
 }
 
+bool BrowserContext::AllowDictionaryDownloads() {
+  return false;
+}
+
 std::string BrowserContext::GetMediaDeviceIDSalt() {
   return media_device_id_salt_;
 }
@@ -641,6 +645,10 @@ media::VideoDecodePerfHistory* BrowserContext::GetVideoDecodePerfHistory() {
   }
 
   return decode_history;
+}
+
+FontCollection* BrowserContext::GetFontCollection() {
+    return nullptr;
 }
 
 }  // namespace content

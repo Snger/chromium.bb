@@ -1058,7 +1058,8 @@ void LocalFrameView::PerformLayout(bool in_subtree_layout) {
       "contentsHeightBeforeLayout", contents_height_before_layout);
   PrepareLayoutAnalyzer();
 
-  ScriptForbiddenScope forbid_script;
+  // blpwtk2: We need to run script for plugins
+  //ScriptForbiddenScope forbid_script;
 
   if (in_subtree_layout && HasOrthogonalWritingModeRoots()) {
     // If we're going to lay out from each subtree root, rather than once from
@@ -1146,7 +1147,8 @@ void LocalFrameView::UpdateLayout() {
   DCHECK(frame_->GetPage());
 
   {
-    ScriptForbiddenScope forbid_script;
+    // blpwtk2: We need to run script for plugins
+    //ScriptForbiddenScope forbid_script;
 
     if (IsInPerformLayout() || ShouldThrottleRendering() ||
         !frame_->GetDocument()->IsActive())
@@ -2429,6 +2431,7 @@ void LocalFrameView::SetBaseBackgroundColor(const Color& background_color) {
     return;
 
   base_background_color_ = background_color;
+  DisableCompositingQueryAsserts disabler;
 
   if (auto* layout_view = GetLayoutView()) {
     if (layout_view->Layer()->HasCompositedLayerMapping()) {

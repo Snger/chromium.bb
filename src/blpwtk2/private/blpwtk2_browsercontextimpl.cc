@@ -22,16 +22,19 @@
 
 #include <blpwtk2_browsercontextimpl.h>
 
+#include <blpwtk2_desktopstreamsregistry.h>
+#include <blpwtk2_devtoolsmanagerdelegateimpl.h>
+#include <blpwtk2_fontcollectionimpl.h>
 #include <blpwtk2_processhostimpl.h>
 #include <blpwtk2_resourcecontextimpl.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_stringref.h>
 #include <blpwtk2_urlrequestcontextgetterimpl.h>
-#include <blpwtk2_devtoolsmanagerdelegateimpl.h>
-#include <blpwtk2_desktopstreamsregistry.h>
-#include <blpwtk2_webviewproperties.h>
 #include <blpwtk2_webviewimpl.h>
 #include <blpwtk2_webviewdelegate.h>
+#include <blpwtk2_requestinterceptorimpl.h>
+#include <blpwtk2_utility.h>
+#include <blpwtk2_webviewproperties.h>
 
 #include <base/files/file_path.h>
 #include <base/files/file_util.h>
@@ -39,12 +42,17 @@
 #include <components/prefs/pref_service_factory.h>
 #include <components/prefs/pref_service.h>
 #include <base/threading/thread_restrictions.h>
+#include <chrome/browser/spellchecker/spellcheck_factory.h>
 #include <chrome/common/pref_names.h>
+#include <components/spellcheck/common/spellcheck_common.h>
+#include <components/spellcheck/browser/pref_names.h>
 #include <content/public/browser/browser_thread.h>
 #include <content/public/browser/render_process_host.h>
+#include <content/public/browser/spellcheck_data.h>
 #include <content/public/browser/storage_partition.h>
 #include <components/keyed_service/content/browser_context_dependency_manager.h>
 #include <components/pref_registry/pref_registry_syncable.h>
+#include <components/printing/renderer/print_render_frame_helper.h>
 #include <components/user_prefs/user_prefs.h>
 #include <net/proxy_resolution/proxy_config.h>
 #include <printing/backend/print_backend.h>
@@ -102,11 +110,26 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
 
     }
 
+    // Create an instance of SpellcheckData and attach it to the
+    // BrowserContext.  The BrowserContext will manage the lifetime of the
+    // SpellcheckData.
+    //
+    // We will store the custom dictionary words in the SpellcheckData
+    // object.  The SpellcheckService will query the SpellcheckData upon
+    // initialization to update its list of custom words.  It will also
+    // install an observer so that subsequent updates from here
+    // (blpwtk2::BrowserContextImpl) will update the spellcheck service's
+    // custom word list.
+    content::SpellcheckData::CreateForContext(this);
+
     // GetInstance() should be called here for all service factories.  This
     // will cause the constructor of the class to register itself to the
     // dependency manager.
     {
+        SpellcheckServiceFactory::GetInstance();
     }
+
+    d_prefRegistry->RegisterBooleanPref(prefs::kPrintingEnabled, true);
 
     // Register this context with the dependency manager.
     BrowserContextDependencyManager* dependencyManager = BrowserContextDependencyManager::GetInstance();
@@ -126,6 +149,7 @@ BrowserContextImpl::BrowserContextImpl(const std::string& dataDir)
     // preference service.  For this reason, it is important to call this
     // after content::BrowserContext::Initialize().
     {
+        SpellcheckServiceFactory::GetForContext(this);
     }
 
     d_proxyConfig = std::make_unique<net::ProxyConfig>();
@@ -257,6 +281,12 @@ void BrowserContextImpl::createWebView(
 
     WebViewProperties properties;
 
+    properties.takeKeyboardFocusOnMouseDown =
+        params.takeKeyboardFocusOnMouseDown();
+    properties.takeLogicalFocusOnMouseDown =
+        params.takeLogicalFocusOnMouseDown();
+    properties.activateWindowOnMouseDown =
+        params.activateWindowOnMouseDown();
     properties.domPasteEnabled =
         params.domPasteEnabled();
     properties.javascriptCanAccessClipboard =
@@ -421,6 +451,91 @@ void BrowserContextImpl::setPacUrl(const StringRef& url)
     d_requestContextGetter->setProxyConfig(*d_proxyConfig);
 }
 
+void BrowserContextImpl::dumpDiagnostics(DiagnosticInfoType type,
+                                         const StringRef&   path)
+{
+    if (DiagnosticInfoType::GPU == type) {
+        DumpGpuInfo(std::string(path.data(), path.size()));
+    }
+}
+
+void BrowserContextImpl::enableSpellCheck(bool enabled)
+{
+    DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
+    DCHECK(!d_isDestroyed);
+
+    PrefService *prefs = user_prefs::UserPrefs::Get(this);
+    prefs->SetBoolean(spellcheck::prefs::kSpellCheckEnable, enabled);
+}
+
+void BrowserContextImpl::setLanguages(const StringRef *languages,
+                                      size_t           numLanguages)
+{
+    DCHECK(content::BrowserThread::CurrentlyOn(content::BrowserThread::UI));
+    DCHECK(!d_isDestroyed);
+
+    PrefService* prefs = user_prefs::UserPrefs::Get(this);
+    base::ListValue languageList;
+
+    for (size_t i = 0; i < numLanguages; ++i) {
+        languageList.AppendString(languages[i].toStdString());
+    }
+    prefs->Set(spellcheck::prefs::kSpellCheckDictionaries, languageList);
+}
+
+void BrowserContextImpl::addCustomWords(const StringRef *words,
+                                        size_t           numWords)
+{
+    std::vector<base::StringPiece> wordsVector(numWords);
+    for (size_t i = 0; i < numWords; ++i) {
+        wordsVector[i].set(words[i].data(), words[i].length());
+    }
+    content::SpellcheckData::FromContext(this)->AdjustCustomWords(
+        wordsVector,
+        std::vector<base::StringPiece>());
+}
+
+void BrowserContextImpl::removeCustomWords(const StringRef *words,
+                                           size_t           numWords)
+{
+    std::vector<base::StringPiece> wordsVector(numWords);
+    for (size_t i = 0; i < numWords; ++i) {
+        wordsVector[i].set(words[i].data(), words[i].length());
+    }
+    content::SpellcheckData::FromContext(this)->AdjustCustomWords(
+        std::vector<base::StringPiece>(),
+        wordsVector);
+}
+
+void BrowserContextImpl::clearWebCache()
+{
+    // NOTREACHED
+    DCHECK(false);
+}
+
+void BrowserContextImpl::setDefaultPrinter(const StringRef& name)
+{
+    printing::PrintRenderFrameHelper::UseDefaultPrintSettings();
+    printing::PrintBackend::SetUserDefaultPrinterName(
+            std::string(name.data(), name.size()));
+}
+
+void BrowserContextImpl::opaqueMessageToBrowserAsync(const StringRef& msg)
+{
+    NOTREACHED();
+}
+
+String BrowserContextImpl::opaqueMessageToBrowserSync(const StringRef& msg)
+{
+    NOTREACHED();
+    return String();
+}
+
+void BrowserContextImpl::setIPCDelegate(ProcessClientDelegate *delegate)
+{
+    NOTREACHED();
+}
+
 // content::BrowserContext overrides
 std::unique_ptr<content::ZoomLevelDelegate>
 BrowserContextImpl::CreateZoomLevelDelegate(
@@ -479,6 +594,11 @@ content::SSLHostStateDelegate *BrowserContextImpl::GetSSLHostStateDelegate()
     return nullptr;
 }
 
+bool BrowserContextImpl::AllowDictionaryDownloads()
+{
+    return false;
+}
+
 content::PermissionManager *BrowserContextImpl::GetPermissionManager()
 {
     return nullptr;
@@ -504,6 +624,7 @@ net::URLRequestContextGetter* BrowserContextImpl::CreateRequestContext(
     content::ProtocolHandlerMap* protocol_handlers,
     content::URLRequestInterceptorScopedVector request_interceptors)
 {
+    request_interceptors.push_back(std::make_unique<RequestInterceptorImpl>());
     requestContextGetter()->setProtocolHandlers(
             protocol_handlers, std::move(request_interceptors));
     return requestContextGetter();
@@ -529,6 +650,11 @@ BrowserContextImpl::CreateMediaRequestContextForStoragePartition(
       const base::FilePath& partition_path, bool in_memory)
 {
     return nullptr;
+}
+
+content::FontCollection* BrowserContextImpl::GetFontCollection()
+{
+	return FontCollectionImpl::GetCurrent();
 }
 
 }  // close namespace blpwtk2
