@@ -571,7 +571,6 @@ blink::WebView* FrameReference::view() {
   return view_;
 }
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
 // static - Not anonymous so that platform implementations can use it.
 void PrintRenderFrameHelper::PrintHeaderAndFooter(
     blink::WebCanvas* canvas,
@@ -644,7 +643,6 @@ void PrintRenderFrameHelper::PrintHeaderAndFooter(
 
   web_view->Close();
 }
-#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
 // static - Not anonymous so that platform implementations can use it.
 float PrintRenderFrameHelper::RenderPageContent(blink::WebLocalFrame* frame,
@@ -2031,7 +2029,6 @@ void PrintRenderFrameHelper::PrintPageInternal(
 
   MetafileSkiaWrapper::SetMetafileOnCanvas(canvas, metafile);
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
   if (params.display_header_footer) {
 #if defined(OS_WIN)
     const float fudge_factor = 1;
@@ -2045,7 +2042,6 @@ void PrintRenderFrameHelper::PrintPageInternal(
                          scale_factor / fudge_factor, page_layout_in_points,
                          params);
   }
-#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
   float webkit_scale_factor = RenderPageContent(
       frame, page_number, canvas_area, content_area, scale_factor, canvas);
