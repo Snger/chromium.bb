@@ -97,7 +97,6 @@ bool g_is_preview_enabled = true;
 bool g_is_preview_enabled = false;
 #endif
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
 const char kPageLoadScriptFormat[] =
     "document.open(); document.write(%s); document.close();";
 
@@ -111,7 +110,6 @@ void ExecuteScript(blink::WebLocalFrame* frame,
   std::string script = base::StringPrintf(script_format, json.c_str());
   frame->ExecuteScript(blink::WebString::FromUTF8(script));
 }
-#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
 int GetDPI(const PrintMsg_Print_Params* print_params) {
 #if defined(OS_MACOSX)
