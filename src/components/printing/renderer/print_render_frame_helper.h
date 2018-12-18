@@ -337,7 +337,6 @@ class PrintRenderFrameHelper
   // Helper function to find document type.
   static SkiaDocumentType GetDocType(const PrintMsg_Print_Params& params);
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
   // Given the |device| and |canvas| to draw on, prints the appropriate headers
   // and footers using strings from |header_footer_info| on to the canvas.
   static void PrintHeaderAndFooter(blink::WebCanvas* canvas,
@@ -347,7 +346,6 @@ class PrintRenderFrameHelper
                                    float webkit_scale_factor,
                                    const PageSizeMargins& page_layout_in_points,
                                    const PrintMsg_Print_Params& params);
-#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
   // Script Initiated Printing ------------------------------------------------
 
