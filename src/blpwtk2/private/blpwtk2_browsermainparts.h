@@ -20,12 +20,36 @@
  * IN THE SOFTWARE.
  */
 
-#include "blpwtk2_contentbrowsermainparts.h"
+#ifndef INCLUDED_BLPWTK2_BROWSERMAINPARTS_H
+#define INCLUDED_BLPWTK2_BROWSERMAINPARTS_H
 
-#include "blpwtk2_browserthread.h"
+#include <content/public/browser/browser_main_parts.h>
+#include <chrome/browser/chrome_browser_main_extra_parts.h>
+#include <base/macros.h>
+#include <vector>
 
 namespace blpwtk2 {
-    void BrowserMainParts::PreDefaultMainMessageLoopRun(base::OnceClosure quit_closure) {
-        BrowserThread::SetMainMessageLoopQuitClosure(std::move(quit_closure));
-    }
-}
+
+                        // ======================
+                        // class BrowserMainParts
+                        // ======================
+
+class BrowserMainParts final : public content::BrowserMainParts {
+ public:
+  BrowserMainParts();
+  ~BrowserMainParts() override;
+  void ServiceManagerConnectionStarted(content::ServiceManagerConnection* connection) override;
+  void AddParts(ChromeBrowserMainExtraParts* parts);
+  void PreDefaultMainMessageLoopRun(base::OnceClosure quit_closure) final;
+
+ private:
+  std::vector<ChromeBrowserMainExtraParts*> chrome_extra_parts_;
+
+  DISALLOW_COPY_AND_ASSIGN(BrowserMainParts);
+};
+
+
+}  // close namespace blpwtk2
+
+#endif  // INCLUDED_BLPWTK2_BROWSERMAINPARTS_H
+
