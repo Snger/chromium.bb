@@ -140,7 +140,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // null.
   static RenderProcessHost* CreateRenderProcessHost(
       int host_id,
-      base::ProcessHandle externally_managed_handle,
+      std::shared_ptr<base::Process> externally_managed_process,
       BrowserContext* browser_context,
       StoragePartitionImpl* storage_partition_impl,
       SiteInstance* site_instance,
@@ -258,7 +258,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
     child_process_activity_time_ = base::TimeTicks::Now();
   }
 
-  mojo::edk::OutgoingBrokerClientInvitation* GetOutgoingInvitation();
+  mojo::OutgoingInvitation TakeOutgoingInvitation();
 
   // This value is guaranteed to never be returned by GenerateUniqueId() below.
   static int kInvalidId;
@@ -497,7 +497,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // Use CreateRenderProcessHost() instead of calling this constructor
   // directly.
   RenderProcessHostImpl(int host_id,
-                        base::ProcessHandle externally_managed_handle,
+                        std::shared_ptr<base::Process> externally_managed_process,
                         BrowserContext* browser_context,
                         StoragePartitionImpl* storage_partition_impl,
                         bool is_for_guests_only);
@@ -762,7 +762,7 @@ class CONTENT_EXPORT RenderProcessHostImpl
   // Handle for the renderer process if it is managed externally, otherwise
   // this will be set to base::kNullProcessHandle (which means the
   // RenderProcessHostImpl is the one that launches the process).
-  base::Process externally_managed_handle_;
+  std::shared_ptr<base::Process> externally_managed_process_;
 
   // The globally-unique identifier for this RPH.
   const int id_;

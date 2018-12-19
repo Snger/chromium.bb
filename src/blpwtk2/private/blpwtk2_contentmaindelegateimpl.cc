@@ -99,7 +99,7 @@ bool ContentMainDelegateImpl::BasicStartupComplete(int* exit_code)
     // point to our renderer
     if (!commandLine->HasSwitch(switches::kBrowserSubprocessPath)) {
         base::FilePath subprocess;
-        bool success = PathService::Get(base::DIR_EXE, &subprocess);
+        bool success = base::PathService::Get(base::DIR_EXE, &subprocess);
         DCHECK(success);
         subprocess = subprocess.AppendASCII(BLPWTK2_SUBPROCESS_EXE_NAME);
         commandLine->AppendSwitchNative(switches::kBrowserSubprocessPath,
@@ -130,7 +130,7 @@ void ContentMainDelegateImpl::PreSandboxStartup()
         // there are blink devtools resources that we need.
         base::FilePath pak_file;
         base::FilePath pak_dir;
-        PathService::Get(base::DIR_MODULE, &pak_dir);
+        base::PathService::Get(base::DIR_MODULE, &pak_dir);
         pak_file = pak_dir.AppendASCII(BLPWTK2_PAK_NAME);
         if (base::PathExists(pak_file)) {
             Statics::hasDevTools = true;

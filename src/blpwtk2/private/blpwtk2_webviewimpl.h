@@ -124,7 +124,7 @@ class WebViewImpl final : public WebView,
     void RequestMediaAccessPermission(
         content::WebContents                  *web_contents,
         const content::MediaStreamRequest&     request,
-        const content::MediaResponseCallback&  callback) override;
+        content::MediaResponseCallback  callback) override;
         // Asks permission to use the camera and/or microphone. If permission
         // is granted, a call should be made to |callback| with the devices.
         // If the request is denied, a call should be made to |callback| with

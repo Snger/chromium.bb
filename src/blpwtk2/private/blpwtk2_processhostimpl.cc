@@ -35,11 +35,10 @@
 #include <blpwtk2_processhostdelegate.h>
 
 #include <content/browser/renderer_host/render_process_host_impl.h>
-#include <mojo/edk/embedder/embedder.h>
-#include <mojo/edk/embedder/platform_channel_pair.h>
+#include <mojo/core/embedder/embedder.h>
 #include <mojo/public/cpp/bindings/interface_request.h>
 #include <mojo/public/cpp/bindings/strong_binding.h>
-#include "mojo/edk/embedder/outgoing_broker_client_invitation.h"
+#include "mojo/public/cpp/system//invitation.h"
 
 #include <base/command_line.h>
 #include <content/public/browser/browser_thread.h>
@@ -74,7 +73,7 @@ scoped_refptr<BrowserContextImpl> getBrowserContext(
   return new BrowserContextImpl(profileDir);
 }
 
-void releaseBrowserContext(scoped_refptr<BrowserContextImpl>&& context) {
+void releaseBrowserContext(scoped_refptr<BrowserContextImpl> context) {
   // Find the map iterator that corresponds to the specified 'context'.
   // This lookup is somewhat expensive but this method usually runs during
   // shutdown so there is little need to optimize it.
@@ -111,15 +110,15 @@ void releaseBrowserContext(scoped_refptr<BrowserContextImpl>&& context) {
 // class ProcessHostImpl::Impl
 // ---------------------------
 
-ProcessHostImpl::Impl::Impl(base::ProcessHandle processHandle,
+ProcessHostImpl::Impl::Impl(std::shared_ptr<base::Process> process,
                             bool isolated,
                             const std::string& profileDir)
     : d_processId(0),
       d_context(getBrowserContext(isolated, profileDir)),
+      d_process(std::move(process)),
       d_renderProcessHost(content::RenderProcessHost::CreateProcessHost(
-          processHandle,
-          d_context.get())),
-      d_processHandle(processHandle) {
+          d_process,
+          d_context.get())) {
   // Initialize the RenderProcessHost.  This will register all the Mojo
   // services provided by RenderProcessHost and will call back to the
   // ChromeContentClient to register external services.  In this case,
@@ -136,21 +135,13 @@ ProcessHostImpl::Impl::Impl(base::ProcessHandle processHandle,
 }
 
 ProcessHostImpl::Impl::~Impl() {
+  d_renderProcessHost.reset();
   releaseBrowserContext(std::move(d_context));
-
-  if (d_processHandle && d_processHandle != base::GetCurrentProcessHandle()) {
-    ::CloseHandle(d_processHandle);
-    d_processHandle = 0;
-  }
 }
 
 // ACCESSORS
 inline base::ProcessId ProcessHostImpl::Impl::processId() const {
   return d_processId;
-}
-
-inline base::ProcessHandle ProcessHostImpl::Impl::processHandle() const {
-  return d_processHandle;
 }
 
 inline const BrowserContextImpl& ProcessHostImpl::Impl::context() const {
@@ -167,10 +158,6 @@ inline base::ProcessId& ProcessHostImpl::Impl::processId() {
   return d_processId;
 }
 
-inline base::ProcessHandle& ProcessHostImpl::Impl::processHandle() {
-  return d_processHandle;
-}
-
 inline BrowserContextImpl& ProcessHostImpl::Impl::context() {
   return *d_context;
 }
@@ -181,27 +168,21 @@ inline content::RenderProcessHost& ProcessHostImpl::Impl::renderProcessHost() {
 
 bool ProcessHostImpl::Impl::onRenderLaunched(
     base::ProcessHandle render_process_handle,
-    mojo::edk::ScopedPlatformHandle server_channel_handle) const {
+    mojo::PlatformChannelEndpoint local_channel_endpoint) const {
   content::RenderProcessHostImpl* impl_ptr =
       static_cast<content::RenderProcessHostImpl*>(d_renderProcessHost.get());
   if (!impl_ptr) {
     LOG(ERROR) << "Expected content::RenderProcessHostImpl does not exist";
     return false;
   }
-  auto* broker_client_invitation = impl_ptr->GetOutgoingInvitation();
-  if (!broker_client_invitation) {
-    LOG(ERROR) << "Invalid broker_client_invitation";
-    return false;
-  }
   auto on_invitation_error = [](const std::string& error) {
     LOG(ERROR) << "Failed in sending invitation with error:" << error;
   };
 
-  broker_client_invitation->Send(
-      render_process_handle,
-      mojo::edk::ConnectionParams(mojo::edk::TransportProtocol::kLegacy,
-                                  std::move(server_channel_handle)),
-      base::Bind(std::move(on_invitation_error)));
+  mojo::OutgoingInvitation::Send(impl_ptr->TakeOutgoingInvitation(),
+                                 render_process_handle,
+                                 std::move(local_channel_endpoint),
+                                 base::Bind(std::move(on_invitation_error)));
   return true;
 }
 
@@ -236,35 +217,37 @@ ProcessHostImpl::~ProcessHostImpl() {
 int ProcessHostImpl::createPipeHandleForChild(base::ProcessId processId,
                                               bool isolated,
                                               const std::string& profileDir) {
-  base::ProcessHandle processHandle;
-
   DCHECK(!d_impl);
 
   // Create a pipe for Mojo
-  mojo::edk::PlatformChannelPair channel_pair;
+  mojo::PlatformChannel channel_pair;
   HANDLE fileDescriptor;
 
   if (processId != base::GetCurrentProcId()) {
-    processHandle = OpenProcess(PROCESS_DUP_HANDLE | PROCESS_QUERY_INFORMATION, FALSE, processId);
+    base::ProcessHandle processHandle = OpenProcess(PROCESS_DUP_HANDLE | PROCESS_QUERY_INFORMATION, FALSE, processId);
 
     // Duplicate the "client" side of the pipe on the child process'
     // descriptor table
-    BOOL rc = ::DuplicateHandle(
-        GetCurrentProcess(), channel_pair.PassClientHandle().get().handle,
-        processHandle, &fileDescriptor, 0, FALSE, DUPLICATE_SAME_ACCESS);
+    BOOL rc = ::DuplicateHandle(GetCurrentProcess(),
+                                channel_pair.TakeRemoteEndpoint()
+                                    .TakePlatformHandle()
+                                    .TakeHandle()
+                                    .Take(),
+                                processHandle, &fileDescriptor, 0, FALSE,
+                                DUPLICATE_SAME_ACCESS);
 
     PCHECK(rc != 0);
 
     // Let the ProcessHostImpl::Impl hold the process handle so it can
     // close it upon object destruction.
-    d_impl = new Impl(processHandle, isolated, profileDir);
-
-    d_impl->onRenderLaunched(processHandle,
-                           channel_pair.PassServerHandle());
+    d_impl = new Impl(std::make_shared<base::Process>(processHandle), isolated, profileDir);
+    d_impl->onRenderLaunched(processHandle, channel_pair.TakeLocalEndpoint());
   } else {
-    processHandle = base::GetCurrentProcessHandle();
-    d_impl = new Impl(processHandle, isolated, profileDir);
-    fileDescriptor = channel_pair.PassClientHandle().release().handle;
+    d_impl = new Impl(std::make_shared<base::Process>(base::Process::Current()), isolated, profileDir);
+    fileDescriptor = channel_pair.TakeRemoteEndpoint()
+                         .TakePlatformHandle()
+                         .TakeHandle()
+                         .Take();
   }
   return HandleToLong(fileDescriptor);
 }
@@ -411,7 +394,8 @@ void ProcessHostImpl::bindProcess(unsigned int pid,
     LOG(INFO) << "Bound process host for pid: " << pid;
   } else {
     for (const ProcessHostImpl* instance : g_instances) {
-      if (instance && instance->d_impl && instance->d_impl->processId() == static_cast<base::ProcessId>(pid)) {
+      if (instance && instance->d_impl &&
+          instance->d_impl->processId() == static_cast<base::ProcessId>(pid)) {
         // found!
         d_impl = instance->d_impl;
         LOG(INFO) << "Rebound process host for pid: " << pid;

@@ -26,6 +26,7 @@ class WaitableEvent;
 namespace blink {
 namespace scheduler {
 enum class RendererProcessType;
+class WebThreadScheduler;
 }
 }  // namespace blink
 

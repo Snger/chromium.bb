@@ -89,12 +89,6 @@ class ToolkitImpl : public Toolkit {
         // Only used for the ORIGINAL thread mode.  This is needed to run the
         // browser code in the application thread.
 
-    std::unique_ptr<mojo::SyncCallRestrictions::ScopedAllowSyncCall> d_allowSyncCall;
-        // Only used for the RENDERER_MAIN thread mode and when an external
-        // host process is unavailable.  This object lifts the "disable sync
-        // call" restriction placed by the browser code so the renderer can
-        // freely make sync calls.
-
     std::unique_ptr<gin::IsolateHolder> d_isolateHolder;
         // Only used for ORIGINAL thread mode and when the toolkit is created with
         // browserV8Enabled flag

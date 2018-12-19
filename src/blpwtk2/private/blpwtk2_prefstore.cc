@@ -116,12 +116,6 @@ void PrefStore::ReadPrefsAsync(ReadErrorDelegate* error_delegate_raw)
     OnInitializationCompleted();
 }
 
-void PrefStore::CommitPendingWrite(base::OnceClosure done_callback)
-{
-    PersistentPrefStore::CommitPendingWrite(std::move(done_callback));
-    // Do nothing
-}
-
 void PrefStore::SchedulePendingLossyWrites()
 {
     // Do nothing

@@ -63,9 +63,11 @@
 // MSVC++ 14.0  _MSC_VER == 1900 (Visual Studio 2015 version 14.0)
 #if defined(_MSC_VER) && _MSC_VER >= 1900
   #define MSVC_2015_PLUS
+  #define constexpr_func constexpr
 #else
   #pragma warning( disable : 4251)
   #define constexpr const
+  #define constexpr_func V8_INLINE static
 #endif
 
 
@@ -263,8 +265,8 @@ const int kSmiShiftSize = PlatformSmiTagging::kSmiShiftSize;
 const int kSmiValueSize = PlatformSmiTagging::kSmiValueSize;
 const int kSmiMinValue = (static_cast<unsigned int>(-1)) << (kSmiValueSize - 1);
 const int kSmiMaxValue = -(kSmiMinValue + 1);
-constexpr bool SmiValuesAre31Bits() { return kSmiValueSize == 31; }
-constexpr bool SmiValuesAre32Bits() { return kSmiValueSize == 32; }
+constexpr_func bool SmiValuesAre31Bits() { return kSmiValueSize == 31; }
+constexpr_func bool SmiValuesAre32Bits() { return kSmiValueSize == 32; }
 
 }  // namespace internal
 

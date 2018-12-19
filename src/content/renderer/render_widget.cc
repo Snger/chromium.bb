@@ -1124,11 +1124,9 @@ bool RenderWidget::IsClosing() const {
 
 void RenderWidget::bbHandleInputEvent(const blink::WebInputEvent& event) {
   ui::LatencyInfo latency_info;
-  HandledEventCallback callback;
-
-  input_handler_->HandleInputEvent(
-      blink::WebCoalescedInputEvent(event, std::vector<const blink::WebInputEvent*>()),
-      latency_info, std::move(callback));
+  bb_OnHandleInputEvent_no_ack_ = true;
+  input_handler_->HandleInputEvent(blink::WebCoalescedInputEvent(event, {}), latency_info, {});
+  bb_OnHandleInputEvent_no_ack_ = false;
 }
 
 void RenderWidget::RequestScheduleAnimation() {

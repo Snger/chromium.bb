@@ -29,7 +29,7 @@
 #include <base/logging.h>  // for DCHECK
 #include <base/strings/string_util.h>
 #include <base/memory/ptr_util.h>
-#include <base/task_scheduler/post_task.h>
+#include <base/task/post_task.h>
 #include <content/public/browser/browser_thread.h>
 #include <content/public/common/content_switches.h>
 #include <content/public/common/url_constants.h>
@@ -201,7 +201,7 @@ void URLRequestContextGetterImpl::initialize()
     builder.set_network_delegate(std::unique_ptr<NetworkDelegateImpl>(new NetworkDelegateImpl()));
     builder.SetCookieAndChannelIdStores(
         std::unique_ptr<net::CookieMonster>(
-            new net::CookieMonster(d_cookieStore.get(), 0)),
+            new net::CookieMonster(d_cookieStore.get(), 0, nullptr)),
         std::make_unique<net::ChannelIDService>(
             new net::DefaultChannelIDStore(nullptr)));
 

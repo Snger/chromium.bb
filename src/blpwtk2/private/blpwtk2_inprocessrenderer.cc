@@ -31,7 +31,7 @@
 #include <content/public/child/dwrite_font_proxy_init_win.h>
 #include <mojo/public/cpp/bindings/sync_call_restrictions.h>
 #include <third_party/blink/public/platform/web_runtime_features.h>
-#include <third_party/blink/public/web/win/web_font_rendering.h>
+#include <third_party/blink/public/platform/scheduler/web_thread_scheduler.h>
 #include <ui/gfx/win/direct_write.h>
 #include <ui/display/win/dpi.h>
 
@@ -44,7 +44,6 @@ static void InitDirectWrite()
     // renderers.  So, we need to do it here.
     mojo::SyncCallRestrictions::ForceSyncCallAllowed();
     content::InitializeDWriteFontProxy();
-    blink::WebFontRendering::SetDeviceScaleFactor(display::win::GetDPIScale());
 }
 
                         // =============================
@@ -54,7 +53,7 @@ static void InitDirectWrite()
 class InProcessRendererThread : public base::Thread {
     // DATA
     scoped_refptr<base::SingleThreadTaskRunner> d_browserIOTaskRunner;
-    mojo::edk::OutgoingBrokerClientInvitation* d_broker_client_invitation;
+    mojo::OutgoingInvitation* d_broker_client_invitation;
     std::string d_serviceToken;
     int d_mojoHandle;
 
@@ -69,7 +68,7 @@ class InProcessRendererThread : public base::Thread {
 public:
     InProcessRendererThread(
             const scoped_refptr<base::SingleThreadTaskRunner>& browserIOTaskRunner,
-            mojo::edk::OutgoingBrokerClientInvitation*         broker_client_invitation,
+            mojo::OutgoingInvitation*         broker_client_invitation,
             const std::string&                                 serviceToken,
             int                                                mojoHandle);
     ~InProcessRendererThread() final;
@@ -81,14 +80,16 @@ public:
 
 void InProcessRendererThread::Init()
 {
-    Statics::rendererMessageLoop = message_loop();
+    std::unique_ptr<blink::scheduler::WebThreadScheduler>
+        main_thread_scheduler =
+            blink::scheduler::WebThreadScheduler::CreateMainThreadScheduler();
     InitDirectWrite();
     content::RenderThread::InitInProcessRenderer(
         content::InProcessChildThreadParams(d_browserIOTaskRunner,
                                             d_broker_client_invitation,
                                             d_serviceToken,
                                             d_mojoHandle),
-                                            Statics::rendererMessageLoop);
+                                            std::move(main_thread_scheduler));
 
     // No longer need to hold on to this reference.
     d_browserIOTaskRunner = nullptr;
@@ -98,13 +99,12 @@ void InProcessRendererThread::Init()
 void InProcessRendererThread::CleanUp()
 {
     content::RenderThread::CleanUpInProcessRenderer();
-    Statics::rendererMessageLoop = 0;
 }
 
 
 InProcessRendererThread::InProcessRendererThread(
         const scoped_refptr<base::SingleThreadTaskRunner>& browserIOTaskRunner,
-        mojo::edk::OutgoingBrokerClientInvitation*         broker_client_invitation,
+        mojo::OutgoingInvitation*         broker_client_invitation,
         const std::string&                                 serviceToken,
         int                                                mojoHandle)
 : base::Thread("BlpInProcRenderer")
@@ -132,13 +132,12 @@ static InProcessRendererThread *g_inProcessRendererThread;
 // static
 void InProcessRenderer::init(
         const scoped_refptr<base::SingleThreadTaskRunner>& browserIOTaskRunner,
-        mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation,
+        mojo::OutgoingInvitation* broker_client_invitation,
         const std::string&                                 serviceToken,
         int                                                mojoHandle)
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(!g_inProcessRendererThread);
-    DCHECK(!Statics::rendererMessageLoop);
 
     if (Statics::isOriginalThreadMode()) {
         DCHECK(Statics::isOriginalThreadMode());
@@ -149,17 +148,16 @@ void InProcessRenderer::init(
                                         mojoHandle);
     }
     else {
-        Statics::rendererMessageLoop = base::MessageLoop::current();
-        InitDirectWrite();
-        content::RenderThread::InitInProcessRenderer(
-            content::InProcessChildThreadParams(browserIOTaskRunner,
-                                                broker_client_invitation,
-                                                serviceToken,
-                                                mojoHandle,
-                                                true),
-                                                Statics::rendererMessageLoop);
+      std::unique_ptr<blink::scheduler::WebThreadScheduler>
+          main_thread_scheduler =
+              blink::scheduler::WebThreadScheduler::CreateMainThreadScheduler();
+      InitDirectWrite();
+      content::RenderThread::InitInProcessRenderer(
+          content::InProcessChildThreadParams(browserIOTaskRunner,
+                                              broker_client_invitation,
+                                              serviceToken, mojoHandle, true),
+          std::move(main_thread_scheduler));
 
-        DCHECK(Statics::rendererMessageLoop);
     }
 }
 
@@ -174,10 +172,8 @@ void InProcessRenderer::cleanup()
         g_inProcessRendererThread = 0;
     }
     else {
-        DCHECK(Statics::rendererMessageLoop);
         DCHECK(!g_inProcessRendererThread);
         content::RenderThread::CleanUpInProcessRenderer();
-        Statics::rendererMessageLoop = 0;
     }
 }
 

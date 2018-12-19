@@ -313,7 +313,7 @@ bool ShellContentBrowserClient::SupportsInProcessRenderer()
 }
 
 void ShellContentBrowserClient::StartInProcessRendererThread(
-    mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation,
+    mojo::OutgoingInvitation* broker_client_invitation,
     const std::string& service_token) {
   DCHECK(!g_in_process_renderer_thread);
 

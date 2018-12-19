@@ -64,9 +64,6 @@ struct Statics {
     // The optional in-process resource loader installed by the application.
     static ResourceLoader* inProcessResourceLoader;
 
-    // MessageLoop for the in-process renderer thread.
-    static base::MessageLoop* rendererMessageLoop;
-
     // MessageLoop for the browser main thread.
     static base::MessageLoop* browserMainMessageLoop;
 

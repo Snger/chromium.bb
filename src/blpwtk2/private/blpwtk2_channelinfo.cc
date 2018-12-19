@@ -28,7 +28,7 @@
 #include <base/command_line.h>
 #include <base/pickle.h>
 #include <base/strings/utf_string_conversions.h>
-#include <content/public/common/mojo_channel_switches.h>
+#include "services/service_manager/embedder/switches.h"
 
 namespace blpwtk2 {
 
@@ -114,7 +114,7 @@ int ChannelInfo::getMojoControllerHandle() const
 std::string ChannelInfo::getMojoServiceToken() const
 {
     for (auto it : d_switches) {
-        if (it.first == switches::kServiceRequestChannelToken) {
+        if (it.first == service_manager::switches::kServiceRequestChannelToken) {
             return it.second;
         }
     }

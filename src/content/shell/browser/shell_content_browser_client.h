@@ -52,7 +52,7 @@ class ShellContentBrowserClient : public ContentBrowserClient {
   std::string GetAcceptLangs(BrowserContext* context) override;
   bool SupportsInProcessRenderer() override;
   void StartInProcessRendererThread(
-      mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation,
+      mojo::OutgoingInvitation* broker_client_invitation,
       const std::string& service_token) override;
   void StopInProcessRendererThread() override;
   void ResourceDispatcherHostCreated() override;

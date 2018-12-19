@@ -33,6 +33,7 @@
 #include <blpwtk2_rendererutil.h>
 
 #include <cc/trees/proxy_main.h>
+#include <base/message_loop/message_loop.h>
 #include <content/renderer/render_view_impl.h>
 #include <content/public/renderer/render_view.h>
 #include <third_party/blink/public/web/web_local_frame.h>
@@ -520,11 +521,11 @@ void WebViewProxy::handleInputEvents(const InputEvent *events, size_t eventsCoun
         << "You should wait for didFinishLoad";
     DCHECK(d_gotRenderViewInfo);
 
-    content::RenderWidget *rw =
+    content::RenderViewImpl *rw =
         content::RenderViewImpl::FromRoutingID(d_renderViewRoutingId);
     DCHECK(rw);
 
-    RendererUtil::handleInputEvents(rw, events, eventsCount);
+    RendererUtil::handleInputEvents(rw->GetWidget(), events, eventsCount);
 }
 
 void WebViewProxy::setDelegate(WebViewDelegate *delegate)

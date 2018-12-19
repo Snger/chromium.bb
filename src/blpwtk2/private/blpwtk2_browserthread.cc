@@ -29,11 +29,18 @@
 #include <base/bind.h>
 #include <base/logging.h>  // for DCHECK
 #include <base/message_loop/message_loop.h>
+#include <base/no_destructor.h>
 #include <base/synchronization/waitable_event.h>
+
+#include <mutex>
 
 namespace blpwtk2 {
 
 static base::WaitableEvent* s_initWaitEvent = 0;
+std::mutex g_quit_closure_mutex;
+
+// Null until/unless the default main message loop is running.
+base::NoDestructor<base::OnceClosure> g_quit_main_message_loop;
 
                             // -------------------
                             // class BrowserThread
@@ -86,7 +93,9 @@ BrowserThread::BrowserThread(const sandbox::SandboxInterfaceInfo& sandboxInfo)
 
 BrowserThread::~BrowserThread()
 {
-    messageLoop()->task_runner()->PostTask(FROM_HERE, base::MessageLoop::QuitWhenIdleClosure());
+    // called from main thread
+    std::lock_guard<std::mutex> guard(g_quit_closure_mutex);
+    messageLoop()->task_runner()->PostTask(FROM_HERE, std::move(*g_quit_main_message_loop));
     base::PlatformThread::Join(d_threadHandle);
 }
 
@@ -110,6 +119,13 @@ base::MessageLoop *BrowserThread::messageLoop() const
 {
     DCHECK(Statics::browserMainMessageLoop);
     return Statics::browserMainMessageLoop;
+}
+
+void BrowserThread::SetMainMessageLoopQuitClosure(base::OnceClosure quit_closure)
+{
+    // called from browser main thread
+    std::lock_guard<std::mutex> guard(g_quit_closure_mutex);
+    *g_quit_main_message_loop = std::move(quit_closure);
 }
 
 }  // close namespace blpwtk2

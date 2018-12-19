@@ -757,12 +757,12 @@ int ResourceDispatcher::StartAsync(
     pending_requests_[request_id] = std::make_unique<PendingRequestInfo>(
         std::move(peer), std::move(bridge), static_cast<ResourceType>(request->resource_type),
         request->render_frame_id, request->url, request->method,
-        request->referrer, request->download_to_file);
+        request->referrer, std::move(response_override_params));
 
     pending_requests_[request_id]->url_loader_client =
-        std::make_unique<URLLoaderClientImpl>(request_id, this,
-                                              loading_task_runner);
-
+        std::make_unique<URLLoaderClientImpl>(
+            request_id, this, loading_task_runner,
+            true /* bypass_redirect_checks */, request->url);
     return request_id;
   }
 

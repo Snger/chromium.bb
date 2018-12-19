@@ -30,6 +30,8 @@
 #include "content/public/browser/android/child_process_importance.h"
 #endif
 
+#include <memory>
+
 class GURL;
 
 namespace base {
@@ -547,10 +549,13 @@ class CONTENT_EXPORT RenderProcessHost : public IPC::Sender,
   // A value of zero means to use the default heuristic.
   static void SetMaxRendererProcessCount(size_t count);
 
-  // Create a new RenderProcessHost using the specified 'processHandle' and the
+  // Create a new RenderProcessHost using the specified 'process' and the
   // specified 'browserContext'.
-  static RenderProcessHost* CreateProcessHost(base::ProcessHandle processHandle,
-                                              content::BrowserContext* browserContext);
+  // Use shared_ptr instead of scoped_refptr because Process is not derived from
+  // base::RefCounted
+  static RenderProcessHost* CreateProcessHost(
+      std::shared_ptr<base::Process> process,
+      content::BrowserContext* browserContext);
 
   // Returns the current maximum number of renderer process hosts kept by the
   // content module.

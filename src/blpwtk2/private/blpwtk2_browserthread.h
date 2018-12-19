@@ -64,6 +64,8 @@ class BrowserThread : private base::PlatformThread::Delegate
 
     BrowserMainRunner *mainRunner() const;
     base::MessageLoop *messageLoop() const;
+
+    static void SetMainMessageLoopQuitClosure(base::OnceClosure quit_closure);
 };
 
 }  // close namespace blpwtk2

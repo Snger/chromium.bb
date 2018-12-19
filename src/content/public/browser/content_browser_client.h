@@ -146,9 +146,7 @@ class FileSystemBackend;
 }
 
 namespace mojo {
-namespace edk {
-class OutgoingBrokerClientInvitation;
-}
+class OutgoingInvitation;
 }
 
 namespace content {
@@ -774,7 +772,7 @@ class CONTENT_EXPORT ContentBrowserClient {
   // Start the in-process renderer thread.  This will only ever be called if
   // SupportsInProcessRenderer() returns true.
   virtual void StartInProcessRendererThread(
-      mojo::edk::OutgoingBrokerClientInvitation* broker_client_invitation,
+      mojo::OutgoingInvitation* broker_client_invitation,
       const std::string& service_token) {}
 
   // Stop the in-process renderer thread.

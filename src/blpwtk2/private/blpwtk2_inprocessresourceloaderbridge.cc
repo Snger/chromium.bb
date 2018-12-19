@@ -67,7 +67,6 @@ class InProcessResourceLoaderBridge::InProcessURLRequest
     , d_hasUserGesture(request->has_user_gesture)
     , d_routingId(request->render_frame_id)
     , d_appCacheHostId(request->appcache_host_id)
-    , d_downloadToFile(request->download_to_file)
     , d_priority(request->priority)
     , d_requestBody(request->request_body)
     {
@@ -166,10 +165,6 @@ class InProcessResourceLoaderBridge::InProcessURLRequest
         return d_appCacheHostId;
     }
 
-    bool downloadToFile() const override {
-        return d_downloadToFile;
-    }
-
     // see ConvertWebKitPriorityToNetPriority() in web_url_loader_impl.cc:
     Priority priority() const override {
         switch (d_priority) {
@@ -198,7 +193,6 @@ class InProcessResourceLoaderBridge::InProcessURLRequest
     bool d_hasUserGesture;
     int d_routingId;
     int d_appCacheHostId;
-    bool d_downloadToFile;
     net::RequestPriority d_priority;
 
     scoped_refptr<network::ResourceRequestBody> d_requestBody;

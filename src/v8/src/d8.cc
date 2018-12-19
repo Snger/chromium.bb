@@ -574,7 +574,7 @@ bool Shell::ExecuteString(Isolate* isolate, Local<String> source,
       ScriptCompiler::CachedData* cached_data =
           ScriptCompiler::CreateCodeCache(script->GetUnboundScript());
       StoreInCodeCache(isolate, source, cached_data);
-      ScriptCompiler::CachedData::dispose(cached_data);
+      delete cached_data;
     }
     maybe_result = script->Run(realm);
     if (options.code_cache_options ==
@@ -583,7 +583,7 @@ bool Shell::ExecuteString(Isolate* isolate, Local<String> source,
       ScriptCompiler::CachedData* cached_data =
           ScriptCompiler::CreateCodeCache(script->GetUnboundScript());
       StoreInCodeCache(isolate, source, cached_data);
-      ScriptCompiler::CachedData::dispose(cached_data);
+      delete cached_data;
     }
     if (process_message_queue && !EmptyMessageQueues(isolate)) success = false;
     data->realm_current_ = data->realm_switch_;

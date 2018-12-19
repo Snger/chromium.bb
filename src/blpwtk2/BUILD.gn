@@ -26,6 +26,7 @@ import("//build/config/win/visual_studio_version.gni")
 import("blpwtk2.gni")
 import("//tools/grit/repack.gni")
 import("//mojo/public/tools/bindings/mojom.gni")
+import("//build/config/win/manifest.gni")
 
 config("blpwtk2_public") {
   include_dirs = [
@@ -41,6 +42,12 @@ config("blpwtk2_gen_map") {
   ldflags = [
     "/MAP",
     "/MAPINFO:EXPORTS",
+  ]
+}
+
+windows_manifest("blpwtk2_manifest") {
+  sources = [
+    default_compatibility_manifest,  # Want the normal OS compat list.
   ]
 }
 
@@ -128,6 +135,8 @@ shared_library("blpwtk2") {
     "private/blpwtk2_channelinfo.h",
     "private/blpwtk2_contentbrowserclientimpl.cc",
     "private/blpwtk2_contentbrowserclientimpl.h",
+    "private/blpwtk2_contentbrowsermainparts.h",
+    "private/blpwtk2_contentbrowsermainparts.cc",
     "private/blpwtk2_contentclient.cc",
     "private/blpwtk2_contentclient.h",
     "private/blpwtk2_contentmaindelegateimpl.cc",
@@ -291,6 +300,7 @@ shared_library("blpwtk2") {
   deps = [
     ":interfaces",
     ":pak",
+    ":blpwtk2_manifest",
     "//base",
     "//cc",
     "//chrome/chrome_blpwtk2",
@@ -300,13 +310,14 @@ shared_library("blpwtk2") {
     "//components/spellcheck/browser",
     "//components/spellcheck/common",
     "//components/spellcheck/renderer",
+    "//components/services/pdf_compositor",
+    "//components/services/pdf_compositor/public/interfaces",
     "//components/user_prefs",
     "//content",
     "//content:resources",
     "//content:sandbox_helper_win",
     "//content/app/resources",
     "//ipc",
-    "//mojo/edk",
     "//net",
     "//net:extras",
     "//pdf",
@@ -373,6 +384,7 @@ executable("blpwtk2_subprocess") {
 
   deps = [
     ":blpwtk2_generate_sources",
+    ":blpwtk2_manifest",
     "//content:sandbox_helper_win",
   ]
 }
