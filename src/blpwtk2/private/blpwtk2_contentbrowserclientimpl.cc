@@ -192,7 +192,8 @@ ContentBrowserClientImpl::GetServiceManifestOverlay(const std::string& name)
 void ContentBrowserClientImpl::RegisterOutOfProcessServices(OutOfProcessServiceMap* services)
 {
     (*services)[printing::mojom::kChromePrintingServiceName] =
-        base::ASCIIToUTF16("Printing Service");
+        OutOfProcessServiceInfo(base::BindRepeating(
+            base::ASCIIToUTF16, "Printing Service"));
 }
 
 }  // close namespace blpwtk2
