@@ -2091,6 +2091,7 @@ hooks = [
  {
     'name': 'test_fonts',
     'pattern': '.',
+    'condition': 'not checkout_blpwtk2',
     'action': [ 'download_from_google_storage',
                 '--no_resume',
                 '--extract',
