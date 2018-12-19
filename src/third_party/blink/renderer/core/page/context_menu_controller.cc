@@ -490,7 +490,7 @@ bool ContextMenuController::ShowContextMenu(LocalFrame* frame,
   if (!selected_web_frame || !selected_web_frame->Client())
     return false;
 
-  if (!FireBbContextMenuEvent(r, data)) {
+  if (!FireBbContextMenuEvent(result, data)) {
     selected_web_frame->Client()->ShowContextMenu(data);
   }
   return true;
@@ -564,7 +564,7 @@ static bool FireBbContextMenuEvent(const HitTestResult& hitTestResult, const Web
                          true,
                          true,
                          ScriptValue(script_state, detail_obj));
-  hitTestResult.InnerNodeOrImageMapImage()->DispatchEvent(event);
+  hitTestResult.InnerNodeOrImageMapImage()->DispatchEvent(*event);
   return event->defaultPrevented();
 }
 
