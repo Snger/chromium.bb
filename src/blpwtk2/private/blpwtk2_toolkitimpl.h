@@ -52,6 +52,8 @@ class BrowserMainRunner;
 class ProcessHostImpl;
 class Profile;
 class StringRef;
+class GpuDataLogger;
+
 
                         // =================
                         // class ToolkitImpl
@@ -80,6 +82,10 @@ class ToolkitImpl : public Toolkit {
         // Only used for the ORIGINAL thread mode.  This is needed to run the
         // browser code in the application thread.
 
+    scoped_refptr<GpuDataLogger> d_gpuDataLogger;
+        // GPU data manager observer to log the gpu process messages
+        // note: verbosity of the log depends on chromium gpu debugging switches
+
     ~ToolkitImpl() override;
         // Shutdown all threads and delete the toolkit.  To ensure the same
         // allocator that was used to create the instance is also used to
@@ -96,6 +102,11 @@ class ToolkitImpl : public Toolkit {
         // toolkit is operating as the browser, it launches a
         // BrowerMainRunner.  The browser main runner requires 'sandboxInfo'
         // during its initialization.
+
+    void attachGPUDataLogObserver();
+        // attach the GPU Data logger to the GPU Data manager as observer
+    void detachGPUDataLogObserver();
+        // remove the GPU Data logger attached the GPU Data manager as observer
 
     std::string createProcessHost(
             const sandbox::SandboxInterfaceInfo& sandboxInfo,
