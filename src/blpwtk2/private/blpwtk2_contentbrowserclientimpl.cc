@@ -228,7 +228,8 @@ ContentBrowserClientImpl::GetServiceManifestOverlay(base::StringPiece name)
     return base::JSONReader::Read(manifest_contents);
 }
 
-void ContentBrowserClientImpl::RegisterInProcessServices(StaticServiceMap* services)
+void ContentBrowserClientImpl::RegisterInProcessServices(
+        StaticServiceMap* services, content::ServiceManagerConnection* connection)
 {
     service_manager::EmbeddedServiceInfo info;
     info.factory = ChromeService::GetInstance()->CreateChromeServiceFactory();

@@ -120,7 +120,8 @@ class ContentBrowserClientImpl : public content::ContentBrowserClient {
     std::unique_ptr<base::Value> GetServiceManifestOverlay(
             base::StringPiece name) override;
 
-    void RegisterInProcessServices(StaticServiceMap* services) override;
+    void RegisterInProcessServices(StaticServiceMap* services,
+                                   content::ServiceManagerConnection* connection) override;
 };
 
 }  // close namespace blpwtk2
