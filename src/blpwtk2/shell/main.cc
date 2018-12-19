@@ -32,7 +32,7 @@
 #include <string>
 #include <set>
 #include <vector>
-
+#include <iostream>
 #include <blpwtk2.h>
 
 #include <third_party/blink/public/platform/web_security_origin.h>
@@ -1090,6 +1090,31 @@ void testBrowserV8() {
     std::cout << "Browser V8 Hello world test -- " << *utf8 << std::endl;
 }
 
+void logMessageHandler(blpwtk2::ToolkitCreateParams::LogMessageSeverity severity,
+                       const char* file,
+                       int line,
+                       const char* message)
+{
+    std::cout << "[" << file << ":" << line << "] " << message << std::endl;
+}
+
+void consoleLogMessageHandler(blpwtk2::ToolkitCreateParams::LogMessageSeverity severity,
+                              const blpwtk2::StringRef& file,
+                              unsigned line,
+                              unsigned column,
+                              const blpwtk2::StringRef& message,
+                              const blpwtk2::StringRef& stack_trace)
+{
+    std::cout << "[" << std::string(file.data(), file.length()) << ":"
+              << line << ":" << column << "] "
+              << std::string(message.data(), message.length()) << std::endl;
+     if (!stack_trace.isEmpty()) {
+          std::cout << "Stack Trace:"
+                    << std::string(stack_trace.data(), stack_trace.length())
+                    << std::endl;
+     }
+}
+
 int main(int, const char**)
 {
     g_instance = GetModuleHandle(NULL);
@@ -1219,6 +1244,8 @@ int main(int, const char**)
     toolkitParams.setHeaderFooterHTML(getHeaderFooterHTMLContent());
     toolkitParams.enablePrintBackgroundGraphics();
     toolkitParams.setDictionaryPath(g_dictDir);
+    toolkitParams.setLogMessageHandler(logMessageHandler);
+    toolkitParams.setConsoleLogMessageHandler(consoleLogMessageHandler);
 
     g_toolkit = blpwtk2::ToolkitFactory::create(toolkitParams);
     ProcessHostDelegateImpl hostIPCDelegate;
