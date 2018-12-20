@@ -20,19 +20,19 @@
  * IN THE SOFTWARE.
  */
 
-#include "public/web/web_script_bindings.h"
+#include "third_party/blink/public/web/web_script_bindings.h"
 
-#include "bindings/core/v8/v8_context_snapshot.h"
-#include "core/dom/document_init.h"
-#include "core/dom/dom_implementation.h"
-#include "core/frame/local_dom_window.h"
-#include "platform/bindings/dom_wrapper_world.h"
-#include "platform/bindings/script_state.h"
-#include "platform/bindings/to_v8.h"
-#include "platform/bindings/v8_binding.h"
-#include "platform/bindings/v8_dom_wrapper.h"
-#include "public/platform/web_security_origin.h"
-#include "public/platform/web_string.h"
+#include "third_party/blink/renderer/bindings/core/v8/v8_context_snapshot.h"
+#include "third_party/blink/renderer/core/dom/document_init.h"
+#include "third_party/blink/renderer/core/dom/dom_implementation.h"
+#include "third_party/blink/renderer/core/frame/local_dom_window.h"
+#include "third_party/blink/renderer/platform/bindings/dom_wrapper_world.h"
+#include "third_party/blink/renderer/platform/bindings/script_state.h"
+#include "third_party/blink/renderer/platform/bindings/to_v8.h"
+#include "third_party/blink/renderer/platform/bindings/v8_binding.h"
+#include "third_party/blink/renderer/platform/bindings/v8_dom_wrapper.h"
+#include "third_party/blink/public/platform/web_security_origin.h"
+#include "third_party/blink/public/platform/web_string.h"
 
 #include <v8.h>
 
@@ -59,7 +59,7 @@ v8::Local<v8::Context> WebScriptBindings::CreateWebScriptContext(
         V8ContextSnapshot::CreateContextFromSnapshot(
             isolate, world, nullptr, v8::Local<v8::Object>(), document);
 
-    auto scriptState = ScriptState::Create(context, &world);
+    ScriptState::Create(context, &world);
 
     const WrapperTypeInfo* wrapper_type_info = window->GetWrapperTypeInfo();
 

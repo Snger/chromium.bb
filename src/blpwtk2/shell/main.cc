@@ -213,13 +213,13 @@ void testAccessDOMFromWebScriptContext(const v8::Global<v8::Context>& webScriptC
         assert(!script.IsEmpty());  // this should never fail to compile
 
         v8::TryCatch tryCatch(isolate);
-        v8::Handle<v8::Value> result = script->Run();
+        v8::MaybeLocal<v8::Value> result = script->Run();
         if (result.IsEmpty()) {
-            v8::String::Utf8Value msg(tryCatch.Exception());
+            v8::String::Utf8Value msg(isolate, tryCatch.Exception());
             std::cout << "EXCEPTION: " << *msg << std::endl;
         }
         else if (result->IsString()) {
-            v8::String::Utf8Value msg(result);
+            v8::String::Utf8Value msg(isolate, result);
             std::cout << "RESULT: " << *msg << std::endl;
         }
     }
