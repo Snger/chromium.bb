@@ -1969,7 +1969,7 @@ void WebViewImpl::DidChangeWindowRect()
       ToScriptStateForMainWorld(MainFrameImpl()->GetFrame()),
       "bbWindowRectChanged",
       eventInit);
-  MainFrameImpl()->GetFrame()->DomWindow()->DispatchEvent(event);
+  MainFrameImpl()->GetFrame()->DomWindow()->DispatchEvent(*event);
 }
 
 void WebViewImpl::DidLosePointerLock() {
