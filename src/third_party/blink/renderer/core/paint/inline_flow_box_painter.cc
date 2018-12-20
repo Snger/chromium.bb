@@ -7,7 +7,7 @@
 #include "third_party/blink/renderer/core/layout/api/line_layout_api_shim.h"
 #include "third_party/blink/renderer/core/layout/line/inline_flow_box.h"
 #include "third_party/blink/renderer/core/layout/line/root_inline_box.h"
-#include "core/layout/line/inline_text_box.h"
+#include "third_party/blink/renderer/core/layout/line/inline_text_box.h"
 #include "third_party/blink/renderer/core/paint/background_image_geometry.h"
 #include "third_party/blink/renderer/core/paint/box_model_object_painter.h"
 #include "third_party/blink/renderer/core/paint/box_painter_base.h"
