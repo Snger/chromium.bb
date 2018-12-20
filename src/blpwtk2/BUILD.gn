@@ -125,8 +125,6 @@ shared_library("blpwtk2") {
     "private/blpwtk2.rc",
     "private/blpwtk2_browsercontextimpl.cc",
     "private/blpwtk2_browsercontextimpl.h",
-    "private/blpwtk2_browsermainparts.cc",
-    "private/blpwtk2_browsermainparts.h",
     "private/blpwtk2_browsermainrunner.cc",
     "private/blpwtk2_browsermainrunner.h",
     "private/blpwtk2_browserthread.cc",
