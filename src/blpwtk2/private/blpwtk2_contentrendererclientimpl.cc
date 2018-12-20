@@ -92,11 +92,7 @@ void ContentRendererClientImpl::RenderFrameCreated(
             render_frame,
             std::unique_ptr<printing::PrintRenderFrameHelper::Delegate>(
                 printing::PrintRenderFrameHelper::CreateEmptyDelegate()));
-}
 
-void ContentRendererClientImpl::RenderFrameCreated(
-    content::RenderFrame *render_frame)
-{
     // Create an instance of SpellCheckProvider.
     new SpellCheckProvider(render_frame, d_spellcheck.get(), this);
 }
