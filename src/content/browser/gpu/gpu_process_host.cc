@@ -667,7 +667,7 @@ GpuProcessHost::~GpuProcessHost() {
 #if defined(OS_ANDROID)
         block_offscreen_contexts = false;
 #endif
-        message = "The GPU process exited normally. Everything is okay.";
+        //message = "The GPU process exited normally. Everything is okay.";
         break;
       case base::TERMINATION_STATUS_ABNORMAL_TERMINATION:
         message = base::StringPrintf(
@@ -683,7 +683,7 @@ GpuProcessHost::~GpuProcessHost() {
         break;
 #endif
       case base::TERMINATION_STATUS_PROCESS_CRASHED:
-        message = "The GPU process crashed!";
+        //message = "The GPU process crashed!";
         break;
       case base::TERMINATION_STATUS_LAUNCH_FAILED:
         message = "The GPU process failed to start!";
