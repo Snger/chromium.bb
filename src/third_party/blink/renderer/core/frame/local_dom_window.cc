@@ -356,7 +356,6 @@ Document* LocalDOMWindow::InstallNewUnintializedDocument(
   ClearDocument();
 
   document_ = CreateDocument(mime_type, init, force_xhtml);
-  event_queue_ = DOMWindowEventQueue::Create(document_.Get());
 
   return document_;
 }
