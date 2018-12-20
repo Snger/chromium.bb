@@ -218,9 +218,12 @@ void testAccessDOMFromWebScriptContext(const v8::Global<v8::Context>& webScriptC
             v8::String::Utf8Value msg(isolate, tryCatch.Exception());
             std::cout << "EXCEPTION: " << *msg << std::endl;
         }
-        else if (result->IsString()) {
-            v8::String::Utf8Value msg(isolate, result);
-            std::cout << "RESULT: " << *msg << std::endl;
+        else {
+            v8::Local<v8::Value> localResult = result.ToLocalChecked();
+            if (localResult->IsString()) {
+                v8::String::Utf8Value msg(isolate, localResult);
+                std::cout << "RESULT: " << *msg << std::endl;
+            }
         }
     }
 }
