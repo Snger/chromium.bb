@@ -144,13 +144,16 @@ RenderWebView::RenderWebView(WebViewDelegate          *delegate,
 
 // Only used when RenderWebView is created for a popup window created by the
 // renderer:
-RenderWebView::RenderWebView(HWND parent_hwnd, int routing_id, const gfx::Rect& initial_rect)
+RenderWebView::RenderWebView(ProfileImpl      *profile,
+                             HWND              parent_hwnd,
+                             int               routing_id,
+                             const gfx::Rect&  initial_rect)
     : d_client(nullptr)
     , d_delegate(nullptr)
 #if defined(BLPWTK2_FEATURE_FOCUS) || defined(BLPWTK2_FEATURE_REROUTEMOUSEWHEEL)
     , d_properties({ false, false, false, false, false, false })
 #endif
-    , d_profile(nullptr)
+    , d_profile(profile)
     , d_renderViewRoutingId(0)
     , d_mainFrameRoutingId(0)
     , d_gotRenderViewInfo(false)
@@ -2111,6 +2114,7 @@ void RenderWebView::OnShowWidget(int routing_id, gfx::Rect initial_rect)
 {
     // Will receive 'OnClose()' to destroy:
     new RenderWebView(
+        d_profile,
         GetAncestor(d_hwnd.get(), GA_ROOT),
         routing_id,
         initial_rect);
