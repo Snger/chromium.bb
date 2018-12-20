@@ -1835,6 +1835,8 @@ gfx::Size RenderViewImpl::GetSize() const {
 }
 
 void RenderViewImpl::SetSize(const gfx::Size& new_size) {
+  // TODO(imran): Disable fast-resize optimization.
+#if 0
   if (new_size == size()) {
     return;
   }
@@ -1859,6 +1861,7 @@ void RenderViewImpl::SetSize(const gfx::Size& new_size) {
   }
 
   Resize(resize_params);
+#endif
 }
 
 float RenderViewImpl::GetDeviceScaleFactor() const {

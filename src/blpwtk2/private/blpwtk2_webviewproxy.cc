@@ -46,6 +46,8 @@
 
 namespace {
 
+// TODO(imran): Disable fast-resize optimization.
+#if 0
 const int DEFAULT_DPI_X = 96;
 
 float getScreenScaleFactor()
@@ -143,6 +145,7 @@ bool shouldSkipResizeOptimization()
 
     return hasBeenFullSecond || blpwtk2::Statics::inProcessResizeOptimizationDisabled || (resizeOptimizationDisabled && getScreenScaleFactor() > 1.0);
 }
+#endif
 
 }  // close anonymous namespace
 
@@ -692,6 +695,8 @@ void WebViewProxy::findReply(int  numberOfMatches,
 
 void WebViewProxy::preResize(const gfx::Size& size)
 {
+    // TODO(imran): Disable fast-resize optimization.
+#if 0
     if (!d_disableResizeOptimization && d_gotRenderViewInfo && !size.IsEmpty() && !shouldSkipResizeOptimization()) {
         // If we have renderer info (only happens if we are in-process), we can
         // start resizing the RenderView while we are in the main thread.  This
@@ -702,6 +707,7 @@ void WebViewProxy::preResize(const gfx::Size& size)
         DCHECK(rv);
         rv->SetSize(size);
     }
+#endif
 }
 
 void WebViewProxy::notifyRoutingId(int id)
