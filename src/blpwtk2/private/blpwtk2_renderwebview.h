@@ -408,7 +408,8 @@ class RenderWebView final : public WebView
     explicit RenderWebView(WebViewDelegate          *delegate,
                            ProfileImpl              *profile,
                            const WebViewProperties&  properties);
-    explicit RenderWebView(HWND                      parent_hwnd,
+    explicit RenderWebView(ProfileImpl              *profile,
+                           HWND                      parent_hwnd,
                            int                       routing_id,
                            const gfx::Rect&          initial_rect);
     ~RenderWebView() final;
