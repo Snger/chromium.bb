@@ -504,7 +504,7 @@ static void CollectAllFrames(std::vector<const LocalFrame*>& list,
                              const LocalFrame* frame) {
   list.push_back(frame);
 
-  for (auto childFrame = frame->Tree().FirstChild(); childFrame;
+  for (auto* childFrame = frame->Tree().FirstChild(); childFrame;
        childFrame = childFrame->Tree().NextSibling()) {
     if (!childFrame->IsLocalFrame())
       continue;
@@ -2641,8 +2641,8 @@ void WebLocalFrameImpl::DrawInCanvas(const WebRect& rect,
   if (!styleClass.IsEmpty()) {
     std::vector<const LocalFrame*> frames;
     CollectAllFrames(frames, GetFrame());
-    for (auto localFrame : frames) {
-      auto htmlBody = localFrame->GetDocument()->body();
+    for (auto* localFrame : frames) {
+      auto* htmlBody = localFrame->GetDocument()->body();
 
       // Some documents (ie. SVG documents) do not have body elements
       if (!htmlBody || originalStyleClasses.count(htmlBody))
