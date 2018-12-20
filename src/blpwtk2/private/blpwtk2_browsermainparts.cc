@@ -20,26 +20,38 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef INCLUDED_BLPWTK2_CONTENTBROWSERMAINPARTS_H
-#define INCLUDED_BLPWTK2_CONTENTBROWSERMAINPARTS_H
-
-#include <content/public/browser/browser_main_parts.h>
+#include <blpwtk2_browsermainparts.h>
+#include <blpwtk2_browserthread.h>
 
 namespace blpwtk2 {
-                            // ===================
-                            // class BrowserMainParts
-                            // ===================
 
-class BrowserMainParts : public content::BrowserMainParts
+                        // ----------------------
+                        // class BrowserMainParts
+                        // ----------------------
+
+BrowserMainParts::BrowserMainParts()
 {
-  public:
-    BrowserMainParts() = default;
-    ~BrowserMainParts() final = default;
+}
 
-    void PreDefaultMainMessageLoopRun(base::OnceClosure quit_closure) final;
-};
+BrowserMainParts::~BrowserMainParts()
+{
+}
+
+void BrowserMainParts::ServiceManagerConnectionStarted(
+    content::ServiceManagerConnection* connection) {
+
+  for (size_t i = 0; i < chrome_extra_parts_.size(); ++i)
+    chrome_extra_parts_[i]->ServiceManagerConnectionStarted(connection);
+}
+
+void BrowserMainParts::AddParts(ChromeBrowserMainExtraParts* parts) {
+  chrome_extra_parts_.push_back(parts);
+}
+
+void BrowserMainParts::PreDefaultMainMessageLoopRun(base::OnceClosure quit_closure) {
+    BrowserThread::SetMainMessageLoopQuitClosure(std::move(quit_closure));
+}
 
 }  // close namespace blpwtk2
 
-#endif  // INCLUDED_BLPWTK2_CONTENTBROWSERMAINPARTS_H
 

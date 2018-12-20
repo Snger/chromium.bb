@@ -23,7 +23,6 @@
 #include <blpwtk2_contentbrowserclientimpl.h>
 
 #include <blpwtk2_browsercontextimpl.h>
-#include <blpwtk2_contentbrowsermainparts.h>
 #include <blpwtk2_statics.h>
 #include <blpwtk2_urlrequestcontextgetterimpl.h>
 #include <blpwtk2_webcontentsviewdelegateimpl.h>
