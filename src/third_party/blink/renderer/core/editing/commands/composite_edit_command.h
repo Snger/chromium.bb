@@ -220,7 +220,8 @@ class CORE_EXPORT CompositeEditCommand : public EditCommand {
                               ContainerNode*& startScope,
                               ContainerNode*& endScope,
                               int& startIndex,
-                              int& endIndex);
+                              int& endIndex,
+                              EditingState *editing_state);
 
   void FinishBlockCommand(ContainerNode* startScope,
                           ContainerNode* endScope,

@@ -40,7 +40,7 @@ public:
         return new IndentBlockCommand(document);
     }
 
-    virtual bool PreservesTypingStyle() const { return true; }
+    bool PreservesTypingStyle() const override { return true; }
 
 private:
     explicit IndentBlockCommand(Document&);

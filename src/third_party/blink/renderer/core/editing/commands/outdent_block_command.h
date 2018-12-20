@@ -38,7 +38,7 @@ public:
         return new OutdentBlockCommand(document);
     }
 
-    virtual bool PreservesTypingStyle() const { return true; }
+    bool PreservesTypingStyle() const override { return true; }
 
 private:
     explicit OutdentBlockCommand(Document&);

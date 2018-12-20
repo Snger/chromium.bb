@@ -71,7 +71,8 @@ void ApplyBlockElementCommand::DoApply(EditingState* editing_state) {
 
   if (!PrepareForBlockCommand(start_of_selection, end_of_selection,
                               start_scope, end_scope,
-                              start_index, end_index))
+                              start_index, end_index,
+                              editing_state))
     return;
 
   FormatSelection(start_of_selection, end_of_selection, editing_state);

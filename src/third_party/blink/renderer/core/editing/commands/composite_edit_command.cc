@@ -1908,7 +1908,8 @@ bool CompositeEditCommand::PrepareForBlockCommand(
         VisiblePosition& end_of_selection,
         ContainerNode*& start_scope,
         ContainerNode*& end_scope,
-        int& start_index, int& end_index)
+        int& start_index, int& end_index,
+        EditingState *editing_state)
 {
   if (!RootEditableElementOf(EndingSelection().Base()))
     return false;
@@ -1937,16 +1938,16 @@ bool CompositeEditCommand::PrepareForBlockCommand(
     if (new_end.IsNotNull())
       builder.Extend(new_end);
     SetEndingSelection(SelectionForUndoStep::From(builder.Build()));
-    ABORT_EDITING_COMMAND_IF(EndingVisibleSelection().VisibleStart().IsNull());
-    ABORT_EDITING_COMMAND_IF(EndingVisibleSelection().VisibleEnd().IsNull());
+    ABORT_EDITING_COMMAND_AND_RETURN_FALSE_IF(EndingVisibleSelection().VisibleStart().IsNull());
+    ABORT_EDITING_COMMAND_AND_RETURN_FALSE_IF(EndingVisibleSelection().VisibleEnd().IsNull());
   }
 
   VisibleSelection selection =
       SelectionForParagraphIteration(EndingVisibleSelection());
   start_of_selection = selection.VisibleStart();
-  ABORT_EDITING_COMMAND_IF(start_of_selection.IsNull());
+  ABORT_EDITING_COMMAND_AND_RETURN_FALSE_IF(start_of_selection.IsNull());
   end_of_selection = selection.VisibleEnd();
-  ABORT_EDITING_COMMAND_IF(end_of_selection.IsNull());
+  ABORT_EDITING_COMMAND_AND_RETURN_FALSE_IF(end_of_selection.IsNull());
   start_scope = nullptr;
   start_index = IndexForVisiblePosition(start_of_selection, start_scope);
   end_scope = nullptr;
