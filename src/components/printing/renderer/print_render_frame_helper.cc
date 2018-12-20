@@ -1147,14 +1147,17 @@ std::vector<char> PrintRenderFrameHelper::PrintToPDF(
       std::vector<gfx::Size> page_size_in_dpi(printed_pages.size());
       std::vector<gfx::Rect> content_area_in_dpi(printed_pages.size());
 
-      PdfMetafileSkia metafile(print_params.printed_doc_type,
-                               print_params.document_cookie);
+      MetafileSkia metafile(print_params.printed_doc_type,
+                            print_params.document_cookie);
       CHECK(metafile.Init());
 
       PrintMsg_Print_Params page_params;
       for (size_t i = 0; i < printed_pages.size(); ++i) {
         const int page_number = printed_pages[i];
-        PrintPageInternal(page_params, page_number, page_count, frame,
+        double scale_factor = GetScaleFactor(print_params.scale_factor,
+                                             !print_preview_context_.IsModifiable());
+
+        PrintPageInternal(page_params, page_number, page_count, scale_factor, frame,
                           &metafile, &page_size_in_dpi[i],
                           &content_area_in_dpi[i]);
       }
