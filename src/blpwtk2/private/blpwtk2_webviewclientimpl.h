@@ -136,7 +136,7 @@ class WebViewClientImpl final : public WebViewClient
     void ncDoubleClick(int x, int y) override;
         // Notify the client when the user double-clicks on a non-client area
         // of the webview window.
-    
+
     void focused() override;
         // Notify the client that the webview is focused.
 
@@ -162,6 +162,9 @@ class WebViewClientImpl final : public WebViewClient
                    bool finalUpdate) override;
         // This is the reply message for WebViewHost::find().  The host can
         // send multiple 'findReply' response for a single 'find' request.
+
+    void didFinishLoadForFrame(int routingId, const std::string& url) override;
+    void didFailLoadForFrame(int routingId, const std::string& url) override;
 
     // Mojo callbacks
     void loadStatus(int status);

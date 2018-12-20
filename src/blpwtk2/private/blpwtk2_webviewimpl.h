@@ -234,6 +234,8 @@ class WebViewImpl final : public WebView,
     void setBackgroundColor(NativeColor color) override;
     void setRegion(NativeRegion region) override;
     void clearTooltip() override;
+    void setSecurityToken(v8::Isolate *isolate,
+                          v8::Local<v8::Value> token) override;
 };
 
 }  // close namespace blpwtk2

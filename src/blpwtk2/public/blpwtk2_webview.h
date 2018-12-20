@@ -213,6 +213,16 @@ class WebView
                                                    v8::Local<v8::Value> *argv) = 0;
         // Call the specified V8 function with instrumentation
 
+    virtual void setSecurityToken(v8::Isolate *isolate,
+                                  v8::Local<v8::Value> token) = 0;
+        // Set an optional value for the webview's security token. If the
+        // security token it set, then it will be applied to the V8 script
+        // contexts created for all subsequent URL loads in the main
+        // frame and in any IFRAME.
+        //
+        // Calling this function does not modify the security token of
+        // any already-loaded frames.
+
   protected:
     virtual ~WebView();
         // Destroy this WebView.  Note that clients of blpwtk2 should use the
