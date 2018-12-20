@@ -550,7 +550,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
         auto taskRunner = content::BrowserThread::GetTaskRunnerForThread(
                                                     content::BrowserThread::UI);
 
-        d_isolateHolder.reset(new gin::IsolateHolder(taskRunner));
+        d_isolateHolder.reset(new gin::IsolateHolder(taskRunner, gin::IsolateHolder::IsolateType::kBlinkMainThread));
         d_isolateHolder->isolate()->Enter();
     }
 }
