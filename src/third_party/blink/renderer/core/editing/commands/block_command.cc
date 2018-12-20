@@ -91,7 +91,7 @@ void BlockCommand::DoApply(EditingState *editingState)
     int startIndex;
     int endIndex;
 
-    if (!PrepareForBlockCommand(startOfSelection, endOfSelection, startScope, endScope, startIndex, endIndex))
+    if (!PrepareForBlockCommand(startOfSelection, endOfSelection, startScope, endScope, startIndex, endIndex, editingState))
         return;
     FormatSelection(startOfSelection, endOfSelection, editingState);
     FinishBlockCommand(startScope, endScope, startIndex, endIndex);
