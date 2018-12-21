@@ -29,6 +29,7 @@
 
 namespace blpwtk2 {
 
+class StringRef;
 class WebViewClient;
 class ContextMenuParams;
 
@@ -107,6 +108,16 @@ class WebViewClientDelegate
         // This method is called when the client receives the status from the
         // host for a load operation of an URL resource.  The status number
         // maps to the error codes in errno.
+
+    virtual void didFinishLoadForFrame(int              routingId,
+                                       const StringRef& url) = 0;
+        // This method is called when the client receives notification from
+        // the host that a URL load for a particular IFRAME succeeded.
+
+    virtual void didFailLoadForFrame(int              routingId,
+                                     const StringRef& url) = 0;
+        // This method is called when the client receives notification from
+        // the host that a URL load for a particular IFRAME failed.
 };
 
 }  // close namespace blpwtk2

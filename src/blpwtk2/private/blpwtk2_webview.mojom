@@ -172,7 +172,7 @@ interface WebViewClient {
     ncDoubleClick(int32 x, int32 y);
         // Notify the client when the user double-clicks on a non-client area
         // of the webview window.
-    
+
     focused();
         // Notify the client that the webview is focused.
 
@@ -195,6 +195,12 @@ interface WebViewClient {
     findReply(int32 reqId, int32 numberOfMatches, int32 activeMatchOrdinal, bool finalUpdate);
         // This is the reply message for WebViewHost::find().  The host can
         // send multiple 'findReply' response for a single 'find' request.
+
+    didFinishLoadForFrame(int32 routingId, string url);
+        // Notify the client that loading a URL into an IFRAME succeeded.
+
+    didFailLoadForFrame(int32 routingId, string url);
+        // Notify the client that loading a URL into an IFRAME failed.
 };
 
 // vim: ts=4 et
