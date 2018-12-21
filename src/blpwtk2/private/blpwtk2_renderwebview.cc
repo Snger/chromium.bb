@@ -1464,6 +1464,12 @@ void RenderWebView::disableResizeOptimization()
 }
 #endif
 
+void RenderWebView::setSecurityToken(v8::Isolate *isolate,
+                                     v8::Local<v8::Value> token)
+{
+    d_securityToken.Reset(isolate, token);
+}
+
 // blpwtk2::WebViewClientDelegate overrides
 void RenderWebView::setClient(WebViewClient *client)
 {
@@ -2200,6 +2206,23 @@ void RenderWebView::onLoadStatus(int status)
         LOG(INFO) << "routingId=" << d_renderViewRoutingId
                   << ", didFinishLoad url=" << d_url;
 
+        if (!d_securityToken.IsEmpty()) {
+            content::RenderView *rv =
+                content::RenderView::FromRoutingID(d_renderViewRoutingId);
+            DCHECK(rv);
+
+            blink::WebFrame *webFrame = rv->GetWebView()->MainFrame();
+
+            if (webFrame && webFrame->IsWebLocalFrame()) {
+                v8::Isolate *isolate = webFrame->ScriptIsolate();
+
+                v8::HandleScope hs(isolate);
+                webFrame->ToWebLocalFrame()->
+                    MainWorldScriptContext()->
+                        SetSecurityToken(d_securityToken.Get(isolate));
+            }
+        }
+
         // wait until we receive this
         // notification before we make the
         // mainFrame accessible
@@ -2234,6 +2257,44 @@ void RenderWebView::devToolsAgentHostDetached()
     }
 }
 #endif
+
+void RenderWebView::didFinishLoadForFrame(int              routingId,
+                                          const StringRef& url)
+{
+    LOG(INFO) << "routingId=" << d_renderViewRoutingId
+              << ", frame routingId=" << routingId
+              << ", didFinishLoadForFrame url=" << d_url;
+
+    if (d_securityToken.IsEmpty()) {
+        return;
+    }
+
+    content::RenderFrame *rf = content::RenderFrame::FromRoutingID(routingId);
+
+    if (!rf) {
+        return;
+    }
+
+    blink::WebLocalFrame *webFrame = rf->GetWebFrame();
+
+    if (!webFrame) {
+        return;
+    }
+
+    v8::Isolate *isolate = webFrame->ScriptIsolate();
+    v8::HandleScope hs(isolate);
+
+    webFrame->MainWorldScriptContext()->
+        SetSecurityToken(d_securityToken.Get(isolate));
+}
+
+void RenderWebView::didFailLoadForFrame(int              routingId,
+                                        const StringRef& url)
+{
+    LOG(INFO) << "routingId=" << d_renderViewRoutingId
+              << ", frame routingId=" << routingId
+              << ", didFailLoadForFrame url=" << d_url;
+}
 
 // IPC::Listener overrides
 bool RenderWebView::OnMessageReceived(const IPC::Message& message)

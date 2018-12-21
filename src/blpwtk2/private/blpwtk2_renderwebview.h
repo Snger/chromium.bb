@@ -135,6 +135,7 @@ class RenderWebView final : public WebView
     bool d_pendingDestroy;
     std::string d_url;
     std::unique_ptr<WebFrameImpl> d_mainFrame;
+    v8::Global<v8::Value> d_securityToken;
 
     ScopedHWND d_hwnd;
 
@@ -291,6 +292,9 @@ class RenderWebView final : public WebView
     void disableResizeOptimization() override;
 #endif
 
+    void setSecurityToken(v8::Isolate *isolate,
+                          v8::Local<v8::Value> token) override;
+
     // IPC::Listener overrides
     bool OnMessageReceived(const IPC::Message& message) override;
 
@@ -434,6 +438,10 @@ class RenderWebView final : public WebView
     void devToolsAgentHostAttached() override;
     void devToolsAgentHostDetached() override;
 #endif
+    void didFinishLoadForFrame(int              routingId,
+                               const StringRef& url) override;
+    void didFailLoadForFrame(int              routingId,
+                             const StringRef& url) override;
 };
 
 }  // close namespace blpwtk2
