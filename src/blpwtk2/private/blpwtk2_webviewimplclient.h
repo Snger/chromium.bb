@@ -27,6 +27,8 @@
 
 namespace blpwtk2 {
 
+class StringRef;
+
 // This interface is used for WebViewImpl to communicate back to WebViewProxy.
 // Most communication back to WebViewProxy is done via the public
 // WebViewDelegate interface.  However, things that are internal to blpwtk2
@@ -42,6 +44,10 @@ public:
                                     int  numberOfMatches,
                                     int  activeMatchOrdinal,
                                     bool finalUpdate) = 0;
+    virtual void didFinishLoadForFrame(int              routingId,
+                                       const StringRef& url) = 0;
+    virtual void didFailLoadForFrame(int              routingId,
+                                     const StringRef& url) = 0;
 };
 
 }  // close namespace blpwtk2

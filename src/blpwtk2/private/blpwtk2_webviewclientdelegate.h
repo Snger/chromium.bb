@@ -29,6 +29,7 @@
 
 namespace blpwtk2 {
 
+class StringRef;
 class WebViewClient;
 class ContextMenuParams;
 
@@ -117,6 +118,16 @@ class WebViewClientDelegate
         // This method is called when the client receives a notification from
         // the host that a DevTools frontend is disconnected from the
         // DevTools agent associated with this webview.
+
+    virtual void didFinishLoadForFrame(int              routingId,
+                                       const StringRef& url) = 0;
+        // This method is called when the client receives notification from
+        // the host that a URL load for a particular IFRAME succeeded.
+
+    virtual void didFailLoadForFrame(int              routingId,
+                                     const StringRef& url) = 0;
+        // This method is called when the client receives notification from
+        // the host that a URL load for a particular IFRAME failed.
 };
 
 }  // close namespace blpwtk2

@@ -41,7 +41,7 @@ class ProfileImpl;
                         // class WebViewProxy
                         // ==================
 
-class WebViewProxy final : public WebView 
+class WebViewProxy final : public WebView
                          , public WebViewClientDelegate
 {
     // DATA
@@ -57,7 +57,7 @@ class WebViewProxy final : public WebView
     bool d_disableResizeOptimization = false;
     std::string d_url;
     std::unique_ptr<WebFrameImpl> d_mainFrame;
-
+    v8::Global<v8::Value> d_securityToken;
 
     // blpwtk2::WebView overrides
     void destroy() override;
@@ -115,6 +115,9 @@ class WebViewProxy final : public WebView
     String printToPDF(const StringRef& propertyName) override;
     void disableResizeOptimization() override;
 
+    void setSecurityToken(v8::Isolate *isolate,
+                          v8::Local<v8::Value> token) override;
+
     DISALLOW_COPY_AND_ASSIGN(WebViewProxy);
 
   public:
@@ -139,6 +142,10 @@ class WebViewProxy final : public WebView
     void onLoadStatus(int status) override;
     void devToolsAgentHostAttached() override;
     void devToolsAgentHostDetached() override;
+    void didFinishLoadForFrame(int              routingId,
+                               const StringRef& url) override;
+    void didFailLoadForFrame(int              routingId,
+                             const StringRef& url) override;
 };
 
 }  // close namespace blpwtk2

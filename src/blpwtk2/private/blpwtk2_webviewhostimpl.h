@@ -89,6 +89,10 @@ class WebViewHostImpl final : private WebViewImplClient
                             int  numberOfMatches,
                             int  activeMatchOrdinal,
                             bool finalUpdate) override;
+    void didFinishLoadForFrame(int              routingId,
+                               const StringRef& url) override;
+    void didFailLoadForFrame(int              routingId,
+                             const StringRef& url) override;
 
     // blpwtk2::WebViewDelegate overrides
     void created(WebView *source) override;
