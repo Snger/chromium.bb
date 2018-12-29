@@ -33,6 +33,8 @@ int MultiHeapTracer::AddHeapTracer(v8::EmbedderHeapTracer *tracer,
   DCHECK(!is_tracing_);
   DCHECK(kEmbedderUnknown == embedder || 0 == tracers_.count(embedder));
 
+  tracer->isolate_ = isolate_;
+
   int embedder_id = embedder;
   if (kEmbedderUnknown == embedder) {
     embedder_id = next_id_++;
@@ -46,6 +48,8 @@ int MultiHeapTracer::AddHeapTracer(v8::EmbedderHeapTracer *tracer,
 void MultiHeapTracer::RemoveHeapTracer(int embedder_id) {
   DCHECK(!is_tracing_);
   DCHECK(1 == tracers_.count(embedder_id));
+
+  tracers_[embedder_id]->isolate_ = nullptr;
 
   tracers_.erase(embedder_id);
 }
