@@ -155,7 +155,7 @@ WebViewImpl::~WebViewImpl()
     DCHECK(d_isReadyForDelete);
     DCHECK(d_isDeletingSoon);
 
-    StopObservingGpuCompositor();
+    // StopObservingGpuCompositor();
 
     g_instances.erase(this);
 
@@ -234,7 +234,7 @@ void WebViewImpl::onRenderViewHostMadeCurrent(content::RenderViewHost *renderVie
     renderViewHost->EnableAltDragRubberbanding(d_altDragRubberbandingEnabled);
 #endif
 
-    StartObservingGpuCompositor();
+    // StartObservingGpuCompositor();
 }
 
 void WebViewImpl::destroy()
