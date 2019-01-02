@@ -559,7 +559,7 @@ ToolkitImpl::ToolkitImpl(const std::string&              dictionaryPath,
     // Start pumping the message loop.
     startMessageLoop(sandboxInfo);
 
-    // attachGPUDataLogObserver();
+    attachGPUDataLogObserver();
 
     if (Statics::isRendererMainThreadMode()) {
         // Initialize the renderer.
@@ -589,7 +589,7 @@ ToolkitImpl::~ToolkitImpl()
 {
     LOG(INFO) << "Shutting down threads...";
 
-    // detachGPUDataLogObserver();
+    detachGPUDataLogObserver();
 
     if (Statics::isRendererMainThreadMode()) {
         if (d_browserThread.get()) {
