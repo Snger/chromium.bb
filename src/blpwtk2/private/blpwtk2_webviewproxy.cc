@@ -35,6 +35,7 @@
 #include <cc/trees/proxy_main.h>
 #include <base/message_loop/message_loop.h>
 #include <content/renderer/render_view_impl.h>
+#include <content/public/renderer/render_frame.h>
 #include <content/public/renderer/render_view.h>
 #include <third_party/blink/public/web/web_local_frame.h>
 #include <third_party/blink/public/web/web_view.h>
@@ -613,6 +614,12 @@ void WebViewProxy::disableResizeOptimization()
     d_disableResizeOptimization = true;
 }
 
+void WebViewProxy::setSecurityToken(v8::Isolate *isolate,
+                                    v8::Local<v8::Value> token)
+{
+    d_securityToken.Reset(isolate, token);
+}
+
 // blpwtk2::WebViewClientDelegate overrides
 void WebViewProxy::setClient(WebViewClient *client)
 {
@@ -747,10 +754,27 @@ void WebViewProxy::onLoadStatus(int status)
         LOG(INFO) << "routingId=" << d_renderViewRoutingId
                   << ", didFinishLoad url=" << d_url;
 
+        if (!d_securityToken.IsEmpty()) {
+            content::RenderView *rv =
+                content::RenderView::FromRoutingID(d_renderViewRoutingId);
+            DCHECK(rv);
+
+            blink::WebFrame *webFrame = rv->GetWebView()->MainFrame();
+
+            if (webFrame && webFrame->IsWebLocalFrame()) {
+                v8::Isolate *isolate = webFrame->ScriptIsolate();
+
+                v8::HandleScope hs(isolate);
+                webFrame->ToWebLocalFrame()->
+                    MainWorldScriptContext()->
+                        SetSecurityToken(d_securityToken.Get(isolate));
+            }
+        }
+
         // wait until we receive this
         // notification before we make the
         // mainFrame accessible
-        d_isMainFrameAccessible = true;  
+        d_isMainFrameAccessible = true;
 
         if (d_delegate) {
             d_delegate->didFinishLoad(this, StringRef(d_url));
@@ -778,6 +802,44 @@ void WebViewProxy::devToolsAgentHostDetached()
     if (d_delegate) {
         d_delegate->devToolsAgentHostDetached(this);
     }
+}
+
+void WebViewProxy::didFinishLoadForFrame(int              routingId,
+                                         const StringRef& url)
+{
+    LOG(INFO) << "routingId=" << d_renderViewRoutingId
+              << ", frame routingId=" << routingId
+              << ", didFinishLoadForFrame url=" << d_url;
+
+    if (d_securityToken.IsEmpty()) {
+        return;
+    }
+
+    content::RenderFrame *rf = content::RenderFrame::FromRoutingID(routingId);
+
+    if (!rf) {
+        return;
+    }
+
+    blink::WebLocalFrame *webFrame = rf->GetWebFrame();
+
+    if (!webFrame) {
+        return;
+    }
+
+    v8::Isolate *isolate = webFrame->ScriptIsolate();
+    v8::HandleScope hs(isolate);
+
+    webFrame->MainWorldScriptContext()->
+        SetSecurityToken(d_securityToken.Get(isolate));
+}
+
+void WebViewProxy::didFailLoadForFrame(int              routingId,
+                                       const StringRef& url)
+{
+    LOG(INFO) << "routingId=" << d_renderViewRoutingId
+              << ", frame routingId=" << routingId
+              << ", didFailLoadForFrame url=" << d_url;
 }
 
 }  // close namespace blpwtk2

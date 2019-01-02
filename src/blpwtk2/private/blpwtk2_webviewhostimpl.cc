@@ -113,6 +113,18 @@ void WebViewHostImpl::findStateWithReqId(int  reqId,
             reqId, numberOfMatches, activeMatchOrdinal, finalUpdate);
 }
 
+void WebViewHostImpl::didFinishLoadForFrame(int              routingId,
+                                            const StringRef& url)
+{
+    d_clientPtr->didFinishLoadForFrame(routingId, url.toStdString());
+}
+
+void WebViewHostImpl::didFailLoadForFrame(int              routingId,
+                                          const StringRef& url)
+{
+    d_clientPtr->didFailLoadForFrame(routingId, url.toStdString());
+}
+
 // blpwtk2::WebViewDelegate overrides
 void WebViewHostImpl::created(WebView *source)
 {

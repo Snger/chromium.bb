@@ -271,6 +271,8 @@ class WebViewImpl final : public WebView,
     void disableResizeOptimization() override;
     void OnCompositorGpuErrorMessage(const std::string& message) override;
     void OnCompositingShuttingDown(ui::Compositor* compositor) override;
+    void setSecurityToken(v8::Isolate *isolate,
+                          v8::Local<v8::Value> token) override;
 };
 
 }  // close namespace blpwtk2

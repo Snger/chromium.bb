@@ -329,6 +329,22 @@ void WebViewClientImpl::devToolsAgentHostDetached()
     }
 }
 
+void WebViewClientImpl::didFinishLoadForFrame(int   routingId,
+                                              const std::string& url)
+{
+    if (d_delegate) {
+        d_delegate->didFinishLoadForFrame(routingId, StringRef(url));
+    }
+}
+
+void WebViewClientImpl::didFailLoadForFrame(int   routingId,
+                                            const std::string& url)
+{
+    if (d_delegate) {
+        d_delegate->didFailLoadForFrame(routingId, StringRef(url));
+    }
+}
+
 // Mojo callbacks
 void WebViewClientImpl::loadStatus(int status)
 {

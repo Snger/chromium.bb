@@ -182,7 +182,7 @@ interface WebViewClient {
     ncDoubleClick(int32 x, int32 y);
         // Notify the client when the user double-clicks on a non-client area
         // of the webview window.
-    
+
     focused();
         // Notify the client that the webview is focused.
 
@@ -213,6 +213,12 @@ interface WebViewClient {
     devToolsAgentHostDetached();
         // Notify the client that the devtools frontend is disconnected from
         // the devtools agent associated with this webview.
+
+    didFinishLoadForFrame(int32 routingId, string url);
+        // Notify the client that loading a URL into an IFRAME succeeded.
+
+    didFailLoadForFrame(int32 routingId, string url);
+        // Notify the client that loading a URL into an IFRAME failed.
 };
 
 // vim: ts=4 et

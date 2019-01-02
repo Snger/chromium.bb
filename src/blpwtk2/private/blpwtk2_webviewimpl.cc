@@ -293,6 +293,12 @@ void WebViewImpl::disableResizeOptimization()
     NOTREACHED() << "disableResizeOptimization() not supported in WebViewImpl";
 }
 
+void WebViewImpl::setSecurityToken(v8::Isolate *isolate,
+                                   v8::Local<v8::Value> token)
+{
+    NOTREACHED() << "setSecurityToken() not supported in WebViewImpl";
+}
+
 int WebViewImpl::getRoutingId() const
 {
     DCHECK(Statics::isInBrowserMainThread());
@@ -952,6 +958,11 @@ void WebViewImpl::DidFinishLoad(content::RenderFrameHost *render_frame_host,
     if (!render_frame_host->GetParent()) {
         d_delegate->didFinishLoad(this, validated_url.spec());
     }
+    else if (d_implClient) {
+        d_implClient->didFinishLoadForFrame(
+            render_frame_host->GetRoutingID(),
+            validated_url.spec());
+    }
 }
 
 void WebViewImpl::DidFailLoad(content::RenderFrameHost *render_frame_host,
@@ -967,6 +978,11 @@ void WebViewImpl::DidFailLoad(content::RenderFrameHost *render_frame_host,
     // Only call DidFailLoad() for the main frame.
     if (!render_frame_host->GetParent()) {
         d_delegate->didFailLoad(this, validated_url.spec());
+    }
+    else if (d_implClient) {
+        d_implClient->didFailLoadForFrame(
+            render_frame_host->GetRoutingID(),
+            validated_url.spec());
     }
 }
 
