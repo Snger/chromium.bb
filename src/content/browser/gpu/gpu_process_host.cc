@@ -238,10 +238,10 @@ void OzoneRegisterStartupCallbackHelper(
 }
 #endif  // defined(USE_OZONE)
 
-void OnGpuProcessHostDestroyedOnUI(int host_id, const std::string& message) {
+void OnGpuProcessHostDestroyedOnUI(int host_id, const std::string& message, int severity) {
   DCHECK(BrowserThread::CurrentlyOn(BrowserThread::UI));
   GpuDataManagerImpl::GetInstance()->AddLogMessage(
-      logging::LOG_ERROR, "GpuProcessHostUIShim", message);
+      severity, "GpuProcessHostUIShim", message);
 #if defined(USE_OZONE)
   ui::OzonePlatform::GetInstance()
       ->GetGpuPlatformSupportHost()
@@ -640,6 +640,7 @@ GpuProcessHost::~GpuProcessHost() {
 
   std::string message;
   bool block_offscreen_contexts = true;
+  int severity = logging::LOG_ERROR;
   if (!in_process_ && process_launched_) {
     int exit_code;
     base::TerminationStatus status = process_->GetTerminationStatus(
@@ -667,7 +668,8 @@ GpuProcessHost::~GpuProcessHost() {
 #if defined(OS_ANDROID)
         block_offscreen_contexts = false;
 #endif
-        //message = "The GPU process exited normally. Everything is okay.";
+        message = "The GPU process exited normally. Everything is okay.";
+        severity = logging::LOG_INFO;
         break;
       case base::TERMINATION_STATUS_ABNORMAL_TERMINATION:
         message = base::StringPrintf(
@@ -676,6 +678,7 @@ GpuProcessHost::~GpuProcessHost() {
         break;
       case base::TERMINATION_STATUS_PROCESS_WAS_KILLED:
         message = "You killed the GPU process! Why?";
+        severity = logging::LOG_INFO;
         break;
 #if defined(OS_CHROMEOS)
       case base::TERMINATION_STATUS_PROCESS_WAS_KILLED_BY_OOM:
@@ -683,7 +686,8 @@ GpuProcessHost::~GpuProcessHost() {
         break;
 #endif
       case base::TERMINATION_STATUS_PROCESS_CRASHED:
-        //message = "The GPU process crashed!";
+        message = "The GPU process crashed!";
+        severity = logging::LOG_INFO;
         break;
       case base::TERMINATION_STATUS_LAUNCH_FAILED:
         message = "The GPU process failed to start!";
@@ -701,7 +705,7 @@ GpuProcessHost::~GpuProcessHost() {
 
   BrowserThread::PostTask(
       BrowserThread::UI, FROM_HERE,
-      base::BindOnce(&OnGpuProcessHostDestroyedOnUI, host_id_, message));
+      base::BindOnce(&OnGpuProcessHostDestroyedOnUI, host_id_, message, severity));
 }
 
 #if defined(USE_OZONE)
