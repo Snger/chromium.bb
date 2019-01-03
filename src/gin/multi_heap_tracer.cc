@@ -21,7 +21,6 @@ MultiHeapTracer* MultiHeapTracer::From(v8::Isolate *isolate) {
 MultiHeapTracer::MultiHeapTracer()
     : is_tracing_(false),
       next_id_(gin::kEmbedderUnknown),
-      next_tracer_(),
       tracers_() {
 }
 
@@ -34,13 +33,14 @@ int MultiHeapTracer::AddHeapTracer(v8::EmbedderHeapTracer *tracer,
   DCHECK(!is_tracing_);
   DCHECK(kEmbedderUnknown == embedder || 0 == tracers_.count(embedder));
 
+  tracer->isolate_ = isolate_;
+
   int embedder_id = embedder;
   if (kEmbedderUnknown == embedder) {
     embedder_id = next_id_++;
   }
 
   tracers_[embedder_id] = tracer;
-  next_tracer_          = tracers_.begin();
 
   return embedder_id;
 }
@@ -49,8 +49,9 @@ void MultiHeapTracer::RemoveHeapTracer(int embedder_id) {
   DCHECK(!is_tracing_);
   DCHECK(1 == tracers_.count(embedder_id));
 
+  tracers_[embedder_id]->isolate_ = nullptr;
+
   tracers_.erase(embedder_id);
-  next_tracer_ = tracers_.begin();
 }
 
 void MultiHeapTracer::RegisterV8References(
@@ -61,36 +62,27 @@ void MultiHeapTracer::RegisterV8References(
 }
 
 void MultiHeapTracer::TracePrologue() {
-  is_tracing_  = true;
-  next_tracer_ = tracers_.begin();
+  is_tracing_ = true;
 
   for (auto&& id_and_tracer : tracers_) {
     id_and_tracer.second->TracePrologue();
   }
 }
 
-bool MultiHeapTracer::AdvanceTracing(double                deadline_in_ms,
-                                     AdvanceTracingActions actions) {
+bool MultiHeapTracer::AdvanceTracing(double deadline_in_ms) {
   // To avoid starving any particular tracer, as it's conceivable that the
   // deadline will be reached before calling 'AdvanceTracing' on all tracers,
   // we visit them in a round robin fashion.
 
-  bool more_work = false;
+  bool done = true;
 
-  auto numTracers = tracers_.size();
-  for (Tracers::size_type i = 0;
-       i < numTracers;
-       ++i) {
-    if (next_tracer_->second->AdvanceTracing(deadline_in_ms, actions)) {
-      more_work = true;
-    }
-
-    if (++next_tracer_ == tracers_.end()) {
-      next_tracer_ = tracers_.begin();
+  for (auto&& id_and_tracer : tracers_) {
+    if (!id_and_tracer.second->AdvanceTracing(deadline_in_ms)) {
+      done = false;
     }
   }
 
-  return more_work;
+  return done;
 }
 
 void MultiHeapTracer::TraceEpilogue() {
@@ -101,9 +93,9 @@ void MultiHeapTracer::TraceEpilogue() {
   }
 }
 
-void MultiHeapTracer::EnterFinalPause() {
+void MultiHeapTracer::EnterFinalPause(EmbedderStackState stack_state) {
   for (auto&& id_and_tracer : tracers_) {
-    id_and_tracer.second->EnterFinalPause();
+    id_and_tracer.second->EnterFinalPause(stack_state);
   }
 }
 
@@ -115,14 +107,14 @@ void MultiHeapTracer::AbortTracing() {
   }
 }
 
-size_t MultiHeapTracer::NumberOfWrappersToTrace() {
-  size_t sum = 0;
-
+bool MultiHeapTracer::IsTracingDone() {
   for (auto&& id_and_tracer : tracers_) {
-    sum += id_and_tracer.second->NumberOfWrappersToTrace();
+    if (!id_and_tracer.second->IsTracingDone()) {
+      return false;
+    }
   }
 
-  return sum;
+  return true;
 }
 
 }  // namespace gin

@@ -85,6 +85,8 @@ IsolateHolder::IsolateHolder(
     v8::Isolate::Initialize(isolate_, params);
   }
 
+  isolate_data_->Initialize();
+
   isolate_memory_dump_provider_.reset(
       new V8IsolateMemoryDumpProvider(this, task_runner));
 #if defined(OS_WIN)

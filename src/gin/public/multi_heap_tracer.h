@@ -37,8 +37,8 @@ class GIN_EXPORT MultiHeapTracer : public v8::EmbedderHeapTracer {
   // wrappers, but is expected to ignore wrappers with an embedder field which
   // it does not recognize.
   //
-  // For 'AdvanceTracing', each registered heap tracer will be called in a
-  // random order.  Tracers are expected to ensure that they do nothing if the
+  // For 'AdvanceTracing', each registered heap tracer will be asked to advance
+  // tracing.  Tracers are expected to ensure that they do nothing if the
   // deadline has already passed.
 
  public:
@@ -88,37 +88,33 @@ class GIN_EXPORT MultiHeapTracer : public v8::EmbedderHeapTracer {
   void TracePrologue() override;
     // Notify all registered tracers that tracing will begin.
 
-  bool AdvanceTracing(double                deadline_in_ms,
-                      AdvanceTracingActions actions) override;
+  bool AdvanceTracing(double deadline_in_ms) override;
     // Notify all registered tracers that they should trace the wrapper field
     // pairs they previously stored from 'RegisterV8References'.  The
     // registered tracers will be called in a different random order each time.
     // Each tracer should ensure that once the specified 'deadline_in_ms' is
-    // past, it does no work.  If the 'force_completion' field of the specified
-    // 'actions' is 'FORCE_COMPLETION', the tracers should ignore
-    // 'deadline_in_ms' and complete tracing.
+    // past, it does no work.  If the 'deadline_in_ms' is 'Infinity', the
+    // tracers should complete tracing.
 
   void TraceEpilogue() override;
     // Notify all registered tracers that tracing has completed.
 
-  void EnterFinalPause() override;
+  void EnterFinalPause(EmbedderStackState stack_state) override;
     // Notify all registered tracers that we're entering the final pause.
 
   void AbortTracing() override;
     // Nofity all registered tracers that tracing has been aborted.
 
-  size_t NumberOfWrappersToTrace() override;
-    // Return the sum of the number of wrappers that need to be traced by all
-    // of the registered tracers.
+  bool IsTracingDone() override;
+    // Return 'true' if all the registered tracers have done tracing, and
+    // 'false' otherwise.
 
  private:
-  using Tracers  = std::unordered_map<int, v8::EmbedderHeapTracer *>;
-  using TracerIt = Tracers::const_iterator;
+  using Tracers = std::unordered_map<int, v8::EmbedderHeapTracer *>;
 
-  bool     is_tracing_;  // Whether we're currently tracing
-  int      next_id_;     // The next id for unknown embedders
-  TracerIt next_tracer_; // The next tracer to be visited
-  Tracers  tracers_;     // The collection of registered tracers
+  bool    is_tracing_;  // Whether we're currently tracing
+  int     next_id_;     // The next id for unknown embedders
+  Tracers tracers_;     // The collection of registered tracers
 
   DISALLOW_COPY_AND_ASSIGN(MultiHeapTracer);
 };
