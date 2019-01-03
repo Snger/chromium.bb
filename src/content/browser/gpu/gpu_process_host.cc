@@ -669,7 +669,7 @@ GpuProcessHost::~GpuProcessHost() {
         block_offscreen_contexts = false;
 #endif
         message = "The GPU process exited normally. Everything is okay.";
-        severity = logging::LOG_INFO;
+        severity = logging::LOG_WARNING;
         break;
       case base::TERMINATION_STATUS_ABNORMAL_TERMINATION:
         message = base::StringPrintf(
@@ -678,7 +678,7 @@ GpuProcessHost::~GpuProcessHost() {
         break;
       case base::TERMINATION_STATUS_PROCESS_WAS_KILLED:
         message = "You killed the GPU process! Why?";
-        severity = logging::LOG_INFO;
+        severity = logging::LOG_WARNING;
         break;
 #if defined(OS_CHROMEOS)
       case base::TERMINATION_STATUS_PROCESS_WAS_KILLED_BY_OOM:
@@ -687,7 +687,7 @@ GpuProcessHost::~GpuProcessHost() {
 #endif
       case base::TERMINATION_STATUS_PROCESS_CRASHED:
         message = "The GPU process crashed!";
-        severity = logging::LOG_INFO;
+        severity = logging::LOG_WARNING;
         break;
       case base::TERMINATION_STATUS_LAUNCH_FAILED:
         message = "The GPU process failed to start!";
