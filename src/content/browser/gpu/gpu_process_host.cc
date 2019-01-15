@@ -787,7 +787,9 @@ GpuProcessHost::~GpuProcessHost() {
         UMA_HISTOGRAM_ENUMERATION("GPU.GPUProcessTerminationOrigin",
                                   termination_origin_,
                                   GpuTerminationOrigin::kMax);
-        message = "You killed the GPU process! Why?";
+        message = base::StringPrintf(
+            "You killed the GPU process! Why? exit_code=%d.",
+            info.exit_code);
         severity = logging::LOG_WARNING;
         break;
 #if defined(OS_CHROMEOS)
@@ -796,8 +798,14 @@ GpuProcessHost::~GpuProcessHost() {
         break;
 #endif
       case base::TERMINATION_STATUS_PROCESS_CRASHED:
-        message = "The GPU process crashed!";
-        severity = logging::LOG_WARNING;
+        if (info.exit_code == RESULT_CODE_GPU_DEAD_ON_ARRIVAL) {
+          message = "The GPU process exited because initialization failed. Might be black listed to use gpu";
+          severity = logging::LOG_WARNING;
+        } else {
+            message = base::StringPrintf(
+            "The GPU process crashed! exit_code=%d.",
+            info.exit_code);
+        }
         break;
       case base::TERMINATION_STATUS_LAUNCH_FAILED:
         message = "The GPU process failed to start!";
