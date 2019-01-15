@@ -650,7 +650,8 @@ void LocalFrame::SetPrinting(bool printing,
        child = child->Tree().NextSibling()) {
     if (child->IsLocalFrame()) {
       if (printing)
-        ToLocalFrame(child)->StartPrinting();
+        ToLocalFrame(child)->StartPrinting(FloatSize(), FloatSize(), 0,
+                use_media_selector);
       else
         ToLocalFrame(child)->EndPrinting();
     }
