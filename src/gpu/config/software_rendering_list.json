@@ -475,21 +475,36 @@
       ]
     },
     {
-      "id": 68,
-      "description": "VMware Fusion 4 has corrupt rendering with Win Vista+",
-      "cr_bugs": [169470],
+      "id": 66,
+      "description": "Disable GPU acceleration on Intel video cards",
       "os": {
-        "type": "win",
-        "version": {
-          "op": ">=",
-          "value": "6.0"
-        }
+        "type": "win"
+      },
+      "vendor_id": "0x8086",
+      "device_id": ["0x0152", "0x0156", "0x015A", "0x0162", "0x0166", "0x016A"],
+      "features": [
+        "all"
+      ]
+    },
+    {
+      "id": 67,
+      "description": "Disable GPU acceleration on Citrix remote session",
+      "os": {
+        "type": "win"
+      },
+      "driver_vendor": "Citrix Systems Inc.",
+      "features": [
+        "all"
+      ]
+    },
+    {
+      "id": 68,
+      "description": "Disable GPU acceleration on VMWare",
+      "os": {
+        "type": "win"
       },
       "vendor_id": "0x15ad",
-      "driver_version": {
-        "op": "<=",
-        "value": "7.14.1.1134"
-      },
+      "device_id": ["0x0405"],
       "features": [
         "all"
       ]
@@ -1434,14 +1449,14 @@
     },
     {
       "id": 143,
-      "description": "Disable use of D3D11/WebGL2 on Matrox video cards",
-      "cr_bugs": [395861],
+      "description": "Disable GPU acceleration on Matrox video cards",
       "os": {
         "type": "win"
       },
       "vendor_id": "0x102b",
+      "device_id": ["0x0540"],
       "features": [
-        "accelerated_webgl2"
+        "all"
       ]
     },
     {
