@@ -638,9 +638,6 @@ if (is_android) {
         configs -= [ "//build/config/win:console" ]
         configs += [ "//build/config/win:windowed" ]
       }
-      if (bb_generate_map_files) {
-        configs += [ "//blpwtk2:blpwtk2_gen_map" ]
-      }
       if (is_official_build) {
         configs -= [ "//build/config/compiler:default_optimization" ]
         configs += [ "//build/config/compiler:optimize_max" ]
