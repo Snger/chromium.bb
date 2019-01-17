@@ -54,7 +54,7 @@ class WebViewProxy final : public WebView
     bool d_pendingLoadStatus;
     bool d_isMainFrameAccessible;
     bool d_pendingDestroy;
-    bool d_disableResizeOptimization = false;
+    bool d_disableResizeOptimization = true;
     std::string d_url;
     std::unique_ptr<WebFrameImpl> d_mainFrame;
 
