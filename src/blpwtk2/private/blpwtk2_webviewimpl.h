@@ -164,10 +164,6 @@ class WebViewImpl final : public WebView,
         // associated with this webview.
 
     // content::WebContentsObserver overrides
-    void RenderViewCreated(content::RenderViewHost *render_view_host) override;
-        // This is called when a RVH is created for a WebContents, but not if
-        // it's an interstitial.
-
     void RenderViewHostChanged(content::RenderViewHost *old_host,
                                content::RenderViewHost *new_host) override;
         // This method is invoked when a WebContents swaps its visible
