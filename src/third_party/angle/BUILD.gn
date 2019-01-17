@@ -636,9 +636,7 @@ shared_library("libGLESv2${angle_libs_suffix}") {
     ":extra_warnings",
     ":internal_config",
   ]
-  if (bb_generate_map_files) {
-    configs += [ "//blpwtk2:blpwtk2_gen_map" ]
-  }
+
   public_configs = [
     "//blpwtk2:blpwtk2_public"
   ]
@@ -766,10 +764,6 @@ shared_library("libEGL${angle_libs_suffix}") {
     ":internal_config",
   ]
 
-  if (bb_generate_map_files) {
-    configs += [ "//blpwtk2:blpwtk2_gen_map" ]
-  }
-
   defines = [ "LIBEGL_IMPLEMENTATION" ]
   if (is_win) {
     defines += [ "EGLAPI=" ]
@@ -805,9 +799,6 @@ static_library("libEGL_static") {
     ":extra_warnings",
     ":internal_config",
   ]
-  if (bb_generate_map_files) {
-    configs += [ "//blpwtk2:blpwtk2_gen_map" ]
-  }
 
   public_configs = [ ":angle_static" ]
 
