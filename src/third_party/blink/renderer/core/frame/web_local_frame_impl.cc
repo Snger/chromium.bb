@@ -1547,6 +1547,9 @@ int WebLocalFrameImpl::PrintBegin(const WebPrintParams& print_params,
         new ChromePrintContext(GetFrame(), print_params.use_printing_layout);
   }
 
+  if (!print_params.use_media_selector)
+    print_context_->UseDefaultMediaSelector();
+
   FloatSize size(static_cast<float>(print_params.print_content_area.width),
                  static_cast<float>(print_params.print_content_area.height));
   print_context_->BeginPrintMode(size.Width(), size.Height());
@@ -2666,6 +2669,7 @@ void WebLocalFrameImpl::DrawInCanvas(const WebRect& rect,
   WebPrintParams print_params(WebSize{ rect.width, rect.height }, false);
   print_params.print_content_area = rect;
   print_params.printable_area = rect;
+  print_params.use_media_selector = false;
 
   int page_count = PrintBegin(print_params, blink::WebNode());
   DCHECK(1 == page_count);
