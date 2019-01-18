@@ -35,6 +35,8 @@ class GIN_EXPORT PerIsolateData {
                  scoped_refptr<base::SingleThreadTaskRunner> task_runner);
   ~PerIsolateData();
 
+  void Initialize();
+
   static PerIsolateData* From(v8::Isolate* isolate);
 
   // Each isolate is associated with a collection of v8::ObjectTemplates and

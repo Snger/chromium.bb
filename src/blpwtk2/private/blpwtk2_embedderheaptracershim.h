@@ -70,18 +70,18 @@ class EmbedderHeapTracerShim : public v8::EmbedderHeapTracer {
     void AbortTracing() override;
         // Notify the wrapped tracer that it should abort tracing.
 
-    bool AdvanceTracing(double                deadline_in_ms,
-                        AdvanceTracingActions actions) override;
+    bool AdvanceTracing(double deadline_in_ms) override;
         // Notify the wrapped tracer that it should advance tracing, by the
-        // specified 'deadline_in_ms'.  The specified 'actions' may indicate
-        // that tracing should continue to completion.  Return 'true' if there
-        // is more work to do, and 'false' otherwise.
+        // specified 'deadline_in_ms'.  If 'deadline_in_ms' is 'Infinity',
+        // tracing should continue to completion.  Return 'true' if tracing is
+        // done, and 'false' otherwise.
 
-    void EnterFinalPause() override;
+    void EnterFinalPause(EmbedderStackState stack_state) override;
         // Notify the wrapped tracer that we are entering the final pause.
 
-    size_t NumberOfWrappersToTrace() override;
-        // Return the number of wrappers which the wrapped tracer has to trace.
+    bool IsTracingDone() override;
+        // Return 'true' if there is no more work to be done, and 'false'
+        // otherwise.
 
     void RegisterV8References(
        const std::vector<std::pair<void *, void *>>& embedder_fields) override;
@@ -110,23 +110,21 @@ void EmbedderHeapTracerShim::AbortTracing()
 }
 
 inline
-bool EmbedderHeapTracerShim::AdvanceTracing(
-                                          double                deadline_in_ms,
-                                          AdvanceTracingActions actions)
+bool EmbedderHeapTracerShim::AdvanceTracing(double deadline_in_ms)
 {
-    return d_tracer_p->AdvanceTracing(deadline_in_ms, actions);
+    return d_tracer_p->AdvanceTracing(deadline_in_ms);
 }
 
 inline
-void EmbedderHeapTracerShim::EnterFinalPause()
+void EmbedderHeapTracerShim::EnterFinalPause(EmbedderStackState stack_state)
 {
-    d_tracer_p->EnterFinalPause();
+    d_tracer_p->EnterFinalPause(stack_state);
 }
 
 inline
-size_t EmbedderHeapTracerShim::NumberOfWrappersToTrace()
+bool EmbedderHeapTracerShim::IsTracingDone()
 {
-    return d_tracer_p->NumberOfWrappersToTrace();
+    return d_tracer_p->IsTracingDone();
 }
 
 inline
