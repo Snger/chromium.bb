@@ -1226,6 +1226,8 @@ int UseCounter::MapCSSPropertyIdToCSSSampleIdForHistogram(
       return 636;
     case CSSPropertyRubberbandable:
       return 637;
+    case CSSPropertyBbLcdBackgroundColor:
+      return 638;
     // 1. Add new features above this line (don't change the assigned numbers of
     // the existing items).
     // 2. Update kMaximumCSSSampleId (defined in
