@@ -226,6 +226,9 @@ class ToolkitCreateParams
         // directory.
 
     BLPWTK2_EXPORT void setBrowserV8Enabled(bool browserV8Enabled);
+
+    BLPWTK2_EXPORT void setRendererUIEnabled(bool rendererUIEnabled);
+
     // ACCESSORS
     ThreadMode threadMode() const;
     bool useDefaultPrintSettings() const;
@@ -256,6 +259,7 @@ class ToolkitCreateParams
     StringRef profileDirectory() const;
     bool isIsolatedProfile() const;
     bool browserV8Enabled() const;
+    bool rendererUIEnabled() const;
 };
 
 }  // close namespace blpwtk2

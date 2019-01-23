@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Bloomberg Finance L.P.
+ * Copyright (C) 2018 Bloomberg Finance L.P.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -20,23 +20,22 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef INCLUDED_BLPWTK2_WEBVIEWPROPERTIES_H
-#define INCLUDED_BLPWTK2_WEBVIEWPROPERTIES_H
+#ifndef INCLUDED_BLPWTK2_SCOPEDHWND_H
+#define INCLUDED_BLPWTK2_SCOPEDHWND_H
 
-#include <blpwtk2_config.h>
+#include <windows.h>
+
+#include <base/scoped_generic.h>
 
 namespace blpwtk2 {
 
-struct WebViewProperties {
-    bool takeKeyboardFocusOnMouseDown;
-    bool takeLogicalFocusOnMouseDown;
-    bool activateWindowOnMouseDown;
-    bool domPasteEnabled;
-    bool javascriptCanAccessClipboard;
-    bool rerouteMouseWheelToAnyRelatedWindow;
-    bool rendererUI;
+struct ScopedHWNDTraits {
+    static HWND InvalidValue()  { return NULL; }
+    static void Free(HWND hwnd) { DestroyWindow(hwnd); }
 };
 
-}  // close namespace blpwtk2
+using ScopedHWND = base::ScopedGeneric<HWND, ScopedHWNDTraits>;
 
-#endif  // INCLUDED_BLPWTK2_WEBVIEWPROPERTIES_H
+} // close namespace blpwtk2
+
+#endif

@@ -43,6 +43,9 @@ struct WebViewCreateParams {
     uint32 processId;
         // Process in which the RenderView will live.  A value of 0 will
         // cause Content to create a new subprocess to host the RenderView.
+
+    bool rendererUI = false;
+        // Whether or not user interface tasks are run in the renderer.
 };
 
 interface ProcessHost {
@@ -132,6 +135,11 @@ interface ProcessHost {
 
     [Sync]
     opaqueMessageToBrowserSync(string msg) => (string response);
+
+    registerNativeViewForComposition(uint32 view);
+    unregisterNativeViewForComposition(uint32 view);
+        // These two functions allow a renderer-owned native view to
+        // host compositor output.
 };
 
 interface ProcessClient {

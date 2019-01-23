@@ -59,6 +59,8 @@ WebViewHostImpl::WebViewHostImpl(
         params.javascriptCanAccessClipboard;
     properties.rerouteMouseWheelToAnyRelatedWindow =
         params.rerouteMouseWheelToAnyRelatedWindow;
+    properties.rendererUI =
+        params.rendererUI;
 
     d_impl = new WebViewImpl(this,              // delegate
                              0,                 // parent window

@@ -1,5 +1,5 @@
 /*
- * Copyright (C) 2014 Bloomberg Finance L.P.
+ * Copyright (C) 2018 Bloomberg Finance L.P.
  *
  * Permission is hereby granted, free of charge, to any person obtaining a copy
  * of this software and associated documentation files (the "Software"), to
@@ -20,23 +20,34 @@
  * IN THE SOFTWARE.
  */
 
-#ifndef INCLUDED_BLPWTK2_WEBVIEWPROPERTIES_H
-#define INCLUDED_BLPWTK2_WEBVIEWPROPERTIES_H
+#ifndef INCLUDED_BLPWTK2_RENDERMESSAGEDELEGATE_H
+#define INCLUDED_BLPWTK2_RENDERMESSAGEDELEGATE_H
 
-#include <blpwtk2_config.h>
+#include <base/lazy_instance.h>
+#include <ipc/message_router.h>
 
 namespace blpwtk2 {
 
-struct WebViewProperties {
-    bool takeKeyboardFocusOnMouseDown;
-    bool takeLogicalFocusOnMouseDown;
-    bool activateWindowOnMouseDown;
-    bool domPasteEnabled;
-    bool javascriptCanAccessClipboard;
-    bool rerouteMouseWheelToAnyRelatedWindow;
-    bool rendererUI;
+class RenderMessageDelegate : public IPC::MessageRouter {
+  public:
+
+    static RenderMessageDelegate* GetInstance();
+
+    IPC::MessageRouter* GetRouter() { return &d_router; }
+
+    // IPC::MessageRouter overrides:
+    bool OnControlMessageReceived(const IPC::Message& msg) override;
+
+  private:
+
+    friend struct base::LazyInstanceTraitsBase<RenderMessageDelegate>;
+
+    RenderMessageDelegate();
+    ~RenderMessageDelegate() final;
+
+    IPC::MessageRouter d_router;
 };
 
-}  // close namespace blpwtk2
+} // close namespace blpwtk2
 
-#endif  // INCLUDED_BLPWTK2_WEBVIEWPROPERTIES_H
+#endif  // INCLUDED_BLPWTK2_RENDERMESSAGEDELEGATE_H

@@ -23,6 +23,8 @@
 #include <blpwtk2_contentrendererclientimpl.h>
 #include <blpwtk2_inprocessresourceloaderbridge.h>
 #include <blpwtk2_jswidget.h>
+#include <blpwtk2_rendercompositor.h>
+#include <blpwtk2_rendermessagedelegate.h>
 #include <blpwtk2_renderviewobserverimpl.h>
 #include <blpwtk2_resourceloader.h>
 #include <blpwtk2_statics.h>
@@ -62,6 +64,7 @@ ContentRendererClientImpl::ContentRendererClientImpl()
 
 ContentRendererClientImpl::~ContentRendererClientImpl()
 {
+    RenderFrameSinkProvider::Terminate();
 }
 
 void ContentRendererClientImpl::RenderThreadStarted()
@@ -205,7 +208,25 @@ service_manager::Connector* ContentRendererClientImpl::GetConnector()
     return d_connector.get();
 }
 
+bool ContentRendererClientImpl::Dispatch(IPC::Message *msg)
+{
+    if (Statics::rendererUIEnabled &&
+        RenderMessageDelegate::GetInstance()->OnMessageReceived(*msg)) {
+        delete msg;
+        return true;
+    }
+
+    return false;
+}
+
+bool ContentRendererClientImpl::BindFrameSinkProvider(content::mojom::FrameSinkProviderRequest request)
+{
+    if (Statics::rendererUIEnabled) {
+        RenderFrameSinkProvider::GetInstance()->Bind(std::move(request));
+        return true;
+    }
+
+    return false;
+}
+
 }  // close namespace blpwtk2
-
-// vim: ts=4 et
-

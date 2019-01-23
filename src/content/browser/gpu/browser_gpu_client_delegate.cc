@@ -68,7 +68,7 @@ void BrowserGpuClientDelegate::EstablishGpuChannel(
     return;
   }
 
-  const bool is_gpu_host = false;
+  const bool is_gpu_host = true;
   host->gpu_host()->EstablishGpuChannel(
       client_id, client_tracing_id, is_gpu_host,
       base::BindOnce(&OnEstablishGpuChannel, std::move(callback)));

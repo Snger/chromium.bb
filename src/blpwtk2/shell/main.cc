@@ -56,6 +56,7 @@ std::string g_dictDir;
 bool g_in_process_renderer = true;
 bool g_custom_hit_test = false;
 bool g_custom_tooltip = false;
+bool g_renderer_ui = false;
 HANDLE g_hJob;
 MSG g_msg;
 bool g_isInsideEventLoop;
@@ -980,6 +981,9 @@ HANDLE spawnProcess()
     if (g_custom_tooltip) {
         cmdline.append(" --custom-tooltip");
     }
+    if (g_renderer_ui) {
+        cmdline.append(" --renderer-ui");
+    }
 
     for (size_t i = 0; i < g_sideLoadedFonts.size(); ++i) {
         cmdline.append(" --sideload-font=");
@@ -1149,6 +1153,9 @@ int main(int, const char**)
                 host = blpwtk2::ThreadMode::RENDERER_MAIN;
                 isProcessHost = true;
             }
+            else if (0 == wcscmp(L"--renderer-ui", argv[i])) {
+                g_renderer_ui = true;
+            }
             else if (0 == wcsncmp(L"--file-mapping=", argv[i], 15)) {
                 char buf[1024];
                 sprintf_s(buf, sizeof(buf), "%S", argv[i]+15);
@@ -1230,6 +1237,9 @@ int main(int, const char**)
         toolkitParams.setHostChannel(hostChannel);
         if (!g_in_process_renderer) {
             toolkitParams.disableInProcessRenderer();
+        }
+        else {
+            toolkitParams.setRendererUIEnabled(g_renderer_ui);
         }
 
         g_webScriptContextAvailable = true;
