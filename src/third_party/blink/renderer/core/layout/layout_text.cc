@@ -1560,8 +1560,11 @@ bool LayoutText::CanOptimizeSetText() const {
   // If we have only one line of text and "contain: layout size" we can avoid
   // doing a layout and only paint in the SetText() operation.
   return Parent()->IsLayoutBlockFlow() &&
-         (Parent()->ShouldApplyLayoutContainment() &&
-          Parent()->ShouldApplySizeContainment()) &&
+         Parent()->ShouldApplyLayoutContainment() &&
+         Parent()->ShouldApplySizeContainment() &&
+         // If we have "text-overflow: ellipsis" we need to check if we need or
+         // not ellipsis in the new text and recompute its position.
+         !ToLayoutBlockFlow(Parent())->ShouldTruncateOverflowingText() &&
          FirstTextBox() && FirstTextBox() == LastTextBox() &&
          FirstTextBox()->Root().FirstChild() ==
              FirstTextBox()->Root().LastChild() &&
