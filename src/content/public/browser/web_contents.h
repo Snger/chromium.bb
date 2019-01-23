@@ -77,9 +77,11 @@ class BrowserPluginGuestDelegate;
 class InterstitialPage;
 class RenderFrameHost;
 class RenderViewHost;
+class RenderViewHostDelegateView;
 class RenderWidgetHost;
 class RenderWidgetHostView;
 class WebContentsDelegate;
+class WebContentsView;
 struct CustomContextMenuContext;
 struct DropData;
 struct MHTMLGenerationParams;
@@ -225,6 +227,11 @@ class WebContents : public PageNavigator,
     // default initialized then the value is not passed on to the WebContents
     // and GetLastActiveTime() will return the WebContents' creation time.
     base::TimeTicks last_active_time;
+
+    // Allow the embedder to override the WebContentsView and
+    // RenderViewHostDelegateView used by this WebContents.
+    WebContentsView *host = nullptr;
+    RenderViewHostDelegateView *render_view_host_delegate_view = nullptr;
   };
 
   // Creates a new WebContents.

@@ -1026,8 +1026,12 @@ void RenderThreadImpl::Init() {
 
   base::MemoryCoordinatorClientRegistry::GetInstance()->Register(this);
 
-  GetConnector()->BindInterface(mojom::kBrowserServiceName,
-                                mojo::MakeRequest(&frame_sink_provider_));
+  if (!GetContentClient()->renderer()->BindFrameSinkProvider(
+      mojo::MakeRequest(&frame_sink_provider_))) {
+    GetConnector()->BindInterface(mojom::kBrowserServiceName,
+                                  mojo::MakeRequest(&frame_sink_provider_));
+  }
+
 
   if (!is_gpu_compositing_disabled_) {
     GetConnector()->BindInterface(
@@ -1107,7 +1111,9 @@ bool RenderThreadImpl::Send(IPC::Message* msg) {
     WebView::WillEnterModalLoop();
   }
 
-  bool rv = ChildThreadImpl::Send(msg);
+  bool rv =
+    GetContentClient()->renderer()->Dispatch(msg) ||
+    ChildThreadImpl::Send(msg);
 
   if (pumping_events)
     WebView::DidExitModalLoop();

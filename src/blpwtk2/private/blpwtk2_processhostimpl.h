@@ -151,6 +151,9 @@ class ProcessHostImpl final : public mojom::ProcessHost
     void addBypassRule(const std::string& rule) override;
     void clearBypassRules() override;
     void setPacUrl(const std::string& url) override;
+
+    void registerNativeViewForComposition(unsigned int view) override;
+    void unregisterNativeViewForComposition(unsigned int view) override;
 };
 
                         // ===========================

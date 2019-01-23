@@ -15,9 +15,11 @@
 #include "base/callback_forward.h"
 #include "base/files/file_path.h"
 #include "base/memory/ref_counted.h"
+#include "base/optional.h"
 #include "base/strings/string16.h"
 #include "base/task/task_scheduler/task_scheduler.h"
 #include "build/build_config.h"
+#include "content/common/frame_sink_provider.mojom.h"
 #include "content/public/common/content_client.h"
 #include "content/public/renderer/url_loader_throttle_provider.h"
 #include "content/public/renderer/websocket_handshake_throttle_provider.h"
@@ -55,6 +57,10 @@ class WebURLResponse;
 struct WebPluginParams;
 struct WebURLError;
 }  // namespace blink
+
+namespace IPC {
+class Message;
+}
 
 namespace media {
 class KeySystemProperties;
@@ -438,6 +444,16 @@ class CONTENT_EXPORT ContentRendererClient {
 
   // Returns true if it is safe to redirect to |url|, otherwise returns false.
   virtual bool IsSafeRedirectTarget(const GURL& url);
+
+  // Allows the embedder to intercept IPC messages before they are sent to
+  // the browser. If the function handles the message, it should delete
+  // 'msg' and return 'true'. If the function does not handle the message,
+  // it should return 'false' without deleting 'msg'.
+  virtual bool Dispatch(IPC::Message* msg);
+
+  // Allows the embedder to override the implementation of the interface
+  // that creates frame sinks:
+  virtual bool BindFrameSinkProvider(mojom::FrameSinkProviderRequest request);
 };
 
 }  // namespace content
