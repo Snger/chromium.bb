@@ -113,9 +113,13 @@ def copyBin(destDir, version):
     'blpwtk2' + productAppend + '.pak',
     'content_shell.pak',
     'blpwtk2' + productAppend + '.dll.pdb',
+    'blpwtk2' + productAppend + '.map',
     'blpcr_egl' + productAppend + '.dll.pdb',
+    'blpcr_egl' + productAppend + '.map',
     'blpcr_glesv2' + productAppend + '.dll.pdb',
+    'blpcr_glesv2' + productAppend + '.map',
     'blpwtk2_subprocess' + productAppend + '.exe.pdb',
+    'blpwtk2_subprocess' + productAppend + '.map',
   ]
 
   configs = ['debug', 'release']
@@ -224,6 +228,7 @@ def main(args):
     f.write(version)
 
   os.environ['GN_GENERATORS'] = 'ninja'
+  applyVariableToEnvironment('GN_DEFINES', 'bb_generate_map_files', 'true')
 
   print ("srcDir is : " + srcDir)
   os.chdir(srcDir)
