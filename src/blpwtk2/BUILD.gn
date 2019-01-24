@@ -38,6 +38,12 @@ config("blpwtk2_shared") {
   defines = [ "USING_BLPWTK2_SHARED" ]
 }
 
+config("blpwtk2_gen_map") {
+  ldflags = [
+    "/lldmap"
+  ]
+}
+
 windows_manifest("blpwtk2_manifest") {
   sources = [
     default_compatibility_manifest,  # Want the normal OS compat list.
@@ -264,6 +270,10 @@ shared_library("blpwtk2") {
     "//third_party/angle:commit_id_config",
   ]
 
+  if (bb_generate_map_files) {
+    public_configs += [ ":blpwtk2_gen_map" ]
+  }
+
   public_deps = [
     ":blpwtk2_generate_sources",
     "//v8:v8",
@@ -345,6 +355,10 @@ executable("blpwtk2_subprocess") {
     ":blpwtk2_public",
     "//build/config/win:windowed",
   ]
+
+  if (bb_generate_map_files) {
+    configs += [ ":blpwtk2_gen_map" ]
+  }
 
   deps = [
     ":blpwtk2_generate_sources",
