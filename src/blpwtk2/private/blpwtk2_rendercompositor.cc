@@ -287,8 +287,13 @@ void RenderFrameSinkProviderImpl::CreateForWidget(
         return;
     }
 
-    auto gpu_channel =
-        content::RenderThreadImpl::current()->EstablishGpuChannelSync();
+    content::RenderThreadImpl *render_thread =
+        content::RenderThreadImpl::current();
+
+    scoped_refptr<gpu::GpuChannelHost> gpu_channel =
+        !render_thread->IsGpuCompositingDisabled() ?
+        render_thread->EstablishGpuChannelSync()   :
+        nullptr;
 
     if ((!gpu_channel || gpu_channel != d_gpu_channel) && d_worker_context_provider) {
         d_worker_context_provider = nullptr;

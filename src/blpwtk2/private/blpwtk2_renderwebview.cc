@@ -327,6 +327,17 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
             updateSize();
         }
     } return 0;
+    case WM_PAINT: {
+        PAINTSTRUCT ps;
+        BeginPaint(d_hwnd.get(), &ps);
+
+        if (d_gotRenderViewInfo) {
+            content::RenderWidget::FromRoutingID(d_renderWidgetRoutingId)->
+                Redraw();
+        }
+
+        EndPaint(d_hwnd.get(), &ps);
+    } return 0;
     case WM_ERASEBKGND:
         return 1;
     case WM_NCHITTEST: {
