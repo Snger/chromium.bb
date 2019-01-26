@@ -107,23 +107,23 @@ def generateMsvsMapFiles(destDir, version):
   for config in configs:
     srcBinDir = os.path.join(srcDir, 'out', 'static_' + config)
     for p in products:
-      destFile = re.match('(.*)[.]\bdll\b|\bexe\b$', p).group(1) + '.map'
+      binPath = os.path.join(srcBinDir, p)
+      mapPath = os.path.join(
+        srcBinDir, re.match('(.*)[.](?:\\bdll\\b|\\bexe\\b)$', p).group(1) + '.map')
 
       # Append a '.llvm' to the original map file
-      destFile = os.path.join(srcBinDir, p)
-      llvmFile = os.path.join(srcBinDir, p + '.llvm')
-      shutil.move(destFile, llvmFile)
+      shutil.move(mapPath, mapPath + '.llvm')
 
       # Execute dumpbin to generate the dumpbin-style map file
-      dumpbinFile = os.path.join(srcBinDir, p + '.dumpbin')
-      rc = bbutil.shellExecNoPipe('dumpbin -map {0} > {1}'.format(p, dumpbinFile))
+      rc = bbutil.shellExecNoPipe(
+        'dumpbin -map {0} > {1}'.format(binPath, mapPath + '.dumpbin'))
       if rc != 0:
         raise Exception("dumpbin failed to generate map file")
 
       # Execute msvs_map.py to generate MSVS-style map file
       rc = bbutil.shellExecNoPipe(
         'python src/build/msvs_map.py --llvm-map {0} --dumpbin-map {1} > {2}'.format(
-            llvmFile, dumpbinFile, destFile))
+            mapPath + '.llvm', mapPath + '.dumpbin', mapPath))
       if rc != 0:
         raise Exception("msvs_map.py failed to generate map file")
 
