@@ -271,6 +271,16 @@ std::unique_ptr<RenderCompositor> RenderFrameSinkProviderImpl::CreateCompositor(
     auto it = d_compositors_by_widget_id.find(widget_id);
     DCHECK(it == d_compositors_by_widget_id.end());
 
+    content::RenderThreadImpl *render_thread =
+        content::RenderThreadImpl::current();
+
+    d_gpu_channel =
+        render_thread->EstablishGpuChannelSync();
+
+    if (!d_gpu_channel) {
+        render_thread->CompositingModeFallbackToSoftware();
+    }
+
     return std::make_unique<RenderCompositorImpl>(
         *this, widget_id,
         viz::FrameSinkId(0, d_next_frame_sink_id++),
