@@ -54,6 +54,8 @@
 #include <content/common/gpu_stream_constants.h>
 #include <content/common/render_frame_metadata.mojom.h>
 #include <content/renderer/render_thread_impl.h>
+#include <content/renderer/renderer_blink_platform_impl.h>
+#include <services/service_manager/public/cpp/connector.h>
 #include <services/viz/public/interfaces/compositing/compositor_frame_sink.mojom.h>
 #include <services/ws/public/cpp/gpu/context_provider_command_buffer.h>
 #include <ui/compositor/compositor_vsync_manager.h>
@@ -77,6 +79,7 @@ class RenderFrameSinkProviderImpl : public RenderFrameSinkProvider,
     friend RenderCompositorImpl;
 
     mojo::Binding<content::mojom::FrameSinkProvider> d_binding;
+    content::mojom::FrameSinkProviderPtr d_default_frame_sink_provider;
     std::map<int, RenderCompositorImpl *> d_compositors_by_widget_id;
 
     scoped_refptr<base::SingleThreadTaskRunner> d_task_runner;
@@ -256,6 +259,11 @@ RenderFrameSinkProviderImpl::~RenderFrameSinkProviderImpl()
 void RenderFrameSinkProviderImpl::Bind(content::mojom::FrameSinkProviderRequest request)
 {
     d_binding.Bind(std::move(request), d_task_runner);
+
+    content::RenderThreadImpl::current()->GetConnector()->
+        BindInterface(
+            content::RenderThreadImpl::current_blink_platform_impl()->GetBrowserServiceName(),
+            mojo::MakeRequest(&d_default_frame_sink_provider));
 }
 
 void RenderFrameSinkProviderImpl::Unbind()
@@ -294,6 +302,10 @@ void RenderFrameSinkProviderImpl::CreateForWidget(
 {
     auto it = d_compositors_by_widget_id.find(widget_id);
     if (it == d_compositors_by_widget_id.end()) {
+        d_default_frame_sink_provider->CreateForWidget(
+            widget_id,
+            std::move(compositor_frame_sink_request),
+            std::move(compositor_frame_sink_client));
         return;
     }
 
