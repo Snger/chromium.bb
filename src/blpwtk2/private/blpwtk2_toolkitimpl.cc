@@ -607,6 +607,8 @@ ToolkitImpl::~ToolkitImpl()
 
     DCHECK(nullptr == ProfileImpl::anyInstance());
 
+    d_messagePump->flush();
+
     if (Statics::isInProcessRendererEnabled)
         InProcessRenderer::cleanup();
 
