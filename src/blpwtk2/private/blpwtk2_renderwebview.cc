@@ -42,10 +42,11 @@
 #include <content/common/drag_messages.h>
 #include <content/common/input_messages.h>
 #include <content/common/view_messages.h>
+#include <content/public/renderer/render_view.h>
 #include <content/renderer/render_thread_impl.h>
 #include <content/renderer/render_view_impl.h>
 #include <content/renderer/render_widget.h>
-#include <content/public/renderer/render_view.h>
+#include <content/renderer/gpu/layer_tree_view.h>
 #include <third_party/blink/public/web/web_local_frame.h>
 #include <third_party/blink/public/web/web_view.h>
 #include <ui/base/win/lock_state.h>
@@ -333,7 +334,7 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
 
         if (d_gotRenderViewInfo) {
             content::RenderWidget::FromRoutingID(d_renderWidgetRoutingId)->
-                Redraw();
+                layer_tree_view()->SetNeedsRedrawRect(gfx::Rect(ps.rcPaint));
         }
 
         EndPaint(d_hwnd.get(), &ps);
