@@ -23,42 +23,87 @@
 #ifndef INCLUDED_BLPWTK2_RENDERCOMPOSITOR2_H
 #define INCLUDED_BLPWTK2_RENDERCOMPOSITOR2_H
 
+#include <base/lazy_instance.h>
+#include <base/memory/scoped_refptr.h>
 #include <content/common/frame_sink_provider.mojom.h>
 #include <gpu/ipc/common/surface_handle.h>
 #include <mojo/public/cpp/bindings/binding.h>
 #include <ui/gfx/geometry/size.h>
 
+#include <map>
+#include <memory>
+
+namespace base {
+class SingleThreadTaskRunner;
+} // close namespace base
+
+namespace viz {
+class ParentLocalSurfaceIdAllocator;
+} // close namespace viz
+
 namespace blpwtk2 {
 
 class ProfileImpl;
 class RenderCompositor;
+class RenderFrameSinkProviderImpl;
 
-class RenderFrameSinkProvider {
+class RenderCompositorFactory {
+
+    friend struct base::LazyInstanceTraitsBase<RenderCompositorFactory>;
+    friend class RenderCompositor;
+
+    std::unique_ptr<RenderFrameSinkProviderImpl> d_frame_sink_provider;
+    scoped_refptr<base::SingleThreadTaskRunner> d_compositor_task_runner;
+
+    std::map<int, RenderCompositor *> d_compositors_by_widget_id;
+
+    RenderCompositorFactory();
+
   public:
 
-    static RenderFrameSinkProvider* GetInstance();
+    static RenderCompositorFactory* GetInstance();
     static void Terminate();
 
-    virtual ~RenderFrameSinkProvider();
+    ~RenderCompositorFactory();
 
-    virtual void Bind(content::mojom::FrameSinkProviderRequest request) = 0;
-    virtual void Unbind() = 0;
+    void Bind(content::mojom::FrameSinkProviderRequest request);
+    void Unbind();
 
-    virtual std::unique_ptr<RenderCompositor> CreateCompositor(
+    std::unique_ptr<RenderCompositor> CreateCompositor(
         int32_t widget_id,
         gpu::SurfaceHandle gpu_surface_handle,
-        blpwtk2::ProfileImpl *profile) = 0;
+        blpwtk2::ProfileImpl *profile);
 };
 
 class RenderCompositor {
+
+    friend class RenderCompositorFactory;
+
+    RenderCompositorFactory &d_factory;
+
+    int32_t d_widget_id;
+    gpu::SurfaceHandle d_gpu_surface_handle;
+    blpwtk2::ProfileImpl *d_profile;
+    scoped_refptr<base::SingleThreadTaskRunner> d_compositor_task_runner;
+    std::unique_ptr<viz::ParentLocalSurfaceIdAllocator> d_local_surface_id_allocator;
+
+    bool d_visible = false;
+    gfx::Size d_size;
+
+    RenderCompositor(
+        RenderCompositorFactory &,
+        int32_t widget_id,
+        gpu::SurfaceHandle gpu_surface_handle,
+        blpwtk2::ProfileImpl *profile);
+
   public:
 
-    virtual ~RenderCompositor();
+    ~RenderCompositor();
 
-    virtual viz::LocalSurfaceId GetLocalSurfaceId() = 0;
+    viz::LocalSurfaceId GetLocalSurfaceId();
 
-    virtual void SetVisible(bool visible) = 0;
-    virtual void Resize(const gfx::Size& size) = 0;
+    void SetVisible(bool visible);
+    void Resize(const gfx::Size& size);
 };
 
 } // close namespace blpwtk2
