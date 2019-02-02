@@ -64,7 +64,7 @@ ContentRendererClientImpl::ContentRendererClientImpl()
 
 ContentRendererClientImpl::~ContentRendererClientImpl()
 {
-    RenderFrameSinkProvider::Terminate();
+    RenderCompositorFactory::Terminate();
 }
 
 void ContentRendererClientImpl::RenderThreadStarted()
@@ -222,7 +222,7 @@ bool ContentRendererClientImpl::Dispatch(IPC::Message *msg)
 bool ContentRendererClientImpl::BindFrameSinkProvider(content::mojom::FrameSinkProviderRequest request)
 {
     if (Statics::rendererUIEnabled) {
-        RenderFrameSinkProvider::GetInstance()->Bind(std::move(request));
+        RenderCompositorFactory::GetInstance()->Bind(std::move(request));
         return true;
     }
 

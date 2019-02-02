@@ -25,11 +25,8 @@
 #include <blpwtk2_profileimpl.h>
 
 #include <algorithm>
-#include <map>
-#include <memory>
 
 #include <base/debug/alias.h>
-#include <base/lazy_instance.h>
 #include <base/memory/ref_counted.h>
 #include <base/message_loop/message_loop.h>
 #include <cc/trees/layer_tree_frame_sink_client.h>
@@ -37,6 +34,7 @@
 #include <components/viz/common/frame_sinks/begin_frame_source.h>
 #include <components/viz/common/frame_sinks/delay_based_time_source.h>
 #include <components/viz/common/surfaces/frame_sink_id.h>
+#include <components/viz/common/surfaces/frame_sink_id_allocator.h>
 #include <components/viz/common/surfaces/parent_local_surface_id_allocator.h>
 #include <components/viz/host/host_frame_sink_client.h>
 #include <components/viz/host/host_frame_sink_manager.h>
@@ -62,59 +60,93 @@
 
 namespace blpwtk2 {
 
-RenderFrameSinkProvider::~RenderFrameSinkProvider()
-{
-}
+class RenderCompositorFrameSinkImpl;
 
-RenderCompositor::~RenderCompositor()
-{
-}
-
-class RenderCompositorImpl;
-
-class RenderFrameSinkProviderImpl : public RenderFrameSinkProvider,
-                                    private content::mojom::FrameSinkProvider {
-  private:
-
-    friend RenderCompositorImpl;
+class RenderFrameSinkProviderImpl : public content::mojom::FrameSinkProvider {
 
     mojo::Binding<content::mojom::FrameSinkProvider> d_binding;
     content::mojom::FrameSinkProviderPtr d_default_frame_sink_provider;
-    std::map<int, RenderCompositorImpl *> d_compositors_by_widget_id;
 
-    scoped_refptr<base::SingleThreadTaskRunner> d_task_runner;
-
+    scoped_refptr<base::SingleThreadTaskRunner> d_main_task_runner, d_compositor_task_runner;
     gpu::GpuMemoryBufferManager *d_gpu_memory_buffer_manager = nullptr;
+
     std::unique_ptr<viz::SharedBitmapManager> d_shared_bitmap_manager;
     std::unique_ptr<viz::FrameSinkManagerImpl> d_frame_sink_manager;
     std::unique_ptr<viz::HostFrameSinkManager> d_host_frame_sink_manager;
+    std::unique_ptr<viz::FrameSinkIdAllocator> d_frame_sink_id_allocator;
     std::unique_ptr<viz::RendererSettings> d_renderer_settings;
     std::unique_ptr<viz::OutputDeviceBacking> d_software_output_device_backing;
-
-    uint32_t d_next_frame_sink_id = 1u;
 
     scoped_refptr<gpu::GpuChannelHost> d_gpu_channel;
     scoped_refptr<ws::ContextProviderCommandBuffer> d_worker_context_provider;
 
-  public:
+    struct CompositorData {
+        CompositorData(gpu::SurfaceHandle gpu_surface_handle)
+        : gpu_surface_handle(gpu_surface_handle) {}
+
+        gpu::SurfaceHandle gpu_surface_handle;
+        std::unique_ptr<RenderCompositorFrameSinkImpl> compositor_frame_sink_impl;
+        bool visible = false;
+        gfx::Size size;
+    };
+
+    std::map<int32_t, CompositorData> d_compositor_data;
+
+    void EstablishGpuChannelSyncOnMain(gpu::GpuChannelEstablishedCallback callback);
+
+    void CreateForWidgetOnCompositor(
+        int32_t widget_id,
+        viz::mojom::CompositorFrameSinkRequest compositor_frame_sink_request,
+        viz::mojom::CompositorFrameSinkClientPtr compositor_frame_sink_client,
+        scoped_refptr<gpu::GpuChannelHost> gpu_channel);
+
+public:
 
     RenderFrameSinkProviderImpl();
     ~RenderFrameSinkProviderImpl() override;
 
-    gpu::GpuMemoryBufferManager* gpu_memory_buffer_manager() { return d_gpu_memory_buffer_manager; }
-    viz::SharedBitmapManager* shared_bitmap_manager() { return d_shared_bitmap_manager.get(); }
-    viz::OutputDeviceBacking* software_output_device_backing() { return d_software_output_device_backing.get(); }
+    void Init(
+        gpu::GpuMemoryBufferManager *gpu_memory_buffer_manager);
 
-    // RenderFrameSinkProvider overrides:
-    void Bind(content::mojom::FrameSinkProviderRequest request) override;
-    void Unbind() override;
+    gpu::GpuMemoryBufferManager *gpu_memory_buffer_manager() {
+        return d_gpu_memory_buffer_manager;
+    }
 
-    std::unique_ptr<RenderCompositor> CreateCompositor(
-        int32_t widget_id,
-        gpu::SurfaceHandle gpu_surface_handle,
-        blpwtk2::ProfileImpl *profile) override;
+    viz::SharedBitmapManager *shared_bitmap_manager() {
+        return d_shared_bitmap_manager.get();
+    }
 
-  private:
+    viz::FrameSinkManagerImpl *frame_sink_manager() {
+        return d_frame_sink_manager.get();
+    }
+
+    viz::HostFrameSinkManager *host_frame_sink_manager() {
+        return d_host_frame_sink_manager.get();
+    }
+
+    viz::FrameSinkIdAllocator *frame_sink_id_allocator() {
+        return d_frame_sink_id_allocator.get();
+    }
+
+    viz::RendererSettings *renderer_settings() {
+        return d_renderer_settings.get();
+    }
+
+    viz::OutputDeviceBacking *software_output_device_backing() {
+        return d_software_output_device_backing.get();
+    }
+
+    scoped_refptr<ws::ContextProviderCommandBuffer> worker_context_provider() {
+        return d_worker_context_provider;
+    }
+
+    void Bind(content::mojom::FrameSinkProviderRequest request);
+    void Unbind();
+
+    void RegisterCompositor(int32_t widget_id, gpu::SurfaceHandle gpu_surface_handle);
+    void UnregisterCompositor(int32_t widget_id);
+    void SetCompositorVisible(int32_t widget_id, bool visible);
+    void ResizeCompositor(int32_t widget_id, gfx::Size size);
 
     // content::mojom::FrameSinkProvider overrides:
     void CreateForWidget(
@@ -127,30 +159,22 @@ class RenderFrameSinkProviderImpl : public RenderFrameSinkProvider,
         content::mojom::RenderFrameMetadataObserverPtr observer) override;
 };
 
-class RenderCompositorImpl : public RenderCompositor,
-                             private viz::mojom::CompositorFrameSink,
-                             private viz::HostFrameSinkClient,
-                             private cc::LayerTreeFrameSinkClient,
-                             private viz::BeginFrameObserver {
-private:
+class RenderCompositorFrameSinkImpl : public viz::mojom::CompositorFrameSink,
+                                      private viz::HostFrameSinkClient,
+                                      private cc::LayerTreeFrameSinkClient,
+                                      private viz::BeginFrameObserver {
+
+    RenderFrameSinkProviderImpl& d_context;
 
     mojo::Binding<viz::mojom::CompositorFrameSink> d_binding;
-    RenderFrameSinkProviderImpl& d_frame_sink_provider;
-    int32_t d_widget_id;
-    viz::FrameSinkId d_frame_sink_id;
-    gpu::SurfaceHandle d_gpu_surface_handle;
-    blpwtk2::ProfileImpl *d_profile;
-    scoped_refptr<ui::CompositorVSyncManager> d_vsync_manager;
-    std::unique_ptr<viz::ParentLocalSurfaceIdAllocator> d_local_surface_id_allocator;
-
     viz::mojom::CompositorFrameSinkClientPtr d_client;
 
+    viz::FrameSinkId d_frame_sink_id;
+
     std::unique_ptr<viz::SyntheticBeginFrameSource> d_begin_frame_source;
+    scoped_refptr<ui::CompositorVSyncManager> d_vsync_manager;
     std::unique_ptr<viz::Display> d_display;
     std::unique_ptr<cc::LayerTreeFrameSink> d_layer_tree_frame_sink;
-
-    bool d_visible = false;
-    gfx::Size d_size;
 
     viz::BeginFrameSource *d_delegated_begin_frame_source = nullptr;
     viz::BeginFrameArgs d_last_begin_frame_args;
@@ -158,27 +182,6 @@ private:
     bool d_added_frame_observer = false;
     bool d_client_wants_animate_only_begin_frames = false;
     std::vector<viz::ReturnedResource> d_resources_to_reclaim;
-
-public:
-
-    RenderCompositorImpl(
-        RenderFrameSinkProviderImpl &,
-        int32_t widget_id,
-        const viz::FrameSinkId& frame_sink_id,
-        gpu::SurfaceHandle gpu_surface_handle,
-        blpwtk2::ProfileImpl *profile);
-    ~RenderCompositorImpl() override;
-
-    void CreateFrameSink(
-        viz::mojom::CompositorFrameSinkRequest compositor_frame_sink_request,
-        viz::mojom::CompositorFrameSinkClientPtr compositor_frame_sink_client);
-
-    // RenderCompositor overrides:
-    viz::LocalSurfaceId GetLocalSurfaceId() override;
-    void SetVisible(bool visible) override;
-    void Resize(const gfx::Size& size) override;
-
-private:
 
     void UpdateNeedsBeginFrameSource();
     void UpdateVSyncParameters(base::TimeTicks timebase, base::TimeDelta interval);
@@ -230,48 +233,94 @@ private:
     const viz::BeginFrameArgs& LastUsedBeginFrameArgs() const override;
     void OnBeginFrameSourcePausedChanged(bool paused) override;
     bool WantsAnimateOnlyBeginFrames() const override;
+
+public:
+
+    RenderCompositorFrameSinkImpl(
+        RenderFrameSinkProviderImpl& context,
+        gpu::SurfaceHandle gpu_surface_handle,
+        scoped_refptr<gpu::GpuChannelHost> gpu_channel,
+        scoped_refptr<base::SingleThreadTaskRunner> task_runner,
+        gfx::Size size,
+        bool visible,
+        viz::mojom::CompositorFrameSinkRequest compositor_frame_sink_request,
+        viz::mojom::CompositorFrameSinkClientPtr compositor_frame_sink_client);
+    ~RenderCompositorFrameSinkImpl() override;
+
+    void SetVisible(bool visible);
+    void Resize(gfx::Size size);
 };
 
-RenderFrameSinkProviderImpl::RenderFrameSinkProviderImpl()
-: d_binding(this)
-, d_task_runner(base::MessageLoop::current()->task_runner())
-, d_gpu_memory_buffer_manager(content::RenderThreadImpl::current()->GetGpuMemoryBufferManager())
-, d_shared_bitmap_manager(
-    new viz::ServerSharedBitmapManager())
-, d_frame_sink_manager(
-    new viz::FrameSinkManagerImpl(
-        d_shared_bitmap_manager.get()))
-, d_host_frame_sink_manager(
-    new viz::HostFrameSinkManager())
-, d_renderer_settings(
-    new viz::RendererSettings(viz::CreateRendererSettings()))
-, d_software_output_device_backing(
-    new viz::OutputDeviceBacking())
+//
+namespace {
+
+base::LazyInstance<RenderCompositorFactory>::DestructorAtExit
+    s_render_frame_sink_provider_instance = LAZY_INSTANCE_INITIALIZER;
+
+} // close namespace
+
+RenderCompositorFactory* RenderCompositorFactory::GetInstance()
 {
-    d_host_frame_sink_manager->SetLocalManager(d_frame_sink_manager.get());
-    d_frame_sink_manager->SetLocalClient(d_host_frame_sink_manager.get());
+    return s_render_frame_sink_provider_instance.Pointer();
 }
 
-RenderFrameSinkProviderImpl::~RenderFrameSinkProviderImpl()
+void RenderCompositorFactory::Terminate()
 {
+    if (!s_render_frame_sink_provider_instance.IsCreated()) {
+        return;
+    }
 }
 
-void RenderFrameSinkProviderImpl::Bind(content::mojom::FrameSinkProviderRequest request)
+RenderCompositorFactory::RenderCompositorFactory()
+: d_frame_sink_provider(new RenderFrameSinkProviderImpl())
 {
-    d_binding.Bind(std::move(request), d_task_runner);
+    content::RenderThreadImpl *render_thread =
+        content::RenderThreadImpl::current();
 
-    content::RenderThreadImpl::current()->GetConnector()->
-        BindInterface(
-            content::RenderThreadImpl::current_blink_platform_impl()->GetBrowserServiceName(),
-            mojo::MakeRequest(&d_default_frame_sink_provider));
+    d_compositor_task_runner = render_thread->compositor_task_runner();
+
+    auto gpu_channel = render_thread->EstablishGpuChannelSync();
+
+    if (!gpu_channel) {
+        render_thread->CompositingModeFallbackToSoftware();
+    }
+
+    d_compositor_task_runner->
+        PostTask(
+            FROM_HERE,
+            base::BindOnce(&RenderFrameSinkProviderImpl::Init,
+                base::Unretained(d_frame_sink_provider.get()),
+                render_thread->GetGpuMemoryBufferManager()));
 }
 
-void RenderFrameSinkProviderImpl::Unbind()
+RenderCompositorFactory::~RenderCompositorFactory()
 {
-    d_binding.Close();
+    d_compositor_task_runner->
+        DeleteSoon(
+            FROM_HERE,
+            std::move(d_frame_sink_provider));
 }
 
-std::unique_ptr<RenderCompositor> RenderFrameSinkProviderImpl::CreateCompositor(
+void RenderCompositorFactory::Bind(content::mojom::FrameSinkProviderRequest request)
+{
+    d_compositor_task_runner->
+        PostTask(
+            FROM_HERE,
+            base::BindOnce(&RenderFrameSinkProviderImpl::Bind,
+                base::Unretained(d_frame_sink_provider.get()),
+                std::move(request)));
+}
+
+void RenderCompositorFactory::Unbind()
+{
+    d_compositor_task_runner->
+        PostTask(
+            FROM_HERE,
+            base::BindOnce(&RenderFrameSinkProviderImpl::Unbind,
+                base::Unretained(d_frame_sink_provider.get())));
+}
+
+std::unique_ptr<RenderCompositor> RenderCompositorFactory::CreateCompositor(
     int32_t widget_id,
     gpu::SurfaceHandle gpu_surface_handle,
     blpwtk2::ProfileImpl *profile)
@@ -279,20 +328,188 @@ std::unique_ptr<RenderCompositor> RenderFrameSinkProviderImpl::CreateCompositor(
     auto it = d_compositors_by_widget_id.find(widget_id);
     DCHECK(it == d_compositors_by_widget_id.end());
 
+    std::unique_ptr<RenderCompositor> render_compositor(
+        new RenderCompositor(
+            *this, widget_id,
+            gpu_surface_handle, profile));
+
+    return render_compositor;
+}
+
+//
+RenderCompositor::RenderCompositor(
+    RenderCompositorFactory& factory,
+    int32_t widget_id,
+    gpu::SurfaceHandle gpu_surface_handle,
+    blpwtk2::ProfileImpl *profile)
+: d_factory(factory)
+, d_widget_id(widget_id)
+, d_gpu_surface_handle(gpu_surface_handle)
+, d_profile(profile)
+, d_compositor_task_runner(d_factory.d_compositor_task_runner)
+, d_local_surface_id_allocator(new viz::ParentLocalSurfaceIdAllocator())
+{
+    d_factory.d_compositors_by_widget_id.insert(
+        std::make_pair(d_widget_id, this));
+
+    d_profile->registerNativeViewForComposition(d_gpu_surface_handle);
+
+    d_compositor_task_runner->
+        PostTask(
+            FROM_HERE,
+            base::BindOnce(&RenderFrameSinkProviderImpl::RegisterCompositor,
+                base::Unretained(d_factory.d_frame_sink_provider.get()),
+                d_widget_id,
+                d_gpu_surface_handle));
+}
+
+RenderCompositor::~RenderCompositor()
+{
+    auto it = d_factory.d_compositors_by_widget_id.find(d_widget_id);
+    DCHECK(it != d_factory.d_compositors_by_widget_id.end());
+
+    d_factory.d_compositors_by_widget_id.erase(it);
+
+    d_profile->unregisterNativeViewForComposition(d_gpu_surface_handle);
+
+    d_compositor_task_runner->
+        PostTask(
+            FROM_HERE,
+            base::BindOnce(&RenderFrameSinkProviderImpl::UnregisterCompositor,
+                base::Unretained(d_factory.d_frame_sink_provider.get()),
+                d_widget_id));
+}
+
+viz::LocalSurfaceId RenderCompositor::GetLocalSurfaceId()
+{
+    return d_local_surface_id_allocator->GetCurrentLocalSurfaceId();
+}
+
+void RenderCompositor::SetVisible(bool visible)
+{
+    d_visible = visible;
+
+    d_compositor_task_runner->
+        PostTask(
+            FROM_HERE,
+            base::BindOnce(&RenderFrameSinkProviderImpl::SetCompositorVisible,
+                base::Unretained(d_factory.d_frame_sink_provider.get()),
+                d_widget_id,
+                d_visible));
+}
+
+void RenderCompositor::Resize(const gfx::Size& size)
+{
+    if (d_size == size) {
+        return;
+    }
+
+    d_size = size;
+
+    d_local_surface_id_allocator->GenerateId();
+
+    d_compositor_task_runner->
+        PostTask(
+            FROM_HERE,
+            base::BindOnce(&RenderFrameSinkProviderImpl::ResizeCompositor,
+                base::Unretained(d_factory.d_frame_sink_provider.get()),
+                d_widget_id,
+                d_size));
+}
+
+//
+RenderFrameSinkProviderImpl::RenderFrameSinkProviderImpl()
+: d_binding(this)
+{
     content::RenderThreadImpl *render_thread =
         content::RenderThreadImpl::current();
 
-    d_gpu_channel =
-        render_thread->EstablishGpuChannelSync();
+    d_main_task_runner = base::MessageLoop::current()->task_runner();
+    d_compositor_task_runner = render_thread->compositor_task_runner();
 
-    if (!d_gpu_channel) {
-        render_thread->CompositingModeFallbackToSoftware();
+    render_thread->GetConnector()->
+        BindInterface(
+            content::RenderThreadImpl::current_blink_platform_impl()->GetBrowserServiceName(),
+            mojo::MakeRequest(&d_default_frame_sink_provider));
+}
+
+RenderFrameSinkProviderImpl::~RenderFrameSinkProviderImpl()
+{
+}
+
+void RenderFrameSinkProviderImpl::Init(
+    gpu::GpuMemoryBufferManager *gpu_memory_buffer_manager)
+{
+    d_gpu_memory_buffer_manager = gpu_memory_buffer_manager;
+
+    d_shared_bitmap_manager = std::make_unique<viz::ServerSharedBitmapManager>();
+
+    d_frame_sink_manager = std::make_unique<viz::FrameSinkManagerImpl>(d_shared_bitmap_manager.get());
+    d_host_frame_sink_manager = std::make_unique<viz::HostFrameSinkManager>();
+
+    d_host_frame_sink_manager->SetLocalManager(d_frame_sink_manager.get());
+    d_frame_sink_manager->SetLocalClient(d_host_frame_sink_manager.get());
+
+    d_frame_sink_id_allocator = std::make_unique<viz::FrameSinkIdAllocator>(0);
+
+    d_renderer_settings = std::make_unique<viz::RendererSettings>(viz::CreateRendererSettings());
+    d_software_output_device_backing = std::make_unique<viz::OutputDeviceBacking>();
+}
+
+void RenderFrameSinkProviderImpl::Bind(content::mojom::FrameSinkProviderRequest request)
+{
+    d_binding.Bind(std::move(request), d_compositor_task_runner);
+}
+
+void RenderFrameSinkProviderImpl::Unbind()
+{
+    d_binding.Close();
+}
+
+void RenderFrameSinkProviderImpl::RegisterCompositor(
+    int32_t widget_id, gpu::SurfaceHandle gpu_surface_handle)
+{
+    auto it = d_compositor_data.find(widget_id);
+    DCHECK(it == d_compositor_data.end());
+
+    CompositorData compositor_data(gpu_surface_handle);
+
+    d_compositor_data.insert(
+        std::make_pair(
+            widget_id, std::move(compositor_data)));
+}
+
+void RenderFrameSinkProviderImpl::UnregisterCompositor(
+    int32_t widget_id)
+{
+    auto it = d_compositor_data.find(widget_id);
+    DCHECK(it != d_compositor_data.end());
+
+    d_compositor_data.erase(widget_id);
+}
+
+void RenderFrameSinkProviderImpl::SetCompositorVisible(int32_t widget_id, bool visible)
+{
+    auto it = d_compositor_data.find(widget_id);
+    DCHECK(it != d_compositor_data.end());
+
+    it->second.visible = visible;
+
+    if (it->second.compositor_frame_sink_impl) {
+        it->second.compositor_frame_sink_impl->SetVisible(it->second.visible);
     }
+}
 
-    return std::make_unique<RenderCompositorImpl>(
-        *this, widget_id,
-        viz::FrameSinkId(0, d_next_frame_sink_id++),
-        gpu_surface_handle, profile);
+void RenderFrameSinkProviderImpl::ResizeCompositor(int32_t widget_id, gfx::Size size)
+{
+    auto it = d_compositor_data.find(widget_id);
+    DCHECK(it != d_compositor_data.end());
+
+    it->second.size = size;
+
+    if (it->second.compositor_frame_sink_impl) {
+        it->second.compositor_frame_sink_impl->Resize(it->second.size);
+    }
 }
 
 void RenderFrameSinkProviderImpl::CreateForWidget(
@@ -300,70 +517,18 @@ void RenderFrameSinkProviderImpl::CreateForWidget(
     viz::mojom::CompositorFrameSinkRequest compositor_frame_sink_request,
     viz::mojom::CompositorFrameSinkClientPtr compositor_frame_sink_client)
 {
-    auto it = d_compositors_by_widget_id.find(widget_id);
-    if (it == d_compositors_by_widget_id.end()) {
-        d_default_frame_sink_provider->CreateForWidget(
-            widget_id,
-            std::move(compositor_frame_sink_request),
-            std::move(compositor_frame_sink_client));
-        return;
-    }
-
-    content::RenderThreadImpl *render_thread =
-        content::RenderThreadImpl::current();
-
-    scoped_refptr<gpu::GpuChannelHost> gpu_channel =
-        !render_thread->IsGpuCompositingDisabled() ?
-        render_thread->EstablishGpuChannelSync()   :
-        nullptr;
-
-    if ((!gpu_channel || gpu_channel != d_gpu_channel) && d_worker_context_provider) {
-        d_worker_context_provider = nullptr;
-    }
-
-    d_gpu_channel = gpu_channel;
-
-    if (d_gpu_channel && !d_worker_context_provider) {
-        constexpr bool automatic_flushes = false;
-        constexpr bool support_locking   = true;
-        constexpr bool support_gles2_interface = true;
-        constexpr bool support_raster_interface = true;
-        constexpr bool support_grcontext = true;
-
-        gpu::ContextCreationAttribs attributes;
-        attributes.alpha_size                      = -1;
-        attributes.depth_size                      = 0;
-        attributes.stencil_size                    = 0;
-        attributes.samples                         = 0;
-        attributes.sample_buffers                  = 0;
-        attributes.bind_generates_resource         = false;
-        attributes.lose_context_when_out_of_memory = true;
-        attributes.buffer_preserved                = false;
-        attributes.enable_gles2_interface          = support_gles2_interface;
-        attributes.enable_raster_interface         = support_raster_interface;
-
-        d_worker_context_provider = new ws::ContextProviderCommandBuffer(
-            d_gpu_channel,
-            d_gpu_memory_buffer_manager,
-            content::kGpuStreamIdDefault,
-            content::kGpuStreamPriorityUI,
-            gpu::kNullSurfaceHandle,
-            GURL("chrome://gpu/RenderCompositorContext::EstablishGpuChannel"),
-            automatic_flushes,
-            support_locking,
-            support_grcontext,
-            gpu::SharedMemoryLimits(),
-            attributes,
-            ws::command_buffer_metrics::ContextType::RENDER_WORKER);
-
-        if (d_worker_context_provider->BindToCurrentThread()
-                != gpu::ContextResult::kSuccess) {
-            d_worker_context_provider = nullptr;
-        }
-    }
-
-    it->second->CreateFrameSink(
-        std::move(compositor_frame_sink_request), std::move(compositor_frame_sink_client));
+    d_main_task_runner->
+        PostTask(
+            FROM_HERE,
+            base::BindOnce(
+                &RenderFrameSinkProviderImpl::EstablishGpuChannelSyncOnMain,
+                base::Unretained(this),
+                base::BindOnce(
+                    &RenderFrameSinkProviderImpl::CreateForWidgetOnCompositor,
+                    base::Unretained(this),
+                    widget_id,
+                    std::move(compositor_frame_sink_request),
+                    std::move(compositor_frame_sink_client))));
 }
 
 void RenderFrameSinkProviderImpl::RegisterRenderFrameMetadataObserver(
@@ -373,97 +538,133 @@ void RenderFrameSinkProviderImpl::RegisterRenderFrameMetadataObserver(
 {
 }
 
-RenderCompositorImpl::RenderCompositorImpl(
-    RenderFrameSinkProviderImpl& frame_sink_provider,
+void RenderFrameSinkProviderImpl::EstablishGpuChannelSyncOnMain(
+    gpu::GpuChannelEstablishedCallback callback)
+{
+    content::RenderThreadImpl *render_thread =
+        content::RenderThreadImpl::current();
+
+    scoped_refptr<gpu::GpuChannelHost> gpu_channel =
+        !render_thread->IsGpuCompositingDisabled() ?
+        render_thread->EstablishGpuChannelSync()   :
+        nullptr;
+
+    d_compositor_task_runner->PostTask(
+        FROM_HERE,
+        base::BindOnce(std::move(callback), gpu_channel));
+}
+
+void RenderFrameSinkProviderImpl::CreateForWidgetOnCompositor(
     int32_t widget_id,
-    const viz::FrameSinkId& frame_sink_id,
+    viz::mojom::CompositorFrameSinkRequest compositor_frame_sink_request,
+    viz::mojom::CompositorFrameSinkClientPtr compositor_frame_sink_client,
+    scoped_refptr<gpu::GpuChannelHost> gpu_channel)
+{
+    auto it = d_compositor_data.find(widget_id);
+    if (it == d_compositor_data.end()) {
+        d_default_frame_sink_provider->CreateForWidget(
+            widget_id,
+            std::move(compositor_frame_sink_request),
+            std::move(compositor_frame_sink_client));
+        return;
+    }
+
+    if (it->second.compositor_frame_sink_impl) {
+        it->second.compositor_frame_sink_impl.reset();
+    }
+
+    if (d_gpu_channel != gpu_channel) {
+        d_gpu_channel = gpu_channel;
+
+        if (d_gpu_channel) {
+            constexpr bool automatic_flushes = false;
+            constexpr bool support_locking   = true;
+            constexpr bool support_gles2_interface = true;
+            constexpr bool support_raster_interface = true;
+            constexpr bool support_grcontext = true;
+
+            gpu::ContextCreationAttribs attributes;
+            attributes.alpha_size                      = -1;
+            attributes.depth_size                      = 0;
+            attributes.stencil_size                    = 0;
+            attributes.samples                         = 0;
+            attributes.sample_buffers                  = 0;
+            attributes.bind_generates_resource         = false;
+            attributes.lose_context_when_out_of_memory = true;
+            attributes.buffer_preserved                = false;
+            attributes.enable_gles2_interface          = support_gles2_interface;
+            attributes.enable_raster_interface         = support_raster_interface;
+
+            d_worker_context_provider = new ws::ContextProviderCommandBuffer(
+                d_gpu_channel,
+                d_gpu_memory_buffer_manager,
+                content::kGpuStreamIdDefault,
+                content::kGpuStreamPriorityUI,
+                gpu::kNullSurfaceHandle,
+                GURL("chrome://gpu/RenderFrameSinkProviderImpl::Init"),
+                automatic_flushes,
+                support_locking,
+                support_grcontext,
+                gpu::SharedMemoryLimits(),
+                attributes,
+                ws::command_buffer_metrics::ContextType::RENDER_WORKER);
+
+            if (d_worker_context_provider->BindToCurrentThread()
+                    != gpu::ContextResult::kSuccess) {
+                d_worker_context_provider = nullptr;
+            }
+        }
+        else {
+            d_worker_context_provider.reset();
+        }
+    }
+
+    it->second.compositor_frame_sink_impl =
+        std::make_unique<RenderCompositorFrameSinkImpl>(
+            *this,
+            it->second.gpu_surface_handle,
+            d_gpu_channel,
+            d_compositor_task_runner,
+            it->second.size,
+            it->second.visible,
+            std::move(compositor_frame_sink_request),
+            std::move(compositor_frame_sink_client));
+}
+
+//
+RenderCompositorFrameSinkImpl::RenderCompositorFrameSinkImpl(
+    RenderFrameSinkProviderImpl& context,
     gpu::SurfaceHandle gpu_surface_handle,
-    blpwtk2::ProfileImpl *profile)
-: d_binding(this)
-, d_frame_sink_provider(frame_sink_provider)
-, d_widget_id(widget_id)
-, d_frame_sink_id(frame_sink_id)
-, d_gpu_surface_handle(gpu_surface_handle)
-, d_profile(profile)
-, d_vsync_manager(new ui::CompositorVSyncManager())
-, d_local_surface_id_allocator(new viz::ParentLocalSurfaceIdAllocator())
-{
-    d_frame_sink_provider.d_compositors_by_widget_id.insert(
-        std::make_pair(d_widget_id, this));
-
-    d_frame_sink_provider.d_host_frame_sink_manager->RegisterFrameSinkId(
-        d_frame_sink_id, this);
-}
-
-RenderCompositorImpl::~RenderCompositorImpl()
-{
-    d_profile->unregisterNativeViewForComposition(d_gpu_surface_handle);
-
-    auto it = d_frame_sink_provider.d_compositors_by_widget_id.find(d_widget_id);
-    DCHECK(it != d_frame_sink_provider.d_compositors_by_widget_id.end());
-
-    d_frame_sink_provider.d_compositors_by_widget_id.erase(it);
-
-    d_frame_sink_provider.d_host_frame_sink_manager->InvalidateFrameSinkId(
-        d_frame_sink_id);
-
-    if (d_begin_frame_source) {
-        d_frame_sink_provider.d_frame_sink_manager->
-            UnregisterBeginFrameSource(d_begin_frame_source.get());
-    }
-
-    if (d_layer_tree_frame_sink) {
-        d_layer_tree_frame_sink->DetachFromClient();
-    }
-}
-
-void RenderCompositorImpl::CreateFrameSink(
+    scoped_refptr<gpu::GpuChannelHost> gpu_channel,
+    scoped_refptr<base::SingleThreadTaskRunner> task_runner,
+    gfx::Size size,
+    bool visible,
     viz::mojom::CompositorFrameSinkRequest compositor_frame_sink_request,
     viz::mojom::CompositorFrameSinkClientPtr compositor_frame_sink_client)
+: d_context(context)
+, d_binding(this)
 {
-    d_profile->unregisterNativeViewForComposition(d_gpu_surface_handle);
-
-    auto task_runner = d_frame_sink_provider.d_task_runner;
-
-    if (d_binding.is_bound()) {
-        d_binding.Close();
-    }
-
     d_binding.Bind(std::move(compositor_frame_sink_request), task_runner);
-
     d_client = std::move(compositor_frame_sink_client);
 
-    if (d_frame_sink_provider.d_gpu_channel) {
-        d_profile->registerNativeViewForComposition(d_gpu_surface_handle);
-    }
+    d_frame_sink_id = d_context.frame_sink_id_allocator()->NextFrameSinkId();
+    d_context.host_frame_sink_manager()->RegisterFrameSinkId(d_frame_sink_id, this);
 
-    // Setup the begin frame source:
-    if (d_begin_frame_source) {
-        d_frame_sink_provider.d_frame_sink_manager->
-            UnregisterBeginFrameSource(d_begin_frame_source.get());
-    }
+    //
+    d_begin_frame_source =
+        std::make_unique<viz::DelayBasedBeginFrameSource>(
+            std::make_unique<viz::DelayBasedTimeSource>(
+                task_runner.get()),
+                viz::BeginFrameSource::kNotRestartableId);
 
-    constexpr bool disable_display_vsync = false;
+    d_context.frame_sink_manager()->RegisterBeginFrameSource(
+        d_begin_frame_source.get(), d_frame_sink_id);
 
-    if (disable_display_vsync) {
-        d_begin_frame_source =
-            std::make_unique<viz::BackToBackBeginFrameSource>(
-                std::make_unique<viz::DelayBasedTimeSource>(
-                    task_runner.get()));
-    }
-    else {
-        d_begin_frame_source =
-            std::make_unique<viz::DelayBasedBeginFrameSource>(
-                std::make_unique<viz::DelayBasedTimeSource>(
-                    task_runner.get()),
-                    viz::BeginFrameSource::kNotRestartableId);
-    }
-
-    d_frame_sink_provider.d_frame_sink_manager->
-        RegisterBeginFrameSource(d_begin_frame_source.get(), d_frame_sink_id);
-
-    // The GPU context provider:
-    auto worker_context_provider = d_frame_sink_provider.d_worker_context_provider;
+    //
+    scoped_refptr<ws::ContextProviderCommandBuffer> worker_context_provider =
+        gpu_channel                          ?
+        d_context.worker_context_provider() :
+        nullptr;
 
     scoped_refptr<ws::ContextProviderCommandBuffer> context_provider;
 
@@ -487,12 +688,12 @@ void RenderCompositorImpl::CreateFrameSink(
         attributes.enable_raster_interface         = support_raster_interface;
 
         context_provider = new ws::ContextProviderCommandBuffer(
-            d_frame_sink_provider.d_gpu_channel,
-            d_frame_sink_provider.d_gpu_memory_buffer_manager,
+            gpu_channel,
+            d_context.gpu_memory_buffer_manager(),
             content::kGpuStreamIdDefault,
             content::kGpuStreamPriorityUI,
-            d_gpu_surface_handle,
-            GURL("chrome://gpu/RenderCompositorImpl::CreateFrameSink"),
+            gpu_surface_handle,
+            GURL("chrome://gpu/RenderCompositorFrameSinkImpl::CreateFrameSink"),
             automatic_flushes,
             support_locking,
             support_grcontext,
@@ -507,11 +708,13 @@ void RenderCompositorImpl::CreateFrameSink(
         }
     }
 
-    // viz::OutputSurface for the display:
+    // The viz::OutputSurface for the viz::Display:
+    d_vsync_manager = new ui::CompositorVSyncManager();
+
     content::BrowserCompositorOutputSurface::UpdateVSyncParametersCallback
         update_vsync_parameters_callback =
             base::Bind(
-                &RenderCompositorImpl::UpdateVSyncParameters,
+                &RenderCompositorFrameSinkImpl::UpdateVSyncParameters,
                 base::Unretained(this));
 
     std::unique_ptr<viz::OutputSurface> display_output_surface;
@@ -527,12 +730,12 @@ void RenderCompositorImpl::CreateFrameSink(
         display_output_surface =
             std::make_unique<content::SoftwareBrowserCompositorOutputSurface>(
                 viz::CreateSoftwareOutputDeviceWinBrowser(
-                    d_gpu_surface_handle,
-                    d_frame_sink_provider.software_output_device_backing()),
+                    gpu_surface_handle,
+                    d_context.software_output_device_backing()),
                 update_vsync_parameters_callback);
     }
 
-    // viz::DisplayScheduler:
+    // The viz::DisplayScheduler:
     constexpr bool wait_for_all_pipeline_stages_before_draw = false;
 
     auto display_scheduler =
@@ -542,121 +745,63 @@ void RenderCompositorImpl::CreateFrameSink(
             display_output_surface->capabilities().max_frames_pending,
             wait_for_all_pipeline_stages_before_draw);
 
-    // viz::Display:
+    // The viz::Display:
     d_display =
         std::make_unique<viz::Display>(
-            d_frame_sink_provider.d_shared_bitmap_manager.get(),
-            *d_frame_sink_provider.d_renderer_settings,
+            d_context.shared_bitmap_manager(),
+            *d_context.renderer_settings(),
             d_frame_sink_id,
             std::move(display_output_surface),
             std::move(display_scheduler),
             task_runner);
 
-    // The frame sink:
-    if (d_layer_tree_frame_sink) {
-        d_layer_tree_frame_sink->DetachFromClient();
-    }
-
-    d_display->Resize(d_size);
+    d_display->Resize(size);
     d_display->SetOutputIsSecure(true);
 
-    d_display->SetVisible(d_visible);
+    d_display->SetVisible(visible);
 
+    // The cc::LayerTreeFrameSink:
     d_layer_tree_frame_sink =
         std::make_unique<viz::DirectLayerTreeFrameSink>(
             d_frame_sink_id,
-            d_frame_sink_provider.d_host_frame_sink_manager.get(),
-            d_frame_sink_provider.d_frame_sink_manager.get(),
+            d_context.host_frame_sink_manager(),
+            d_context.frame_sink_manager(),
             d_display.get(), nullptr,
             context_provider,
             worker_context_provider,
             task_runner,
-            d_frame_sink_provider.d_gpu_memory_buffer_manager,
+            d_context.gpu_memory_buffer_manager(),
             false);
 
     d_layer_tree_frame_sink->BindToClient(this);
 }
 
-viz::LocalSurfaceId RenderCompositorImpl::GetLocalSurfaceId()
+RenderCompositorFrameSinkImpl::~RenderCompositorFrameSinkImpl()
 {
-    return d_local_surface_id_allocator->GetCurrentLocalSurfaceId();
+    d_context.host_frame_sink_manager()->InvalidateFrameSinkId(
+        d_frame_sink_id);
+
+    d_context.frame_sink_manager()->UnregisterBeginFrameSource(
+        d_begin_frame_source.get());
+
+    d_layer_tree_frame_sink->DetachFromClient();
 }
 
-void RenderCompositorImpl::SetVisible(bool visible)
+void RenderCompositorFrameSinkImpl::SetVisible(bool visible)
 {
-    d_visible = visible;
+    DCHECK(d_display);
 
-    if (d_display) {
-        d_display->SetVisible(d_visible);
-    }
+    d_display->SetVisible(visible);
 }
 
-void RenderCompositorImpl::Resize(const gfx::Size& size)
+void RenderCompositorFrameSinkImpl::Resize(gfx::Size size)
 {
-    if (d_size == size) {
-        return;
-    }
+    DCHECK(d_display);
 
-    d_size = size;
-
-    d_local_surface_id_allocator->GenerateId();
-
-    if (d_display) {
-        d_display->Resize(d_size);
-    }
+    d_display->Resize(size);
 }
 
-// viz::mojom::CompositorFrameSink overrides:
-void RenderCompositorImpl::SetNeedsBeginFrame(bool needs_begin_frame)
-{
-    d_client_needs_begin_frame = needs_begin_frame;
-    UpdateNeedsBeginFrameSource();
-}
-
-void RenderCompositorImpl::SetWantsAnimateOnlyBeginFrames()
-{
-    d_client_wants_animate_only_begin_frames = true;
-}
-
-void RenderCompositorImpl::SubmitCompositorFrame(
-    const viz::LocalSurfaceId& local_surface_id,
-    viz::CompositorFrame frame,
-    base::Optional<viz::HitTestRegionList> hit_test_region_list,
-    uint64_t submit_time)
-{
-    d_resources_to_reclaim = viz::TransferableResource::ReturnResources(frame.resource_list);
-
-    d_layer_tree_frame_sink->SubmitCompositorFrame(std::move(frame));
-}
-
-void RenderCompositorImpl::SubmitCompositorFrameSync(
-    const viz::LocalSurfaceId& local_surface_id,
-    viz::CompositorFrame frame,
-    base::Optional<viz::HitTestRegionList> hit_test_region_list,
-    uint64_t submit_time,
-    const SubmitCompositorFrameSyncCallback callback)
-{
-    NOTIMPLEMENTED();
-}
-
-void RenderCompositorImpl::DidNotProduceFrame(const viz::BeginFrameAck& ack)
-{
-    d_layer_tree_frame_sink->DidNotProduceFrame(ack);
-}
-
-void RenderCompositorImpl::DidAllocateSharedBitmap(
-    mojo::ScopedSharedBufferHandle buffer,
-    const viz::SharedBitmapId& id)
-{
-    d_layer_tree_frame_sink->DidAllocateSharedBitmap(std::move(buffer), id);
-}
-
-void RenderCompositorImpl::DidDeleteSharedBitmap(const viz::SharedBitmapId& id)
-{
-    d_layer_tree_frame_sink->DidDeleteSharedBitmap(id);
-}
-
-void RenderCompositorImpl::UpdateNeedsBeginFrameSource()
+void RenderCompositorFrameSinkImpl::UpdateNeedsBeginFrameSource()
 {
     if (!d_delegated_begin_frame_source) {
         return;
@@ -681,7 +826,7 @@ void RenderCompositorImpl::UpdateNeedsBeginFrameSource()
     }
 }
 
-void RenderCompositorImpl::UpdateVSyncParameters(base::TimeTicks timebase, base::TimeDelta interval)
+void RenderCompositorFrameSinkImpl::UpdateVSyncParameters(base::TimeTicks timebase, base::TimeDelta interval)
 {
     if (d_begin_frame_source) {
         d_begin_frame_source->OnUpdateVSyncParameters(timebase, interval);
@@ -690,8 +835,58 @@ void RenderCompositorImpl::UpdateVSyncParameters(base::TimeTicks timebase, base:
     d_vsync_manager->UpdateVSyncParameters(timebase, interval);
 }
 
+// viz::mojom::CompositorFrameSink overrides:
+void RenderCompositorFrameSinkImpl::SetNeedsBeginFrame(bool needs_begin_frame)
+{
+    d_client_needs_begin_frame = needs_begin_frame;
+    UpdateNeedsBeginFrameSource();
+}
+
+void RenderCompositorFrameSinkImpl::SetWantsAnimateOnlyBeginFrames()
+{
+    d_client_wants_animate_only_begin_frames = true;
+}
+
+void RenderCompositorFrameSinkImpl::SubmitCompositorFrame(
+    const viz::LocalSurfaceId& local_surface_id,
+    viz::CompositorFrame frame,
+    base::Optional<viz::HitTestRegionList> hit_test_region_list,
+    uint64_t submit_time)
+{
+    d_resources_to_reclaim = viz::TransferableResource::ReturnResources(frame.resource_list);
+
+    d_layer_tree_frame_sink->SubmitCompositorFrame(std::move(frame));
+}
+
+void RenderCompositorFrameSinkImpl::SubmitCompositorFrameSync(
+    const viz::LocalSurfaceId& local_surface_id,
+    viz::CompositorFrame frame,
+    base::Optional<viz::HitTestRegionList> hit_test_region_list,
+    uint64_t submit_time,
+    const SubmitCompositorFrameSyncCallback callback)
+{
+    NOTIMPLEMENTED();
+}
+
+void RenderCompositorFrameSinkImpl::DidNotProduceFrame(const viz::BeginFrameAck& ack)
+{
+    d_layer_tree_frame_sink->DidNotProduceFrame(ack);
+}
+
+void RenderCompositorFrameSinkImpl::DidAllocateSharedBitmap(
+    mojo::ScopedSharedBufferHandle buffer,
+    const viz::SharedBitmapId& id)
+{
+    d_layer_tree_frame_sink->DidAllocateSharedBitmap(std::move(buffer), id);
+}
+
+void RenderCompositorFrameSinkImpl::DidDeleteSharedBitmap(const viz::SharedBitmapId& id)
+{
+    d_layer_tree_frame_sink->DidDeleteSharedBitmap(id);
+}
+
 // cc::LayerTreeFrameSinkClient overrides:
-void RenderCompositorImpl::SetBeginFrameSource(viz::BeginFrameSource* source)
+void RenderCompositorFrameSinkImpl::SetBeginFrameSource(viz::BeginFrameSource* source)
 {
     if (d_delegated_begin_frame_source && d_added_frame_observer) {
         d_delegated_begin_frame_source->RemoveObserver(this);
@@ -703,11 +898,11 @@ void RenderCompositorImpl::SetBeginFrameSource(viz::BeginFrameSource* source)
     UpdateNeedsBeginFrameSource();
 }
 
-void RenderCompositorImpl::ReclaimResources(const std::vector<viz::ReturnedResource>& resources)
+void RenderCompositorFrameSinkImpl::ReclaimResources(const std::vector<viz::ReturnedResource>& resources)
 {
 }
 
-void RenderCompositorImpl::DidReceiveCompositorFrameAck()
+void RenderCompositorFrameSinkImpl::DidReceiveCompositorFrameAck()
 {
     if (d_client) {
         d_client->DidReceiveCompositorFrameAck(
@@ -715,7 +910,7 @@ void RenderCompositorImpl::DidReceiveCompositorFrameAck()
     }
 }
 
-void RenderCompositorImpl::DidPresentCompositorFrame(
+void RenderCompositorFrameSinkImpl::DidPresentCompositorFrame(
     uint32_t presentation_token,
     const gfx::PresentationFeedback& feedback)
 {
@@ -724,7 +919,7 @@ void RenderCompositorImpl::DidPresentCompositorFrame(
     }
 }
 
-void RenderCompositorImpl::OnBeginFrame(const viz::BeginFrameArgs& args)
+void RenderCompositorFrameSinkImpl::OnBeginFrame(const viz::BeginFrameArgs& args)
 {
     d_last_begin_frame_args = args;
 
@@ -733,41 +928,21 @@ void RenderCompositorImpl::OnBeginFrame(const viz::BeginFrameArgs& args)
     }
 }
 
-const viz::BeginFrameArgs& RenderCompositorImpl::LastUsedBeginFrameArgs() const
+const viz::BeginFrameArgs& RenderCompositorFrameSinkImpl::LastUsedBeginFrameArgs() const
 {
     return d_last_begin_frame_args;
 }
 
-void RenderCompositorImpl::OnBeginFrameSourcePausedChanged(bool paused)
+void RenderCompositorFrameSinkImpl::OnBeginFrameSourcePausedChanged(bool paused)
 {
     if (d_client) {
         d_client->OnBeginFramePausedChanged(paused);
     }
 }
 
-bool RenderCompositorImpl::WantsAnimateOnlyBeginFrames() const
+bool RenderCompositorFrameSinkImpl::WantsAnimateOnlyBeginFrames() const
 {
     return d_client_wants_animate_only_begin_frames;
-}
-
-//
-namespace {
-
-static base::LazyInstance<RenderFrameSinkProviderImpl>::DestructorAtExit
-    s_render_frame_sink_provider_instance = LAZY_INSTANCE_INITIALIZER;
-
-} // close namespace
-
-RenderFrameSinkProvider* RenderFrameSinkProvider::GetInstance()
-{
-    return s_render_frame_sink_provider_instance.Pointer();
-}
-
-void RenderFrameSinkProvider::Terminate()
-{
-    if (!s_render_frame_sink_provider_instance.IsCreated()) {
-        return;
-    }
 }
 
 } // close namespace blpwtk2

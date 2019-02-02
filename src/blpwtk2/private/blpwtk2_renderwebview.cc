@@ -183,7 +183,7 @@ RenderWebView::RenderWebView(ProfileImpl              *profile,
     d_inputRouterImpl->BindHost(
         std::move(widgetInputHandlerHostRequest), true);
 
-    d_compositor = RenderFrameSinkProvider::GetInstance()->CreateCompositor(
+    d_compositor = RenderCompositorFactory::GetInstance()->CreateCompositor(
         d_renderWidgetRoutingId, d_hwnd.get(), d_profile);
 
     updateVisibility();
@@ -790,7 +790,7 @@ void RenderWebView::finishNotifyRoutingId(int id)
     d_inputRouterImpl->BindHost(
         std::move(widgetInputHandlerHostRequest), true);
 
-    d_compositor = RenderFrameSinkProvider::GetInstance()->CreateCompositor(
+    d_compositor = RenderCompositorFactory::GetInstance()->CreateCompositor(
         d_renderWidgetRoutingId, d_hwnd.get(), d_profile);
 
     updateVisibility();
