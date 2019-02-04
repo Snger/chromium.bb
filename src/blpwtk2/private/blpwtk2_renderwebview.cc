@@ -37,6 +37,7 @@
 
 #include <base/message_loop/message_loop.h>
 #include <base/win/scoped_gdi_object.h>
+#include <cc/trees/layer_tree_host.h>
 #include <content/browser/renderer_host/display_util.h>
 #include <content/common/frame_messages.h>
 #include <content/common/drag_messages.h>
@@ -45,6 +46,7 @@
 #include <content/renderer/render_thread_impl.h>
 #include <content/renderer/render_view_impl.h>
 #include <content/renderer/render_widget.h>
+#include <content/renderer/gpu/layer_tree_view.h>
 #include <content/public/renderer/render_view.h>
 #include <third_party/blink/public/web/web_local_frame.h>
 #include <third_party/blink/public/web/web_view.h>
@@ -791,6 +793,11 @@ void RenderWebView::finishNotifyRoutingId(int id)
 
     d_compositor = RenderCompositorFactory::GetInstance()->CreateCompositor(
         d_renderWidgetRoutingId, d_hwnd.get(), d_profile);
+
+    rv->GetWidget()->
+        layer_tree_view()->SetVisible(false);
+    rv->GetWidget()->
+        layer_tree_view()->layer_tree_host()->ReleaseLayerTreeFrameSink();
 
     updateVisibility();
     updateSize();
