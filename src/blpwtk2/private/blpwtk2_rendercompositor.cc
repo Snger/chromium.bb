@@ -146,7 +146,7 @@ public:
     void RegisterCompositor(int32_t widget_id, gpu::SurfaceHandle gpu_surface_handle);
     void UnregisterCompositor(int32_t widget_id);
     void SetCompositorVisible(int32_t widget_id, bool visible);
-    void ResizeCompositor(int32_t widget_id, gfx::Size size);
+    void ResizeCompositor(int32_t widget_id, gfx::Size size, base::WaitableEvent *event);
 
     // content::mojom::FrameSinkProvider overrides:
     void CreateForWidget(
@@ -408,13 +408,20 @@ void RenderCompositor::Resize(const gfx::Size& size)
 
     d_local_surface_id_allocator->GenerateId();
 
+    base::WaitableEvent event(
+        base::WaitableEvent::ResetPolicy::AUTOMATIC,
+        base::WaitableEvent::InitialState::NOT_SIGNALED);
+
     d_compositor_task_runner->
         PostTask(
             FROM_HERE,
             base::BindOnce(&RenderFrameSinkProviderImpl::ResizeCompositor,
                 base::Unretained(d_factory.d_frame_sink_provider.get()),
                 d_widget_id,
-                d_size));
+                d_size,
+                &event));
+
+    event.Wait();
 }
 
 //
@@ -500,7 +507,7 @@ void RenderFrameSinkProviderImpl::SetCompositorVisible(int32_t widget_id, bool v
     }
 }
 
-void RenderFrameSinkProviderImpl::ResizeCompositor(int32_t widget_id, gfx::Size size)
+void RenderFrameSinkProviderImpl::ResizeCompositor(int32_t widget_id, gfx::Size size, base::WaitableEvent *event)
 {
     auto it = d_compositor_data.find(widget_id);
     DCHECK(it != d_compositor_data.end());
@@ -510,6 +517,8 @@ void RenderFrameSinkProviderImpl::ResizeCompositor(int32_t widget_id, gfx::Size 
     if (it->second.compositor_frame_sink_impl) {
         it->second.compositor_frame_sink_impl->Resize(it->second.size);
     }
+
+    event->Signal();
 }
 
 void RenderFrameSinkProviderImpl::CreateForWidget(
