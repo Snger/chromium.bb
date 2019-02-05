@@ -288,6 +288,11 @@ LRESULT RenderWebView::windowProcedure(UINT   uMsg,
 {
     switch (uMsg) {
     case WM_NCDESTROY: {
+        if (d_gotRenderViewInfo) {
+            content::RenderWidget::FromRoutingID(d_renderWidgetRoutingId)->
+                layer_tree_view()->SetVisible(false);
+        }
+
         if (d_compositor) {
             d_compositor->SetVisible(false);
         }
@@ -1041,6 +1046,10 @@ void RenderWebView::destroy()
 {
     DCHECK(Statics::isInApplicationMainThread());
     DCHECK(!d_pendingDestroy);
+
+    if (d_hwnd.is_valid()) {
+        d_hwnd.reset();
+    }
 
     if (d_proxy) {
         d_proxy->destroy();
