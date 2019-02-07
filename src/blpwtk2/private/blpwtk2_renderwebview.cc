@@ -25,6 +25,7 @@
 #include <blpwtk2_webviewclient.h>
 #include <blpwtk2_contextmenuparams.h>
 #include <blpwtk2_dragdrop.h>
+#include <blpwtk2_mainmessagepump.h>
 #include <blpwtk2_profileimpl.h>
 #include <blpwtk2_rendercompositor.h>
 #include <blpwtk2_rendermessagedelegate.h>
@@ -35,6 +36,7 @@
 #include <blpwtk2_blob.h>
 #include <blpwtk2_rendererutil.h>
 
+#include <base/run_loop.h>
 #include <base/message_loop/message_loop.h>
 #include <base/win/scoped_gdi_object.h>
 #include <cc/trees/layer_tree_host.h>
@@ -1900,7 +1902,7 @@ void RenderWebView::DragTargetEnter(
     int key_modifiers)
 {
     dispatchToRenderViewImpl(
-        DragMsg_TargetDragEnter(d_renderViewRoutingId,
+        DragMsg_TargetDragEnter(d_renderWidgetRoutingId,
             drag_data_metadata,
             client_pt, screen_pt,
             ops_allowed,
@@ -2160,8 +2162,30 @@ void RenderWebView::OnStartDragging(
     const gfx::Vector2d& bitmap_offset_in_dip,
     const content::DragEventSourceInfo& event_info)
 {
+    base::MessageLoop::current()->task_runner()->PostTask(
+        FROM_HERE,
+        base::Bind(&RenderWebView::OnStartDraggingImpl,
+            base::Unretained(this),
+            drop_data, operations_allowed, bitmap, bitmap_offset_in_dip, event_info));
+}
+
+void RenderWebView::OnStartDraggingImpl(
+    const content::DropData& drop_data,
+    blink::WebDragOperationsMask operations_allowed,
+    const SkBitmap& bitmap,
+    const gfx::Vector2d& bitmap_offset_in_dip,
+    const content::DragEventSourceInfo& event_info)
+{
+    MainMessagePump::ScopedModalLoopWorkAllower allow(
+            MainMessagePump::current());
+
+    base::RunLoop run_loop(base::RunLoop::Type::kNestableTasksAllowed);
+    run_loop.BeforeRun();
+
     d_dragDrop->StartDragging(
         drop_data, operations_allowed, bitmap, bitmap_offset_in_dip, event_info);
+
+    run_loop.AfterRun();
 }
 
 void RenderWebView::OnTextInputStateChanged(
