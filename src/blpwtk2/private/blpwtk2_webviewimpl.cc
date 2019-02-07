@@ -230,6 +230,7 @@ void WebViewImpl::overrideWebkitPrefs(content::WebPreferences *prefs)
     prefs->dom_paste_enabled = d_properties.domPasteEnabled;
     prefs->javascript_can_access_clipboard = d_properties.javascriptCanAccessClipboard;
     prefs->navigate_on_drag_drop = false;
+    prefs->allow_running_insecure_content = true;
 }
 
 void WebViewImpl::onRenderViewHostMadeCurrent(content::RenderViewHost *renderViewHost)
@@ -347,7 +348,7 @@ void WebViewImpl::activateKeyboardLayout(unsigned int hkl)
 {
     HKL currentKL = ::GetKeyboardLayout(0);
     if (is_english_langid(LANGID(hkl)) && !is_asian_langid(LANGID(currentKL))) {
-        // user might expecting any of the eropean keyboard layout, 
+        // user might expecting any of the eropean keyboard layout,
         // so keep current layout unchanged if it is not an asian IME.
         return;
     }
@@ -1058,7 +1059,7 @@ void WebViewImpl::OnWebContentsLostFocus(content::RenderWidgetHost*)
 
 void WebViewImpl::OnCompositorGpuErrorMessage(const std::string& message) {
   d_renderViewHost->GetMainFrame()->AddMessageToConsole(
-      content::CONSOLE_MESSAGE_LEVEL_ERROR, 
+      content::CONSOLE_MESSAGE_LEVEL_ERROR,
       "Gpu compositing error: " + message);
 }
 
