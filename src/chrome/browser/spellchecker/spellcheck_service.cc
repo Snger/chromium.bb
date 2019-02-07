@@ -326,8 +326,17 @@ void SpellcheckService::OnCustomWordsChanged(
   std::vector<std::string> deletions(words_removed_copy.begin(), words_removed_copy.end());
 
   while (!process_hosts.IsAtEnd()) {
+    content::RenderProcessHost* process = process_hosts.GetCurrentValue();
+    if (!process->IsInitializedAndNotDead())
+      continue;
+
+    service_manager::Identity renderer_identity = process->GetChildIdentity();
     spellcheck::mojom::SpellCheckerPtr spellchecker;
-    content::BindInterface(process_hosts.GetCurrentValue(), &spellchecker);
+    ChromeService::GetInstance()->connector()->BindInterface(
+        service_manager::Identity(chrome::mojom::kRendererServiceName,
+                                  renderer_identity.user_id(),
+                                  renderer_identity.instance()),
+        &spellchecker);
     spellchecker->CustomDictionaryChanged(additions, deletions);
     process_hosts.Advance();
   }
