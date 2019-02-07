@@ -464,6 +464,12 @@ class RenderWebView final : public WebView
         const SkBitmap& bitmap,
         const gfx::Vector2d& bitmap_offset_in_dip,
         const content::DragEventSourceInfo& event_info);
+    void OnStartDraggingImpl(
+        const content::DropData& drop_data,
+        blink::WebDragOperationsMask operations_allowed,
+        const SkBitmap& bitmap,
+        const gfx::Vector2d& bitmap_offset_in_dip,
+        const content::DragEventSourceInfo& event_info);
     void OnTextInputStateChanged(const content::TextInputState& params);
     void OnUnlockMouse();
     void OnUpdateDragCursor(
