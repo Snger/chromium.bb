@@ -99,7 +99,6 @@ bool g_is_preview_enabled = true;
 bool g_is_preview_enabled = false;
 #endif
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
 const char kPageLoadScriptFormat[] =
     "document.open(); document.write(%s); document.close();";
 
@@ -113,7 +112,6 @@ void ExecuteScript(blink::WebLocalFrame* frame,
   std::string script = base::StringPrintf(script_format, json.c_str());
   frame->ExecuteScript(blink::WebString::FromUTF8(script));
 }
-#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
 int GetDPI(const PrintMsg_Print_Params* print_params) {
 #if defined(OS_MACOSX)
@@ -593,7 +591,6 @@ double PrintRenderFrameHelper::GetScaleFactor(double input_scale_factor,
   return 1.0f;
 }
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
 // static - Not anonymous so that platform implementations can use it.
 void PrintRenderFrameHelper::PrintHeaderAndFooter(
     cc::PaintCanvas* canvas,
@@ -666,7 +663,6 @@ void PrintRenderFrameHelper::PrintHeaderAndFooter(
 
   web_view->Close();
 }
-#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
 // static - Not anonymous so that platform implementations can use it.
 float PrintRenderFrameHelper::RenderPageContent(blink::WebLocalFrame* frame,
@@ -2055,7 +2051,6 @@ void PrintRenderFrameHelper::PrintPageInternal(
 
   MetafileSkiaWrapper::SetMetafileOnCanvas(canvas, metafile);
 
-#if BUILDFLAG(ENABLE_PRINT_PREVIEW)
   if (params.display_header_footer) {
 #if defined(OS_WIN)
     const float fudge_factor = 1;
@@ -2069,7 +2064,6 @@ void PrintRenderFrameHelper::PrintPageInternal(
                          final_scale_factor / fudge_factor,
                          page_layout_in_points, params);
   }
-#endif  // BUILDFLAG(ENABLE_PRINT_PREVIEW)
 
   float webkit_scale_factor =
       RenderPageContent(frame, page_number, canvas_area, content_area,
