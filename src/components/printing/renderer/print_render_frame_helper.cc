@@ -655,7 +655,7 @@ void PrintRenderFrameHelper::PrintHeaderAndFooter(
   blink::WebWidgetClient web_widget_client;
   blink::WebFrameWidget::Create(&web_widget_client, frame);
 
-  base::Value html(base::UTF8ToUTF16(params.header_footer_html));
+  base::Value html(params.header_footer_html);
 
   // Load page with script to avoid async operations.
   ExecuteScript(frame, kPageLoadScriptFormat, html);
