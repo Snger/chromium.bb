@@ -811,6 +811,11 @@ GpuProcessHost::~GpuProcessHost() {
         message = "The GPU process failed to start!";
         break;
       default:
+        message = base::StringPrintf(
+            "The GPU process exited with code %d. Termination status is %d",
+            exit_code, status);
+        severity = (status == base::TERMINATION_STATUS_NORMAL_TERMINATION) ?
+                      (logging::LOG_INFO) : (logging::LOG_WARNING);
         break;
     }
   }
