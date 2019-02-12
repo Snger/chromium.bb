@@ -22,7 +22,7 @@ def parse_dumpbin_line(dumpbin_map, match):
     }
 
 def read_dumpbin_map(dumpbin_map, filename):
-  pattern = re.compile(
+  c_pattern = re.compile(
     '([0-9a-f]{4}:[0-9a-f]{8})' + # address
     ' +' +                        # [whitespace]
     '([0-9a-f]{8,16})' +          # RVA
@@ -35,10 +35,28 @@ def read_dumpbin_map(dumpbin_map, filename):
     '\\Z',                        # [end of string]
     re.IGNORECASE)
 
+  cpp_pattern = re.compile(
+    '([0-9a-f]{4}:[0-9a-f]{8})' + # address
+    ' +' +                        # [whitespace]
+    '([0-9a-f]{8,16})' +          # RVA
+    ' +' +                        # [whitespace]
+    '[0-9a-f]{8,16}' +            # (unknown)
+    ' +' +                        # [whitespace]
+    '[0-9]+'                      # size
+    ' +' +                        # [whitespace]
+    '[^ ]{2,}' +                  # mangled symbol
+    ' +' +                        # [whitespace]
+    '[(]([^)]+)[)]' +             # demangled symbol
+    '\\Z',                        # [end of string]
+    re.IGNORECASE)
+
   with open(filename, 'r') as fp:
     line = fp.readline()
     while line:
-      parse_dumpbin_line(dumpbin_map, pattern.match(line.strip()))
+      stripped_line = line.strip()
+      parse_dumpbin_line(
+          dumpbin_map,
+          c_pattern.match(stripped_line) or cpp_pattern.match(stripped_line))
       line = fp.readline()
 
 # The following three functions parse a llvm-style map file and extract only
@@ -73,7 +91,7 @@ def read_llvm_map(llvm_map, filename):
     '\\Z',                  # [end of string]
     re.IGNORECASE)
 
-  symbol_pattern = re.compile(
+  c_symbol_pattern = re.compile(
     '([0-9a-f]{8,16})' + # RVA
     ' +' +               # [whitespace]
     '[0-9a-f]{8,16}' +   # size
@@ -81,6 +99,19 @@ def read_llvm_map(llvm_map, filename):
     '[0-9]+'             # alignment
     ' {17}' +            # [whitespace]
     '([^ ]{2,})' +       # symbol
+    '\\Z',               # [end of string]
+    re.IGNORECASE)
+
+  cpp_symbol_pattern = re.compile(
+    '([0-9a-f]{8,16})' + # RVA
+    ' +' +               # [whitespace]
+    '[0-9a-f]{8,16}' +   # size
+    ' +' +               # [whitespace]
+    '[0-9]+'             # alignment
+    ' {17}' +            # [whitespace]
+    '["]([^"]+)["]' +    # demangled symbol
+    ' +' +               # [whitespace]
+    '[(][^ ]{2,}[)]' +   # mangled symbol
     '\\Z',               # [end of string]
     re.IGNORECASE)
 
@@ -96,7 +127,9 @@ def read_llvm_map(llvm_map, filename):
         last_object_name = object_name
       else:
         parse_llvm_symbol_line(
-            llvm_map, symbol_pattern.match(stripped_line), last_object_name)
+            llvm_map,
+            c_symbol_pattern.match(stripped_line) or cpp_symbol_pattern.match(stripped_line),
+            last_object_name)
 
       line = fp.readline()
 
