@@ -813,8 +813,8 @@ GpuProcessHost::~GpuProcessHost() {
       default:
         message = base::StringPrintf(
             "The GPU process exited with code %d. Termination status is %d",
-            exit_code, status);
-        severity = (status == base::TERMINATION_STATUS_NORMAL_TERMINATION) ?
+            info.exit_code, info.status);
+        severity = (info.status == base::TERMINATION_STATUS_NORMAL_TERMINATION) ?
                       (logging::LOG_INFO) : (logging::LOG_WARNING);
         break;
     }
