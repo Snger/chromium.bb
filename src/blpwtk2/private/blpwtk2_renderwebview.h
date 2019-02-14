@@ -72,6 +72,7 @@ struct DropData;
 struct InputEventAck;
 struct TextInputState;
 class InputRouterImpl;
+class RenderWidget;
 class WebCursor;
 }  // close namespace content
 
@@ -120,6 +121,8 @@ class RenderWebView final : public WebView
                           , private content::InputDispositionHandler
                           , private content::FlingControllerSchedulerClient
 {
+    class RenderViewObserver;
+
     // DATA
     WebView *d_proxy;
     WebViewDelegate *d_delegate;
@@ -197,6 +200,7 @@ class RenderWebView final : public WebView
 
     int d_renderViewRoutingId, d_renderWidgetRoutingId, d_mainFrameRoutingId;
     bool d_gotRenderViewInfo;
+    RenderViewObserver *d_renderViewObserver = nullptr;
 
     content::mojom::WidgetInputHandlerPtr d_widgetInputHandler;
 
@@ -214,6 +218,7 @@ class RenderWebView final : public WebView
 
     void initialize();
     void finishNotifyRoutingId(int id);
+    void detachFromRoutingId();
     bool dispatchToRenderViewImpl(const IPC::Message& message);
     void updateVisibility();
     void updateSize();

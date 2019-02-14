@@ -50,6 +50,7 @@
 #include <content/renderer/render_widget.h>
 #include <content/renderer/gpu/layer_tree_view.h>
 #include <content/public/renderer/render_view.h>
+#include <content/public/renderer/render_view_observer.h>
 #include <third_party/blink/public/web/web_local_frame.h>
 #include <third_party/blink/public/web/web_view.h>
 #include <ui/base/win/lock_state.h>
@@ -116,6 +117,37 @@ const double kWheelLatchingSlopRegion = 10.0;
 }
 
 namespace blpwtk2 {
+
+class RenderWebView::RenderViewObserver : public content::RenderViewObserver {
+    RenderWebView *d_renderWebView;
+
+  public:
+
+    RenderViewObserver(content::RenderViewImpl *rv, RenderWebView *renderWebView);
+    ~RenderViewObserver() override;
+
+    void OnDestruct() override;
+};
+
+RenderWebView::RenderViewObserver::RenderViewObserver(
+    content::RenderViewImpl *rv, RenderWebView *renderWebView)
+: content::RenderViewObserver(rv)
+, d_renderWebView(renderWebView)
+{
+    d_renderWebView->d_renderViewObserver = this;
+}
+
+RenderWebView::RenderViewObserver::~RenderViewObserver()
+{
+    d_renderWebView->detachFromRoutingId();
+    d_renderWebView->d_renderViewObserver = nullptr;
+}
+
+void RenderWebView::RenderViewObserver::OnDestruct()
+{
+    LOG(INFO) << "Destroyed RenderView, routingId=" << routing_id();
+    delete this;
+}
 
                         // -------------------
                         // class RenderWebView
@@ -212,26 +244,13 @@ RenderWebView::~RenderWebView()
 {
     LOG(INFO) << "Destroying RenderWebView, routingId=" << d_renderViewRoutingId;
 
-    if (d_gotRenderViewInfo) {
-        d_compositor.reset();
-
-        if (d_mainFrameRoutingId != 0) {
-            RenderMessageDelegate::GetInstance()->RemoveRoute(
-                d_mainFrameRoutingId);
-            d_mainFrameRoutingId = 0;
-        }
-
+    if (d_renderViewObserver) {
+        delete d_renderViewObserver;
+    }
+    // The following case occurs when RenderWebView was created for a popup:
+    else if (d_renderWidgetRoutingId && !d_renderViewRoutingId && !d_mainFrameRoutingId) {
         RenderMessageDelegate::GetInstance()->RemoveRoute(
             d_renderWidgetRoutingId);
-        d_renderWidgetRoutingId = 0;
-
-        if (d_renderViewRoutingId != 0) {
-            RenderMessageDelegate::GetInstance()->RemoveRoute(
-                d_renderViewRoutingId);
-            d_renderViewRoutingId = 0;
-        }
-
-        d_gotRenderViewInfo = false;
     }
 }
 
@@ -773,6 +792,7 @@ void RenderWebView::finishNotifyRoutingId(int id)
         return;
     }
 
+    //
     d_gotRenderViewInfo = true;
 
     d_renderViewRoutingId = id;
@@ -788,6 +808,8 @@ void RenderWebView::finishNotifyRoutingId(int id)
         d_renderWidgetRoutingId, this);
     RenderMessageDelegate::GetInstance()->AddRoute(
         d_mainFrameRoutingId, this);
+
+    d_renderViewObserver = new RenderViewObserver(rv, this);
 
     content::mojom::WidgetInputHandlerHostPtr input_handler_host_ptr;
     auto widgetInputHandlerHostRequest = mojo::MakeRequest(&input_handler_host_ptr);
@@ -812,6 +834,25 @@ void RenderWebView::finishNotifyRoutingId(int id)
 #if defined(BLPWTK2_FEATURE_RUBBERBAND)
     updateAltDragRubberBanding();
 #endif
+}
+
+void RenderWebView::detachFromRoutingId()
+{
+    d_compositor.reset();
+
+    RenderMessageDelegate::GetInstance()->RemoveRoute(
+        d_mainFrameRoutingId);
+    d_mainFrameRoutingId = 0;
+
+    RenderMessageDelegate::GetInstance()->RemoveRoute(
+        d_renderWidgetRoutingId);
+    d_renderWidgetRoutingId = 0;
+
+    RenderMessageDelegate::GetInstance()->RemoveRoute(
+        d_renderViewRoutingId);
+    d_renderViewRoutingId = 0;
+
+    d_gotRenderViewInfo = false;
 }
 
 bool RenderWebView::dispatchToRenderViewImpl(const IPC::Message& message)
