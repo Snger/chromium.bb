@@ -237,7 +237,7 @@ static void SetShouldInvalidateSelection(
 
   // blpwtk2: Include the fully-selected table cells.
   for (LayoutObject* layout_object : new_range.selected_objects) {
-    if (old_selected_objects.selected_map.Contains(layout_object) &&
+    if (old_selected_objects.selected_map.Contains(layout_object)) &&
         !(layout_object->IsTableCell() &&
           ToLayoutTableCell(layout_object)->IsFullySelected())) {
       continue;

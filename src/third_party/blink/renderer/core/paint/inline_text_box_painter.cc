@@ -711,7 +711,7 @@ LayoutRect InlineTextBoxPainter::GetSelectionRect(
   LayoutBlock* cb = inline_text_box_.containingBlock();
   while (cb) {
     if (cb->IsTableCell() && ToLayoutTableCell(cb)->IsFullySelected())
-      return LayoutRect();
+      return;
     cb = cb->ContainingBlock();
   }
 
