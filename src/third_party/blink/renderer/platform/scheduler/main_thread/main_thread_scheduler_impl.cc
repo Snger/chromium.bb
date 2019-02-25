@@ -2651,8 +2651,8 @@ void MainThreadSchedulerImpl::OnExitNestedRunLoop() {
   queueing_time_estimator_.OnExecutionStarted(
       real_time_domain()->Now(),
       main_thread_only().running_queues.empty()
-          : nullptr
-          ? main_thread_only().running_queues.top().get());
+          ? nullptr
+          : main_thread_only().running_queues.top().get());
   main_thread_only().nested_runloop = false;
   ApplyVirtualTimePolicy();
 }
