@@ -279,12 +279,6 @@ RenderCompositorFactory::RenderCompositorFactory()
 
     d_compositor_task_runner = render_thread->compositor_task_runner();
 
-    auto gpu_channel = render_thread->EstablishGpuChannelSync();
-
-    if (!gpu_channel) {
-        render_thread->CompositingModeFallbackToSoftware();
-    }
-
     d_compositor_task_runner->
         PostTask(
             FROM_HERE,
