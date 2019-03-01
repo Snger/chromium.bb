@@ -1230,6 +1230,15 @@ void BrowserMainLoop::GetCompositingModeReporter(
 #endif
 }
 
+void BrowserMainLoop::SetUsingSoftwareCompositing()
+{
+  BrowserThread::PostTask(
+    BrowserThread::UI, FROM_HERE,
+    base::BindOnce(
+      &viz::CompositingModeReporterImpl::SetUsingSoftwareCompositing,
+      base::Unretained(compositing_mode_reporter_impl_.get())));
+}
+
 void BrowserMainLoop::StopStartupTracingTimer() {
   startup_trace_timer_.Stop();
 }
