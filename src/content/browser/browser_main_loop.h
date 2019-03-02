@@ -230,6 +230,8 @@ class CONTENT_EXPORT BrowserMainLoop {
 
   BrowserMainParts* parts() { return parts_.get(); }
 
+  void SetUsingSoftwareCompositing();
+
  private:
   FRIEND_TEST_ALL_PREFIXES(BrowserMainLoopTest, CreateThreadsInSingleProcess);
 
