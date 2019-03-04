@@ -7,7 +7,6 @@
 #include <utility>
 
 #include "components/viz/host/gpu_host_impl.h"
-#include "content/browser/browser_main_loop.h"
 #include "content/browser/gpu/gpu_memory_buffer_manager_singleton.h"
 #include "content/browser/gpu/gpu_process_host.h"
 #include "gpu/config/gpu_feature_info.h"
@@ -25,9 +24,6 @@ void OnEstablishGpuChannel(
     viz::GpuHostImpl::EstablishChannelStatus status) {
   if (!callback)
     return;
-
-  if (status != viz::GpuHostImpl::EstablishChannelStatus::kSuccess)
-    BrowserMainLoop::GetInstance()->SetUsingSoftwareCompositing();
 
   viz::GpuClientDelegate::EstablishGpuChannelStatus delegate_status;
   switch (status) {
