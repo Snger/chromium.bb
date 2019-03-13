@@ -242,6 +242,8 @@ base::LazyInstance<base::ThreadLocalPointer<RenderThreadImpl>>::DestructorAtExit
 base::LazyInstance<scoped_refptr<base::SingleThreadTaskRunner>>::
     DestructorAtExit g_main_task_runner = LAZY_INSTANCE_INITIALIZER;
 
+int g_max_num_gpu_channel_attempts = 1;
+
 // v8::MemoryPressureLevel should correspond to base::MemoryPressureListener.
 static_assert(static_cast<v8::MemoryPressureLevel>(
     base::MemoryPressureListener::MEMORY_PRESSURE_LEVEL_NONE) ==
@@ -726,6 +728,7 @@ RenderThreadImpl::RenderThreadImpl(
       client_id_(1),
       compositing_mode_watcher_binding_(this),
       exit_process_gracefully_(params.exit_process_gracefully()),
+      num_gpu_channel_attempts_(0),
       weak_factory_(this) {
   TRACE_EVENT0("startup", "RenderThreadImpl::Create");
   Init();
@@ -745,6 +748,7 @@ RenderThreadImpl::RenderThreadImpl(
       renderer_binding_(this),
       compositing_mode_watcher_binding_(this),
       exit_process_gracefully_(false),
+      num_gpu_channel_attempts_(0),
       weak_factory_(this) {
   TRACE_EVENT0("startup", "RenderThreadImpl::Create");
   DCHECK(base::CommandLine::ForCurrentProcess()->HasSwitch(
@@ -1983,6 +1987,10 @@ void RenderThreadImpl::RecordPurgeAndSuspendMemoryGrowthMetrics(
 }
 
 void RenderThreadImpl::CompositingModeFallbackToSoftware() {
+  if (is_gpu_compositing_disabled_)
+    return;
+
+  LOG(INFO) << "CompositingModeFallbackToSoftware()";
   gpu_->LoseChannel();
   is_gpu_compositing_disabled_ = true;
 }
@@ -1992,8 +2000,15 @@ scoped_refptr<gpu::GpuChannelHost> RenderThreadImpl::EstablishGpuChannelSync() {
 
   scoped_refptr<gpu::GpuChannelHost> gpu_channel =
       gpu_->EstablishGpuChannelSync();
-  if (gpu_channel)
+  if (gpu_channel) {
     GetContentClient()->SetGpuInfo(gpu_channel->gpu_info());
+    num_gpu_channel_attempts_ = 0;
+  }
+  else if (!is_gpu_compositing_disabled_) {
+    if (++num_gpu_channel_attempts_ >= g_max_num_gpu_channel_attempts) {
+      CompositingModeFallbackToSoftware();
+    }
+  }
   return gpu_channel;
 }
 

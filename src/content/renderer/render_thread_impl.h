@@ -791,6 +791,8 @@ class CONTENT_EXPORT RenderThreadImpl
 
   bool exit_process_gracefully_;
 
+  int num_gpu_channel_attempts_;
+
   base::WeakPtrFactory<RenderThreadImpl> weak_factory_;
 
   DISALLOW_COPY_AND_ASSIGN(RenderThreadImpl);
